@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# next.js
+.next/
+out/
+
+# env files
+.env
+.env.local
+.env.*.local
+
+# vercel
+.vercel
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# debug
+npm-debug.log*
+pnpm-debug.log*
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# test coverage
+coverage/
+
+# playwright
+playwright-report/
+test-results/
+
+# claude
+.claude/

@@ -1,0 +1,109 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { ProjectRepository } from '@/repositories/projectRepository';
+import { CatalogRepository } from '@/repositories/catalogRepository';
+import { CodeRepository } from '@/repositories/codeRepository';
+import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
+import { buildSystemPrompt, buildUserPrompt } from '@/lib/ai/promptBuilder';
+import { parseGeneratedCode } from '@/lib/ai/codeParser';
+import { validateAll } from '@/lib/ai/codeValidator';
+import { eventBus } from '@/lib/events/eventBus';
+import { getLimits } from '@/lib/config/features';
+import { RateLimitError, NotFoundError } from '@/lib/utils/errors';
+import { logger } from '@/lib/utils/logger';
+import type { GeneratedCode } from '@/types/project';
+
+export class GenerationService {
+  private projectRepo: ProjectRepository;
+  private catalogRepo: CatalogRepository;
+  private codeRepo: CodeRepository;
+
+  constructor(supabase: SupabaseClient) {
+    this.projectRepo = new ProjectRepository(supabase);
+    this.catalogRepo = new CatalogRepository(supabase);
+    this.codeRepo = new CodeRepository(supabase);
+  }
+
+  async checkDailyLimit(userId: string): Promise<void> {
+    const todayCount = await this.projectRepo.countTodayGenerations(userId);
+    const limits = getLimits();
+    if (todayCount >= limits.maxDailyGenerations) {
+      throw new RateLimitError(
+        `일일 생성 한도(${limits.maxDailyGenerations}회)를 초과했습니다.`
+      );
+    }
+  }
+
+  async generate(
+    projectId: string,
+    userId: string,
+    onProgress?: (progress: number, message: string) => void
+  ): Promise<GeneratedCode> {
+    const project = await this.projectRepo.findById(projectId);
+    if (!project || project.userId !== userId) {
+      throw new NotFoundError('프로젝트', projectId);
+    }
+
+    // Get APIs
+    const apiIds = await this.projectRepo.getProjectApiIds(projectId);
+    const apis = await this.catalogRepo.findByIds(apiIds);
+
+    onProgress?.(10, 'API 분석 중...');
+
+    // Build prompt and generate
+    const systemPrompt = buildSystemPrompt();
+    const userPrompt = buildUserPrompt(apis, project.context);
+
+    onProgress?.(30, '코드 생성 중...');
+
+    const provider = AiProviderFactory.create();
+    const response = await provider.generateCode({
+      system: systemPrompt,
+      user: userPrompt,
+    });
+
+    onProgress?.(70, '디자인 적용 중...');
+
+    const parsed = parseGeneratedCode(response.content);
+
+    onProgress?.(90, '코드 검증 중...');
+
+    const validation = validateAll(parsed.html, parsed.css, parsed.js);
+    const nextVersion = await this.codeRepo.getNextVersion(projectId);
+
+    const code = await this.codeRepo.create({
+      projectId,
+      version: nextVersion,
+      codeHtml: parsed.html,
+      codeCss: parsed.css,
+      codeJs: parsed.js,
+      framework: 'vanilla',
+      aiProvider: response.provider,
+      aiModel: response.model,
+      aiPromptUsed: userPrompt,
+      generationTimeMs: response.durationMs,
+      tokenUsage: response.tokensUsed,
+      dependencies: [],
+      metadata: {
+        securityCheckPassed: validation.passed,
+        validationErrors: [...validation.errors, ...validation.warnings],
+      },
+    } as Omit<GeneratedCode, 'id' | 'createdAt'>);
+
+    // Update project status
+    await this.projectRepo.update(projectId, { status: 'generated' } as Partial<typeof project>);
+
+    eventBus.emit({
+      type: 'CODE_GENERATED',
+      payload: {
+        projectId,
+        version: nextVersion,
+        provider: response.provider,
+        durationMs: response.durationMs,
+      },
+    });
+
+    logger.info('Code generated', { projectId, version: nextVersion, provider: response.provider });
+
+    return code;
+  }
+}

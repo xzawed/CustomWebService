@@ -1,0 +1,61 @@
+name: Scheduled API Health Check
+
+on:
+  schedule:
+    # Daily at 21:00 UTC (06:00 KST next day)
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+
+jobs:
+  api-health-check:
+    name: API Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check API endpoints
+        run: |
+          FAILED=0
+          TOTAL=0
+          RESULTS=""
+
+          check_api() {
+            local name="$1"
+            local url="$2"
+            TOTAL=$((TOTAL + 1))
+
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$url" 2>/dev/null)
+
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
+              RESULTS="${RESULTS}  ✅ ${name}: HTTP ${HTTP_CODE}\n"
+            else
+              RESULTS="${RESULTS}  ❌ ${name}: HTTP ${HTTP_CODE}\n"
+              FAILED=$((FAILED + 1))
+            fi
+          }
+
+          echo "========================================"
+          echo "  API Health Check Report"
+          echo "  $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "========================================"
+          echo ""
+
+          check_api "Open-Meteo" "https://api.open-meteo.com/v1/forecast?latitude=37.57&longitude=126.98&current_weather=true"
+          check_api "Frankfurter" "https://api.frankfurter.app/latest?from=USD&to=KRW"
+          check_api "REST Countries" "https://restcountries.com/v3.1/alpha/KR"
+          check_api "PokeAPI" "https://pokeapi.co/api/v2/pokemon/1"
+          check_api "JokeAPI" "https://v2.jokeapi.dev/joke/Programming?type=single"
+          check_api "Dictionary API" "https://api.dictionaryapi.dev/api/v2/entries/en/hello"
+          check_api "Hacker News" "https://hacker-news.firebaseio.com/v0/topstories.json?limitToFirst=1&orderBy=%22%24key%22"
+          check_api "Open Notify" "http://api.open-notify.org/astros.json"
+
+          echo "Results:"
+          echo -e "$RESULTS"
+          echo ""
+          echo "========================================"
+          echo "  Total: ${TOTAL} | Passed: $((TOTAL - FAILED)) | Failed: ${FAILED}"
+          echo "========================================"
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo ""
+            echo "::warning::${FAILED} API(s) failed health check"
+            exit 1
+          fi

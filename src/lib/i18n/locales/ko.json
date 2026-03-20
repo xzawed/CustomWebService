@@ -1,0 +1,64 @@
+{
+  "common": {
+    "loading": "로딩 중...",
+    "error": "오류가 발생했습니다.",
+    "retry": "다시 시도",
+    "cancel": "취소",
+    "confirm": "확인",
+    "save": "저장",
+    "delete": "삭제",
+    "edit": "수정",
+    "back": "이전",
+    "next": "다음",
+    "close": "닫기"
+  },
+  "auth": {
+    "login": "로그인",
+    "logout": "로그아웃",
+    "loginWith": "{provider}로 로그인",
+    "loginTitle": "CustomWebService에 로그인",
+    "loginSubtitle": "소셜 계정으로 간편하게 시작하세요",
+    "processing": "로그인 처리 중..."
+  },
+  "catalog": {
+    "title": "API 카탈로그",
+    "subtitle": "30+ 무료 API를 탐색하세요",
+    "searchPlaceholder": "API 이름, 설명, 태그로 검색...",
+    "noResults": "검색 결과가 없습니다.",
+    "allCategories": "전체",
+    "rateLimit": "호출 제한",
+    "authType": "인증 방식",
+    "authNone": "인증 불필요",
+    "authApiKey": "API Key",
+    "authOAuth": "OAuth"
+  },
+  "builder": {
+    "step1Title": "사용할 API를 선택하세요",
+    "step1Subtitle": "최대 {max}개의 API를 선택할 수 있습니다.",
+    "step2Title": "어떤 서비스를 만들고 싶으세요?",
+    "step3Title": "서비스 생성",
+    "selectedApis": "선택된 API ({count}/{max})",
+    "clearAll": "전체 해제",
+    "contextPlaceholder": "만들고 싶은 서비스를 자유롭게 설명해주세요...",
+    "contextMinWarning": "최소 {min}자 이상 입력해주세요. (현재 {current}자)",
+    "guideTitle": "가이드 질문을 참고하세요",
+    "readyTitle": "준비 완료!",
+    "readyDescription": "선택한 {count}개의 API와 입력한 설명을 바탕으로 웹서비스를 자동 생성합니다.",
+    "generate": "생성하기",
+    "generating": "처리 중...",
+    "completeTitle": "생성 완료!",
+    "completeDescription": "웹서비스가 성공적으로 생성되었습니다.",
+    "failedTitle": "생성 실패",
+    "goToDashboard": "대시보드에서 확인하기"
+  },
+  "dashboard": {
+    "title": "내 서비스",
+    "newService": "+ 새 서비스 만들기",
+    "emptyTitle": "아직 만든 서비스가 없어요",
+    "emptyDescription": "API를 골라 담고 나만의 웹서비스를 만들어보세요.",
+    "emptyAction": "서비스 만들러 가기",
+    "detail": "상세 보기",
+    "preview": "미리보기",
+    "created": "생성"
+  }
+}
