@@ -2,8 +2,8 @@
 
 ## Base URL
 ```
-개발: http://localhost:3000/api
-프로덕션: https://customwebservice.vercel.app/api
+개발: http://localhost:3000/api/v1
+프로덕션: https://<railway-domain>/api/v1
 ```
 
 ## 공통 응답 형식
@@ -29,7 +29,7 @@
 
 ## 1. API 카탈로그 (Catalog)
 
-### GET /api/catalog
+### GET /api/v1/catalog
 API 카탈로그 전체 조회
 
 **Query Parameters:**
@@ -68,10 +68,10 @@ API 카탈로그 전체 조회
 }
 ```
 
-### GET /api/catalog/:id
+### GET /api/v1/catalog/:id
 특정 API 상세 조회
 
-### GET /api/catalog/categories
+### GET /api/v1/catalog/categories
 카테고리 목록 조회
 
 **Response:**
@@ -90,7 +90,7 @@ API 카탈로그 전체 조회
 
 ## 2. 프로젝트 (Projects)
 
-### POST /api/projects
+### POST /api/v1/projects
 새 프로젝트 생성
 
 **Request Body:**
@@ -116,20 +116,20 @@ API 카탈로그 전체 조회
 }
 ```
 
-### GET /api/projects
+### GET /api/v1/projects
 내 프로젝트 목록 조회
 
-### GET /api/projects/:id
+### GET /api/v1/projects/:id
 프로젝트 상세 조회
 
-### DELETE /api/projects/:id
+### DELETE /api/v1/projects/:id
 프로젝트 삭제
 
 ---
 
 ## 3. 코드 생성 (Generate)
 
-### POST /api/generate
+### POST /api/v1/generate
 웹서비스 코드 생성 요청
 
 **Request Body:**
@@ -157,7 +157,7 @@ event: complete
 data: {"projectId": "uuid", "version": 1, "previewUrl": "/preview/uuid"}
 ```
 
-### POST /api/generate/regenerate
+### POST /api/v1/generate/regenerate
 코드 재생성 (수정 요청)
 
 **Request Body:**
@@ -172,7 +172,7 @@ data: {"projectId": "uuid", "version": 1, "previewUrl": "/preview/uuid"}
 
 ## 4. 미리보기 (Preview)
 
-### GET /api/preview/:projectId
+### GET /api/v1/preview/:projectId
 생성된 코드 미리보기용 HTML 반환
 
 **Query Parameters:**
@@ -184,14 +184,14 @@ data: {"projectId": "uuid", "version": 1, "previewUrl": "/preview/uuid"}
 
 ## 5. 배포 (Deploy)
 
-### POST /api/deploy
+### POST /api/v1/deploy
 생성된 서비스 배포
 
 **Request Body:**
 ```json
 {
     "projectId": "project-uuid",
-    "platform": "vercel",
+    "platform": "railway",
     "version": 1
 }
 ```
@@ -208,10 +208,10 @@ event: progress
 data: {"step": "deploying", "message": "배포 중..."}
 
 event: complete
-data: {"deployUrl": "https://my-service-abc.vercel.app", "repoUrl": "https://github.com/..."}
+data: {"deployUrl": "https://svc-abc12345.up.railway.app", "repoUrl": "https://github.com/..."}
 ```
 
-### GET /api/deploy/:projectId/status
+### GET /api/v1/deploy/:projectId/status
 배포 상태 조회
 
 **Response:**
@@ -220,8 +220,8 @@ data: {"deployUrl": "https://my-service-abc.vercel.app", "repoUrl": "https://git
     "success": true,
     "data": {
         "status": "deployed",
-        "deployUrl": "https://my-service-abc.vercel.app",
-        "platform": "vercel",
+        "deployUrl": "https://svc-abc12345.up.railway.app",
+        "platform": "railway",
         "lastDeployed": "2026-03-20T12:00:00Z"
     }
 }
