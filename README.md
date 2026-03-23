@@ -2,6 +2,13 @@
 
 무료 API를 골라 담고, 원하는 서비스를 설명하면 AI가 웹서비스를 자동 생성하고 배포까지 완료하는 올인원 플랫폼
 
+## 운영 URL
+
+| 환경 | URL |
+|------|-----|
+| Production | https://customwebservice-production.up.railway.app |
+| Local | http://localhost:3000 |
+
 ## 주요 기능
 
 | 기능 | 설명 |
