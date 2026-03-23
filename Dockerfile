@@ -20,7 +20,7 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
-RUN pnpm build
+RUN mkdir -p /app/public && pnpm build
 
 # ── Stage 3: Production runner ──
 FROM node:20-alpine AS runner
