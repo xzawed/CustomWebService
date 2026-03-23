@@ -796,7 +796,7 @@ export default defineConfig({
                        ▼
 ┌──────────────────────────────────────────────────────┐
 │  Production 환경 (main 브랜치)                         │
-│  URL: customwebservice.up.railway.app                │
+│  URL: customwebservice-production.up.railway.app     │
 │  트리거: main 브랜치 push                              │
 │  CI: 전체 + Semantic Release + DB Migration            │
 │  Railway: 프로덕션 자동 배포                            │
@@ -949,7 +949,7 @@ Repository → Settings → Secrets and variables → Actions
 │                                                                │
 ├─── Variables (비민감 설정) ─────────────────────────────────────┤
 │                                                                │
-│  PRODUCTION_URL                  https://customwebservice.up.railway.app │
+│  PRODUCTION_URL                  https://customwebservice-production.up.railway.app │
 │  GITHUB_ORG                      customwebservice-apps          │
 │                                                                │
 └────────────────────────────────────────────────────────────────┘
