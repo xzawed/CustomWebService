@@ -187,7 +187,18 @@ src/
 │   ├── organization.ts           # Organization, Membership, User
 │   └── events.ts                 # DomainEvent (9종)
 │
-└── middleware.ts                  # Next.js 미들웨어 (인증 + 보안 헤더)
+├── middleware.ts                  # Next.js 미들웨어 (인증 + 보안 헤더)
+│
+├── __tests__/                     # 통합 테스트
+│   └── api/
+│       ├── health.test.ts         # /api/v1/health 통합 테스트
+│       └── projects.test.ts       # /api/v1/projects 통합 테스트
+│
+└── test/                          # 테스트 유틸리티
+    ├── setup.ts                   # MSW 서버 초기화
+    └── mocks/
+        ├── server.ts              # MSW Node 서버
+        └── handlers.ts            # xAI API 모의 핸들러
 
 supabase/
 ├── migrations/001_initial_schema.sql  # 10개 테이블 + RLS
@@ -200,7 +211,7 @@ supabase/
 └── PULL_REQUEST_TEMPLATE.md      # PR 템플릿
 ```
 
-**총 92개 소스 파일** (TypeScript/TSX)
+**총 92개 소스 파일** (TypeScript/TSX) + **10개 테스트 파일 (94개 테스트)**
 
 ## 시작하기
 
@@ -288,6 +299,11 @@ http://localhost:3000 접속
 | `pnpm type-check` | TypeScript 타입 검사 |
 | `pnpm format` | Prettier 포맷팅 |
 | `pnpm format:check` | 포맷 검사 |
+| `pnpm test` | 단위 + 통합 테스트 실행 (94개) |
+| `pnpm test:watch` | 테스트 감시 모드 |
+| `pnpm test:unit` | lib, providers 단위 테스트만 |
+| `pnpm test:integration` | API 라우트 통합 테스트만 |
+| `pnpm test:coverage` | 커버리지 리포트 생성 |
 
 ## API 엔드포인트
 
@@ -374,13 +390,34 @@ eventBus.on('DEPLOYMENT_COMPLETED', (e) => slackNotify(e));
 - 검색어 SQL 인젝션 방어 (특수문자 이스케이프)
 - SSE 스트림 안전한 종료 (cancel/abort 처리)
 
+## 테스트
+
+**Vitest 2.x** 기반 단위 + 통합 테스트 94개 (10개 파일)
+
+| 대상 | 파일 | 테스트 수 |
+|------|------|----------|
+| `lib/ai` (codeParser, codeValidator, promptBuilder) | `src/lib/ai/*.test.ts` | 30 |
+| `lib/utils` (errors, handleApiError) | `src/lib/utils/errors.test.ts` | 15 |
+| `services` (projectService, generationService) | `src/services/*.test.ts` | 19 |
+| `providers` (GrokProvider, AiProviderFactory) | `src/providers/ai/*.test.ts` | 20 |
+| API 통합 (`/health`, `/projects`) | `src/__tests__/api/*.test.ts` | 10 |
+
+```bash
+pnpm test          # 전체 실행
+pnpm test:coverage # 커버리지 포함
+```
+
+테스트 환경: Node (서버사이드 중심), MSW로 xAI API 모킹
+
 ## CI/CD
 
 | 워크플로우 | 트리거 | 내용 |
 |-----------|--------|------|
-| `ci.yml` | PR / Push (develop, main) | Lint → TypeScript 검사 → Build → Deploy |
+| `ci.yml` | PR / Push (develop, main) | Lint → TypeCheck → **Test** → Build → Deploy |
 | `scheduled.yml` | 매일 06:00 KST | 무료 API 상태 점검 |
 | `dependabot.yml` | 매주 월요일 | 의존성 보안 업데이트 |
+
+> **테스트가 실패하면 빌드 및 배포가 차단됩니다.**
 
 ## 라이선스
 

@@ -250,10 +250,14 @@ Supabase Auth 사용 - 별도 API 구현 불필요
 | AUTH_REQUIRED | 401 | 인증 필요 |
 | FORBIDDEN | 403 | 권한 없음 |
 | NOT_FOUND | 404 | 리소스 없음 |
-| INVALID_INPUT | 400 | 입력값 오류 |
+| INVALID_INPUT | 400 | 입력값 오류 (Zod 스키마 검증 실패 포함) |
 | CONTEXT_TOO_SHORT | 400 | 컨텍스트 50자 미만 |
 | CONTEXT_TOO_LONG | 400 | 컨텍스트 2000자 초과 |
 | MAX_APIS_EXCEEDED | 400 | API 최대 선택 수 초과 |
 | GENERATION_FAILED | 500 | 코드 생성 실패 |
 | DEPLOY_FAILED | 500 | 배포 실패 |
 | RATE_LIMITED | 429 | 요청 횟수 초과 |
+| INTERNAL_ERROR | 500 | 처리되지 않은 서버 오류 |
+
+> **참고**: Zod 스키마 검증 실패(`ZodError`)는 `INVALID_INPUT` 코드로 400 응답을 반환합니다.
+> `handleApiError()` 유틸리티가 `AppError`, `ZodError`, 일반 `Error` 모두를 표준 형식으로 변환합니다.

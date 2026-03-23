@@ -2,6 +2,10 @@
 
 > 코드 커밋부터 프로덕션 배포, 모니터링, 롤백까지 전 과정을 자동화하는 설계 문서
 > 모든 도구는 무료 플랜 내에서 운영
+>
+> **구현 상태** (2026-03-24 기준)
+> - ✅ **구현 완료**: CI 파이프라인 (lint → typecheck → test → build → deploy), 단위/통합 테스트 94개, Railway 배포, 스케줄 API 점검
+> - 📋 **계획 중**: Husky, E2E(Playwright), Semantic Release, Lighthouse CI, DB 마이그레이션 자동화
 
 ---
 
