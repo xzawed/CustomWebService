@@ -68,6 +68,14 @@ export function handleApiError(error: unknown): Response {
     );
   }
 
+  // ZodError → 400 Bad Request
+  if (error instanceof Error && error.name === 'ZodError') {
+    return Response.json(
+      { success: false, error: { code: 'INVALID_INPUT', message: '입력값이 올바르지 않습니다.' } },
+      { status: 400 }
+    );
+  }
+
   // Structured logging - never expose internals to client
   logger.error('Unhandled API error', {
     message: error instanceof Error ? error.message : 'Unknown error',
