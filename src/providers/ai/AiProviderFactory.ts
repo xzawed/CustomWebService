@@ -1,13 +1,13 @@
 import type { IAiProvider } from './IAiProvider';
-import { GeminiProvider } from './GeminiProvider';
+import { GrokProvider } from './GrokProvider';
 
-export type AiProviderType = 'gemini' | 'openai' | 'ollama';
+export type AiProviderType = 'grok' | 'openai' | 'ollama';
 
 export class AiProviderFactory {
   private static providers = new Map<string, IAiProvider>();
 
   static create(type?: AiProviderType): IAiProvider {
-    const providerType = type ?? (process.env.AI_PROVIDER as AiProviderType) ?? 'gemini';
+    const providerType = type ?? (process.env.AI_PROVIDER as AiProviderType) ?? 'grok';
 
     if (this.providers.has(providerType)) {
       return this.providers.get(providerType)!;
@@ -16,10 +16,10 @@ export class AiProviderFactory {
     let provider: IAiProvider;
 
     switch (providerType) {
-      case 'gemini': {
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
-        provider = new GeminiProvider(apiKey);
+      case 'grok': {
+        const apiKey = process.env.XAI_API_KEY;
+        if (!apiKey) throw new Error('XAI_API_KEY is not set');
+        provider = new GrokProvider(apiKey);
         break;
       }
       // Future providers:
@@ -34,7 +34,7 @@ export class AiProviderFactory {
   }
 
   static async getBestAvailable(): Promise<IAiProvider> {
-    const priorities: AiProviderType[] = ['gemini'];
+    const priorities: AiProviderType[] = ['grok'];
 
     for (const type of priorities) {
       try {

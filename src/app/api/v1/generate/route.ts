@@ -167,7 +167,7 @@ export async function POST(request: Request): Promise<Response> {
             payload: {
               projectId,
               error: error instanceof Error ? error.message : 'Unknown error',
-              provider: 'gemini',
+              provider: 'grok',
             },
           });
 

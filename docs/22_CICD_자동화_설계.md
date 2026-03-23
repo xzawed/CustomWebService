@@ -33,8 +33,8 @@
 │   │     ├── ⑥ 보안 취약점 스캔 (npm audit)                               │
 │   │     └── ⑦ PR에 결과 코멘트 자동 작성                                  │
 │   │                                                                      │
-│   ├── 5. Vercel Preview 배포 (자동)                                      │
-│   │     ├── PR별 고유 URL 생성 (pr-123.vercel.app)                       │
+│   ├── 5. Railway Preview 배포 (자동)                                      │
+│   │     ├── PR별 고유 URL 생성 (pr-123.up.railway.app)                       │
 │   │     └── PR에 Preview URL 코멘트                                      │
 │   │                                                                      │
 │   ├── 6. PR 머지 → develop                                               │
@@ -42,14 +42,14 @@
 │   │     ├── CI 전체 재실행 (위 ①~⑥)                                      │
 │   │     ├── ⑧ E2E 테스트 (Playwright, develop만)                         │
 │   │     ├── ⑨ Lighthouse CI 성능 체크                                    │
-│   │     └── Vercel Preview 자동 배포 (develop 환경)                       │
+│   │     └── Railway Preview 자동 배포 (develop 환경)                       │
 │   │                                                                      │
 │   └── 7. develop → main 머지 (릴리스)                                    │
 │         ├── 트리거: push to main                                         │
 │         ├── CI 전체 재실행                                                │
 │         ├── ⑩ Semantic Release (버전 태그 + 릴리스 노트)                   │
 │         ├── ⑪ DB 마이그레이션 자동 실행                                    │
-│         ├── ⑫ Vercel 프로덕션 배포 (자동)                                 │
+│         ├── ⑫ Railway 프로덕션 배포 (자동)                                 │
 │         ├── ⑬ 배포 후 Health Check                                       │
 │         ├── ⑭ 배포 후 Smoke Test (핵심 API 확인)                          │
 │         └── ⑮ 알림 발송 (Discord Webhook)                                │
@@ -74,7 +74,7 @@
 | 도구 | 용도 | 무료 한도 | 비용 |
 |------|------|-----------|------|
 | **GitHub Actions** | CI 파이프라인 | 2,000분/월 | $0 |
-| **Vercel** | 배포 (Preview + Production) | 자동 배포 무제한 (Hobby) | $0 |
+| **Railway** | 배포 (Preview + Production) | $5 무료 크레딧/월 | $0 |
 | **Husky + lint-staged** | Pre-commit 훅 | 로컬 실행 | $0 |
 | **Vitest** | 단위/통합 테스트 | OSS | $0 |
 | **Playwright** | E2E 테스트 | OSS | $0 |
@@ -270,7 +270,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
 
       - name: Upload E2E Results
         if: failure()
@@ -366,8 +366,8 @@ jobs:
     timeout-minutes: 5
     needs: release
     steps:
-      - name: Wait for Vercel Deploy
-        run: sleep 60                    # Vercel 빌드 대기
+      - name: Wait for Railway Deploy
+        run: sleep 60                    # Railway 빌드 대기
 
       - name: Health Check
         run: |
@@ -770,10 +770,10 @@ export default defineConfig({
                            ▼
 ┌──────────────────────────────────────────────────────┐
 │  PR Preview 환경                                      │
-│  URL: pr-{number}-{repo}.vercel.app                  │
+│  URL: pr-{number}-{repo}.up.railway.app               │
 │  트리거: PR 생성/업데이트                               │
 │  CI: lint + type + test + build + bundle size         │
-│  Vercel: 자동 Preview 배포                             │
+│  Railway: 자동 Preview 배포                            │
 │  DB: 프로덕션 DB 읽기 전용 (시드 데이터)                 │
 │  용도: 코드 리뷰, 시각적 확인                           │
 └──────────────────────┬───────────────────────────────┘
@@ -781,10 +781,10 @@ export default defineConfig({
                        ▼
 ┌──────────────────────────────────────────────────────┐
 │  Staging 환경 (develop 브랜치)                         │
-│  URL: develop-{repo}.vercel.app                      │
+│  URL: develop-{repo}.up.railway.app                  │
 │  트리거: develop 브랜치 push                           │
 │  CI: lint + type + test + build + E2E + Lighthouse    │
-│  Vercel: 자동 Preview 배포                             │
+│  Railway: 자동 Preview 배포                            │
 │  DB: 프로덕션 DB (동일, RLS로 격리)                     │
 │  용도: 통합 테스트, QA                                  │
 └──────────────────────┬───────────────────────────────┘
@@ -792,10 +792,10 @@ export default defineConfig({
                        ▼
 ┌──────────────────────────────────────────────────────┐
 │  Production 환경 (main 브랜치)                         │
-│  URL: customwebservice.vercel.app                    │
+│  URL: customwebservice.up.railway.app                │
 │  트리거: main 브랜치 push                              │
 │  CI: 전체 + Semantic Release + DB Migration            │
-│  Vercel: 프로덕션 자동 배포                             │
+│  Railway: 프로덕션 자동 배포                            │
 │  DB: 프로덕션 DB + 마이그레이션 자동 실행                 │
 │  검증: Health Check + Smoke Test + 알림                │
 │  용도: 실제 사용자 서비스                                │
@@ -817,17 +817,17 @@ export default defineConfig({
     ├── 1. GitHub 저장소 자동 생성
     │     Organization: customwebservice-apps
     │     이름: svc-{projectId 앞 8자}
-    │     파일: index.html, styles.css, app.js, vercel.json
+    │     파일: index.html, styles.css, app.js
     │
     ├── 2. 코드 Push (Initial Commit)
     │
-    ├── 3. Vercel 프로젝트 연결
-    │     ├── Vercel API → Import Git Repository
+    ├── 3. Railway 프로젝트 연결
+    │     ├── Railway API → Import Git Repository
     │     ├── 환경변수 설정 (API 키)
     │     └── 자동 빌드 & 배포 트리거
     │
     ├── 4. 배포 상태 폴링
-    │     └── Vercel Deployment API → status 확인 (10초 간격)
+    │     └── Railway Deployment API → status 확인 (10초 간격)
     │
     ├── 5. 완료 시
     │     ├── DB 업데이트 (deploy_url, status)
@@ -836,11 +836,11 @@ export default defineConfig({
     │
     └── [재배포 시]
           ├── 코드 수정 → GitHub Push (새 커밋)
-          ├── Vercel 자동 재배포 (GitHub 연동)
+          ├── Railway 자동 재배포 (GitHub 연동)
           └── 롤백 시 → 이전 버전 코드로 Push → 자동 재배포
 ```
 
-### 생성 서비스 `vercel.json` 템플릿
+### 생성 서비스 배포 설정 템플릿
 
 ```json
 {
@@ -871,14 +871,14 @@ export default defineConfig({
     │
     ├── 자동 감지: Health Check 실패 또는 Sentry 에러 급증
     │
-    ├── 방법 1: Vercel Instant Rollback (권장)
-    │   └── Vercel Dashboard → Deployments → 이전 배포 → "Promote to Production"
+    ├── 방법 1: Railway Instant Rollback (권장)
+    │   └── Railway Dashboard → Deployments → 이전 배포 → "Rollback"
     │       (수 초 내 완료, 다운타임 없음)
     │
     ├── 방법 2: Git Revert
     │   ├── git revert HEAD
     │   ├── git push origin main
-    │   └── Vercel 자동 재배포 (2~3분)
+    │   └── Railway 자동 재배포 (2~3분)
     │
     └── 방법 3: DB 롤백 필요 시
         ├── 마이그레이션 역순 실행 (supabase db reset)
@@ -893,7 +893,7 @@ POST /api/v1/projects/{id}/rollback?version=2
 [RollbackService]
     ├── 1. generated_codes에서 해당 버전 코드 조회
     ├── 2. GitHub 저장소에 해당 버전 코드 Push (새 커밋)
-    ├── 3. Vercel 자동 재배포 트리거
+    ├── 3. Railway 자동 재배포 트리거
     ├── 4. projects.current_version 업데이트
     └── 5. 이벤트 발행 (DEPLOYMENT_ROLLBACK)
 ```
@@ -937,16 +937,15 @@ Repository → Settings → Secrets and variables → Actions
 │  SUPABASE_ACCESS_TOKEN           Supabase CLI 토큰              │
 │  SUPABASE_DB_PASSWORD            Supabase DB 비밀번호           │
 │  SUPABASE_PROJECT_ID             Supabase 프로젝트 ID           │
-│  GEMINI_API_KEY                  Gemini API 키                  │
+│  XAI_API_KEY                     xAI Grok API 키                │
 │  GITHUB_TOKEN                    (자동 제공)                    │
-│  VERCEL_TOKEN                    Vercel 배포 토큰               │
-│  VERCEL_ORG_ID                   Vercel 조직 ID                 │
+│  RAILWAY_TOKEN                   Railway 배포 토큰              │
 │  DISCORD_WEBHOOK_URL             Discord 알림 웹훅 URL           │
 │  ADMIN_API_KEY                   관리 API 인증 키                │
 │                                                                │
 ├─── Variables (비민감 설정) ─────────────────────────────────────┤
 │                                                                │
-│  PRODUCTION_URL                  https://customwebservice.vercel.app │
+│  PRODUCTION_URL                  https://customwebservice.up.railway.app │
 │  GITHUB_ORG                      customwebservice-apps          │
 │                                                                │
 └────────────────────────────────────────────────────────────────┘
@@ -975,7 +974,7 @@ Repository → Settings → Secrets and variables → Actions
 
 | Sprint | CI/CD 구현 항목 | 파일 |
 |--------|---------------|------|
-| **1** | Husky + lint-staged, CI 기본 (lint+type+build), Vercel 연동 | `.husky/`, `ci.yml` |
+| **1** | Husky + lint-staged, CI 기본 (lint+type+build), Railway 연동 | `.husky/`, `ci.yml` |
 | **2** | Vitest 설정, 단위 테스트 CI 추가 | `vitest.config.ts`, `ci.yml` 수정 |
 | **4** | 번들 사이즈 체크 추가 | `.size-limit.json`, `ci.yml` 수정 |
 | **5** | 보안 스캔 추가 (npm audit, trufflehog) | `ci.yml` 수정 |

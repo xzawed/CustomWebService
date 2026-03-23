@@ -12,7 +12,7 @@ export interface DeployResult {
 
 export interface IDeployProvider {
   readonly name: string;
-  readonly supportedFeatures: ('env_vars' | 'custom_domain' | 'serverless' | 'static_only')[];
+  readonly supportedFeatures: readonly ('env_vars' | 'custom_domain' | 'serverless' | 'static_only')[];
 
   createProject(name: string): Promise<{ projectId: string; repoUrl?: string }>;
   pushFiles(projectId: string, files: FileEntry[]): Promise<void>;

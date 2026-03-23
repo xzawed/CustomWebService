@@ -1,9 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ProjectRepository } from '@/repositories/projectRepository';
 import { CodeRepository } from '@/repositories/codeRepository';
+import { DeployProviderFactory, type DeployPlatform } from '@/providers/deploy/DeployProviderFactory';
+import { assembleHtml } from '@/lib/ai/codeParser';
 import { eventBus } from '@/lib/events/eventBus';
-import { NotFoundError, ValidationError } from '@/lib/utils/errors';
+import { NotFoundError, ValidationError, DeployError } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
+import type { FileEntry } from '@/providers/deploy/IDeployProvider';
 
 export class DeployService {
   private projectRepo: ProjectRepository;
@@ -17,9 +20,9 @@ export class DeployService {
   async deploy(
     projectId: string,
     userId: string,
-    platform: string = 'vercel',
+    platform: DeployPlatform = 'railway',
     onProgress?: (progress: number, message: string) => void
-  ): Promise<{ deployUrl: string }> {
+  ): Promise<{ deployUrl: string; repoUrl?: string }> {
     const project = await this.projectRepo.findById(projectId);
     if (!project || project.userId !== userId) {
       throw new NotFoundError('프로젝트', projectId);
@@ -35,30 +38,81 @@ export class DeployService {
     onProgress?.(10, '배포 준비 중...');
     await this.projectRepo.update(projectId, { status: 'deploying' } as Partial<typeof project>);
 
-    onProgress?.(50, `${platform}에 배포 중...`);
+    try {
+      const provider = DeployProviderFactory.create(platform);
 
-    // TODO: Use IDeployProvider implementation when available
-    const deployUrl = `https://svc-${projectId.slice(0, 8)}.vercel.app`;
+      // Step 1: Create project/repo
+      onProgress?.(20, 'GitHub 저장소 생성 중...');
+      const repoName = projectId.slice(0, 8);
+      const { projectId: deployProjectId, repoUrl } = await provider.createProject(repoName);
 
-    onProgress?.(90, '배포 마무리 중...');
+      // Step 2: Push generated code files
+      onProgress?.(40, '코드 업로드 중...');
+      const fullHtml = assembleHtml({ html: code.codeHtml, css: code.codeCss, js: code.codeJs });
+      const files: FileEntry[] = [
+        { path: 'index.html', content: fullHtml },
+      ];
+      if (code.codeCss) {
+        files.push({ path: 'styles.css', content: code.codeCss });
+      }
+      if (code.codeJs) {
+        files.push({ path: 'script.js', content: code.codeJs });
+      }
+      await provider.pushFiles(deployProjectId, files);
 
-    await this.supabase
-      .from('projects')
-      .update({
-        status: 'deployed',
-        deploy_url: deployUrl,
-        deploy_platform: platform,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', projectId);
+      // Step 3: Set environment variables if needed
+      onProgress?.(60, '환경 설정 중...');
+      await provider.setEnvironment(deployProjectId, {});
 
-    eventBus.emit({
-      type: 'DEPLOYMENT_COMPLETED',
-      payload: { projectId, url: deployUrl, platform },
-    });
+      // Step 4: Deploy
+      onProgress?.(70, `${platform}에 배포 중...`);
+      const result = await provider.deploy(deployProjectId);
 
-    logger.info('Deployment completed', { projectId, platform, deployUrl });
+      if (result.status === 'error') {
+        throw new DeployError('배포에 실패했습니다.');
+      }
 
-    return { deployUrl };
+      onProgress?.(90, '배포 마무리 중...');
+
+      const deployUrl = result.url;
+
+      await this.supabase
+        .from('projects')
+        .update({
+          status: 'deployed',
+          deploy_url: deployUrl,
+          deploy_platform: platform,
+          repo_url: repoUrl ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', projectId);
+
+      eventBus.emit({
+        type: 'DEPLOYMENT_COMPLETED',
+        payload: { projectId, url: deployUrl, platform },
+      });
+
+      logger.info('Deployment completed', { projectId, platform, deployUrl });
+
+      return { deployUrl, repoUrl };
+    } catch (error) {
+      await this.supabase
+        .from('projects')
+        .update({
+          status: 'failed',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', projectId);
+
+      eventBus.emit({
+        type: 'DEPLOYMENT_FAILED',
+        payload: {
+          projectId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
+      });
+
+      throw error;
+    }
   }
 }

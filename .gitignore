@@ -11,8 +11,8 @@ out/
 .env.local
 .env.*.local
 
-# vercel
-.vercel
+# railway
+.railway
 
 # IDE
 .vscode/settings.json

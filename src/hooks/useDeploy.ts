@@ -17,7 +17,7 @@ export function useDeploy(): UseDeployReturn {
   const store = useDeployStore();
 
   const startDeploy = useCallback(
-    async (projectId: string, platform: string = 'vercel') => {
+    async (projectId: string, platform: string = 'railway') => {
       store.startDeploy();
 
       try {

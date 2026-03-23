@@ -6,8 +6,8 @@
 
 - **API 카탈로그**: 30+ 영구 무료 API를 카테고리별로 탐색/검색
 - **드래그 앤 드롭 빌더**: 비개발자도 쉽게 API를 선택하고 서비스를 설명
-- **AI 코드 생성**: Gemini API 기반 HTML/CSS/JS 웹서비스 자동 생성
-- **자동 배포**: Vercel/GitHub Pages 원클릭 배포
+- **AI 코드 생성**: xAI Grok API 기반 HTML/CSS/JS 웹서비스 자동 생성
+- **자동 배포**: Railway 원클릭 배포
 - **대시보드**: 생성된 서비스 관리, 미리보기, 상태 모니터링
 
 ## 기술 스택
@@ -18,18 +18,18 @@
 | Styling | Tailwind CSS 4 |
 | Database | Supabase (PostgreSQL) |
 | Auth | Supabase Auth (Google, GitHub OAuth) |
-| AI | Google Gemini API |
+| AI | xAI Grok API |
 | State | Zustand |
 | DnD | @dnd-kit |
 | Validation | Zod |
-| Hosting | Vercel (무료) |
+| Hosting | Railway |
 | CI/CD | GitHub Actions |
 
 ## 아키텍처
 
 ```
 Pages/Components → Hooks/Stores → API Routes → Services → Repositories → Supabase
-                                                        → Providers → Gemini / Vercel
+                                                        → Providers → Grok / Railway
                                                         → EventBus
                                                         → FeatureConfig
 ```
@@ -56,7 +56,7 @@ src/
 ├── services/                # 비즈니스 로직
 ├── repositories/            # 데이터 접근 (BaseRepository 패턴)
 ├── providers/               # 외부 서비스 추상화
-│   ├── ai/                  # IAiProvider → GeminiProvider
+│   ├── ai/                  # IAiProvider → GrokProvider
 │   └── deploy/              # IDeployProvider (인터페이스)
 ├── lib/                     # 유틸리티
 │   ├── supabase/            # Supabase 클라이언트
@@ -85,7 +85,7 @@ supabase/
 - Node.js 20+
 - pnpm 9+
 - Supabase 프로젝트
-- Google Gemini API Key
+- xAI Grok API Key
 
 ### 1. 저장소 클론 및 의존성 설치
 
@@ -109,8 +109,8 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# Gemini (https://aistudio.google.com/apikey)
-GEMINI_API_KEY=your-gemini-key
+# xAI Grok (https://console.x.ai)
+XAI_API_KEY=your-xai-api-key
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
