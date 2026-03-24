@@ -20,8 +20,8 @@ export class AuthService {
     const dbUser = await this.userRepo.findById(authUser.id);
     if (dbUser) return dbUser;
 
-    // First login — create user record
-    const newUser = await this.userRepo.create({
+    // First login — create user record with auth.uid() as id
+    const newUser = await this.userRepo.createWithAuthId(authUser.id, {
       email: authUser.email ?? '',
       name:
         (authUser.user_metadata?.full_name as string) ??

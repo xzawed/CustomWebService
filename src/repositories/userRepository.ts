@@ -7,6 +7,21 @@ export class UserRepository extends BaseRepository<User> {
     super(supabase, 'users');
   }
 
+  async createWithAuthId(
+    authId: string,
+    input: Omit<User, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<User> {
+    const dbData = this.toDatabase(input as Partial<User>);
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .insert({ ...dbData, id: authId })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return this.toDomain(data);
+  }
+
   async findByEmail(email: string): Promise<User | null> {
     const { data, error } = await this.supabase
       .from(this.tableName)
