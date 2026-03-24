@@ -75,8 +75,8 @@
 src/
 ├── app/                          # Next.js App Router
 │   ├── (auth)/                   # 로그인, OAuth 콜백
-│   │   ├── login/page.tsx
-│   │   └── callback/route.ts
+│   │   ├── login/page.tsx        # OAuth 로그인 (Google, GitHub)
+│   │   └── callback/route.ts     # 서버사이드 OAuth 콜백 (PKCE 코드 교환 + 사용자 자동 생성)
 │   ├── (main)/                   # 메인 페이지 그룹
 │   │   ├── builder/page.tsx      # 3-Step 빌더
 │   │   ├── catalog/page.tsx      # API 카탈로그
@@ -134,7 +134,7 @@ src/
 │   └── deployStore.ts            # 배포 상태
 │
 ├── services/                     # 비즈니스 로직 (Service Layer)
-│   ├── authService.ts            # 인증/사용자 관리
+│   ├── authService.ts            # 인증/사용자 관리 (첫 로그인 시 users 레코드 생성)
 │   ├── catalogService.ts         # API 카탈로그 검색/필터
 │   ├── projectService.ts         # 프로젝트 CRUD + 검증
 │   ├── generationService.ts      # AI 코드 생성 파이프라인
@@ -280,11 +280,23 @@ Supabase Dashboard → SQL Editor에서 순서대로 실행:
 3. 사용자 인증 정보 → OAuth 클라이언트 ID → 웹 애플리케이션
 4. 리디렉션 URI: `https://<SUPABASE_PROJECT_ID>.supabase.co/auth/v1/callback`
 5. Supabase Dashboard → Authentication → Providers → Google → Client ID/Secret 입력
+6. Supabase Dashboard → Authentication → URL Configuration → Site URL: `http://localhost:3000` (개발) 또는 운영 URL
+7. Redirect URLs에 `http://localhost:3000/callback` 추가
 
 #### GitHub OAuth
 1. [GitHub Developer Settings](https://github.com/settings/developers) → OAuth Apps → New
 2. Callback URL: `https://<SUPABASE_PROJECT_ID>.supabase.co/auth/v1/callback`
 3. Supabase Dashboard → Authentication → Providers → GitHub → Client ID/Secret 입력
+
+#### 인증 흐름
+```
+사용자 → Google/GitHub 클릭 → Supabase OAuth → Google/GitHub 인증
+→ Supabase /auth/v1/callback → 앱 /callback (Route Handler)
+→ 서버에서 PKCE 코드 교환 + users 테이블 자동 생성 → /dashboard 리다이렉트
+```
+
+> **참고**: OAuth 콜백은 서버사이드 Route Handler(`callback/route.ts`)로 처리됩니다.
+> 첫 로그인 시 `auth.uid()`를 ID로 사용하여 `users` 테이블에 레코드를 자동 생성합니다.
 
 ### 5. 개발 서버 실행
 

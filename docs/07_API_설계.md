@@ -235,11 +235,11 @@ Supabase Auth 사용 - 별도 API 구현 불필요
 
 | 기능 | 방식 |
 |------|------|
-| 회원가입 | Supabase `signUp()` |
-| 로그인 | Supabase `signIn()` |
-| 소셜 로그인 | Google, GitHub OAuth |
+| 소셜 로그인 | Google, GitHub OAuth (`signInWithOAuth()`) |
+| OAuth 콜백 | 서버사이드 Route Handler (`/callback` → PKCE 코드 교환) |
+| 사용자 레코드 생성 | 첫 로그인 시 `callback/route.ts`에서 `users` 테이블에 자동 생성 (`id = auth.uid()`) |
 | 로그아웃 | Supabase `signOut()` |
-| 세션 관리 | Supabase 자동 관리 |
+| 세션 관리 | Supabase 자동 관리 (미들웨어에서 쿠키 갱신) |
 
 ---
 
