@@ -43,6 +43,7 @@ export default function BuilderPage() {
     setContext,
     setTemplate,
     isValid: isContextValid,
+    reset: resetContext,
   } = useContextStore();
 
   const {
@@ -148,6 +149,8 @@ export default function BuilderPage() {
                 }
                 if (eventData.projectId && eventData.version !== undefined) {
                   completeGeneration(eventData.projectId);
+                  resetContext();
+                  clearApis();
                   return;
                 }
                 if (eventData.message && !eventData.progress) {
@@ -165,6 +168,8 @@ export default function BuilderPage() {
 
       if (genStatus !== 'completed') {
         completeGeneration(project.id);
+        resetContext();
+        clearApis();
       }
     } catch (err) {
       failGeneration(err instanceof Error ? err.message : '알 수 없는 오류');

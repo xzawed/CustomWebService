@@ -5,7 +5,8 @@ export async function middleware(request: NextRequest) {
   const response = await updateSession(request);
 
   // Security headers
-  response.headers.set('X-Frame-Options', 'DENY');
+  const isPreviewApi = request.nextUrl.pathname.startsWith('/api/v1/preview');
+  response.headers.set('X-Frame-Options', isPreviewApi ? 'SAMEORIGIN' : 'DENY');
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-XSS-Protection', '1; mode=block');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');

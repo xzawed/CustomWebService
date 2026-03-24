@@ -4,9 +4,12 @@ import { cookies } from 'next/headers';
 import { UserRepository } from '@/repositories/userRepository';
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams, origin: requestOrigin } = new URL(request.url);
   const code = searchParams.get('code');
   const next = searchParams.get('next') ?? '/dashboard';
+
+  // Use NEXT_PUBLIC_APP_URL if set to avoid 0.0.0.0 binding address issues
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? requestOrigin;
 
   if (code) {
     const cookieStore = await cookies();

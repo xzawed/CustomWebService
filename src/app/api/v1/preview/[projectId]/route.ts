@@ -49,6 +49,16 @@ export async function GET(
         'Content-Type': 'text/html; charset=utf-8',
         'X-Frame-Options': 'SAMEORIGIN',
         'Cache-Control': 'no-cache',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': [
+          "default-src 'self'",
+          "script-src 'unsafe-inline' 'unsafe-eval'",
+          "style-src 'unsafe-inline' https://fonts.googleapis.com",
+          "font-src https://fonts.gstatic.com",
+          "img-src * data: blob:",
+          "connect-src *",
+          "frame-ancestors 'self'",
+        ].join('; '),
       },
     });
   } catch (error) {
