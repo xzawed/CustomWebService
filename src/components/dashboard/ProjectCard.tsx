@@ -9,6 +9,8 @@ const statusConfig: Record<ProjectStatus, { label: string; className: string }> 
   generated: { label: '생성 완료', className: 'bg-blue-100 text-blue-700' },
   deploying: { label: '배포 중', className: 'bg-purple-100 text-purple-700' },
   deployed: { label: '배포됨', className: 'bg-green-100 text-green-700' },
+  published: { label: '게시됨', className: 'bg-emerald-100 text-emerald-700' },
+  unpublished: { label: '게시 취소', className: 'bg-gray-100 text-gray-500' },
   failed: { label: '실패', className: 'bg-red-100 text-red-700' },
 };
 

@@ -31,6 +31,11 @@ export type DomainEvent =
     }
   | { type: 'PROJECT_DELETED'; payload: { projectId: string } }
   | {
+      type: 'PROJECT_PUBLISHED';
+      payload: { projectId: string; userId: string; slug: string };
+    }
+  | { type: 'PROJECT_UNPUBLISHED'; payload: { projectId: string; userId: string } }
+  | {
       type: 'API_QUOTA_WARNING';
       payload: { service: string; usage: number; limit: number };
     };

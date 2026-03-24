@@ -55,6 +55,37 @@ export class ProjectRepository extends BaseRepository<Project> {
     return (data ?? []).map((row) => row.api_id as string);
   }
 
+  async findBySlug(slug: string): Promise<Project | null> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select('*')
+      .eq('slug', slug)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // not found
+      throw error;
+    }
+    return data ? this.toDomain(data) : null;
+  }
+
+  async updateSlug(id: string, slug: string, publishedAt: Date): Promise<Project> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .update({
+        slug,
+        published_at: publishedAt.toISOString(),
+        status: 'published',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return this.toDomain(data);
+  }
+
   protected toDomain(row: Record<string, unknown>): Project {
     return {
       id: row.id as string,
@@ -70,6 +101,8 @@ export class ProjectRepository extends BaseRepository<Project> {
       metadata: (row.metadata as ProjectMetadata) ?? {},
       currentVersion: (row.current_version as number) ?? 0,
       apis: [],
+      slug: (row.slug as string) ?? null,
+      publishedAt: (row.published_at as string) ?? null,
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string,
     };

@@ -4,6 +4,7 @@ import { CatalogRepository } from '@/repositories/catalogRepository';
 import { eventBus } from '@/lib/events/eventBus';
 import { getLimits } from '@/lib/config/features';
 import { NotFoundError, ForbiddenError, ValidationError } from '@/lib/utils/errors';
+import { generateSlug } from '@/lib/utils/slugify';
 import type { Project, CreateProjectInput } from '@/types/project';
 
 export class ProjectService {
@@ -63,6 +64,8 @@ export class ProjectService {
       metadata: {},
       currentVersion: 0,
       apis: [],
+      slug: null,
+      publishedAt: null,
     } as Omit<Project, 'id' | 'createdAt' | 'updatedAt'>);
 
     // Use repository method instead of direct Supabase access
@@ -99,5 +102,45 @@ export class ProjectService {
 
   async updateStatus(id: string, status: Project['status']): Promise<Project> {
     return this.projectRepo.update(id, { status } as Partial<Project>);
+  }
+
+  async publish(id: string, userId: string): Promise<Project> {
+    const project = await this.getById(id, userId);
+
+    const publishableStatuses: Project['status'][] = ['generated', 'deployed', 'unpublished'];
+    if (!publishableStatuses.includes(project.status)) {
+      throw new ValidationError(
+        '생성이 완료된 프로젝트만 게시할 수 있습니다.'
+      );
+    }
+
+    const slug = project.slug ?? generateSlug(project.name, project.id);
+    const published = await this.projectRepo.updateSlug(id, slug, new Date());
+
+    eventBus.emit({
+      type: 'PROJECT_PUBLISHED',
+      payload: { projectId: id, userId, slug },
+    });
+
+    return published;
+  }
+
+  async unpublish(id: string, userId: string): Promise<Project> {
+    const project = await this.getById(id, userId);
+
+    if (project.status !== 'published') {
+      throw new ValidationError('게시된 프로젝트만 게시 취소할 수 있습니다.');
+    }
+
+    const updated = await this.projectRepo.update(id, {
+      status: 'unpublished',
+    } as Partial<Project>);
+
+    eventBus.emit({
+      type: 'PROJECT_UNPUBLISHED',
+      payload: { projectId: id, userId },
+    });
+
+    return updated;
   }
 }
