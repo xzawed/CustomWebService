@@ -337,11 +337,13 @@ export function preparingHtml(slug: string): string
 ---
 
 **S2 완료 조건:**
-- [ ] `http://localhost:3000/site/[존재하는slug]` → 생성된 HTML 반환
-- [ ] `http://localhost:3000/site/없는슬러그` → 404 HTML 반환
-- [ ] `http://localhost:3000/site/!!invalid!!` → 400 반환
-- [ ] 응답에 Cache-Control 헤더 포함
-- [ ] 로그인 없이 접근 가능 (인증 불필요)
+- [x] `http://localhost:3000/site/[존재하는slug]` → 생성된 HTML 반환
+- [x] `http://localhost:3000/site/없는슬러그` → 404 HTML 반환
+- [x] `http://localhost:3000/site/!!invalid!!` → 400 반환
+- [x] 응답에 Cache-Control 헤더 포함
+- [x] 로그인 없이 접근 가능 (인증 불필요)
+
+> ✅ **S2 완료** — 커밋 `842ef50` (2026-03-25)
 
 ---
 
