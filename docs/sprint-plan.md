@@ -1,24 +1,22 @@
 # CustomWebService — 서브도메인 가상 호스팅 Sprint 계획
 
 > 기반 문서: `docs/virtual-hosting-plan.md`
-> 작성일: 2026-03-25
+> 작성일: 2026-03-25 | 최종 업데이트: 2026-03-25
 > 목표: Railway per-project 배포 → 단일 인스턴스 서브도메인 서빙으로 전환
 
 ---
 
-## 개요
+## 진행 현황
 
-| Sprint | 목표 | 예상 기간 |
-|--------|------|-----------|
-| S0 | 기존 버그 수정 (즉시 배포 가능) | ~1일 |
-| S1 | DB 마이그레이션 + Slug 인프라 | ~1일 |
-| S2 | 서브도메인 라우팅 + 사이트 서빙 | ~1일 |
-| S3 | 게시 API 구현 | ~0.5일 |
-| S4 | 대시보드 UI 업데이트 | ~1일 |
-| S5 | 인프라 설정 (DNS/Railway/Supabase) | ~0.5일 |
-| S6 | 기존 Railway 배포 방식 정리 | ~0.5일 |
-
-**전체 예상 공수: ~5.5일**
+| Sprint | 목표 | 상태 | 커밋 |
+|--------|------|------|------|
+| S0 | 기존 버그 수정 | ✅ 완료 | `1a88e81` |
+| S1 | DB 마이그레이션 + Slug 인프라 | ✅ 완료 | `64177ab` + DB 직접 실행 |
+| S2 | 서브도메인 라우팅 + 사이트 서빙 | ✅ 완료 | `842ef50` |
+| S3 | 게시 API 구현 | ✅ 완료 | `95a16f5` |
+| S4 | 대시보드 UI 업데이트 | ✅ 완료 | `67dc6dc` |
+| S5 | 인프라 설정 (DNS/Railway/Supabase) | ⏳ 진행 중 | 수동 작업 필요 |
+| S6 | 기존 Railway 배포 방식 정리 | ⏳ 대기 | S5 완료 후 |
 
 ---
 
@@ -227,13 +225,12 @@ async unpublish(id: string, userId: string): Promise<Project>
 ---
 
 **S1 완료 조건:**
-- [ ] `projects` 테이블에 `slug`, `published_at` 컬럼 존재 ← **Supabase SQL Editor에서 수동 실행 필요**
+- [x] `projects` 테이블에 `slug`, `published_at` 컬럼 존재
 - [x] `generateSlug('날씨 앱', 'abc-123-def')` → `[a-z0-9-]+` 형태 반환
 - [x] `findBySlug('test-slug')` 정상 동작
 - [x] TypeScript 컴파일 에러 없음
 
-> ✅ **S1 코드 완료** — 커밋 `64177ab` (2026-03-25)
-> ⚠️ **S1-1 DB 마이그레이션은 Supabase SQL Editor에서 수동 실행 필요** (S2 시작 전 반드시 완료)
+> ✅ **S1 완료** — 커밋 `64177ab` + DB 마이그레이션 완료 (2026-03-25)
 
 ---
 
