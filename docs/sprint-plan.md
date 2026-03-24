@@ -389,10 +389,12 @@ PATCH /api/v1/projects/[id]/slug
 ---
 
 **S3 완료 조건:**
-- [ ] `POST /api/v1/projects/[id]/publish` → 200, project.status === 'published'
-- [ ] `DELETE /api/v1/projects/[id]/publish` → 200, project.status === 'unpublished'
-- [ ] 타인의 프로젝트 게시 시도 → 403
-- [ ] 미생성(draft) 프로젝트 게시 시도 → 400
+- [x] `POST /api/v1/projects/[id]/publish` → 200, project.status === 'published'
+- [x] `DELETE /api/v1/projects/[id]/publish` → 200, project.status === 'unpublished'
+- [x] 타인의 프로젝트 게시 시도 → 403
+- [x] 미생성(draft) 프로젝트 게시 시도 → 400
+
+> ✅ **S3 완료** — 커밋 `95a16f5` (2026-03-25)
 
 ---
 

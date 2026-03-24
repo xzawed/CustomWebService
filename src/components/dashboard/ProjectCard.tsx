@@ -14,18 +14,14 @@ const statusConfig: Record<ProjectStatus, { label: string; className: string }> 
   failed: { label: '실패', className: 'bg-red-100 text-red-700' },
 };
 
+const PUBLISHABLE_STATUSES: ProjectStatus[] = ['generated', 'deployed', 'unpublished'];
+const PREVIEWABLE_STATUSES: ProjectStatus[] = ['generated', 'deployed', 'published', 'unpublished'];
+
 interface ProjectCardProps {
   project: Project;
   onDelete?: (id: string) => void;
-}
-
-function isValidUrl(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return u.protocol === 'https:' || u.protocol === 'http:';
-  } catch {
-    return false;
-  }
+  onPublish?: (id: string) => void;
+  onUnpublish?: (id: string) => void;
 }
 
 function formatDate(dateStr: string) {
@@ -36,8 +32,25 @@ function formatDate(dateStr: string) {
   });
 }
 
-export function ProjectCard({ project, onDelete }: ProjectCardProps) {
+function buildPublishUrl(slug: string): string {
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+  if (!rootDomain) return `/site/${slug}`;
+  const isLocalhost = rootDomain.includes('localhost') || rootDomain.includes('127.0.0.1');
+  if (isLocalhost) return `/site/${slug}`;
+  return `https://${slug}.${rootDomain}`;
+}
+
+export function ProjectCard({ project, onDelete, onPublish, onUnpublish }: ProjectCardProps) {
   const status = statusConfig[project.status];
+  const publishUrl = project.slug ? buildPublishUrl(project.slug) : null;
+
+  const handleCopyUrl = () => {
+    if (!publishUrl) return;
+    const fullUrl = publishUrl.startsWith('http')
+      ? publishUrl
+      : `${window.location.origin}${publishUrl}`;
+    navigator.clipboard.writeText(fullUrl).catch(() => {});
+  };
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
@@ -58,35 +71,65 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
         </p>
       )}
 
-      {project.deployUrl && isValidUrl(project.deployUrl) && (
-        <a
-          href={project.deployUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 block truncate text-sm text-blue-600 hover:underline"
-        >
-          {project.deployUrl}
-        </a>
+      {project.status === 'published' && publishUrl && (
+        <div className="mt-2 flex items-center gap-1">
+          <a
+            href={publishUrl.startsWith('http') ? publishUrl : `${typeof window !== 'undefined' ? window.location.origin : ''}${publishUrl}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="truncate text-sm text-emerald-600 hover:underline"
+          >
+            {publishUrl}
+          </a>
+          <button
+            type="button"
+            onClick={handleCopyUrl}
+            className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            title="URL 복사"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+          </button>
+        </div>
       )}
 
       <p className="mt-3 text-xs text-gray-400">
         {formatDate(project.createdAt)} 생성
       </p>
 
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         <Link
           href={`/dashboard/${project.id}`}
           className="rounded-md bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
         >
           상세 보기
         </Link>
-        {(project.status === 'generated' || project.status === 'deployed') && (
+        {PREVIEWABLE_STATUSES.includes(project.status) && (
           <Link
             href={`/preview/${project.id}`}
             className="rounded-md bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
           >
             미리보기
           </Link>
+        )}
+        {onPublish && PUBLISHABLE_STATUSES.includes(project.status) && (
+          <button
+            type="button"
+            onClick={() => onPublish(project.id)}
+            className="rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+          >
+            게시
+          </button>
+        )}
+        {onUnpublish && project.status === 'published' && (
+          <button
+            type="button"
+            onClick={() => onUnpublish(project.id)}
+            className="rounded-md bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100"
+          >
+            게시 취소
+          </button>
         )}
         {onDelete && (
           <button

@@ -5,6 +5,7 @@ import { CatalogService } from '@/services/catalogService';
 import { CodeRepository } from '@/repositories/codeRepository';
 import { redirect, notFound } from 'next/navigation';
 import type { ProjectStatus } from '@/types/project';
+import { ProjectPublishActions } from '@/components/dashboard/ProjectPublishActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -135,6 +136,14 @@ export default async function ProjectDetailPage({
               </dd>
             </div>
           </dl>
+        </section>
+      )}
+
+      {/* Publish */}
+      {(project.status === 'generated' || project.status === 'deployed' ||
+        project.status === 'published' || project.status === 'unpublished') && (
+        <section className="mb-8">
+          <ProjectPublishActions project={project} />
         </section>
       )}
 

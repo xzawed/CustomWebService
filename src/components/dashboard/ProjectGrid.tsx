@@ -1,15 +1,44 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import type { Project } from '@/types/project';
 import { ProjectCard } from './ProjectCard';
+import { usePublish } from '@/hooks/usePublish';
 
 interface ProjectGridProps {
   projects: Project[];
-  onDelete?: (id: string) => void;
 }
 
-export function ProjectGrid({ projects, onDelete }: ProjectGridProps) {
+export function ProjectGrid({ projects: initialProjects }: ProjectGridProps) {
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const { publish, unpublish } = usePublish();
+
+  const handleDelete = async (id: string) => {
+    const res = await fetch(`/api/v1/projects/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+    }
+  };
+
+  const handlePublish = async (id: string) => {
+    try {
+      const { data } = await publish(id);
+      setProjects((prev) => prev.map((p) => (p.id === id ? data : p)));
+    } catch {
+      // 에러는 usePublish에서 처리
+    }
+  };
+
+  const handleUnpublish = async (id: string) => {
+    try {
+      const { data } = await unpublish(id);
+      setProjects((prev) => prev.map((p) => (p.id === id ? data : p)));
+    } catch {
+      // 에러는 usePublish에서 처리
+    }
+  };
+
   if (projects.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 py-20">
@@ -33,7 +62,13 @@ export function ProjectGrid({ projects, onDelete }: ProjectGridProps) {
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       {projects.map((project) => (
-        <ProjectCard key={project.id} project={project} onDelete={onDelete} />
+        <ProjectCard
+          key={project.id}
+          project={project}
+          onDelete={handleDelete}
+          onPublish={handlePublish}
+          onUnpublish={handleUnpublish}
+        />
       ))}
     </div>
   );
