@@ -227,10 +227,13 @@ async unpublish(id: string, userId: string): Promise<Project>
 ---
 
 **S1 완료 조건:**
-- [ ] `projects` 테이블에 `slug`, `published_at` 컬럼 존재
-- [ ] `generateSlug('날씨 앱', 'abc-123-def')` → `[a-z0-9-]+` 형태 반환
-- [ ] `findBySlug('test-slug')` 정상 동작
-- [ ] TypeScript 컴파일 에러 없음
+- [ ] `projects` 테이블에 `slug`, `published_at` 컬럼 존재 ← **Supabase SQL Editor에서 수동 실행 필요**
+- [x] `generateSlug('날씨 앱', 'abc-123-def')` → `[a-z0-9-]+` 형태 반환
+- [x] `findBySlug('test-slug')` 정상 동작
+- [x] TypeScript 컴파일 에러 없음
+
+> ✅ **S1 코드 완료** — 커밋 `64177ab` (2026-03-25)
+> ⚠️ **S1-1 DB 마이그레이션은 Supabase SQL Editor에서 수동 실행 필요** (S2 시작 전 반드시 완료)
 
 ---
 
