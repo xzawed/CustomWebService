@@ -76,7 +76,7 @@ src/
 ├── app/                          # Next.js App Router
 │   ├── (auth)/                   # 로그인, OAuth 콜백
 │   │   ├── login/page.tsx
-│   │   └── callback/page.tsx
+│   │   └── callback/route.ts
 │   ├── (main)/                   # 메인 페이지 그룹
 │   │   ├── builder/page.tsx      # 3-Step 빌더
 │   │   ├── catalog/page.tsx      # API 카탈로그
