@@ -38,23 +38,27 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
       // Ensure user record exists in users table
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-      if (authUser) {
-        const userRepo = new UserRepository(supabase);
-        const existing = await userRepo.findById(authUser.id);
-        if (!existing) {
-          await userRepo.createWithAuthId(authUser.id, {
-            email: authUser.email ?? '',
-            name:
-              (authUser.user_metadata?.full_name as string) ??
-              (authUser.user_metadata?.name as string) ??
-              null,
-            avatarUrl: (authUser.user_metadata?.avatar_url as string) ?? null,
-            preferences: {},
-          } as Omit<import('@/types/organization').User, 'id' | 'createdAt' | 'updatedAt'>);
+      try {
+        const {
+          data: { user: authUser },
+        } = await supabase.auth.getUser();
+        if (authUser) {
+          const userRepo = new UserRepository(supabase);
+          const existing = await userRepo.findById(authUser.id);
+          if (!existing) {
+            await userRepo.createWithAuthId(authUser.id, {
+              email: authUser.email ?? '',
+              name:
+                (authUser.user_metadata?.full_name as string) ??
+                (authUser.user_metadata?.name as string) ??
+                null,
+              avatarUrl: (authUser.user_metadata?.avatar_url as string) ?? null,
+              preferences: {},
+            } as Omit<import('@/types/organization').User, 'id' | 'createdAt' | 'updatedAt'>);
+          }
         }
+      } catch {
+        // User record creation failed — session is still valid, proceed to redirect
       }
 
       return NextResponse.redirect(`${origin}${next}`);

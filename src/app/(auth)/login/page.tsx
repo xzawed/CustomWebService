@@ -6,10 +6,11 @@ export default function LoginPage() {
   const supabase = createClient();
 
   const handleOAuthLogin = async (provider: 'google' | 'github') => {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
     await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/callback`,
+        redirectTo: `${baseUrl}/callback`,
       },
     });
   };
