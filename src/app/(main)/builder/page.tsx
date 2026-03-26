@@ -148,9 +148,8 @@ export default function BuilderPage() {
                   throw new Error(eventData.message);
                 }
               } catch (parseErr) {
-                if (parseErr instanceof Error && parseErr.message !== line.slice(6)) {
-                  throw parseErr;
-                }
+                if (parseErr instanceof SyntaxError) continue;
+                throw parseErr;
               }
             }
           }

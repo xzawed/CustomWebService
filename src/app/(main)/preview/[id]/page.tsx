@@ -40,14 +40,17 @@ export default function PreviewPage() {
           throw new Error('프로젝트를 불러올 수 없습니다.');
         }
 
+        const projectData = await res.json();
+        const currentVersion: number = projectData.data?.currentVersion ?? 0;
+
         const codeRes = await fetch(`/api/v1/preview/${id}`);
         if (!codeRes.ok) {
           setError('생성된 코드가 없습니다. 먼저 빌더에서 코드를 생성해주세요.');
           return;
         }
 
-        const data = await codeRes.json();
-        setPreview(data);
+        const html = await codeRes.text();
+        setPreview({ html, version: currentVersion, validationErrors: [] });
       } catch (err) {
         setError(err instanceof Error ? err.message : '오류가 발생했습니다.');
       } finally {

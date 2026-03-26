@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
@@ -27,7 +27,7 @@ function mapSupabaseUser(supabaseUser: {
 
 export function useAuth() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const { user, isLoading, isAuthenticated, setUser } = useAuthStore();
 
   useEffect(() => {
@@ -54,7 +54,7 @@ export function useAuth() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase.auth, setUser]);
+  }, [supabase, setUser]);
 
   const signOut = async () => {
     await supabase.auth.signOut();

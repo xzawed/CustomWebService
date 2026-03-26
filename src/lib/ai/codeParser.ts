@@ -29,11 +29,23 @@ export function assembleHtml(parsed: ParsedCode): string {
     let assembled = parsed.html;
 
     if (parsed.css) {
-      assembled = assembled.replace('</head>', `<style>\n${parsed.css}\n</style>\n</head>`);
+      const headIdx = assembled.lastIndexOf('</head>');
+      assembled =
+        assembled.slice(0, headIdx) +
+        `<style>\n${parsed.css}\n</style>\n` +
+        assembled.slice(headIdx);
     }
 
     if (parsed.js) {
-      assembled = assembled.replace('</body>', `<script>\n${parsed.js}\n</script>\n</body>`);
+      const bodyIdx = assembled.lastIndexOf('</body>');
+      if (bodyIdx !== -1) {
+        assembled =
+          assembled.slice(0, bodyIdx) +
+          `<script>\n${parsed.js}\n</script>\n` +
+          assembled.slice(bodyIdx);
+      } else {
+        assembled += `<script>\n${parsed.js}\n</script>`;
+      }
     }
 
     return assembled;

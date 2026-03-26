@@ -10,7 +10,9 @@ export interface FeatureLimits {
 
 function env(key: string, defaultValue: number): number {
   const val = process.env[key];
-  return val ? Number(val) : defaultValue;
+  if (!val) return defaultValue;
+  const num = Number(val);
+  return isNaN(num) ? defaultValue : num;
 }
 
 const DEFAULT_LIMITS: FeatureLimits = {
