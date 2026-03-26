@@ -6,7 +6,7 @@
 
 | 환경 | URL |
 |------|-----|
-| Production | https://customwebservice.app |
+| Production | https://xzawed.xyz |
 | Railway (구) | https://r4r002eg.up.railway.app |
 | Local | http://localhost:8080 |
 
