@@ -1,6 +1,9 @@
 -- seed.sql
 -- CustomWebService seed data
--- 총 55개 API + 7개 피처 플래그
+-- 총 54개 API + 7개 피처 플래그
+--
+-- 사용법: Supabase SQL Editor에서 이 파일 전체를 실행하세요.
+-- 이미 데이터가 있어도 충돌 없이 안전하게 실행됩니다 (ON CONFLICT 사용).
 
 -- ============================================================
 -- FEATURE FLAGS
@@ -13,11 +16,14 @@ INSERT INTO feature_flags (flag_name, enabled, description, rules) VALUES
   ('enable_template_system', false, 'Enable project templates for quick start', '{"categories": ["dashboard", "landing", "widget"]}'::jsonb),
   ('enable_multi_language', false, 'Enable multi-language UI support (i18n)', '{"supported": ["ko", "en", "ja"]}'::jsonb),
   ('enable_team_features', false, 'Enable team collaboration and organization features', '{"min_plan": "pro"}'::jsonb),
-  ('enable_advanced_prompt', false, 'Enable advanced prompt engineering options for code generation', '{"max_tokens": 4096}'::jsonb);
+  ('enable_advanced_prompt', false, 'Enable advanced prompt engineering options for code generation', '{"max_tokens": 4096}'::jsonb)
+ON CONFLICT (flag_name) DO NOTHING;
 
 -- ============================================================
 -- API CATALOG
 -- ============================================================
+-- 기존 데이터 정리 후 새로 삽입 (project_apis FK 참조가 없는 항목만 삭제)
+DELETE FROM api_catalog WHERE id NOT IN (SELECT DISTINCT api_id FROM project_apis);
 -- 카테고리: weather, finance, data, entertainment, image, utility, fun, science, news, social, dictionary, location, transport, realestate, tourism, lifestyle
 
 -- ────────────────────────────────────────
