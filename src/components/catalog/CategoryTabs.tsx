@@ -21,10 +21,10 @@ export function CategoryTabs({
         <button
           type="button"
           onClick={() => onCategoryChange('all')}
-          className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+          className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
             activeCategory === 'all'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ? 'bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-cyan-400 ring-1 ring-cyan-500/30'
+              : 'text-slate-400 hover:bg-white/[0.04] hover:text-white'
           }`}
         >
           전체 ({totalCount})
@@ -35,10 +35,10 @@ export function CategoryTabs({
             key={category.key}
             type="button"
             onClick={() => onCategoryChange(category.key)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
               activeCategory === category.key
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-cyan-400 ring-1 ring-cyan-500/30'
+                : 'text-slate-400 hover:bg-white/[0.04] hover:text-white'
             }`}
           >
             {category.label} ({category.count})

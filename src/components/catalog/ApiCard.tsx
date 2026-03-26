@@ -1,7 +1,7 @@
 'use client';
 
 import type { ApiCatalogItem } from '@/types/api';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Check } from 'lucide-react';
 
 interface ApiCardProps {
   api: ApiCatalogItem;
@@ -11,65 +11,89 @@ interface ApiCardProps {
 }
 
 const authTypeLabels: Record<string, string> = {
-  none: '인증 불필요',
+  none: '키 불필요',
   api_key: 'API Key',
   oauth: 'OAuth',
 };
 
+const categoryColors: Record<string, string> = {
+  weather: 'from-sky-500/20 to-sky-400/5 text-sky-400',
+  finance: 'from-emerald-500/20 to-emerald-400/5 text-emerald-400',
+  data: 'from-blue-500/20 to-blue-400/5 text-blue-400',
+  entertainment: 'from-violet-500/20 to-violet-400/5 text-violet-400',
+  image: 'from-pink-500/20 to-pink-400/5 text-pink-400',
+  fun: 'from-amber-500/20 to-amber-400/5 text-amber-400',
+  utility: 'from-slate-500/20 to-slate-400/5 text-slate-300',
+  dictionary: 'from-teal-500/20 to-teal-400/5 text-teal-400',
+  news: 'from-orange-500/20 to-orange-400/5 text-orange-400',
+  social: 'from-indigo-500/20 to-indigo-400/5 text-indigo-400',
+  transport: 'from-cyan-500/20 to-cyan-400/5 text-cyan-400',
+  realestate: 'from-lime-500/20 to-lime-400/5 text-lime-400',
+  tourism: 'from-rose-500/20 to-rose-400/5 text-rose-400',
+  lifestyle: 'from-fuchsia-500/20 to-fuchsia-400/5 text-fuchsia-400',
+  location: 'from-cyan-500/20 to-cyan-400/5 text-cyan-400',
+  science: 'from-violet-500/20 to-violet-400/5 text-violet-400',
+};
+
 export function ApiCard({ api, isSelected, onSelect, onDetail }: ApiCardProps) {
+  const colorClass = categoryColors[api.category] ?? categoryColors.utility;
+
   return (
     <div
-      className={`group relative rounded-xl border bg-white p-5 shadow-sm transition-all hover:shadow-md ${
+      onClick={onSelect}
+      className={`card group relative cursor-pointer p-5 ${
         isSelected
-          ? 'border-blue-500 ring-1 ring-blue-500'
-          : 'border-gray-200 hover:border-gray-300'
+          ? 'ring-1 ring-cyan-500/50'
+          : ''
       }`}
+      style={isSelected ? { borderColor: 'rgba(6, 182, 212, 0.3)' } : undefined}
     >
-      <div className="flex items-start gap-3">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={onSelect}
-          aria-label={`${api.name} API 선택`}
-          className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="truncate text-sm font-semibold text-gray-900">
-              {api.name}
-            </h3>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDetail();
-              }}
-              className="shrink-0 text-gray-400 opacity-0 transition-opacity hover:text-blue-600 group-hover:opacity-100"
-              aria-label="상세 보기"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </button>
-          </div>
-
-          <p className="mt-1 line-clamp-2 text-xs text-gray-500">
-            {api.description}
-          </p>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-              {api.category}
-            </span>
-            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-              {authTypeLabels[api.authType] ?? api.authType}
-            </span>
-            {api.rateLimit && (
-              <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
-                {api.rateLimit}
-              </span>
-            )}
-          </div>
+      {/* Selection indicator */}
+      <div className="absolute right-4 top-4">
+        <div
+          className={`flex h-5 w-5 items-center justify-center rounded-md border transition-all ${
+            isSelected
+              ? 'border-cyan-500 bg-cyan-500'
+              : 'border-slate-600 bg-transparent group-hover:border-slate-400'
+          }`}
+        >
+          {isSelected && <Check className="h-3 w-3 text-white" />}
         </div>
       </div>
+
+      <div className="pr-8">
+        <h3 className="text-sm font-bold text-white">{api.name}</h3>
+        <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-slate-400">
+          {api.description}
+        </p>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <span className={`badge bg-gradient-to-r ${colorClass}`}>
+          {api.category}
+        </span>
+        <span className="badge bg-slate-700/50 text-slate-300">
+          {authTypeLabels[api.authType] ?? api.authType}
+        </span>
+        {api.rateLimit && (
+          <span className="badge bg-amber-500/10 text-amber-400">
+            {api.rateLimit}/min
+          </span>
+        )}
+      </div>
+
+      {/* Detail button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDetail();
+        }}
+        className="absolute bottom-4 right-4 rounded-lg p-1.5 text-slate-500 opacity-0 transition-all hover:bg-white/[0.06] hover:text-cyan-400 group-hover:opacity-100"
+        aria-label="상세 보기"
+      >
+        <ExternalLink className="h-4 w-4" />
+      </button>
     </div>
   );
 }

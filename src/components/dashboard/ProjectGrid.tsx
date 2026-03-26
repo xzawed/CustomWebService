@@ -5,6 +5,7 @@ import Link from 'next/link';
 import type { Project } from '@/types/project';
 import { ProjectCard } from './ProjectCard';
 import { usePublish } from '@/hooks/usePublish';
+import { Hammer, Plus } from 'lucide-react';
 
 interface ProjectGridProps {
   projects: Project[];
@@ -41,26 +42,29 @@ export function ProjectGrid({ projects: initialProjects }: ProjectGridProps) {
 
   if (projects.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 py-20">
-        <div className="text-5xl">🛠️</div>
-        <h2 className="mt-4 text-lg font-semibold text-gray-700">
+      <div className="flex flex-col items-center justify-center rounded-2xl py-24" style={{ background: 'var(--bg-surface)', border: '1px dashed var(--glass-border)' }}>
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-violet-500/20">
+          <Hammer className="h-7 w-7 text-cyan-400" />
+        </div>
+        <h2 className="mt-5 text-lg font-bold text-white">
           아직 만든 서비스가 없어요
         </h2>
-        <p className="mt-2 text-sm text-gray-500">
-          API를 골라 담고 나만의 웹서비스를 만들어보세요.
+        <p className="mt-2 text-sm text-slate-400">
+          API를 골라 담고 나만의 웹서비스를 만들어보세요
         </p>
         <Link
           href="/builder"
-          className="mt-6 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+          className="btn-primary mt-8 inline-flex items-center gap-2"
         >
-          서비스 만들러 가기
+          <Plus className="h-4 w-4" />
+          서비스 만들기
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {projects.map((project) => (
         <ProjectCard
           key={project.id}

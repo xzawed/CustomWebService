@@ -2,16 +2,18 @@
 
 import Link from 'next/link';
 import type { Project, ProjectStatus } from '@/types/project';
+import { Eye, ExternalLink, Trash2, Globe, GlobeLock, Copy, Check } from 'lucide-react';
+import { useState } from 'react';
 
-const statusConfig: Record<ProjectStatus, { label: string; className: string }> = {
-  draft: { label: '초안', className: 'bg-gray-100 text-gray-700' },
-  generating: { label: '생성 중', className: 'bg-yellow-100 text-yellow-700' },
-  generated: { label: '생성 완료', className: 'bg-blue-100 text-blue-700' },
-  deploying: { label: '배포 중', className: 'bg-purple-100 text-purple-700' },
-  deployed: { label: '배포됨', className: 'bg-green-100 text-green-700' },
-  published: { label: '게시됨', className: 'bg-emerald-100 text-emerald-700' },
-  unpublished: { label: '게시 취소', className: 'bg-gray-100 text-gray-500' },
-  failed: { label: '실패', className: 'bg-red-100 text-red-700' },
+const statusConfig: Record<ProjectStatus, { label: string; dot: string; bg: string }> = {
+  draft: { label: '초안', dot: 'bg-slate-400', bg: 'bg-slate-500/10 text-slate-300' },
+  generating: { label: '생성 중', dot: 'bg-amber-400 animate-pulse', bg: 'bg-amber-500/10 text-amber-400' },
+  generated: { label: '생성 완료', dot: 'bg-blue-400', bg: 'bg-blue-500/10 text-blue-400' },
+  deploying: { label: '배포 중', dot: 'bg-purple-400 animate-pulse', bg: 'bg-purple-500/10 text-purple-400' },
+  deployed: { label: '배포됨', dot: 'bg-emerald-400', bg: 'bg-emerald-500/10 text-emerald-400' },
+  published: { label: '게시됨', dot: 'bg-emerald-400', bg: 'bg-emerald-500/10 text-emerald-400' },
+  unpublished: { label: '게시 취소', dot: 'bg-slate-400', bg: 'bg-slate-500/10 text-slate-400' },
+  failed: { label: '실패', dot: 'bg-rose-400', bg: 'bg-rose-500/10 text-rose-400' },
 };
 
 const PUBLISHABLE_STATUSES: ProjectStatus[] = ['generated', 'deployed', 'unpublished'];
@@ -43,73 +45,80 @@ function buildPublishUrl(slug: string): string {
 export function ProjectCard({ project, onDelete, onPublish, onUnpublish }: ProjectCardProps) {
   const status = statusConfig[project.status];
   const publishUrl = project.slug ? buildPublishUrl(project.slug) : null;
+  const [copied, setCopied] = useState(false);
 
   const handleCopyUrl = () => {
     if (!publishUrl) return;
     const fullUrl = publishUrl.startsWith('http')
       ? publishUrl
       : `${window.location.origin}${publishUrl}`;
-    navigator.clipboard.writeText(fullUrl).catch(() => {});
+    navigator.clipboard.writeText(fullUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
   };
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-      <div className="flex items-start justify-between">
-        <h3 className="truncate text-base font-semibold text-gray-900">
-          {project.name}
-        </h3>
-        <span
-          className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${status.className}`}
-        >
+    <div className="card p-6">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="truncate text-sm font-bold text-white">{project.name}</h3>
+        <span className={`badge shrink-0 gap-1.5 ${status.bg}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
           {status.label}
         </span>
       </div>
 
+      {/* Description */}
       {project.context && (
-        <p className="mt-2 line-clamp-2 text-sm text-gray-500">
+        <p className="mt-2.5 line-clamp-2 text-xs leading-relaxed text-slate-400">
           {project.context}
         </p>
       )}
 
+      {/* Published URL */}
       {project.status === 'published' && publishUrl && (
-        <div className="mt-2 flex items-center gap-1">
+        <div className="mt-3 flex items-center gap-1.5 rounded-lg p-2" style={{ background: 'var(--bg-surface)' }}>
+          <Globe className="h-3 w-3 shrink-0 text-emerald-400" />
           <a
             href={publishUrl.startsWith('http') ? publishUrl : `${typeof window !== 'undefined' ? window.location.origin : ''}${publishUrl}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="truncate text-sm text-emerald-600 hover:underline"
+            className="truncate text-xs text-emerald-400 hover:underline"
           >
             {publishUrl}
           </a>
           <button
             type="button"
             onClick={handleCopyUrl}
-            className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="shrink-0 rounded p-1 text-slate-500 transition-colors hover:text-white"
             title="URL 복사"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
+            {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
           </button>
         </div>
       )}
 
-      <p className="mt-3 text-xs text-gray-400">
-        {formatDate(project.createdAt)} 생성
+      {/* Date */}
+      <p className="mt-3 text-[11px] text-slate-500">
+        {formatDate(project.createdAt)}
       </p>
 
+      {/* Actions */}
       <div className="mt-4 flex flex-wrap gap-2">
         <Link
           href={`/dashboard/${project.id}`}
-          className="rounded-md bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
+          className="btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs"
         >
-          상세 보기
+          <Eye className="h-3 w-3" />
+          상세
         </Link>
         {PREVIEWABLE_STATUSES.includes(project.status) && (
           <Link
             href={`/preview/${project.id}`}
-            className="rounded-md bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
+            className="btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs"
           >
+            <ExternalLink className="h-3 w-3" />
             미리보기
           </Link>
         )}
@@ -117,8 +126,10 @@ export function ProjectCard({ project, onDelete, onPublish, onUnpublish }: Proje
           <button
             type="button"
             onClick={() => onPublish(project.id)}
-            className="rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
+            style={{ border: '1px solid rgba(16, 185, 129, 0.2)' }}
           >
+            <Globe className="h-3 w-3" />
             게시
           </button>
         )}
@@ -126,8 +137,10 @@ export function ProjectCard({ project, onDelete, onPublish, onUnpublish }: Proje
           <button
             type="button"
             onClick={() => onUnpublish(project.id)}
-            className="rounded-md bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100"
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-400 transition-all hover:bg-white/[0.04]"
+            style={{ border: '1px solid var(--border)' }}
           >
+            <GlobeLock className="h-3 w-3" />
             게시 취소
           </button>
         )}
@@ -135,8 +148,10 @@ export function ProjectCard({ project, onDelete, onPublish, onUnpublish }: Proje
           <button
             type="button"
             onClick={() => onDelete(project.id)}
-            className="rounded-md bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100"
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-rose-400 transition-all hover:bg-rose-500/10"
+            style={{ border: '1px solid rgba(244, 63, 94, 0.2)' }}
           >
+            <Trash2 className="h-3 w-3" />
             삭제
           </button>
         )}
