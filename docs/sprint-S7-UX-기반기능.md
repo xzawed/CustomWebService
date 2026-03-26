@@ -254,6 +254,106 @@ UPDATE feature_flags SET enabled = true WHERE flag_name = 'enable_template_syste
 
 ---
 
+## S7 테스트 계획
+
+### 단위 테스트 (Unit Tests)
+
+**신규 테스트 파일 및 케이스:**
+
+#### `src/components/providers/ThemeProvider.test.ts` (S7-1)
+```
+describe('ThemeProvider')
+├── it('localStorage에 저장된 테마를 초기 로드한다')
+├── it('테마가 없으면 system 기본값을 사용한다')
+├── it('dark 테마 설정 시 html에 dark 클래스를 추가한다')
+├── it('light 테마 설정 시 html에서 dark 클래스를 제거한다')
+├── it('system 테마 시 prefers-color-scheme을 따른다')
+└── it('테마 변경 시 localStorage에 저장한다')
+```
+예상 테스트 수: **6개**
+
+#### `src/components/builder/CodeViewer.test.ts` (S7-2)
+```
+describe('CodeViewer')
+├── it('HTML 탭이 기본 선택되어 있다')
+├── it('CSS 탭 클릭 시 CSS 코드를 표시한다')
+├── it('JS 탭 클릭 시 JavaScript 코드를 표시한다')
+├── it('복사 버튼 클릭 시 현재 탭 코드를 클립보드에 복사한다')
+├── it('다운로드 버튼 클릭 시 조합된 HTML 파일을 생성한다')
+└── it('빈 코드 전달 시 안내 메시지를 표시한다')
+```
+예상 테스트 수: **6개**
+
+#### `src/stores/apiSelectionStore.test.ts` (S7-3)
+```
+describe('apiSelectionStore persist')
+├── it('API 선택 시 localStorage에 자동 저장한다')
+├── it('페이지 로드 시 localStorage에서 복원한다')
+├── it('reset() 호출 시 localStorage를 초기화한다')
+└── it('최대 API 개수 초과 시 추가를 거부한다')
+```
+예상 테스트 수: **4개**
+
+#### `src/templates/SearchTemplate.test.ts` (S7-4)
+```
+describe('SearchTemplate')
+├── describe('matchScore')
+│   ├── it('데이터 카테고리 API에 높은 점수를 반환한다')
+│   ├── it('무관한 카테고리 API에 0을 반환한다')
+│   └── it('혼합 API에 비례 점수를 반환한다')
+└── describe('generate')
+    ├── it('검색바를 포함한 HTML을 생성한다')
+    ├── it('promptHint에 검색 관련 지시를 포함한다')
+    └── it('CSS에 카드 그리드 스타일을 포함한다')
+```
+예상 테스트 수: **6개** (FeedTemplate, MapTemplate 각각 동일 → **18개**)
+
+### 통합 테스트 (Integration Tests)
+
+#### `src/__tests__/integration/dark-mode.test.ts`
+```
+describe('다크 모드 통합')
+├── it('enable_dark_mode=false 시 토글 버튼이 렌더되지 않는다')
+└── it('enable_dark_mode=true 시 토글 버튼이 렌더된다')
+```
+예상 테스트 수: **2개**
+
+#### `src/__tests__/integration/template-registry.test.ts`
+```
+describe('TemplateRegistry 통합')
+├── it('6종 템플릿이 모두 등록되어 있다')
+├── it('findBestMatch가 날씨 API에 DashboardTemplate을 반환한다')
+├── it('findBestMatch가 뉴스 API에 FeedTemplate을 반환한다')
+└── it('findBestMatch가 지도 API에 MapTemplate을 반환한다')
+```
+예상 테스트 수: **4개**
+
+### 코드 품질 검토 체크리스트
+
+#### 정적 분석
+- [ ] `pnpm lint` — ESLint 경고/에러 0건
+- [ ] `pnpm type-check` — TypeScript 컴파일 에러 0건 (기존 vitest/msw 제외)
+- [ ] `pnpm format:check` — Prettier 포맷 위반 0건
+
+#### 코드 리뷰 포인트
+- [ ] ThemeProvider가 SSR/CSR 하이드레이션 불일치를 발생시키지 않는가
+- [ ] 다크 모드 색상이 WCAG AA 대비 비율(4.5:1) 이상인가
+- [ ] CodeViewer에서 XSS 위험 없이 코드를 표시하는가 (innerHTML 대신 textContent)
+- [ ] localStorage 접근 시 try-catch로 예외 처리하는가 (시크릿 모드 등)
+- [ ] 새 템플릿의 matchScore 알고리즘이 기존 3종과 일관적인가
+- [ ] 피처 플래그 확인이 서버/클라이언트 양쪽에서 동작하는가
+
+#### 성능
+- [ ] 다크 모드 전환 시 FOUC(Flash of Unstyled Content) 없는가
+- [ ] 코드 뷰어의 큰 코드(10,000자 이상)에서 렌더링 지연 없는가
+- [ ] localStorage 저장이 빌더 입력 UX를 블로킹하지 않는가
+
+#### 테스트 커버리지 목표
+- [ ] 신규 코드 라인 커버리지 **80% 이상**
+- [ ] 신규 테스트 **40개 이상** 추가 (기존 94개 → 134개)
+
+---
+
 ## S7 완료 조건 종합
 
 - [ ] 다크 모드 토글 정상 동작 + 전체 페이지 반영

@@ -276,6 +276,129 @@ export function parseGeneratedCode(response: string, framework: string) {
 
 ---
 
+## S10 테스트 계획
+
+### 단위 테스트 (Unit Tests)
+
+#### `src/lib/i18n/i18n.test.ts` — 신규 (S10-1)
+```
+describe('i18n')
+├── describe('getTranslation')
+│   ├── it('한국어 키를 올바르게 반환한다')
+│   ├── it('영어 키를 올바르게 반환한다')
+│   ├── it('중첩된 키(common.save)를 올바르게 반환한다')
+│   ├── it('존재하지 않는 키에 키 자체를 반환한다')
+│   └── it('지원되지 않는 로케일에 영어 폴백을 사용한다')
+├── describe('useTranslation hook')
+│   ├── it('현재 로케일의 번역을 반환한다')
+│   └── it('setLocale()이 로케일을 변경하고 리렌더를 트리거한다')
+└── describe('로케일 감지')
+    ├── it('localStorage 설정을 우선한다')
+    ├── it('localStorage 없으면 users.preferences를 사용한다')
+    └── it('둘 다 없으면 브라우저 언어를 사용한다')
+```
+예상 테스트 수: **10개**
+
+#### `src/lib/i18n/locale-completeness.test.ts` — 신규 (S10-2)
+```
+describe('로케일 파일 완전성')
+├── it('ko.json과 en.json의 키 구조가 동일하다')
+├── it('모든 ko.json 키에 대응하는 en.json 키가 존재한다')
+├── it('빈 값("")인 번역이 없다')
+└── it('{{변수}} 플레이스홀더가 양쪽 로케일에서 일치한다')
+```
+예상 테스트 수: **4개**
+
+#### `src/lib/ai/promptBuilder.test.ts` — 추가 케이스 (S10-3)
+```
+describe('promptBuilder 다국어')
+├── it('language=ko 시 한국어 시스템 프롬프트를 반환한다')
+├── it('language=en 시 영어 시스템 프롬프트를 반환한다')
+├── it('buildUserPrompt()에 language가 반영된다')
+└── it('지원되지 않는 언어에 영어 폴백을 사용한다')
+```
+예상 테스트 수: **4개**
+
+#### `src/lib/ai/codeParser.test.ts` — 추가 케이스 (S10-5)
+```
+describe('codeParser 멀티 프레임워크')
+├── describe('parseReactCode')
+│   ├── it('JSX 코드블록을 추출한다')
+│   ├── it('CSS 모듈 코드를 추출한다')
+│   ├── it('export default 확인한다')
+│   └── it('JSX 없는 응답에 에러를 반환한다')
+├── describe('parseNextCode')
+│   ├── it('page.tsx 코드를 추출한다')
+│   ├── it('layout.tsx 코드를 추출한다')
+│   └── it('use client 디렉티브를 감지한다')
+└── describe('parseVanillaCode')
+    └── it('기존 로직과 동일하게 동작한다')
+```
+예상 테스트 수: **8개**
+
+#### `src/lib/ai/codeValidator.test.ts` — 추가 케이스 (S10-5)
+```
+describe('codeValidator 멀티 프레임워크')
+├── describe('React 검증')
+│   ├── it('hooks 규칙 위반을 감지한다 (조건부 useState)')
+│   ├── it('dangerouslySetInnerHTML 사용 시 경고한다')
+│   └── it('올바른 React 코드를 통과시킨다')
+├── describe('Next.js 검증')
+│   ├── it('Server Component에서 useState 사용 시 에러를 반환한다')
+│   └── it('올바른 Next.js 코드를 통과시킨다')
+└── describe('공통 보안 검증')
+    └── it('프레임워크와 무관하게 eval() 사용을 감지한다')
+```
+예상 테스트 수: **6개**
+
+### 통합 테스트 (Integration Tests)
+
+#### `src/__tests__/integration/i18n.test.ts` — 신규
+```
+describe('i18n 통합')
+├── it('한국어 로케일에서 전체 페이지가 한국어로 표시된다')
+├── it('영어 로케일에서 전체 페이지가 영어로 표시된다')
+└── it('로케일 변경 후 새로고침해도 유지된다')
+```
+예상 테스트 수: **3개**
+
+#### `src/__tests__/api/generate-framework.test.ts` — 신규
+```
+describe('POST /api/v1/generate — framework 선택')
+├── it('framework=vanilla 시 HTML/CSS/JS를 생성한다')
+├── it('framework=react 시 JSX/CSS를 생성한다')
+├── it('framework=next 시 page.tsx를 생성한다')
+├── it('잘못된 framework 값에 400을 반환한다')
+└── it('framework 미지정 시 vanilla를 기본으로 사용한다')
+```
+예상 테스트 수: **5개**
+
+### 코드 품질 검토 체크리스트
+
+#### 정적 분석
+- [ ] `pnpm lint` — 경고/에러 0건
+- [ ] `pnpm type-check` — 컴파일 에러 0건
+- [ ] `pnpm format:check` — 포맷 위반 0건
+
+#### 코드 리뷰 포인트
+- [ ] i18n 키가 하드코딩 문자열 없이 모든 UI 텍스트를 커버하는가
+- [ ] ko.json과 en.json의 키 구조가 정확히 일치하는가
+- [ ] 프레임워크별 시스템 프롬프트가 충분히 구체적인가
+- [ ] React/Next.js 파서가 다양한 AI 응답 형식에 대응하는가
+- [ ] 미리보기 iframe에서 React 코드가 Babel 변환 후 정상 렌더되는가
+- [ ] 법적 페이지(terms, privacy, disclaimer)도 다국어 분기되는가
+
+#### 보안
+- [ ] i18n 키에 사용자 입력이 포함되지 않는가 (XSS 방지)
+- [ ] React 코드 생성 시 dangerouslySetInnerHTML 사용을 차단하는가
+- [ ] 미리보기의 Babel standalone이 샌드박스 외부 접근을 허용하지 않는가
+
+#### 테스트 커버리지 목표
+- [ ] 신규 코드 라인 커버리지 **80% 이상**
+- [ ] 신규 테스트 **40개 이상** 추가 (누적 207개 → 247개)
+
+---
+
 ## S10 완료 조건 종합
 
 - [ ] 한국어/영어 UI 전환 정상 동작

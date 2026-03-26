@@ -318,6 +318,140 @@ DELETE /api/v1/admin/prompts/:id     → 삭제
 
 ---
 
+## S9 테스트 계획
+
+### 단위 테스트 (Unit Tests)
+
+#### `src/providers/ai/AiProviderFactory.test.ts` — 리팩터링 (S9-1)
+```
+describe('AiProviderFactory (등록 기반)')
+├── it('register()로 등록된 프로바이더를 create()로 생성한다')
+├── it('미등록 타입에 NotFoundError를 던진다')
+├── it('getAvailableProviders()가 등록 목록을 반환한다')
+├── it('getBestAvailable()이 사용 가능한 첫 프로바이더를 반환한다')
+├── it('모든 프로바이더 불가 시 ServiceError를 던진다')
+└── it('같은 타입 재등록 시 덮어쓴다')
+```
+예상 테스트 수: **6개** (기존 7개 리팩터링)
+
+#### `src/providers/ai/OpenAIProvider.test.ts` — 신규 (S9-2)
+```
+describe('OpenAIProvider')
+├── describe('generateCode')
+│   ├── it('OpenAI API를 호출하고 AiResponse를 반환한다')
+│   ├── it('토큰 사용량을 올바르게 추적한다')
+│   └── it('API 에러 시 적절한 에러를 던진다')
+├── describe('generateCodeStream')
+│   ├── it('스트리밍 응답을 AsyncGenerator로 반환한다')
+│   └── it('빈 응답을 정상 처리한다')
+└── describe('checkAvailability')
+    ├── it('API 키 유효 시 available: true를 반환한다')
+    └── it('429 상태 시 available: false를 반환한다')
+```
+예상 테스트 수: **7개**
+
+MSW 핸들러 추가 (`src/test/mocks/handlers.ts`):
+```typescript
+// OpenAI API mock
+http.post('https://api.openai.com/v1/chat/completions', () => {
+  return HttpResponse.json({
+    choices: [{ message: { content: '```html\n<h1>Test</h1>\n```' } }],
+    usage: { prompt_tokens: 100, completion_tokens: 200 }
+  });
+})
+```
+
+#### `src/providers/ai/OllamaProvider.test.ts` — 신규 (S9-3)
+```
+describe('OllamaProvider')
+├── describe('generateCode')
+│   ├── it('Ollama API를 호출하고 AiResponse를 반환한다')
+│   └── it('연결 실패 시 ServiceError를 던진다')
+├── describe('checkAvailability')
+│   ├── it('Ollama 실행 중이면 available: true를 반환한다')
+│   └── it('연결 불가 시 available: false를 반환한다')
+└── describe('generateCodeStream')
+    └── it('스트리밍 응답을 올바르게 파싱한다')
+```
+예상 테스트 수: **5개**
+
+#### `src/lib/ai/promptBuilder.test.ts` — 추가 케이스 (S9-5)
+```
+describe('promptBuilder (DB 기반)')
+├── it('DB에서 기본 시스템 프롬프트를 로드한다')
+├── it('DB 실패 시 하드코딩된 프롬프트로 폴백한다')
+├── it('interpolatePrompt()가 {{변수}}를 치환한다')
+├── it('정의되지 않은 변수는 빈 문자열로 치환한다')
+└── it('캐시 TTL 내에서 DB 재조회하지 않는다')
+```
+예상 테스트 수: **5개** (기존 9개에 추가)
+
+#### `src/services/generationService.test.ts` — 추가 케이스 (S9-6)
+```
+describe('쿼터 모니터링')
+├── it('남은 쿼터 20% 이하 시 API_QUOTA_WARNING 이벤트를 발행한다')
+├── it('쿼터 충분 시 이벤트를 발행하지 않는다')
+└── it('쿼터 확인 실패 시 경고 없이 계속 진행한다')
+```
+예상 테스트 수: **3개**
+
+### 통합 테스트 (Integration Tests)
+
+#### `src/__tests__/api/ai-providers.test.ts` — 신규
+```
+describe('GET /api/v1/ai/providers')
+├── it('등록된 프로바이더 목록을 반환한다')
+├── it('각 프로바이더의 available 상태를 포함한다')
+└── it('미인증 시에도 접근 가능하다')
+
+describe('POST /api/v1/generate — provider 선택')
+├── it('provider 파라미터로 특정 프로바이더를 사용한다')
+├── it('미등록 provider에 400을 반환한다')
+└── it('provider 미지정 시 getBestAvailable()을 사용한다')
+```
+예상 테스트 수: **6개**
+
+#### `src/__tests__/api/admin-prompts.test.ts` — 신규
+```
+describe('프롬프트 관리 API')
+├── it('GET /api/v1/admin/prompts — 프롬프트 목록을 반환한다')
+├── it('POST /api/v1/admin/prompts — 새 프롬프트를 생성한다')
+├── it('PATCH /api/v1/admin/prompts/:id — 프롬프트를 수정한다')
+└── it('일반 사용자는 관리 API에 403을 반환한다')
+```
+예상 테스트 수: **4개**
+
+### 코드 품질 검토 체크리스트
+
+#### 정적 분석
+- [ ] `pnpm lint` — 경고/에러 0건
+- [ ] `pnpm type-check` — 컴파일 에러 0건
+- [ ] `pnpm format:check` — 포맷 위반 0건
+
+#### 코드 리뷰 포인트
+- [ ] 등록 기반 팩토리 전환 후 기존 테스트가 모두 통과하는가
+- [ ] OpenAI/Ollama 프로바이더가 IAiProvider 인터페이스를 완전히 구현하는가
+- [ ] API 키가 서버사이드에서만 접근 가능한가 (NEXT_PUBLIC_ 접두사 없음)
+- [ ] Ollama 연결 타임아웃이 설정되어 있는가 (무한 대기 방지)
+- [ ] 프롬프트 캐시가 메모리 누수를 일으키지 않는가 (WeakMap 또는 TTL)
+- [ ] 관리 API에 적절한 인증/인가가 적용되었는가
+
+#### 보안
+- [ ] 프롬프트 템플릿의 변수 치환에서 코드 인젝션 위험이 없는가
+- [ ] Ollama Provider가 로컬 네트워크 외부 접근을 허용하지 않는가
+- [ ] API 키 로깅/노출이 없는가 (에러 메시지, 응답 본문)
+
+#### 성능
+- [ ] `getBestAvailable()`의 순차 checkAvailability()가 총 5초 이내에 완료되는가
+- [ ] 프롬프트 DB 조회가 캐시 히트 시 0ms에 가까운가
+- [ ] 프로바이더 인스턴스 캐싱이 올바르게 동작하는가
+
+#### 테스트 커버리지 목표
+- [ ] 신규 코드 라인 커버리지 **85% 이상**
+- [ ] 신규 테스트 **36개 이상** 추가 (누적 171개 → 207개)
+
+---
+
 ## S9 완료 조건 종합
 
 - [ ] 등록 기반 팩토리로 전환 완료

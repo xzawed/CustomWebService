@@ -226,6 +226,122 @@ GET /api/v1/projects/:id/diff?v1=1&v2=3
 
 ---
 
+## S8 테스트 계획
+
+### 단위 테스트 (Unit Tests)
+
+#### `src/services/generationService.test.ts` — 추가 케이스 (S8-2)
+```
+describe('GenerationService.regenerateWithFeedback()')
+├── it('피드백 텍스트를 regeneration 프롬프트에 포함한다')
+├── it('기존 코드를 프롬프트 컨텍스트로 전달한다')
+├── it('새 버전 번호로 코드를 저장한다')
+├── it('일일 생성 한도에 재생성도 포함된다')
+├── it('프로젝트가 없으면 NotFoundError를 던진다')
+└── it('생성 코드가 없으면 ValidationError를 던진다')
+```
+예상 테스트 수: **6개**
+
+#### `src/repositories/codeRepository.test.ts` — 신규 (S8-1, S8-3)
+```
+describe('CodeRepository')
+├── describe('updateFeedback')
+│   ├── it('피드백을 metadata.userFeedback에 저장한다')
+│   ├── it('기존 metadata를 유지하면서 feedback만 업데이트한다')
+│   └── it('존재하지 않는 버전에 대해 NotFoundError를 던진다')
+├── describe('findAllVersions')
+│   ├── it('프로젝트의 모든 버전을 생성일 역순으로 반환한다')
+│   └── it('버전이 없으면 빈 배열을 반환한다')
+└── describe('findByVersion')
+    ├── it('특정 버전의 코드를 반환한다')
+    └── it('없는 버전이면 null을 반환한다')
+```
+예상 테스트 수: **7개**
+
+#### `src/lib/utils/diff.test.ts` — 신규 (S8-4)
+```
+describe('diff 유틸리티')
+├── it('동일한 텍스트에 변경 없음을 반환한다')
+├── it('추가된 줄을 added로 표시한다')
+├── it('삭제된 줄을 removed로 표시한다')
+├── it('변경된 줄을 removed+added 쌍으로 표시한다')
+├── it('빈 문자열 비교를 처리한다')
+└── it('여러 줄의 복합 변경을 올바르게 처리한다')
+```
+예상 테스트 수: **6개**
+
+#### `src/components/builder/FeedbackPanel.test.ts` — 신규 (S8-1)
+```
+describe('FeedbackPanel')
+├── it('👍 클릭 시 positive 평가를 콜백한다')
+├── it('👎 클릭 시 카테고리 선택 영역을 펼친다')
+├── it('카테고리 선택 + 의견 입력 후 제출 시 데이터를 콜백한다')
+└── it('재생성 버튼 클릭 시 피드백 데이터와 함께 콜백한다')
+```
+예상 테스트 수: **4개**
+
+### 통합 테스트 (Integration Tests)
+
+#### `src/__tests__/api/feedback.test.ts` — 신규
+```
+describe('POST /api/v1/projects/:id/feedback')
+├── it('인증된 사용자가 피드백을 저장한다')
+├── it('미인증 시 401을 반환한다')
+├── it('타인의 프로젝트에 403을 반환한다')
+└── it('잘못된 rating 값에 400을 반환한다')
+```
+예상 테스트 수: **4개**
+
+#### `src/__tests__/api/regenerate.test.ts` — 신규
+```
+describe('POST /api/v1/projects/:id/regenerate')
+├── it('피드백 기반 재생성 SSE 스트림을 반환한다')
+├── it('생성 코드 없는 프로젝트에 400을 반환한다')
+├── it('일일 한도 초과 시 429를 반환한다')
+└── it('미인증 시 401을 반환한다')
+```
+예상 테스트 수: **4개**
+
+#### `src/__tests__/api/versions.test.ts` — 신규
+```
+describe('GET /api/v1/projects/:id/versions')
+├── it('프로젝트의 모든 버전 목록을 반환한다')
+├── it('각 버전에 메타데이터(토큰, 시간, 모델)를 포함한다')
+└── it('미인증 시 401을 반환한다')
+
+describe('GET /api/v1/projects/:id/diff')
+├── it('두 버전 간 HTML/CSS/JS diff를 반환한다')
+├── it('존재하지 않는 버전에 404를 반환한다')
+└── it('같은 버전 비교 시 빈 diff를 반환한다')
+```
+예상 테스트 수: **6개**
+
+### 코드 품질 검토 체크리스트
+
+#### 정적 분석
+- [ ] `pnpm lint` — 경고/에러 0건
+- [ ] `pnpm type-check` — 컴파일 에러 0건
+- [ ] `pnpm format:check` — 포맷 위반 0건
+
+#### 코드 리뷰 포인트
+- [ ] 피드백 데이터에 사용자 입력 XSS 방어가 적용되었는가 (Zod 검증)
+- [ ] regeneration 프롬프트에 피드백 텍스트 인젝션 위험이 없는가
+- [ ] Diff 알고리즘이 O(n²) 이하 복잡도인가 (큰 코드 대응)
+- [ ] 버전 목록 API에 페이지네이션이 적용되었는가 (버전 과다 방지)
+- [ ] 롤백 시 published 상태의 서브도메인 콘텐츠가 즉시 반영되는가
+- [ ] SSE 스트림 에러 시 클라이언트가 정상 종료하는가
+
+#### 보안
+- [ ] 피드백 comment 필드 길이 제한 (1000자 이하)
+- [ ] diff API에 인증 + 소유자 확인 적용
+- [ ] regeneration API에 Rate Limit 적용
+
+#### 테스트 커버리지 목표
+- [ ] 신규 코드 라인 커버리지 **80% 이상**
+- [ ] 신규 테스트 **37개 이상** 추가 (누적 134개 → 171개)
+
+---
+
 ## S8 완료 조건 종합
 
 - [ ] 피드백 수집 → 저장 → 재생성 파이프라인 동작

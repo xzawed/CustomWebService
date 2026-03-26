@@ -289,6 +289,141 @@ GET /api/v1/analytics?period=7d
 
 ---
 
+## S11 테스트 계획
+
+### 단위 테스트 (Unit Tests)
+
+#### `src/services/organizationService.test.ts` — 신규 (S11-1, S11-3)
+```
+describe('OrganizationService')
+├── describe('create')
+│   ├── it('조직을 생성하고 생성자를 owner로 추가한다')
+│   ├── it('중복 slug에 ConflictError를 던진다')
+│   └── it('잘못된 slug 형식에 ValidationError를 던진다')
+├── describe('addMember')
+│   ├── it('이메일로 사용자를 찾아 멤버로 추가한다')
+│   ├── it('이미 멤버인 사용자에 ConflictError를 던진다')
+│   ├── it('존재하지 않는 이메일에 NotFoundError를 던진다')
+│   └── it('viewer는 멤버를 추가할 수 없다 (ForbiddenError)')
+├── describe('removeMember')
+│   ├── it('admin이 member를 제거할 수 있다')
+│   ├── it('owner는 제거할 수 없다')
+│   └── it('member가 다른 member를 제거할 수 없다')
+├── describe('changeRole')
+│   ├── it('owner가 member를 admin으로 변경할 수 있다')
+│   └── it('admin이 owner 역할을 부여할 수 없다')
+└── describe('checkPermission')
+    ├── it('owner는 모든 동작에 true를 반환한다')
+    ├── it('admin은 설정 변경에 true를 반환한다')
+    ├── it('member는 프로젝트 생성에 true를 반환한다')
+    ├── it('viewer는 프로젝트 조회에만 true를 반환한다')
+    └── it('비멤버에 false를 반환한다')
+```
+예상 테스트 수: **16개**
+
+#### `src/services/analyticsService.test.ts` — 신규 (S11-4)
+```
+describe('AnalyticsService')
+├── describe('getOverview')
+│   ├── it('기간 내 생성 건수를 집계한다')
+│   ├── it('성공률을 올바르게 계산한다')
+│   ├── it('프로바이더별 분포를 반환한다')
+│   ├── it('일별 추이 데이터를 반환한다')
+│   └── it('데이터 없는 기간에 0을 반환한다')
+├── describe('getTopApis')
+│   ├── it('사용 빈도 순으로 API 목록을 반환한다')
+│   └── it('최대 N개만 반환한다')
+└── describe('getTokenUsage')
+    ├── it('프로바이더별 토큰 합계를 반환한다')
+    └── it('입력/출력 토큰을 분리하여 집계한다')
+```
+예상 테스트 수: **9개**
+
+#### `src/services/projectService.test.ts` — 추가 케이스 (S11-2)
+```
+describe('ProjectService — 조직 프로젝트')
+├── it('organizationId를 포함하여 프로젝트를 생성한다')
+├── it('조직 비멤버의 프로젝트 생성을 거부한다')
+├── it('viewer의 조직 프로젝트 생성을 거부한다')
+└── it('조직 프로젝트 삭제 시 member 역할을 확인한다')
+```
+예상 테스트 수: **4개**
+
+### 통합 테스트 (Integration Tests)
+
+#### `src/__tests__/api/organizations.test.ts` — 신규
+```
+describe('조직 API')
+├── describe('POST /api/v1/organizations')
+│   ├── it('조직을 생성하고 201을 반환한다')
+│   ├── it('중복 slug에 409를 반환한다')
+│   └── it('미인증 시 401을 반환한다')
+├── describe('GET /api/v1/organizations')
+│   ├── it('내가 속한 조직 목록을 반환한다')
+│   └── it('미소속 조직은 포함하지 않는다')
+├── describe('PATCH /api/v1/organizations/:orgId')
+│   ├── it('admin이 조직 정보를 수정한다')
+│   └── it('member가 수정 시 403을 반환한다')
+└── describe('DELETE /api/v1/organizations/:orgId')
+    ├── it('owner가 조직을 삭제한다')
+    └── it('admin이 삭제 시 403을 반환한다')
+```
+예상 테스트 수: **9개**
+
+#### `src/__tests__/api/members.test.ts` — 신규
+```
+describe('멤버 관리 API')
+├── describe('POST /api/v1/organizations/:orgId/members')
+│   ├── it('admin이 멤버를 초대한다')
+│   ├── it('member가 초대 시 403을 반환한다')
+│   └── it('이미 멤버인 사용자 초대 시 409를 반환한다')
+├── describe('DELETE /api/v1/organizations/:orgId/members/:memberId')
+│   ├── it('admin이 member를 제거한다')
+│   └── it('owner 제거 시 400을 반환한다')
+└── describe('PATCH /api/v1/organizations/:orgId/members/:memberId')
+    ├── it('owner가 역할을 변경한다')
+    └── it('admin→owner 변경 시 400을 반환한다')
+```
+예상 테스트 수: **7개**
+
+#### `src/__tests__/api/analytics.test.ts` — 신규
+```
+describe('GET /api/v1/analytics')
+├── it('7일 기간 분석 데이터를 반환한다')
+├── it('30일 기간 분석 데이터를 반환한다')
+├── it('period 파라미터 없으면 7일 기본값을 사용한다')
+├── it('미인증 시 401을 반환한다')
+└── it('응답에 generation, tokens, projects, apis 섹션을 포함한다')
+```
+예상 테스트 수: **5개**
+
+### 코드 품질 검토 체크리스트
+
+#### 정적 분석
+- [ ] `pnpm lint` — 경고/에러 0건
+- [ ] `pnpm type-check` — 컴파일 에러 0건
+- [ ] `pnpm format:check` — 포맷 위반 0건
+
+#### 코드 리뷰 포인트
+- [ ] 조직 삭제 시 CASCADE로 모든 관련 데이터(멤버십, 프로젝트)가 정리되는가
+- [ ] owner 양도 없이 owner가 탈퇴하면 어떻게 되는가 (방지 로직 확인)
+- [ ] 분석 쿼리에 인덱스가 활용되는가 (EXPLAIN 확인)
+- [ ] 분석 API 응답 시간이 2초 이내인가 (대용량 데이터 대비)
+- [ ] RLS 정책이 조직 간 데이터 격리를 보장하는가
+- [ ] 역할 변경 시 기존 세션이 즉시 반영되는가
+
+#### 보안
+- [ ] 멤버 초대 시 이메일 열거 공격(enumeration attack)에 안전한가
+- [ ] 조직 설정 API에 admin/owner만 접근 가능한가
+- [ ] 분석 API가 타인의 데이터를 노출하지 않는가
+- [ ] 멤버 목록에 민감 정보(이메일 전체)가 노출되지 않는가
+
+#### 테스트 커버리지 목표
+- [ ] 신규 코드 라인 커버리지 **85% 이상**
+- [ ] 신규 테스트 **50개 이상** 추가 (누적 247개 → 297개)
+
+---
+
 ## S11 완료 조건 종합
 
 - [ ] 조직 생성/관리/멤버 초대 동작
