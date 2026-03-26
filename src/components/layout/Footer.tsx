@@ -12,6 +12,15 @@ export function Footer() {
             <Link href="/catalog" className="text-sm text-gray-500 hover:text-gray-700">
               API 카탈로그
             </Link>
+            <Link href="/terms" className="text-sm text-gray-500 hover:text-gray-700">
+              이용약관
+            </Link>
+            <Link href="/privacy" className="text-sm text-gray-500 hover:text-gray-700">
+              개인정보처리방침
+            </Link>
+            <Link href="/disclaimer" className="text-sm text-gray-500 hover:text-gray-700">
+              면책 조항
+            </Link>
             <a
               href="https://github.com"
               target="_blank"

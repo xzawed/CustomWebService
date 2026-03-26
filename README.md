@@ -14,7 +14,7 @@
 
 | 기능 | 설명 |
 |------|------|
-| **API 카탈로그** | 30+ 영구 무료 API를 카테고리별 탐색, 검색, 상세 모달 |
+| **API 카탈로그** | 15개 영구 무료 API를 카테고리별 탐색, 검색, 상세 모달 |
 | **3-Step 빌더** | API 선택 → 서비스 설명 → AI 코드 생성 (SSE 실시간 진행률) |
 | **AI 코드 생성** | xAI Grok API 기반 HTML/CSS/JS 자동 생성 + 보안 검증 |
 | **코드 템플릿** | 대시보드, 계산기, 갤러리 등 3종 기본 템플릿 |
@@ -90,7 +90,10 @@ src/
 │   │   ├── catalog/page.tsx      # API 카탈로그
 │   │   ├── dashboard/page.tsx    # 프로젝트 대시보드
 │   │   ├── dashboard/[id]/page.tsx # 프로젝트 상세 + 게시 설정
-│   │   └── preview/[id]/page.tsx # 미리보기
+│   │   ├── preview/[id]/page.tsx # 미리보기
+│   │   ├── terms/page.tsx       # 이용약관
+│   │   ├── privacy/page.tsx     # 개인정보처리방침
+│   │   └── disclaimer/page.tsx  # 면책 조항
 │   ├── site/
 │   │   └── [slug]/route.ts       # 서브도메인 사이트 서빙 (인증 불필요, 공개)
 │   ├── api/v1/                   # REST API (v1 버저닝)
