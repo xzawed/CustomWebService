@@ -61,10 +61,9 @@ export class ProjectService {
       previewUrl: null,
       metadata: {},
       currentVersion: 0,
-      apis: [],
       slug: null,
       publishedAt: null,
-    } as Omit<Project, 'id' | 'createdAt' | 'updatedAt'>);
+    } as Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'apis'>);
 
     // Use repository method instead of direct Supabase access
     await this.projectRepo.insertProjectApis(project.id, input.apiIds);
