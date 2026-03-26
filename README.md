@@ -14,7 +14,7 @@
 
 | 기능 | 설명 |
 |------|------|
-| **API 카탈로그** | 15개 영구 무료 API를 카테고리별 탐색, 검색, 상세 모달 |
+| **API 카탈로그** | 54개 영구 무료 API를 카테고리별 탐색, 검색, 상세 모달 |
 | **3-Step 빌더** | API 선택 → 서비스 설명 → AI 코드 생성 (SSE 실시간 진행률) |
 | **AI 코드 생성** | xAI Grok API 기반 HTML/CSS/JS 자동 생성 + 보안 검증 |
 | **코드 템플릿** | 대시보드, 계산기, 갤러리 등 3종 기본 템플릿 |
@@ -199,7 +199,7 @@ src/
 supabase/
 ├── migrations/001_initial_schema.sql  # 10개 테이블 + RLS
 ├── migrations/002_slug.sql            # slug, published_at 컬럼 + 인덱스
-└── seed.sql                           # 15 API + 7 피처 플래그
+└── seed.sql                           # 54 API + 7 피처 플래그
 
 docs/
 ├── sprint-plan.md                # 서브도메인 호스팅 Sprint 계획 및 진행 상황
