@@ -7,9 +7,7 @@ export class CatalogRepository extends BaseRepository<ApiCatalogItem> {
     super(supabase, 'api_catalog');
   }
 
-  async search(
-    params: CatalogSearchParams
-  ): Promise<{ items: ApiCatalogItem[]; total: number }> {
+  async search(params: CatalogSearchParams): Promise<{ items: ApiCatalogItem[]; total: number }> {
     const { category, search, page = 1, limit = 20 } = params;
 
     // Bounds checking
@@ -29,11 +27,12 @@ export class CatalogRepository extends BaseRepository<ApiCatalogItem> {
 
     if (search) {
       // Sanitize search input - remove special characters that could interfere
-      const sanitized = search.replace(/[%_\\]/g, '').trim().slice(0, 100);
+      const sanitized = search
+        .replace(/[%_\\]/g, '')
+        .trim()
+        .slice(0, 100);
       if (sanitized) {
-        query = query.or(
-          `name.ilike.%${sanitized}%,description.ilike.%${sanitized}%`
-        );
+        query = query.or(`name.ilike.%${sanitized}%,description.ilike.%${sanitized}%`);
       }
     }
 
@@ -74,10 +73,7 @@ export class CatalogRepository extends BaseRepository<ApiCatalogItem> {
   async findByIds(ids: string[]): Promise<ApiCatalogItem[]> {
     if (ids.length === 0) return [];
 
-    const { data, error } = await this.supabase
-      .from(this.tableName)
-      .select('*')
-      .in('id', ids);
+    const { data, error } = await this.supabase.from(this.tableName).select('*').in('id', ids);
 
     if (error) throw error;
     return (data ?? []).map((row) => this.toDomain(row));
@@ -116,17 +112,27 @@ export class CatalogRepository extends BaseRepository<ApiCatalogItem> {
       let params: ApiCatalogItem['endpoints'][0]['params'] = [];
       if (Array.isArray(ep.params)) {
         params = ep.params;
-      } else if (ep.parameters && typeof ep.parameters === 'object' && !Array.isArray(ep.parameters)) {
-        params = Object.entries(ep.parameters as Record<string, string>).map(
-          ([name, type]) => ({ name, type, required: false, description: '' })
-        );
+      } else if (
+        ep.parameters &&
+        typeof ep.parameters === 'object' &&
+        !Array.isArray(ep.parameters)
+      ) {
+        params = Object.entries(ep.parameters as Record<string, string>).map(([name, type]) => ({
+          name,
+          type,
+          required: false,
+          description: '',
+        }));
       }
       return {
         path: (ep.path as string) ?? '',
         method: (ep.method as 'GET' | 'POST' | 'PUT' | 'DELETE') ?? 'GET',
         description: (ep.description as string) ?? '',
         params,
-        responseExample: (ep.response_example as Record<string, unknown>) ?? (ep.responseExample as Record<string, unknown>) ?? {},
+        responseExample:
+          (ep.response_example as Record<string, unknown>) ??
+          (ep.responseExample as Record<string, unknown>) ??
+          {},
       };
     });
   }

@@ -2,11 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { DeployService } from '@/services/deployService';
 import type { DeployPlatform } from '@/providers/deploy/DeployProviderFactory';
 import { eventBus } from '@/lib/events/eventBus';
-import {
-  AuthRequiredError,
-  ValidationError,
-  handleApiError,
-} from '@/lib/utils/errors';
+import { AuthRequiredError, ValidationError, handleApiError } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
@@ -83,8 +79,7 @@ export async function POST(request: Request): Promise<Response> {
           });
 
           send('error', {
-            message:
-              error instanceof Error ? error.message : '배포에 실패했습니다.',
+            message: error instanceof Error ? error.message : '배포에 실패했습니다.',
           });
         } finally {
           controller.close();

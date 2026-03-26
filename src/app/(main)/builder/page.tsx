@@ -18,11 +18,7 @@ import { LIMITS } from '@/lib/config/features';
 import type { ApiCatalogItem, Category } from '@/types/api';
 import { ChevronLeft, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
 
-const STEPS = [
-  { label: 'API 선택' },
-  { label: '서비스 설명' },
-  { label: '생성' },
-];
+const STEPS = [{ label: 'API 선택' }, { label: '서비스 설명' }, { label: '생성' }];
 
 export default function BuilderPage() {
   const router = useRouter();
@@ -31,12 +27,7 @@ export default function BuilderPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
 
-  const {
-    selectedApis,
-    addApi,
-    removeApi,
-    clearApis,
-  } = useApiSelectionStore();
+  const { selectedApis, addApi, removeApi, clearApis } = useApiSelectionStore();
 
   const {
     context,
@@ -192,9 +183,7 @@ export default function BuilderPage() {
       {/* Step 1: API Selection */}
       {step === 1 && (
         <div className="space-y-6">
-          <h2 className="text-xl font-bold text-gray-900">
-            사용할 API를 선택하세요
-          </h2>
+          <h2 className="text-xl font-bold text-gray-900">사용할 API를 선택하세요</h2>
           <p className="text-sm text-gray-500">
             최대 {LIMITS.maxApisPerProject}개의 API를 선택할 수 있습니다.
           </p>
@@ -226,9 +215,7 @@ export default function BuilderPage() {
       {/* Step 2: Context Input */}
       {step === 2 && (
         <div className="space-y-6">
-          <h2 className="text-xl font-bold text-gray-900">
-            어떤 서비스를 만들고 싶으세요?
-          </h2>
+          <h2 className="text-xl font-bold text-gray-900">어떤 서비스를 만들고 싶으세요?</h2>
 
           <GuideQuestions onInsert={handleInsertGuide} />
 
@@ -257,9 +244,7 @@ export default function BuilderPage() {
             onNavigateDashboard={() => router.push('/dashboard')}
           />
 
-          {genStatus === 'completed' && projectId && (
-            <PreviewFrame projectId={projectId} />
-          )}
+          {genStatus === 'completed' && projectId && <PreviewFrame projectId={projectId} />}
         </div>
       )}
 
@@ -279,10 +264,7 @@ export default function BuilderPage() {
           <button
             type="button"
             onClick={() => setStep((s) => Math.min(3, s + 1))}
-            disabled={
-              (step === 1 && !canProceedStep1) ||
-              (step === 2 && !canProceedStep2)
-            }
+            disabled={(step === 1 && !canProceedStep1) || (step === 2 && !canProceedStep2)}
             className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
             다음

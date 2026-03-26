@@ -12,15 +12,11 @@ export default function PrivacyPage() {
 
       <div className="space-y-8 text-gray-700 leading-relaxed">
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">
-            1. 수집하는 개인정보
-          </h2>
+          <h2 className="mb-3 text-xl font-semibold text-gray-900">1. 수집하는 개인정보</h2>
 
           <h3 className="mb-2 mt-4 font-semibold text-gray-800">가. 필수 수집 항목</h3>
           <ul className="list-disc space-y-1 pl-6">
-            <li>
-              소셜 로그인 시: 이메일 주소, 이름, 프로필 이미지 URL (Google/GitHub 제공 정보)
-            </li>
+            <li>소셜 로그인 시: 이메일 주소, 이름, 프로필 이미지 URL (Google/GitHub 제공 정보)</li>
           </ul>
 
           <h3 className="mb-2 mt-4 font-semibold text-gray-800">나. 자동 수집 항목</h3>
@@ -29,9 +25,7 @@ export default function PrivacyPage() {
             <li>접속 로그 (IP 주소, 브라우저 정보, 접속 시간)</li>
           </ul>
 
-          <h3 className="mb-2 mt-4 font-semibold text-gray-800">
-            다. 수집하지 않는 항목
-          </h3>
+          <h3 className="mb-2 mt-4 font-semibold text-gray-800">다. 수집하지 않는 항목</h3>
           <ul className="list-disc space-y-1 pl-6">
             <li>결제 정보 (무료 서비스)</li>
             <li>주민등록번호, 전화번호</li>
@@ -40,9 +34,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">
-            2. 개인정보의 이용 목적
-          </h2>
+          <h2 className="mb-3 text-xl font-semibold text-gray-900">2. 개인정보의 이용 목적</h2>
           <ul className="list-disc space-y-1 pl-6">
             <li>서비스 제공 및 사용자 인증</li>
             <li>생성된 프로젝트 관리</li>
@@ -52,9 +44,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">
-            3. 개인정보의 보관 및 파기
-          </h2>
+          <h2 className="mb-3 text-xl font-semibold text-gray-900">3. 개인정보의 보관 및 파기</h2>
 
           <h3 className="mb-2 mt-4 font-semibold text-gray-800">가. 보관 기간</h3>
           <ul className="list-disc space-y-1 pl-6">
@@ -71,9 +61,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">
-            4. 개인정보의 제3자 제공
-          </h2>
+          <h2 className="mb-3 text-xl font-semibold text-gray-900">4. 개인정보의 제3자 제공</h2>
           <p>개인정보를 제3자에게 제공하지 않습니다. 단, 다음의 경우 예외입니다:</p>
           <ul className="mt-2 list-disc space-y-1 pl-6">
             <li>법령에 따른 요청이 있는 경우</li>
@@ -82,9 +70,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">
-            5. 개인정보의 처리 위탁
-          </h2>
+          <h2 className="mb-3 text-xl font-semibold text-gray-900">5. 개인정보의 처리 위탁</h2>
           <div className="overflow-x-auto">
             <table className="mt-2 w-full text-sm">
               <thead>
@@ -134,15 +120,13 @@ export default function PrivacyPage() {
         <section>
           <h2 className="mb-3 text-xl font-semibold text-gray-900">7. 쿠키 사용</h2>
           <p>
-            로그인 세션 유지를 위한 필수 쿠키만 사용합니다. 광고 추적 쿠키 및 제3자 마케팅
-            쿠키는 사용하지 않습니다.
+            로그인 세션 유지를 위한 필수 쿠키만 사용합니다. 광고 추적 쿠키 및 제3자 마케팅 쿠키는
+            사용하지 않습니다.
           </p>
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">
-            8. 개인정보 보호 조치
-          </h2>
+          <h2 className="mb-3 text-xl font-semibold text-gray-900">8. 개인정보 보호 조치</h2>
           <ul className="list-disc space-y-1 pl-6">
             <li>데이터 전송 시 HTTPS(TLS) 암호화</li>
             <li>데이터베이스 Row Level Security 적용</li>

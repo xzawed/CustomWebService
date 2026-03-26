@@ -27,9 +27,7 @@ export class GenerationService {
     const todayCount = await this.projectRepo.countTodayGenerations(userId);
     const limits = getLimits();
     if (todayCount >= limits.maxDailyGenerations) {
-      throw new RateLimitError(
-        `일일 생성 한도(${limits.maxDailyGenerations}회)를 초과했습니다.`
-      );
+      throw new RateLimitError(`일일 생성 한도(${limits.maxDailyGenerations}회)를 초과했습니다.`);
     }
   }
 

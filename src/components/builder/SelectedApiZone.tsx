@@ -30,11 +30,7 @@ export default function SelectedApiZone({
         <span className="text-sm font-medium text-blue-900">
           선택된 API ({selectedApis.length}/{maxCount})
         </span>
-        <button
-          type="button"
-          onClick={onClear}
-          className="text-xs text-blue-600 hover:underline"
-        >
+        <button type="button" onClick={onClear} className="text-xs text-blue-600 hover:underline">
           전체 해제
         </button>
       </div>

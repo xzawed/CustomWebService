@@ -7,9 +7,17 @@ import { useState } from 'react';
 
 const statusConfig: Record<ProjectStatus, { label: string; dot: string; bg: string }> = {
   draft: { label: '초안', dot: 'bg-slate-400', bg: 'bg-slate-500/10 text-slate-300' },
-  generating: { label: '생성 중', dot: 'bg-amber-400 animate-pulse', bg: 'bg-amber-500/10 text-amber-400' },
+  generating: {
+    label: '생성 중',
+    dot: 'bg-amber-400 animate-pulse',
+    bg: 'bg-amber-500/10 text-amber-400',
+  },
   generated: { label: '생성 완료', dot: 'bg-blue-400', bg: 'bg-blue-500/10 text-blue-400' },
-  deploying: { label: '배포 중', dot: 'bg-purple-400 animate-pulse', bg: 'bg-purple-500/10 text-purple-400' },
+  deploying: {
+    label: '배포 중',
+    dot: 'bg-purple-400 animate-pulse',
+    bg: 'bg-purple-500/10 text-purple-400',
+  },
   deployed: { label: '배포됨', dot: 'bg-emerald-400', bg: 'bg-emerald-500/10 text-emerald-400' },
   published: { label: '게시됨', dot: 'bg-emerald-400', bg: 'bg-emerald-500/10 text-emerald-400' },
   unpublished: { label: '게시 취소', dot: 'bg-slate-400', bg: 'bg-slate-500/10 text-slate-400' },
@@ -52,10 +60,13 @@ export function ProjectCard({ project, onDelete, onPublish, onUnpublish }: Proje
     const fullUrl = publishUrl.startsWith('http')
       ? publishUrl
       : `${window.location.origin}${publishUrl}`;
-    navigator.clipboard.writeText(fullUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {});
+    navigator.clipboard
+      .writeText(fullUrl)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {});
   };
 
   return (
@@ -78,10 +89,17 @@ export function ProjectCard({ project, onDelete, onPublish, onUnpublish }: Proje
 
       {/* Published URL */}
       {project.status === 'published' && publishUrl && (
-        <div className="mt-3 flex items-center gap-1.5 rounded-lg p-2" style={{ background: 'var(--bg-surface)' }}>
+        <div
+          className="mt-3 flex items-center gap-1.5 rounded-lg p-2"
+          style={{ background: 'var(--bg-surface)' }}
+        >
           <Globe className="h-3 w-3 shrink-0 text-emerald-400" />
           <a
-            href={publishUrl.startsWith('http') ? publishUrl : `${typeof window !== 'undefined' ? window.location.origin : ''}${publishUrl}`}
+            href={
+              publishUrl.startsWith('http')
+                ? publishUrl
+                : `${typeof window !== 'undefined' ? window.location.origin : ''}${publishUrl}`
+            }
             target="_blank"
             rel="noopener noreferrer"
             className="truncate text-xs text-emerald-400 hover:underline"
@@ -100,9 +118,7 @@ export function ProjectCard({ project, onDelete, onPublish, onUnpublish }: Proje
       )}
 
       {/* Date */}
-      <p className="mt-3 text-[11px] text-slate-500">
-        {formatDate(project.createdAt)}
-      </p>
+      <p className="mt-3 text-[11px] text-slate-500">{formatDate(project.createdAt)}</p>
 
       {/* Actions */}
       <div className="mt-4 flex flex-wrap gap-2">

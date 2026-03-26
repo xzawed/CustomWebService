@@ -55,10 +55,11 @@ export default function GenerationProgress({
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-500/10">
           <Loader2 className="h-7 w-7 animate-spin text-cyan-400" />
         </div>
-        <p className="mt-5 text-sm font-medium text-white">
-          {currentStep || '처리 중...'}
-        </p>
-        <div className="mx-auto mt-5 h-1.5 w-64 overflow-hidden rounded-full" style={{ background: 'var(--bg-surface)' }}>
+        <p className="mt-5 text-sm font-medium text-white">{currentStep || '처리 중...'}</p>
+        <div
+          className="mx-auto mt-5 h-1.5 w-64 overflow-hidden rounded-full"
+          style={{ background: 'var(--bg-surface)' }}
+        >
           <div
             className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-violet-500 transition-all duration-700"
             style={{ width: `${progress}%` }}
@@ -81,7 +82,10 @@ export default function GenerationProgress({
           type="button"
           onClick={onNavigateDashboard}
           className="mt-8 inline-flex items-center gap-2 rounded-xl px-8 py-3 text-sm font-semibold text-white transition-all hover:shadow-lg"
-          style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)' }}
+          style={{
+            background: 'linear-gradient(135deg, #10b981, #059669)',
+            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)',
+          }}
         >
           대시보드에서 확인하기
         </button>
@@ -101,7 +105,10 @@ export default function GenerationProgress({
         type="button"
         onClick={onRetry}
         className="mt-8 inline-flex items-center gap-2 rounded-xl px-8 py-3 text-sm font-semibold text-white transition-all hover:shadow-lg"
-        style={{ background: 'linear-gradient(135deg, #f43f5e, #e11d48)', boxShadow: '0 2px 8px rgba(244, 63, 94, 0.25)' }}
+        style={{
+          background: 'linear-gradient(135deg, #f43f5e, #e11d48)',
+          boxShadow: '0 2px 8px rgba(244, 63, 94, 0.25)',
+        }}
       >
         다시 시도
       </button>

@@ -1,7 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ProjectRepository } from '@/repositories/projectRepository';
 import { CodeRepository } from '@/repositories/codeRepository';
-import { DeployProviderFactory, type DeployPlatform } from '@/providers/deploy/DeployProviderFactory';
+import {
+  DeployProviderFactory,
+  type DeployPlatform,
+} from '@/providers/deploy/DeployProviderFactory';
 import { assembleHtml } from '@/lib/ai/codeParser';
 import { eventBus } from '@/lib/events/eventBus';
 import { NotFoundError, ValidationError, DeployError } from '@/lib/utils/errors';
@@ -49,9 +52,7 @@ export class DeployService {
       // Step 2: Push generated code files
       onProgress?.(40, '코드 업로드 중...');
       const fullHtml = assembleHtml({ html: code.codeHtml, css: code.codeCss, js: code.codeJs });
-      const files: FileEntry[] = [
-        { path: 'index.html', content: fullHtml },
-      ];
+      const files: FileEntry[] = [{ path: 'index.html', content: fullHtml }];
       if (code.codeCss) {
         files.push({ path: 'styles.css', content: code.codeCss });
       }

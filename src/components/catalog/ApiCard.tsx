@@ -42,9 +42,7 @@ export function ApiCard({ api, isSelected, onSelect, onDetail }: ApiCardProps) {
     <div
       onClick={onSelect}
       className={`card group relative cursor-pointer p-5 ${
-        isSelected
-          ? 'ring-1 ring-cyan-500/50'
-          : ''
+        isSelected ? 'ring-1 ring-cyan-500/50' : ''
       }`}
       style={isSelected ? { borderColor: 'rgba(6, 182, 212, 0.3)' } : undefined}
     >
@@ -69,16 +67,12 @@ export function ApiCard({ api, isSelected, onSelect, onDetail }: ApiCardProps) {
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <span className={`badge bg-gradient-to-r ${colorClass}`}>
-          {api.category}
-        </span>
+        <span className={`badge bg-gradient-to-r ${colorClass}`}>{api.category}</span>
         <span className="badge bg-slate-700/50 text-slate-300">
           {authTypeLabels[api.authType] ?? api.authType}
         </span>
         {api.rateLimit && (
-          <span className="badge bg-amber-500/10 text-amber-400">
-            {api.rateLimit}/min
-          </span>
+          <span className="badge bg-amber-500/10 text-amber-400">{api.rateLimit}/min</span>
         )}
       </div>
 

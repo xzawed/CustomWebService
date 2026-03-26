@@ -2,11 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { CodeRepository } from '@/repositories/codeRepository';
 import { ProjectRepository } from '@/repositories/projectRepository';
 import { assembleHtml } from '@/lib/ai/codeParser';
-import {
-  AuthRequiredError,
-  NotFoundError,
-  handleApiError,
-} from '@/lib/utils/errors';
+import { AuthRequiredError, NotFoundError, handleApiError } from '@/lib/utils/errors';
 
 export async function GET(
   request: Request,
@@ -54,9 +50,9 @@ export async function GET(
           "default-src 'self'",
           "script-src 'unsafe-inline' 'unsafe-eval'",
           "style-src 'unsafe-inline' https://fonts.googleapis.com",
-          "font-src https://fonts.gstatic.com",
-          "img-src * data: blob:",
-          "connect-src *",
+          'font-src https://fonts.gstatic.com',
+          'img-src * data: blob:',
+          'connect-src *',
           "frame-ancestors 'self'",
         ].join('; '),
       },

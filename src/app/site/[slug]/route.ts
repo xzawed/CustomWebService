@@ -9,9 +9,9 @@ const SITE_CSP = [
   "default-src 'self'",
   "script-src 'unsafe-inline' 'unsafe-eval' https: http:",
   "style-src 'unsafe-inline' https://fonts.googleapis.com https: http:",
-  "font-src https://fonts.gstatic.com data: https: http:",
-  "img-src * data: blob:",
-  "connect-src *",
+  'font-src https://fonts.gstatic.com data: https: http:',
+  'img-src * data: blob:',
+  'connect-src *',
   "frame-ancestors 'none'",
 ].join('; ');
 

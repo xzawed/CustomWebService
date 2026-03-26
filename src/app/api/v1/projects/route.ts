@@ -13,7 +13,9 @@ const createProjectSchema = z.object({
 export async function GET() {
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) throw new AuthRequiredError();
 
     const service = new ProjectService(supabase);
@@ -28,7 +30,9 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) throw new AuthRequiredError();
 
     const body = await request.json();

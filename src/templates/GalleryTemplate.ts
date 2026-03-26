@@ -6,7 +6,16 @@ export class GalleryTemplate implements ICodeTemplate {
   readonly name = '갤러리';
   readonly description = '이미지/콘텐츠 그리드 갤러리';
   readonly category = 'gallery';
-  readonly supportedApiCategories = ['이미지', '사진', '미디어', 'image', 'photo', 'media', 'unsplash', 'pixabay'];
+  readonly supportedApiCategories = [
+    '이미지',
+    '사진',
+    '미디어',
+    'image',
+    'photo',
+    'media',
+    'unsplash',
+    'pixabay',
+  ];
 
   matchScore(apis: ApiCatalogItem[]): number {
     const matchingApis = apis.filter((api) =>

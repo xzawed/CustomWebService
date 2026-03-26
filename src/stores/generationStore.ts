@@ -23,16 +23,13 @@ export const useGenerationStore = create<GenerationState>((set) => ({
   projectId: null,
   error: null,
 
-  startGeneration: () =>
-    set({ status: 'generating', progress: 0, currentStep: '', error: null }),
+  startGeneration: () => set({ status: 'generating', progress: 0, currentStep: '', error: null }),
 
   updateProgress: (progress, currentStep) => set({ progress, currentStep }),
 
-  completeGeneration: (projectId) =>
-    set({ status: 'completed', progress: 100, projectId }),
+  completeGeneration: (projectId) => set({ status: 'completed', progress: 100, projectId }),
 
   failGeneration: (error) => set({ status: 'failed', error }),
 
-  reset: () =>
-    set({ status: 'idle', progress: 0, currentStep: '', projectId: null, error: null }),
+  reset: () => set({ status: 'idle', progress: 0, currentStep: '', projectId: null, error: null }),
 }));

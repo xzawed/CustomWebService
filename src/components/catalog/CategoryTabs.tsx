@@ -8,11 +8,7 @@ interface CategoryTabsProps {
   onCategoryChange: (category: string) => void;
 }
 
-export function CategoryTabs({
-  categories,
-  activeCategory,
-  onCategoryChange,
-}: CategoryTabsProps) {
+export function CategoryTabs({ categories, activeCategory, onCategoryChange }: CategoryTabsProps) {
   const totalCount = categories.reduce((sum, cat) => sum + cat.count, 0);
 
   return (

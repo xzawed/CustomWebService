@@ -80,9 +80,7 @@ export default function LandingPage() {
             <h3 className="text-sm font-semibold uppercase tracking-widest text-cyan-400">
               How it works
             </h3>
-            <p className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
-              3단계로 완성
-            </p>
+            <p className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">3단계로 완성</p>
           </div>
 
           <div className="mt-16 grid gap-6 sm:grid-cols-3">

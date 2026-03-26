@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw';
 
 export const handlers = [
   // xAI Grok API mock
@@ -27,6 +27,6 @@ console.log('loaded');
         },
       ],
       usage: { prompt_tokens: 100, completion_tokens: 200, total_tokens: 300 },
-    })
+    });
   }),
-]
+];

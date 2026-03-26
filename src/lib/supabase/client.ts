@@ -6,10 +6,7 @@ export function createClient() {
 
   if (!url || !key) {
     // Return a minimal mock during build/SSG when env vars are missing
-    return createBrowserClient(
-      'https://placeholder.supabase.co',
-      'placeholder-key'
-    );
+    return createBrowserClient('https://placeholder.supabase.co', 'placeholder-key');
   }
 
   return createBrowserClient(url, key);

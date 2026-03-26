@@ -26,11 +26,7 @@ export default function GuideQuestions({ onInsert }: GuideQuestionsProps) {
         className="flex items-center gap-1 text-sm font-medium text-gray-700"
       >
         가이드 질문을 참고하세요
-        {isOpen ? (
-          <ChevronUp className="h-4 w-4" />
-        ) : (
-          <ChevronDown className="h-4 w-4" />
-        )}
+        {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </button>
       {isOpen && (
         <ul className="space-y-1">

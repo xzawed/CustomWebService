@@ -82,9 +82,7 @@ export function ApiDetailModal({
           <div>
             <p className="text-sm leading-relaxed text-slate-300">{api.description}</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <span className="badge bg-cyan-500/10 text-cyan-400">
-                {api.category}
-              </span>
+              <span className="badge bg-cyan-500/10 text-cyan-400">{api.category}</span>
               <span className="badge gap-1.5 bg-slate-700/50 text-slate-300">
                 <Shield className="h-3 w-3" />
                 {authLabels[api.authType] ?? api.authType}
@@ -96,9 +94,7 @@ export function ApiDetailModal({
                 </span>
               )}
               {api.corsSupported && (
-                <span className="badge bg-emerald-500/10 text-emerald-400">
-                  CORS
-                </span>
+                <span className="badge bg-emerald-500/10 text-emerald-400">CORS</span>
               )}
             </div>
           </div>
@@ -133,26 +129,29 @@ export function ApiDetailModal({
                       style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
                     >
                       <div className="flex items-center gap-2">
-                        <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${methodColors[ep.method] ?? 'bg-slate-700 text-slate-300'}`}>
+                        <span
+                          className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${methodColors[ep.method] ?? 'bg-slate-700 text-slate-300'}`}
+                        >
                           {ep.method}
                         </span>
                         <code className="text-sm text-slate-200">{ep.path}</code>
                       </div>
                       {ep.description && (
-                        <p className="mt-1.5 text-xs text-slate-400">
-                          {ep.description}
-                        </p>
+                        <p className="mt-1.5 text-xs text-slate-400">{ep.description}</p>
                       )}
                       {params.length > 0 && (
                         <div className="mt-3">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">파라미터</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                            파라미터
+                          </p>
                           <ul className="mt-1.5 space-y-1">
                             {params.map((param) => (
-                              <li key={param.name} className="flex items-baseline gap-1.5 text-xs text-slate-400">
+                              <li
+                                key={param.name}
+                                className="flex items-baseline gap-1.5 text-xs text-slate-400"
+                              >
                                 <code className="text-slate-300">{param.name}</code>
-                                {param.required && (
-                                  <span className="text-rose-400">*</span>
-                                )}
+                                {param.required && <span className="text-rose-400">*</span>}
                                 <span className="text-slate-600">({param.type})</span>
                                 {param.description && (
                                   <span className="text-slate-500">— {param.description}</span>
@@ -164,7 +163,9 @@ export function ApiDetailModal({
                       )}
                       {ep.responseExample && Object.keys(ep.responseExample).length > 0 && (
                         <div className="mt-3">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">응답 예시</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                            응답 예시
+                          </p>
                           <pre
                             className="mt-1.5 max-h-28 overflow-auto rounded-lg p-3 text-xs text-slate-300"
                             style={{ background: 'var(--bg-base)' }}
@@ -183,7 +184,9 @@ export function ApiDetailModal({
           {/* Tags */}
           {api.tags && api.tags.length > 0 && (
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">태그</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                태그
+              </h3>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {api.tags.map((tag) => (
                   <span
@@ -199,7 +202,10 @@ export function ApiDetailModal({
           )}
 
           {/* Actions */}
-          <div className="flex items-center gap-3 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+          <div
+            className="flex items-center gap-3 pt-2"
+            style={{ borderTop: '1px solid var(--border)' }}
+          >
             {onSelect && (
               <button
                 type="button"

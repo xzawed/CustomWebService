@@ -35,7 +35,9 @@ export function ApiSearchBar({
   };
 
   useEffect(() => {
-    return () => { if (timerRef.current !== null) clearTimeout(timerRef.current); };
+    return () => {
+      if (timerRef.current !== null) clearTimeout(timerRef.current);
+    };
   }, []);
 
   return (

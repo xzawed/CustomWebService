@@ -12,33 +12,23 @@ export default function DisclaimerPage() {
 
       <div className="space-y-8 text-gray-700 leading-relaxed">
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">
-            1. AI 생성 코드 관련
-          </h2>
+          <h2 className="mb-3 text-xl font-semibold text-gray-900">1. AI 생성 코드 관련</h2>
           <ul className="list-disc space-y-2 pl-6">
             <li>
-              AI가 생성한 코드는 참고 목적이며, 프로덕션 환경에서의 사용 시 사용자의
-              책임하에 검토 후 사용해야 합니다.
+              AI가 생성한 코드는 참고 목적이며, 프로덕션 환경에서의 사용 시 사용자의 책임하에 검토
+              후 사용해야 합니다.
             </li>
             <li>
-              생성된 코드의 보안 취약점, 버그, 성능 이슈에 대해 서비스 제공자는 책임지지
-              않습니다.
+              생성된 코드의 보안 취약점, 버그, 성능 이슈에 대해 서비스 제공자는 책임지지 않습니다.
             </li>
           </ul>
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">
-            2. 무료 API 관련
-          </h2>
+          <h2 className="mb-3 text-xl font-semibold text-gray-900">2. 무료 API 관련</h2>
           <ul className="list-disc space-y-2 pl-6">
-            <li>
-              사용된 API는 각 제공자의 정책에 따라 중단, 변경, 유료 전환될 수 있습니다.
-            </li>
-            <li>
-              API 장애 또는 데이터 오류로 인한 손해에 대해 서비스 제공자는 책임지지
-              않습니다.
-            </li>
+            <li>사용된 API는 각 제공자의 정책에 따라 중단, 변경, 유료 전환될 수 있습니다.</li>
+            <li>API 장애 또는 데이터 오류로 인한 손해에 대해 서비스 제공자는 책임지지 않습니다.</li>
           </ul>
         </section>
 
@@ -46,8 +36,7 @@ export default function DisclaimerPage() {
           <h2 className="mb-3 text-xl font-semibold text-gray-900">3. 호스팅 관련</h2>
           <ul className="list-disc space-y-2 pl-6">
             <li>
-              무료 호스팅 플랫폼의 정책 변경 또는 장애로 인해 배포된 서비스가 중단될 수
-              있습니다.
+              무료 호스팅 플랫폼의 정책 변경 또는 장애로 인해 배포된 서비스가 중단될 수 있습니다.
             </li>
             <li>서비스의 가용성을 보장하지 않습니다.</li>
           </ul>

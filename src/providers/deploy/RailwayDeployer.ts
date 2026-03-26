@@ -7,7 +7,10 @@ export class RailwayDeployer implements IDeployProvider {
   readonly name = 'railway';
   readonly supportedFeatures = ['env_vars', 'custom_domain'] as const;
 
-  private projectMap = new Map<string, { railwayProjectId: string; serviceId: string; repoFullName: string }>();
+  private projectMap = new Map<
+    string,
+    { railwayProjectId: string; serviceId: string; repoFullName: string }
+  >();
 
   async createProject(name: string): Promise<{ projectId: string; repoUrl?: string }> {
     const repoName = `svc-${name}`;
@@ -63,7 +66,7 @@ export class RailwayDeployer implements IDeployProvider {
     while (attempts < maxAttempts) {
       const status = await railway.getDeploymentStatus(projectId);
       if (status?.status === 'SUCCESS' || status?.status === 'READY') {
-        deployUrl = status.url ?? await railway.getServiceDomain(ctx.serviceId) ?? undefined;
+        deployUrl = status.url ?? (await railway.getServiceDomain(ctx.serviceId)) ?? undefined;
         break;
       }
       if (status?.status === 'FAILED' || status?.status === 'CRASHED') {

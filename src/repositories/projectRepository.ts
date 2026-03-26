@@ -32,10 +32,7 @@ export class ProjectRepository extends BaseRepository<Project> {
     return count ?? 0;
   }
 
-  async insertProjectApis(
-    projectId: string,
-    apiIds: string[]
-  ): Promise<void> {
+  async insertProjectApis(projectId: string, apiIds: string[]): Promise<void> {
     const mappings = apiIds.map((apiId) => ({
       project_id: projectId,
       api_id: apiId,

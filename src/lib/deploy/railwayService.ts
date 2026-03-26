@@ -43,12 +43,14 @@ export interface RailwayDeployment {
 
 export async function createProject(name: string): Promise<RailwayProject> {
   const data = await graphql<{ projectCreate: RailwayProject }>(
-    `mutation($input: ProjectCreateInput!) {
-      projectCreate(input: $input) {
-        id
-        name
+    `
+      mutation ($input: ProjectCreateInput!) {
+        projectCreate(input: $input) {
+          id
+          name
+        }
       }
-    }`,
+    `,
     { input: { name } }
   );
 
@@ -61,11 +63,13 @@ export async function createServiceFromRepo(
   repoFullName: string
 ): Promise<string> {
   const data = await graphql<{ serviceCreate: { id: string } }>(
-    `mutation($input: ServiceCreateInput!) {
-      serviceCreate(input: $input) {
-        id
+    `
+      mutation ($input: ServiceCreateInput!) {
+        serviceCreate(input: $input) {
+          id
+        }
       }
-    }`,
+    `,
     {
       input: {
         projectId,
@@ -85,15 +89,17 @@ export async function setEnvironmentVariables(
 ): Promise<void> {
   // Get default environment
   const envData = await graphql<{ environments: { edges: { node: { id: string } }[] } }>(
-    `query($projectId: String!) {
-      environments(projectId: $projectId) {
-        edges {
-          node {
-            id
+    `
+      query ($projectId: String!) {
+        environments(projectId: $projectId) {
+          edges {
+            node {
+              id
+            }
           }
         }
       }
-    }`,
+    `,
     { projectId }
   );
 
@@ -104,9 +110,11 @@ export async function setEnvironmentVariables(
   }
 
   await graphql(
-    `mutation($input: VariableCollectionUpsertInput!) {
-      variableCollectionUpsert(input: $input)
-    }`,
+    `
+      mutation ($input: VariableCollectionUpsertInput!) {
+        variableCollectionUpsert(input: $input)
+      }
+    `,
     {
       input: {
         projectId,
@@ -122,32 +130,34 @@ export async function setEnvironmentVariables(
 
 export async function triggerDeploy(serviceId: string): Promise<string> {
   const data = await graphql<{ serviceInstanceRedeploy: string }>(
-    `mutation($serviceId: String!) {
-      serviceInstanceRedeploy(serviceId: $serviceId)
-    }`,
+    `
+      mutation ($serviceId: String!) {
+        serviceInstanceRedeploy(serviceId: $serviceId)
+      }
+    `,
     { serviceId }
   );
 
   return data.serviceInstanceRedeploy;
 }
 
-export async function getDeploymentStatus(
-  projectId: string
-): Promise<RailwayDeployment | null> {
+export async function getDeploymentStatus(projectId: string): Promise<RailwayDeployment | null> {
   const data = await graphql<{
     deployments: { edges: { node: { id: string; status: string; staticUrl: string | null } }[] };
   }>(
-    `query($projectId: String!) {
-      deployments(projectId: $projectId, first: 1) {
-        edges {
-          node {
-            id
-            status
-            staticUrl
+    `
+      query ($projectId: String!) {
+        deployments(projectId: $projectId, first: 1) {
+          edges {
+            node {
+              id
+              status
+              staticUrl
+            }
           }
         }
       }
-    }`,
+    `,
     { projectId }
   );
 
@@ -165,13 +175,15 @@ export async function getServiceDomain(serviceId: string): Promise<string | null
   const data = await graphql<{
     serviceDomains: { serviceDomains: { domain: string }[] };
   }>(
-    `query($serviceId: String!) {
-      serviceDomains(serviceId: $serviceId) {
-        serviceDomains {
-          domain
+    `
+      query ($serviceId: String!) {
+        serviceDomains(serviceId: $serviceId) {
+          serviceDomains {
+            domain
+          }
         }
       }
-    }`,
+    `,
     { serviceId }
   );
 
@@ -186,11 +198,13 @@ export async function generateServiceDomain(
   const data = await graphql<{
     serviceDomainCreate: { domain: string };
   }>(
-    `mutation($input: ServiceDomainCreateInput!) {
-      serviceDomainCreate(input: $input) {
-        domain
+    `
+      mutation ($input: ServiceDomainCreateInput!) {
+        serviceDomainCreate(input: $input) {
+          domain
+        }
       }
-    }`,
+    `,
     {
       input: { serviceId, environmentId },
     }
@@ -201,9 +215,11 @@ export async function generateServiceDomain(
 
 export async function deleteProject(projectId: string): Promise<void> {
   await graphql(
-    `mutation($id: String!) {
-      projectDelete(id: $id)
-    }`,
+    `
+      mutation ($id: String!) {
+        projectDelete(id: $id)
+      }
+    `,
     { id: projectId }
   );
 

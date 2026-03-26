@@ -49,10 +49,13 @@ export function ProjectPublishActions({ project }: ProjectPublishActionsProps) {
     const fullUrl = publishUrl.startsWith('http')
       ? publishUrl
       : `${window.location.origin}${publishUrl}`;
-    navigator.clipboard.writeText(fullUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {});
+    navigator.clipboard
+      .writeText(fullUrl)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {});
   };
 
   return (
@@ -62,7 +65,11 @@ export function ProjectPublishActions({ project }: ProjectPublishActionsProps) {
       {isPublished && publishUrl && (
         <div className="mb-4 flex items-center gap-2 rounded-lg bg-emerald-50 p-3">
           <a
-            href={publishUrl.startsWith('http') ? publishUrl : `${typeof window !== 'undefined' ? window.location.origin : ''}${publishUrl}`}
+            href={
+              publishUrl.startsWith('http')
+                ? publishUrl
+                : `${typeof window !== 'undefined' ? window.location.origin : ''}${publishUrl}`
+            }
             target="_blank"
             rel="noopener noreferrer"
             className="truncate text-sm font-medium text-emerald-700 hover:underline"
@@ -79,9 +86,7 @@ export function ProjectPublishActions({ project }: ProjectPublishActionsProps) {
         </div>
       )}
 
-      {error && (
-        <p className="mb-3 text-sm text-red-600">{error}</p>
-      )}
+      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
       <div className="flex gap-2">
         {canPublish && (

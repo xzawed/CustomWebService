@@ -45,9 +45,7 @@ export async function POST(request: Request): Promise<Response> {
     const todayCount = await projectRepo.countTodayGenerations(user.id);
     const limits = getLimits();
     if (todayCount >= limits.maxDailyGenerations) {
-      throw new RateLimitError(
-        `일일 생성 한도(${limits.maxDailyGenerations}회)를 초과했습니다.`
-      );
+      throw new RateLimitError(`일일 생성 한도(${limits.maxDailyGenerations}회)를 초과했습니다.`);
     }
 
     // Get project and APIs
@@ -172,10 +170,7 @@ export async function POST(request: Request): Promise<Response> {
           });
 
           send('error', {
-            message:
-              error instanceof Error
-                ? error.message
-                : '코드 생성에 실패했습니다.',
+            message: error instanceof Error ? error.message : '코드 생성에 실패했습니다.',
           });
         } finally {
           controller.close();

@@ -23,9 +23,7 @@ export class ProjectService {
       throw new ValidationError('최소 1개의 API를 선택해주세요.');
     }
     if (input.apiIds.length > limits.maxApisPerProject) {
-      throw new ValidationError(
-        `API는 최대 ${limits.maxApisPerProject}개까지 선택 가능합니다.`
-      );
+      throw new ValidationError(`API는 최대 ${limits.maxApisPerProject}개까지 선택 가능합니다.`);
     }
 
     if (input.context.length < limits.contextMinLength) {
@@ -109,9 +107,7 @@ export class ProjectService {
 
     const publishableStatuses: Project['status'][] = ['generated', 'deployed', 'unpublished'];
     if (!publishableStatuses.includes(project.status)) {
-      throw new ValidationError(
-        '생성이 완료된 프로젝트만 게시할 수 있습니다.'
-      );
+      throw new ValidationError('생성이 완료된 프로젝트만 게시할 수 있습니다.');
     }
 
     const slug = project.slug ?? generateSlug(project.name, project.id);

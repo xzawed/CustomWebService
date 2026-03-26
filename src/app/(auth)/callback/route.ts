@@ -38,7 +38,9 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
       // Ensure user record exists in users table
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
       if (authUser) {
         const userRepo = new UserRepository(supabase);
         const existing = await userRepo.findById(authUser.id);

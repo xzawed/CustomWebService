@@ -70,9 +70,7 @@ export default function PreviewPage() {
   if (error || !preview) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center">
-        <h2 className="text-lg font-semibold text-gray-900">
-          {error ?? '생성된 코드가 없습니다'}
-        </h2>
+        <h2 className="text-lg font-semibold text-gray-900">{error ?? '생성된 코드가 없습니다'}</h2>
         <button
           type="button"
           onClick={() => router.back()}
@@ -98,9 +96,7 @@ export default function PreviewPage() {
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <h1 className="text-lg font-bold text-gray-900">
-            미리보기 (v{preview.version})
-          </h1>
+          <h1 className="text-lg font-bold text-gray-900">미리보기 (v{preview.version})</h1>
         </div>
 
         {/* Device Toggle */}
@@ -112,9 +108,7 @@ export default function PreviewPage() {
               onClick={() => setDevice(devId)}
               title={label}
               className={`rounded-md p-2 transition-colors ${
-                device === devId
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-500 hover:bg-gray-100'
+                device === devId ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'
               }`}
             >
               <Icon className="h-4 w-4" />

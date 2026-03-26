@@ -29,7 +29,9 @@ export const useContextStore = create<ContextState>()(
 
       isValid: () => {
         const { context } = get();
-        return context.length >= LIMITS.contextMinLength && context.length <= LIMITS.contextMaxLength;
+        return (
+          context.length >= LIMITS.contextMinLength && context.length <= LIMITS.contextMaxLength
+        );
       },
 
       charCount: () => get().context.length,

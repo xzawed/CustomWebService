@@ -59,17 +59,11 @@ export async function createRepository(
   };
 }
 
-export async function pushCode(
-  repoFullName: string,
-  files: FileEntry[]
-): Promise<void> {
+export async function pushCode(repoFullName: string, files: FileEntry[]): Promise<void> {
   const headers = getHeaders();
 
   // Get default branch ref
-  const refRes = await fetch(
-    `${GITHUB_API}/repos/${repoFullName}/git/ref/heads/main`,
-    { headers }
-  );
+  const refRes = await fetch(`${GITHUB_API}/repos/${repoFullName}/git/ref/heads/main`, { headers });
   if (!refRes.ok) {
     throw new Error(`Failed to get ref: ${refRes.status}`);
   }
@@ -90,17 +84,14 @@ export async function pushCode(
   // Create blobs for each file
   const treeItems = await Promise.all(
     files.map(async (file) => {
-      const blobRes = await fetch(
-        `${GITHUB_API}/repos/${repoFullName}/git/blobs`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            content: file.content,
-            encoding: 'utf-8',
-          }),
-        }
-      );
+      const blobRes = await fetch(`${GITHUB_API}/repos/${repoFullName}/git/blobs`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          content: file.content,
+          encoding: 'utf-8',
+        }),
+      });
       if (!blobRes.ok) {
         throw new Error(`Failed to create blob for ${file.path}: ${blobRes.status}`);
       }
@@ -115,46 +106,37 @@ export async function pushCode(
   );
 
   // Create a new tree
-  const treeRes = await fetch(
-    `${GITHUB_API}/repos/${repoFullName}/git/trees`,
-    {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ base_tree: baseTreeSha, tree: treeItems }),
-    }
-  );
+  const treeRes = await fetch(`${GITHUB_API}/repos/${repoFullName}/git/trees`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ base_tree: baseTreeSha, tree: treeItems }),
+  });
   if (!treeRes.ok) {
     throw new Error(`Failed to create tree: ${treeRes.status}`);
   }
   const treeData = await treeRes.json();
 
   // Create a new commit
-  const newCommitRes = await fetch(
-    `${GITHUB_API}/repos/${repoFullName}/git/commits`,
-    {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        message: 'feat: auto-generated service code',
-        tree: treeData.sha,
-        parents: [latestCommitSha],
-      }),
-    }
-  );
+  const newCommitRes = await fetch(`${GITHUB_API}/repos/${repoFullName}/git/commits`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      message: 'feat: auto-generated service code',
+      tree: treeData.sha,
+      parents: [latestCommitSha],
+    }),
+  });
   if (!newCommitRes.ok) {
     throw new Error(`Failed to create commit: ${newCommitRes.status}`);
   }
   const newCommitData = await newCommitRes.json();
 
   // Update ref
-  const updateRefRes = await fetch(
-    `${GITHUB_API}/repos/${repoFullName}/git/refs/heads/main`,
-    {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({ sha: newCommitData.sha }),
-    }
-  );
+  const updateRefRes = await fetch(`${GITHUB_API}/repos/${repoFullName}/git/refs/heads/main`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ sha: newCommitData.sha }),
+  });
   if (!updateRefRes.ok) {
     throw new Error(`Failed to update ref: ${updateRefRes.status}`);
   }
@@ -169,10 +151,9 @@ export async function setSecrets(
   const headers = getHeaders();
 
   // Get public key for encrypting secrets
-  const keyRes = await fetch(
-    `${GITHUB_API}/repos/${repoFullName}/actions/secrets/public-key`,
-    { headers }
-  );
+  const keyRes = await fetch(`${GITHUB_API}/repos/${repoFullName}/actions/secrets/public-key`, {
+    headers,
+  });
   if (!keyRes.ok) {
     logger.warn('Failed to get public key for secrets', { repoFullName, status: keyRes.status });
     return;
@@ -182,17 +163,14 @@ export async function setSecrets(
   for (const [name, value] of Object.entries(secrets)) {
     // For simplicity, use the createOrUpdate endpoint
     // In production, you'd encrypt with libsodium using the public key
-    const secretRes = await fetch(
-      `${GITHUB_API}/repos/${repoFullName}/actions/secrets/${name}`,
-      {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({
-          encrypted_value: btoa(value), // Simplified; real impl needs libsodium
-          key_id: keyData.key_id,
-        }),
-      }
-    );
+    const secretRes = await fetch(`${GITHUB_API}/repos/${repoFullName}/actions/secrets/${name}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        encrypted_value: btoa(value), // Simplified; real impl needs libsodium
+        key_id: keyData.key_id,
+      }),
+    });
     if (!secretRes.ok) {
       logger.warn('Failed to set secret', { repoFullName, secretName: name });
     }
@@ -208,25 +186,19 @@ export async function enableGithubPages(
 ): Promise<string> {
   const headers = getHeaders();
 
-  const res = await fetch(
-    `${GITHUB_API}/repos/${repoFullName}/pages`,
-    {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        source: { branch, path },
-      }),
-    }
-  );
+  const res = await fetch(`${GITHUB_API}/repos/${repoFullName}/pages`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      source: { branch, path },
+    }),
+  });
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     // If Pages is already enabled, try to get the URL
     if (res.status === 409) {
-      const pagesRes = await fetch(
-        `${GITHUB_API}/repos/${repoFullName}/pages`,
-        { headers }
-      );
+      const pagesRes = await fetch(`${GITHUB_API}/repos/${repoFullName}/pages`, { headers });
       if (pagesRes.ok) {
         const pagesData = await pagesRes.json();
         return pagesData.html_url as string;

@@ -4,10 +4,10 @@ export type ProjectStatus =
   | 'draft'
   | 'generating'
   | 'generated'
-  | 'deploying'    // 기존 Railway 배포 이력 호환용 (S6에서 제거)
-  | 'deployed'     // 기존 호환용 (S6에서 'published'로 통합)
-  | 'published'    // 서브도메인으로 게시됨
-  | 'unpublished'  // 게시 취소
+  | 'deploying' // 기존 Railway 배포 이력 호환용 (S6에서 제거)
+  | 'deployed' // 기존 호환용 (S6에서 'published'로 통합)
+  | 'published' // 서브도메인으로 게시됨
+  | 'unpublished' // 게시 취소
   | 'failed';
 
 export interface Project {

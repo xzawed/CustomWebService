@@ -20,11 +20,7 @@ const statusConfig: Record<ProjectStatus, { label: string; className: string }> 
   failed: { label: '실패', className: 'bg-red-100 text-red-700' },
 };
 
-export default async function ProjectDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -91,9 +87,7 @@ export default async function ProjectDetailPage({
 
       {/* Selected APIs */}
       <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6">
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">
-          사용된 API ({apis.length}개)
-        </h2>
+        <h2 className="mb-3 text-sm font-semibold text-gray-700">사용된 API ({apis.length}개)</h2>
         <div className="flex flex-wrap gap-2">
           {apis.map((api) => (
             <span
@@ -117,9 +111,7 @@ export default async function ProjectDetailPage({
             </div>
             <div>
               <dt className="text-gray-500">AI 모델</dt>
-              <dd className="font-medium text-gray-900">
-                {latestCode.aiModel ?? '-'}
-              </dd>
+              <dd className="font-medium text-gray-900">{latestCode.aiModel ?? '-'}</dd>
             </div>
             <div>
               <dt className="text-gray-500">생성 소요 시간</dt>
@@ -140,8 +132,10 @@ export default async function ProjectDetailPage({
       )}
 
       {/* Publish */}
-      {(project.status === 'generated' || project.status === 'deployed' ||
-        project.status === 'published' || project.status === 'unpublished') && (
+      {(project.status === 'generated' ||
+        project.status === 'deployed' ||
+        project.status === 'published' ||
+        project.status === 'unpublished') && (
         <section className="mb-8">
           <ProjectPublishActions project={project} />
         </section>

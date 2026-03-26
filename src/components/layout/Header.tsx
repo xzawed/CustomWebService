@@ -86,14 +86,15 @@ export function Header() {
               </button>
 
               {dropdownOpen && (
-                <div className="glass absolute right-0 mt-2 w-56 overflow-hidden rounded-xl py-1" style={{ background: 'var(--bg-card)' }}>
+                <div
+                  className="glass absolute right-0 mt-2 w-56 overflow-hidden rounded-xl py-1"
+                  style={{ background: 'var(--bg-card)' }}
+                >
                   <div className="border-b px-4 py-3" style={{ borderColor: 'var(--border)' }}>
                     <p className="truncate text-sm font-semibold text-white">
                       {user.name ?? user.email}
                     </p>
-                    <p className="truncate text-xs text-slate-400">
-                      {user.email}
-                    </p>
+                    <p className="truncate text-xs text-slate-400">{user.email}</p>
                   </div>
                   <button
                     type="button"
@@ -118,18 +119,17 @@ export function Header() {
             onClick={() => setMobileMenuOpen((v) => !v)}
             className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-white/[0.04] hover:text-white md:hidden"
           >
-            {mobileMenuOpen ? (
-              <X className="h-5 w-5" />
-            ) : (
-              <Menu className="h-5 w-5" />
-            )}
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
       </div>
 
       {/* Mobile Nav */}
       {mobileMenuOpen && (
-        <nav className="border-t px-4 pb-4 md:hidden" style={{ borderColor: 'var(--border)', background: 'var(--bg-surface)' }}>
+        <nav
+          className="border-t px-4 pb-4 md:hidden"
+          style={{ borderColor: 'var(--border)', background: 'var(--bg-surface)' }}
+        >
           {NAV_LINKS.map((link) => {
             if (link.href !== '/catalog' && !isAuthenticated) return null;
             const isActive = pathname.startsWith(link.href);

@@ -32,9 +32,7 @@ export default function PreviewFrame({ projectId, version }: PreviewFrameProps) 
               type="button"
               onClick={() => setDevice(key)}
               className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                device === key
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-500 hover:bg-gray-100'
+                device === key ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
               }`}
               title={label}
             >

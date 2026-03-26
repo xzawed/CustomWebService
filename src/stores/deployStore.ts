@@ -23,16 +23,13 @@ export const useDeployStore = create<DeployState>((set) => ({
   deployUrl: null,
   error: null,
 
-  startDeploy: () =>
-    set({ status: 'deploying', progress: 0, currentStep: '', error: null }),
+  startDeploy: () => set({ status: 'deploying', progress: 0, currentStep: '', error: null }),
 
   updateProgress: (progress, currentStep) => set({ progress, currentStep }),
 
-  completeDeploy: (deployUrl) =>
-    set({ status: 'deployed', progress: 100, deployUrl }),
+  completeDeploy: (deployUrl) => set({ status: 'deployed', progress: 100, deployUrl }),
 
   failDeploy: (error) => set({ status: 'failed', error }),
 
-  reset: () =>
-    set({ status: 'idle', progress: 0, currentStep: '', deployUrl: null, error: null }),
+  reset: () => set({ status: 'idle', progress: 0, currentStep: '', deployUrl: null, error: null }),
 }));

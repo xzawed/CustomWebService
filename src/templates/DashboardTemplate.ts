@@ -6,12 +6,20 @@ export class DashboardTemplate implements ICodeTemplate {
   readonly name = '대시보드';
   readonly description = '데이터 시각화 대시보드';
   readonly category = 'dashboard';
-  readonly supportedApiCategories = ['금융', '날씨', '통계', '뉴스', 'finance', 'weather', 'statistics'];
+  readonly supportedApiCategories = [
+    '금융',
+    '날씨',
+    '통계',
+    '뉴스',
+    'finance',
+    'weather',
+    'statistics',
+  ];
 
   matchScore(apis: ApiCatalogItem[]): number {
     const matchingApis = apis.filter((api) =>
-      this.supportedApiCategories.some(
-        (cat) => api.category.toLowerCase().includes(cat.toLowerCase())
+      this.supportedApiCategories.some((cat) =>
+        api.category.toLowerCase().includes(cat.toLowerCase())
       )
     );
     return apis.length > 0 ? matchingApis.length / apis.length : 0;

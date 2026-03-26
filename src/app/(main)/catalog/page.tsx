@@ -20,10 +20,7 @@ export default async function CatalogPage() {
         <p className="mt-2 text-gray-600">30+ 무료 API를 탐색하세요</p>
       </div>
 
-      <CatalogView
-        initialApis={apisResult.items}
-        categories={categoriesResult}
-      />
+      <CatalogView initialApis={apisResult.items} categories={categoriesResult} />
     </div>
   );
 }
