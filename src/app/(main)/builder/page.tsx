@@ -124,39 +124,60 @@ export default function BuilderPage() {
 
       if (!reader) throw new Error('스트림을 읽을 수 없습니다.');
 
+      let buffer = '';
       let done = false;
+      let generationCompleted = false;
+
       while (!done) {
         const { value, done: streamDone } = await reader.read();
         done = streamDone;
         if (value) {
-          const text = decoder.decode(value, { stream: true });
-          const lines = text.split('\n');
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const eventData = JSON.parse(line.slice(6));
-                if (eventData.progress !== undefined) {
-                  updateProgress(eventData.progress, eventData.message ?? '');
-                }
-                if (eventData.projectId && eventData.version !== undefined) {
-                  completeGeneration(eventData.projectId);
-                  resetContext();
-                  clearApis();
-                  return;
-                }
-                if (eventData.message && !eventData.progress) {
-                  throw new Error(eventData.message);
-                }
-              } catch (parseErr) {
-                if (parseErr instanceof SyntaxError) continue;
-                throw parseErr;
+          buffer += decoder.decode(value, { stream: true });
+
+          // Process complete SSE events (separated by double newlines)
+          const events = buffer.split('\n\n');
+          // Keep the last part as it may be incomplete
+          buffer = events.pop() ?? '';
+
+          for (const eventBlock of events) {
+            if (!eventBlock.trim()) continue;
+
+            let eventType = 'message';
+            let eventData = '';
+
+            for (const line of eventBlock.split('\n')) {
+              if (line.startsWith('event: ')) {
+                eventType = line.slice(7).trim();
+              } else if (line.startsWith('data: ')) {
+                eventData = line.slice(6);
               }
+            }
+
+            if (!eventData) continue;
+
+            let parsed;
+            try {
+              parsed = JSON.parse(eventData);
+            } catch {
+              continue;
+            }
+
+            if (eventType === 'progress') {
+              updateProgress(parsed.progress ?? 0, parsed.message ?? '');
+            } else if (eventType === 'complete') {
+              completeGeneration(parsed.projectId ?? project.id);
+              resetContext();
+              clearApis();
+              generationCompleted = true;
+              return;
+            } else if (eventType === 'error') {
+              throw new Error(parsed.message ?? '코드 생성에 실패했습니다.');
             }
           }
         }
       }
 
-      if (genStatus !== 'completed') {
+      if (!generationCompleted) {
         completeGeneration(project.id);
         resetContext();
         clearApis();
