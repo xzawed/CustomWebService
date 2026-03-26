@@ -484,8 +484,8 @@ Cloudflare DNS 패널에서 추가:
 
 | 타입 | 이름 | 값 | 프록시 |
 |------|------|----|--------|
-| CNAME | `customwebservice.app` | `customwebservice-production.up.railway.app` | 활성화 |
-| CNAME | `*.customwebservice.app` | `customwebservice-production.up.railway.app` | 활성화 |
+| CNAME | `customwebservice.app` | `r4r002eg.up.railway.app` | 활성화 |
+| CNAME | `*.customwebservice.app` | `r4r002eg.up.railway.app` | 활성화 |
 
 > Cloudflare 프록시 활성화 시: SSL 자동 처리 + DDoS 보호 + 엣지 캐싱.
 
@@ -526,7 +526,7 @@ Site URL:
 
 Additional Redirect URLs:
   https://customwebservice.app/callback
-  https://customwebservice-production.up.railway.app/callback
+  https://r4r002eg.up.railway.app/callback
   http://localhost:3000/callback
   http://localhost:8080/callback
 ```

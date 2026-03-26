@@ -505,8 +505,8 @@ export function generateSlug(projectName: string, projectId: string): string {
 ```
 타입    이름                          값
 ─────────────────────────────────────────────────────
-CNAME   customwebservice.app          customwebservice-production.up.railway.app
-CNAME   *.customwebservice.app        customwebservice-production.up.railway.app
+CNAME   customwebservice.app          r4r002eg.up.railway.app
+CNAME   *.customwebservice.app        r4r002eg.up.railway.app
 ```
 
 > **주의:** Cloudflare Proxy (주황 구름) 활성화 권장
@@ -545,7 +545,7 @@ Site URL:
 
 Redirect URLs (허용 목록):
   https://customwebservice.app/callback
-  https://customwebservice-production.up.railway.app/callback
+  https://r4r002eg.up.railway.app/callback
   http://localhost:3000/callback
   http://localhost:8080/callback
 ```

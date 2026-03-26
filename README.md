@@ -7,7 +7,7 @@
 | 환경 | URL |
 |------|-----|
 | Production | https://customwebservice.app |
-| Railway (구) | https://customwebservice-production.up.railway.app |
+| Railway (구) | https://r4r002eg.up.railway.app |
 | Local | http://localhost:8080 |
 
 ## 주요 기능
