@@ -55,7 +55,7 @@ export default function BuilderPage() {
     async function loadCatalog() {
       try {
         const [apisRes, catsRes] = await Promise.all([
-          fetch('/api/v1/catalog', { signal: abortCtrl.signal }),
+          fetch('/api/v1/catalog?limit=100', { signal: abortCtrl.signal }),
           fetch('/api/v1/catalog/categories', { signal: abortCtrl.signal }),
         ]);
         if (!apisRes.ok || !catsRes.ok) {
