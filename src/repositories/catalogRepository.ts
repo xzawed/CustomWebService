@@ -99,7 +99,7 @@ export class CatalogRepository extends BaseRepository<ApiCatalogItem> {
       successorId: (row.successor_id as string) ?? null,
       corsSupported: (row.cors_supported as boolean) ?? true,
       requiresProxy: (row.requires_proxy as boolean) ?? false,
-      creditRequired: (row.credit_required as string) ?? null,
+      creditRequired: row.credit_required != null ? Number(row.credit_required) : null,
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string,
     };

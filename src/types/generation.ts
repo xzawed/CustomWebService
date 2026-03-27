@@ -1,6 +1,5 @@
 export type GenerationStepType =
   | 'analyzing'
-  | 'designing'
   | 'generating_code'
   | 'styling'
   | 'validating';

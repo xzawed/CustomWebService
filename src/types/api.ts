@@ -35,7 +35,7 @@ export interface ApiCatalogItem {
   successorId: string | null;
   corsSupported: boolean;
   requiresProxy: boolean;
-  creditRequired: string | null;
+  creditRequired: number | null;
   createdAt: string;
   updatedAt: string;
 }

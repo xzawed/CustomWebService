@@ -71,6 +71,28 @@ API 카탈로그 전체 조회
 ### GET /api/v1/catalog/:id
 특정 API 상세 조회
 
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "id": "uuid",
+        "name": "OpenWeatherMap",
+        "description": "현재 날씨, 5일 예보, 대기질",
+        "category": "weather",
+        "baseUrl": "https://api.openweathermap.org",
+        "authType": "api_key",
+        "creditRequired": null,
+        "endpoints": [...]
+    }
+}
+```
+
+| 상태코드 | 설명 |
+|---------|------|
+| 200 | 성공 |
+| 404 | 해당 ID의 API를 찾을 수 없음 |
+
 ### GET /api/v1/catalog/categories
 카테고리 목록 조회
 
@@ -300,6 +322,13 @@ data: {"deployUrl": "https://svc-abc12345.up.railway.app", "repoUrl": "https://g
 - 최신 생성 코드를 완성된 HTML로 조합하여 반환
 - 미게시 상태면 "준비 중" 안내 페이지 반환 (HTTP 200)
 - 존재하지 않는 slug는 404 페이지 반환
+
+| 상태코드 | 설명 |
+|---------|------|
+| 200 | 성공 (게시된 사이트 HTML) |
+| 200 | 미게시 상태 ("준비 중" 안내 페이지) |
+| 400 | 잘못된 slug 형식 (예약어·빈 slug 등) |
+| 404 | 해당 slug의 프로젝트 없음 |
 
 **Response:** `text/html` (완성된 웹 애플리케이션)
 
