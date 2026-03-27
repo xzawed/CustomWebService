@@ -60,5 +60,4 @@ export interface CatalogSearchParams {
   search?: string;
   page?: number;
   limit?: number;
-  cursor?: string;
 }

@@ -87,8 +87,24 @@ export class GenerationService {
       },
     } as Omit<GeneratedCode, 'id' | 'createdAt'>);
 
-    // Update project status
-    await this.projectRepo.update(projectId, { status: 'generated' } as Partial<typeof project>);
+    // C2: Update project status — compensating rollback if update fails after code was saved
+    try {
+      await this.projectRepo.update(projectId, { status: 'generated' } as Partial<typeof project>);
+    } catch (updateError) {
+      logger.error('Project status update failed, rolling back code record', {
+        codeId: code.id,
+        projectId,
+      });
+      try {
+        await this.codeRepo.delete(code.id);
+      } catch (deleteErr) {
+        logger.error('Compensating rollback failed — orphaned code record', {
+          codeId: code.id,
+          deleteErr,
+        });
+      }
+      throw updateError;
+    }
 
     eventBus.emit({
       type: 'CODE_GENERATED',

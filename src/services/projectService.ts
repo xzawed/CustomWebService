@@ -5,7 +5,8 @@ import { eventBus } from '@/lib/events/eventBus';
 import { getLimits } from '@/lib/config/features';
 import { NotFoundError, ForbiddenError, ValidationError } from '@/lib/utils/errors';
 import { generateSlug } from '@/lib/utils/slugify';
-import type { Project, CreateProjectInput } from '@/types/project';
+import type { Project, ProjectMetadata, CreateProjectInput } from '@/types/project';
+import type { ApiCatalogItem } from '@/types/api';
 
 export class ProjectService {
   private projectRepo: ProjectRepository;
@@ -49,7 +50,7 @@ export class ProjectService {
       );
     }
 
-    const project = await this.projectRepo.create({
+    const createData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> = {
       userId,
       organizationId: input.organizationId ?? null,
       name: input.name,
@@ -59,11 +60,13 @@ export class ProjectService {
       deployPlatform: null,
       repoUrl: null,
       previewUrl: null,
-      metadata: {},
+      metadata: {} as ProjectMetadata,
       currentVersion: 0,
+      apis: [] as ApiCatalogItem[], // stripped by ProjectRepository.toDatabase()
       slug: null,
       publishedAt: null,
-    } as unknown as Omit<Project, 'id' | 'createdAt' | 'updatedAt'>);
+    };
+    const project = await this.projectRepo.create(createData);
 
     // Use repository method instead of direct Supabase access
     await this.projectRepo.insertProjectApis(project.id, input.apiIds);

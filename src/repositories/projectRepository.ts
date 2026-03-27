@@ -19,29 +19,13 @@ export class ProjectRepository extends BaseRepository<Project> {
   }
 
   async countTodayGenerations(userId: string): Promise<number> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Step 1: Get user's project IDs
-    const { data: userProjects, error: projError } = await this.supabase
-      .from(this.tableName)
-      .select('id')
-      .eq('user_id', userId);
-
-    if (projError) throw projError;
-
-    const projectIds = (userProjects ?? []).map((p) => p.id as string);
-    if (projectIds.length === 0) return 0;
-
-    // Step 2: Count today's generations for those projects
-    const { count, error } = await this.supabase
-      .from('generated_codes')
-      .select('id', { count: 'exact', head: true })
-      .in('project_id', projectIds)
-      .gte('created_at', today.toISOString());
-
+    // Single-query via DB function (see migration 003_helpers.sql)
+    // Replaces the previous N+1 pattern of fetching project IDs first
+    const { data, error } = await this.supabase.rpc('count_today_generations', {
+      p_user_id: userId,
+    });
     if (error) throw error;
-    return count ?? 0;
+    return (data as number) ?? 0;
   }
 
   async insertProjectApis(projectId: string, apiIds: string[]): Promise<void> {

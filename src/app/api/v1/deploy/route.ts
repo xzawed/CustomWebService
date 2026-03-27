@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { DeployService } from '@/services/deployService';
+import { DeployProviderFactory } from '@/providers/deploy/DeployProviderFactory';
 import type { DeployPlatform } from '@/providers/deploy/DeployProviderFactory';
 import { eventBus } from '@/lib/events/eventBus';
 import { AuthRequiredError, ValidationError, handleApiError } from '@/lib/utils/errors';
@@ -21,7 +22,14 @@ export async function POST(request: Request): Promise<Response> {
         throw new ValidationError('projectId는 필수 항목입니다.');
       }
       projectId = body.projectId;
-      platform = (body.platform as DeployPlatform) ?? 'railway';
+      const requestedPlatform = (body.platform as string) ?? 'railway';
+      const supported = DeployProviderFactory.getSupportedPlatforms();
+      if (!supported.includes(requestedPlatform as DeployPlatform)) {
+        throw new ValidationError(
+          `지원하지 않는 배포 플랫폼입니다: "${requestedPlatform}". 지원 플랫폼: ${supported.join(', ')}`
+        );
+      }
+      platform = requestedPlatform as DeployPlatform;
     } catch (err) {
       if (err instanceof SyntaxError) {
         return handleApiError(new ValidationError('잘못된 요청 형식입니다.'));

@@ -2,6 +2,7 @@ import type { IDeployProvider, FileEntry, DeployResult } from './IDeployProvider
 import * as github from '@/lib/deploy/githubService';
 import * as railway from '@/lib/deploy/railwayService';
 import { logger } from '@/lib/utils/logger';
+import { DeployError } from '@/lib/utils/errors';
 
 export class RailwayDeployer implements IDeployProvider {
   readonly name = 'railway';
@@ -70,25 +71,16 @@ export class RailwayDeployer implements IDeployProvider {
         break;
       }
       if (status?.status === 'FAILED' || status?.status === 'CRASHED') {
-        return {
-          deploymentId: status.id,
-          url: '',
-          platform: 'railway',
-          status: 'error',
-        };
+        throw new DeployError(`Railway 배포 실패: 서비스가 시작되지 않았습니다.`);
       }
       attempts++;
       await new Promise((r) => setTimeout(r, 5000));
     }
 
     if (!deployUrl) {
-      // Generate a domain if none exists
-      try {
-        const envData = await railway.getDeploymentStatus(projectId);
-        deployUrl = envData?.url ?? `https://${projectId.slice(0, 8)}.up.railway.app`;
-      } catch {
-        deployUrl = `https://${projectId.slice(0, 8)}.up.railway.app`;
-      }
+      throw new DeployError(
+        `Railway 배포 타임아웃: ${maxAttempts * 5}초 내에 완료되지 않았습니다.`
+      );
     }
 
     logger.info('Railway deployment completed', { projectId, deployUrl });

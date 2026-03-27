@@ -2,9 +2,10 @@ import { createClient } from '@/lib/supabase/server';
 import { ProjectService } from '@/services/projectService';
 import { CatalogService } from '@/services/catalogService';
 import { AuthService } from '@/services/authService';
+import { RateLimitService } from '@/services/rateLimitService';
 import { CodeRepository } from '@/repositories/codeRepository';
-import { ProjectRepository } from '@/repositories/projectRepository';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
+import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import { buildSystemPrompt, buildUserPrompt } from '@/lib/ai/promptBuilder';
 import { parseGeneratedCode } from '@/lib/ai/codeParser';
 import { validateAll } from '@/lib/ai/codeValidator';
@@ -12,7 +13,6 @@ import { eventBus } from '@/lib/events/eventBus';
 import { getLimits } from '@/lib/config/features';
 import {
   AuthRequiredError,
-  RateLimitError,
   ValidationError,
   handleApiError,
 } from '@/lib/utils/errors';
@@ -40,13 +40,9 @@ export async function POST(request: Request): Promise<Response> {
       throw err;
     }
 
-    // Check daily limit
-    const projectRepo = new ProjectRepository(supabase);
-    const todayCount = await projectRepo.countTodayGenerations(user.id);
-    const limits = getLimits();
-    if (todayCount >= limits.maxDailyGenerations) {
-      throw new RateLimitError(`일일 생성 한도(${limits.maxDailyGenerations}회)를 초과했습니다.`);
-    }
+    // H2: Use centralized RateLimitService — returns HTTP 429 before opening SSE stream
+    const rateLimitService = new RateLimitService(supabase);
+    await rateLimitService.checkDailyGenerationLimit(user.id);
 
     // Get project and APIs
     const projectService = new ProjectService(supabase);
@@ -66,6 +62,7 @@ export async function POST(request: Request): Promise<Response> {
     // Build prompt
     const systemPrompt = buildSystemPrompt();
     const userPrompt = buildUserPrompt(apis, project.context);
+    const limits = getLimits();
 
     // SSE stream with proper cancellation handling
     const encoder = new TextEncoder();
@@ -84,6 +81,9 @@ export async function POST(request: Request): Promise<Response> {
           }
         };
 
+        // H6: Declare provider outside try so the catch block can read provider.name
+        let provider: IAiProvider | undefined;
+
         try {
           send('progress', {
             step: 'analyzing',
@@ -91,13 +91,17 @@ export async function POST(request: Request): Promise<Response> {
             message: 'API 분석 중...',
           });
 
+          // C1: Second rate limit check inside the stream, right before the DB write.
+          // Significantly reduces the race window where concurrent requests both pass
+          // the initial check. (Full elimination requires a DB advisory lock.)
+          await rateLimitService.checkDailyGenerationLimit(user.id);
+
           send('progress', {
             step: 'generating_code',
             progress: 30,
             message: '코드 생성 중...',
           });
 
-          let provider;
           try {
             provider = AiProviderFactory.create();
           } catch (factoryErr) {
@@ -106,10 +110,21 @@ export async function POST(request: Request): Promise<Response> {
             );
           }
 
-          const response = await provider.generateCode({
-            system: systemPrompt,
-            user: userPrompt,
-          });
+          // H3: Enforce generation timeout — prevents SSE streams from hanging indefinitely
+          const response = await Promise.race([
+            provider.generateCode({ system: systemPrompt, user: userPrompt }),
+            new Promise<never>((_, reject) =>
+              setTimeout(
+                () =>
+                  reject(
+                    new Error(
+                      `코드 생성 제한시간(${limits.generationTimeoutMs / 1000}초)을 초과했습니다.`
+                    )
+                  ),
+                limits.generationTimeoutMs
+              )
+            ),
+          ]);
 
           if (isCancelled) return;
 
@@ -129,11 +144,10 @@ export async function POST(request: Request): Promise<Response> {
 
           const validation = validateAll(parsed.html, parsed.css, parsed.js);
 
-          // Save to DB
           const codeRepo = new CodeRepository(supabase);
           const nextVersion = await codeRepo.getNextVersion(projectId);
 
-          await codeRepo.create({
+          const savedCode = await codeRepo.create({
             projectId,
             version: nextVersion,
             codeHtml: parsed.html,
@@ -152,7 +166,25 @@ export async function POST(request: Request): Promise<Response> {
             },
           } as Parameters<typeof codeRepo.create>[0]);
 
-          await projectService.updateStatus(projectId, 'generated');
+          // C2: Compensating rollback — if status update fails after code is saved,
+          // delete the orphaned code record to keep the DB consistent.
+          try {
+            await projectService.updateStatus(projectId, 'generated');
+          } catch (updateError) {
+            logger.error('Project status update failed, rolling back code record', {
+              codeId: savedCode.id,
+              projectId,
+            });
+            try {
+              await codeRepo.delete(savedCode.id);
+            } catch (deleteErr) {
+              logger.error('Compensating rollback failed — orphaned code record', {
+                codeId: savedCode.id,
+                deleteErr,
+              });
+            }
+            throw updateError;
+          }
 
           eventBus.emit({
             type: 'CODE_GENERATED',
@@ -175,12 +207,13 @@ export async function POST(request: Request): Promise<Response> {
             error: error instanceof Error ? error.message : 'Unknown',
           });
 
+          // H6: Use IAiProvider.name instead of hardcoded 'grok'
           eventBus.emit({
             type: 'CODE_GENERATION_FAILED',
             payload: {
               projectId,
               error: error instanceof Error ? error.message : 'Unknown error',
-              provider: 'grok',
+              provider: provider?.name ?? 'unknown',
             },
           });
 

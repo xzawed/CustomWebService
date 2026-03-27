@@ -1,4 +1,5 @@
 import type { DomainEvent, DomainEventType } from '@/types/events';
+import { logger } from '@/lib/utils/logger';
 
 type EventHandler<T extends DomainEvent = DomainEvent> = (event: T) => void;
 
@@ -12,7 +13,7 @@ class EventBus {
         try {
           handler(event);
         } catch (error) {
-          console.error(`Event handler error for ${event.type}:`, error);
+          logger.error(`Event handler error for ${event.type}`, { error });
         }
       }
     }
@@ -24,7 +25,7 @@ class EventBus {
         try {
           handler(event);
         } catch (error) {
-          console.error('Wildcard event handler error:', error);
+          logger.error('Wildcard event handler error', { error });
         }
       }
     }

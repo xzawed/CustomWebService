@@ -18,7 +18,25 @@ function extractCodeBlock(text: string, language: string): string {
   return match ? match[1].trim() : '';
 }
 
+/**
+ * Sanitize AI-generated CSS to remove known injection attack patterns.
+ * JS validation is handled separately by codeValidator.validateAll().
+ */
+function sanitizeCss(css: string): string {
+  return css
+    // IE CSS expression injection: expression(...)
+    .replace(/expression\s*\(/gi, '/* removed */(')
+    // CSS url(javascript:...) XSS
+    .replace(/url\s*\(\s*(['"]?\s*)javascript:/gi, 'url($1#')
+    // IE behavior property
+    .replace(/behavior\s*:/gi, '/* removed */:')
+    // Firefox -moz-binding XSS
+    .replace(/-moz-binding\s*:/gi, '/* removed */:');
+}
+
 export function assembleHtml(parsed: ParsedCode): string {
+  const safeCss = parsed.css ? sanitizeCss(parsed.css) : '';
+
   // If HTML already contains <style> and <script>, return as-is
   if (parsed.html.includes('<style>') && parsed.html.includes('<script>')) {
     return parsed.html;
@@ -28,11 +46,11 @@ export function assembleHtml(parsed: ParsedCode): string {
   if (parsed.html.includes('</head>')) {
     let assembled = parsed.html;
 
-    if (parsed.css) {
+    if (safeCss) {
       const headIdx = assembled.lastIndexOf('</head>');
       assembled =
         assembled.slice(0, headIdx) +
-        `<style>\n${parsed.css}\n</style>\n` +
+        `<style>\n${safeCss}\n</style>\n` +
         assembled.slice(headIdx);
     }
 
@@ -59,7 +77,7 @@ export function assembleHtml(parsed: ParsedCode): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Generated Service</title>
   <style>
-${parsed.css}
+${safeCss}
   </style>
 </head>
 <body>

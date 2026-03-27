@@ -45,9 +45,16 @@ export class GithubPagesDeployer implements IDeployProvider {
   async getStatus(deploymentId: string): Promise<DeployResult> {
     // GitHub Pages doesn't have a real-time status API;
     // once enabled, it's considered ready
+    const parts = deploymentId.split('/');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) {
+      throw new Error(
+        `잘못된 deploymentId 형식: "${deploymentId}" (기대 형식: org/repo)`
+      );
+    }
+    const [org, repo] = parts;
     return {
       deploymentId,
-      url: `https://${deploymentId.split('/')[0]}.github.io/${deploymentId.split('/')[1]}`,
+      url: `https://${org}.github.io/${repo}`,
       platform: 'github_pages',
       status: 'ready',
     };
