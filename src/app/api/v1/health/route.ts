@@ -8,10 +8,10 @@ export async function GET(): Promise<Response> {
   const usage: Record<string, unknown> = {};
   let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
 
-  const supabase = await createServiceClient();
-
   // Database check
+  let supabase: Awaited<ReturnType<typeof createServiceClient>> | null = null;
   try {
+    supabase = await createServiceClient();
     const { error } = await supabase
       .from('api_catalog')
       .select('id', { count: 'exact', head: true });
@@ -34,6 +34,7 @@ export async function GET(): Promise<Response> {
 
   // Usage limits (system-wide counts for monitoring)
   try {
+    if (!supabase) throw new Error('DB not available');
     const limits = getLimits();
 
     const today = new Date();

@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
 import { ProjectService } from '@/services/projectService';
-import { CatalogService } from '@/services/catalogService';
 import { AuthService } from '@/services/authService';
 import { CodeRepository } from '@/repositories/codeRepository';
 import { ProjectRepository } from '@/repositories/projectRepository';
@@ -71,11 +70,6 @@ export async function POST(request: Request): Promise<Response> {
     if (!previousCode) {
       throw new NotFoundError('재생성할 기존 코드가 없습니다. 먼저 코드를 생성해주세요.');
     }
-
-    // Get APIs for context (used in system prompt)
-    const apiIds = await projectService.getProjectApiIds(projectId);
-    const catalogService = new CatalogService(supabase);
-    const apis = await catalogService.getByIds(apiIds);
 
     const systemPrompt = buildSystemPrompt();
     const userPrompt = buildRegenerationPrompt(

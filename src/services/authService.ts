@@ -21,19 +21,30 @@ export class AuthService {
     if (dbUser) return dbUser;
 
     // First login — create user record with auth.uid() as id
-    const newUser = await this.userRepo.createWithAuthId(authUser.id, {
-      email: authUser.email ?? '',
-      name:
-        (authUser.user_metadata?.full_name as string) ??
-        (authUser.user_metadata?.name as string) ??
-        null,
-      avatarUrl: (authUser.user_metadata?.avatar_url as string) ?? null,
-      preferences: {},
-    } as Omit<User, 'id' | 'createdAt' | 'updatedAt'>);
+    // Use upsert-style error handling to handle race condition (concurrent first logins)
+    try {
+      const newUser = await this.userRepo.createWithAuthId(authUser.id, {
+        email: authUser.email ?? '',
+        name:
+          (authUser.user_metadata?.full_name as string) ??
+          (authUser.user_metadata?.name as string) ??
+          null,
+        avatarUrl: (authUser.user_metadata?.avatar_url as string) ?? null,
+        preferences: {},
+      } as Omit<User, 'id' | 'createdAt' | 'updatedAt'>);
 
-    eventBus.emit({ type: 'USER_SIGNED_UP', payload: { userId: newUser.id } });
+      eventBus.emit({ type: 'USER_SIGNED_UP', payload: { userId: newUser.id } });
 
-    return newUser;
+      return newUser;
+    } catch (err) {
+      // Duplicate key (23505): another request already created the record — fetch it
+      const pgErr = err as { code?: string };
+      if (pgErr?.code === '23505') {
+        const existing = await this.userRepo.findById(authUser.id);
+        if (existing) return existing;
+      }
+      throw err;
+    }
   }
 
   async signOut(): Promise<void> {

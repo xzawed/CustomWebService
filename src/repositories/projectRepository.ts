@@ -95,6 +95,11 @@ export class ProjectRepository extends BaseRepository<Project> {
     return this.toDomain(data);
   }
 
+  protected toDatabase(model: Partial<Project>): Record<string, unknown> {
+    const { apis: _apis, ...rest } = model;
+    return super.toDatabase(rest as Partial<Project>);
+  }
+
   protected toDomain(row: Record<string, unknown>): Project {
     return {
       id: row.id as string,

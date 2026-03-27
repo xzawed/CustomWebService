@@ -77,16 +77,12 @@ export class DeployService {
 
       const deployUrl = result.url;
 
-      await this.supabase
-        .from('projects')
-        .update({
-          status: 'deployed',
-          deploy_url: deployUrl,
-          deploy_platform: platform,
-          repo_url: repoUrl ?? null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', projectId);
+      await this.projectRepo.update(projectId, {
+        status: 'deployed',
+        deployUrl,
+        deployPlatform: platform,
+        repoUrl: repoUrl ?? null,
+      } as Parameters<typeof this.projectRepo.update>[1]);
 
       eventBus.emit({
         type: 'DEPLOYMENT_COMPLETED',
@@ -97,13 +93,9 @@ export class DeployService {
 
       return { deployUrl, repoUrl };
     } catch (error) {
-      await this.supabase
-        .from('projects')
-        .update({
-          status: 'failed',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', projectId);
+      await this.projectRepo.update(projectId, {
+        status: 'failed',
+      } as Parameters<typeof this.projectRepo.update>[1]);
 
       eventBus.emit({
         type: 'DEPLOYMENT_FAILED',
