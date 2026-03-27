@@ -125,6 +125,60 @@ API 카탈로그 전체 조회
 ### DELETE /api/v1/projects/:id
 프로젝트 삭제
 
+### POST /api/v1/projects/:id/rollback
+특정 버전으로 롤백 (기존 버전의 코드를 새 버전으로 복사)
+
+**Request Body:**
+```json
+{
+    "version": 2
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "projectId": "uuid",
+        "version": 3,
+        "rolledBackFrom": 2
+    }
+}
+```
+
+### POST /api/v1/projects/:id/publish
+생성된 서비스를 서브도메인으로 게시
+
+> 고유 slug가 자동 생성되어 `https://<app-domain>/site/<slug>` 로 공개됩니다.
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "id": "uuid",
+        "status": "published",
+        "slug": "my-weather-app",
+        "publishedAt": "2026-03-28T00:00:00Z"
+    }
+}
+```
+
+### DELETE /api/v1/projects/:id/publish
+게시 취소 (서비스를 비공개로 전환)
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "id": "uuid",
+        "status": "unpublished"
+    }
+}
+```
+
 ---
 
 ## 3. 코드 생성 (Generate)
@@ -160,6 +214,8 @@ data: {"projectId": "uuid", "version": 1, "previewUrl": "/preview/uuid"}
 ### POST /api/v1/generate/regenerate
 코드 재생성 (수정 요청)
 
+**Auth:** 필수
+
 **Request Body:**
 ```json
 {
@@ -167,6 +223,20 @@ data: {"projectId": "uuid", "version": 1, "previewUrl": "/preview/uuid"}
     "feedback": "색상을 더 밝게 해주세요. 그래프도 추가해주세요."
 }
 ```
+
+**Response (SSE):**
+```
+event: progress
+data: {"step": "analyzing", "progress": 10, "message": "피드백 분석 중..."}
+
+event: progress
+data: {"step": "generating_code", "progress": 30, "message": "코드 수정 중..."}
+
+event: complete
+data: {"projectId": "uuid", "version": 2, "previewUrl": "/api/v1/preview/uuid"}
+```
+
+> 프로젝트당 최대 `maxRegenerationsPerProject`(기본 5회) 재생성 가능. 재생성도 일일 생성 횟수에 포함됩니다.
 
 ---
 
@@ -211,25 +281,76 @@ event: complete
 data: {"deployUrl": "https://svc-abc12345.up.railway.app", "repoUrl": "https://github.com/..."}
 ```
 
-### GET /api/v1/deploy/:projectId/status
-배포 상태 조회
+> **참고**: `GET /api/v1/deploy/:projectId/status`는 미구현 상태입니다. 프로젝트 상태는 `GET /api/v1/projects/:id`로 확인하세요.
 
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "status": "deployed",
-        "deployUrl": "https://svc-abc12345.up.railway.app",
-        "platform": "railway",
-        "lastDeployed": "2026-03-20T12:00:00Z"
-    }
-}
+---
+
+## 6. 공개 사이트 서빙 (Public Site)
+
+### GET /site/:slug
+게시된 서비스를 공개 URL로 서빙
+
+> **인증 불필요** — 누구나 접근 가능한 공개 엔드포인트
+
+**URL 구조:** `https://<app-domain>/site/<slug>`
+
+**동작:**
+- slug 유효성 검사 → 예약어 차단
+- 프로젝트 조회 → `published` 상태 확인
+- 최신 생성 코드를 완성된 HTML로 조합하여 반환
+- 미게시 상태면 "준비 중" 안내 페이지 반환 (HTTP 200)
+- 존재하지 않는 slug는 404 페이지 반환
+
+**Response:** `text/html` (완성된 웹 애플리케이션)
+
+**Response Headers:**
+```
+Content-Type: text/html; charset=utf-8
+Cache-Control: public, s-maxage=60, stale-while-revalidate=300
+Content-Security-Policy: (허용된 외부 스크립트/스타일만)
+X-Frame-Options: DENY
 ```
 
 ---
 
-## 6. 인증 (Auth)
+## 7. 헬스체크 (Health)
+
+### GET /api/v1/health
+서비스 상태 및 한도 사용률 조회
+
+> **인증 불필요** — 모니터링 용도
+
+**Response:**
+```json
+{
+    "status": "healthy",
+    "timestamp": "2026-03-28T00:00:00Z",
+    "checks": {
+        "database": "ok",
+        "ai": "ok",
+        "deploy": "ok"
+    },
+    "usage": {
+        "todayGenerations": 42,
+        "totalProjects": 150,
+        "totalUsers": 30,
+        "limits": {
+            "maxDailyGenerationsPerUser": 10,
+            "maxApisPerProject": 5,
+            "maxProjectsPerUser": 20
+        }
+    }
+}
+```
+
+**status 값:**
+- `healthy`: 모든 서비스 정상
+- `degraded`: AI 또는 배포 서비스 미설정 (환경변수 누락)
+- `unhealthy`: 데이터베이스 연결 실패
+
+---
+
+## 8. 인증 (Auth)
 
 Supabase Auth 사용 - 별도 API 구현 불필요
 
@@ -243,7 +364,7 @@ Supabase Auth 사용 - 별도 API 구현 불필요
 
 ---
 
-## 7. 에러 코드
+## 9. 에러 코드
 
 | 코드 | HTTP Status | 설명 |
 |------|-------------|------|
