@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { ProjectService } from '@/services/projectService';
 import { CatalogService } from '@/services/catalogService';
+import { AuthService } from '@/services/authService';
 import { CodeRepository } from '@/repositories/codeRepository';
 import { ProjectRepository } from '@/repositories/projectRepository';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
@@ -20,9 +21,8 @@ import { logger } from '@/lib/utils/logger';
 export async function POST(request: Request): Promise<Response> {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const authService = new AuthService(supabase);
+    const user = await authService.getCurrentUser();
     if (!user) throw new AuthRequiredError();
 
     // Validate request body

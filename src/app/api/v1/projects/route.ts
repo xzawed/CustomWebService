@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { ProjectService } from '@/services/projectService';
+import { AuthService } from '@/services/authService';
 import { AuthRequiredError, handleApiError } from '@/lib/utils/errors';
 import { z } from 'zod/v4';
 
@@ -13,9 +14,8 @@ const createProjectSchema = z.object({
 export async function GET() {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const authService = new AuthService(supabase);
+    const user = await authService.getCurrentUser();
     if (!user) throw new AuthRequiredError();
 
     const service = new ProjectService(supabase);
@@ -30,9 +30,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const authService = new AuthService(supabase);
+    const user = await authService.getCurrentUser();
     if (!user) throw new AuthRequiredError();
 
     const body = await request.json();

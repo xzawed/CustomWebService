@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { UserRepository } from '@/repositories/userRepository';
+import { logger } from '@/lib/utils/logger';
 
 export async function GET(request: Request) {
   const { searchParams, origin: requestOrigin } = new URL(request.url);
@@ -43,22 +43,45 @@ export async function GET(request: Request) {
           data: { user: authUser },
         } = await supabase.auth.getUser();
         if (authUser) {
-          const userRepo = new UserRepository(supabase);
-          const existing = await userRepo.findById(authUser.id);
+          // Use service role client to bypass RLS for user record creation
+          const serviceClient = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            { cookies: { getAll: () => [], setAll: () => {} } }
+          );
+
+          const { data: existing } = await serviceClient
+            .from('users')
+            .select('id')
+            .eq('id', authUser.id)
+            .single();
+
           if (!existing) {
-            await userRepo.createWithAuthId(authUser.id, {
+            const { error: insertError } = await serviceClient.from('users').insert({
+              id: authUser.id,
               email: authUser.email ?? '',
               name:
                 (authUser.user_metadata?.full_name as string) ??
                 (authUser.user_metadata?.name as string) ??
                 null,
-              avatarUrl: (authUser.user_metadata?.avatar_url as string) ?? null,
+              avatar_url: (authUser.user_metadata?.avatar_url as string) ?? null,
               preferences: {},
-            } as Omit<import('@/types/organization').User, 'id' | 'createdAt' | 'updatedAt'>);
+            });
+
+            if (insertError) {
+              logger.error('Failed to create user record in callback', {
+                userId: authUser.id,
+                email: authUser.email,
+                error: insertError.message,
+                code: insertError.code,
+              });
+            }
           }
         }
-      } catch {
-        // User record creation failed — session is still valid, proceed to redirect
+      } catch (err) {
+        logger.error('User record creation failed in callback', {
+          error: err instanceof Error ? err.message : 'Unknown error',
+        });
       }
 
       return NextResponse.redirect(`${origin}${next}`);
