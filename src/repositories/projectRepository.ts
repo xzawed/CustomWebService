@@ -22,10 +22,22 @@ export class ProjectRepository extends BaseRepository<Project> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Step 1: Get user's project IDs
+    const { data: userProjects, error: projError } = await this.supabase
+      .from(this.tableName)
+      .select('id')
+      .eq('user_id', userId);
+
+    if (projError) throw projError;
+
+    const projectIds = (userProjects ?? []).map((p) => p.id as string);
+    if (projectIds.length === 0) return 0;
+
+    // Step 2: Count today's generations for those projects
     const { count, error } = await this.supabase
       .from('generated_codes')
-      .select('id, projects!inner(user_id)', { count: 'exact', head: true })
-      .eq('projects.user_id', userId)
+      .select('id', { count: 'exact', head: true })
+      .in('project_id', projectIds)
       .gte('created_at', today.toISOString());
 
     if (error) throw error;

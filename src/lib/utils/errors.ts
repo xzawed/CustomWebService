@@ -76,6 +76,31 @@ export function handleApiError(error: unknown): Response {
     );
   }
 
+  // PostgREST / Supabase database errors (plain objects with code + message)
+  if (
+    error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    'message' in error &&
+    !(error instanceof Error)
+  ) {
+    const pgError = error as { code: string; message: string; details?: string; hint?: string };
+    logger.error('Database error', {
+      code: pgError.code,
+      message: pgError.message,
+      details: pgError.details,
+      hint: pgError.hint,
+    });
+
+    return Response.json(
+      {
+        success: false,
+        error: { code: 'DATABASE_ERROR', message: `데이터베이스 오류: ${pgError.message}` },
+      },
+      { status: 500 }
+    );
+  }
+
   // Structured logging - never expose internals to client
   logger.error('Unhandled API error', {
     message: error instanceof Error ? error.message : 'Unknown error',

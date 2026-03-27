@@ -53,8 +53,15 @@ export async function POST(request: Request): Promise<Response> {
     const project = await projectService.getById(projectId, user.id);
 
     const apiIds = await projectService.getProjectApiIds(projectId);
+    if (apiIds.length === 0) {
+      throw new ValidationError('프로젝트에 연결된 API가 없습니다.');
+    }
+
     const catalogService = new CatalogService(supabase);
     const apis = await catalogService.getByIds(apiIds);
+    if (apis.length === 0) {
+      throw new ValidationError('선택된 API 정보를 찾을 수 없습니다.');
+    }
 
     // Build prompt
     const systemPrompt = buildSystemPrompt();
@@ -90,7 +97,15 @@ export async function POST(request: Request): Promise<Response> {
             message: '코드 생성 중...',
           });
 
-          const provider = AiProviderFactory.create();
+          let provider;
+          try {
+            provider = AiProviderFactory.create();
+          } catch (factoryErr) {
+            throw new Error(
+              `AI 서비스 초기화 실패: ${factoryErr instanceof Error ? factoryErr.message : 'Unknown'}`
+            );
+          }
+
           const response = await provider.generateCode({
             system: systemPrompt,
             user: userPrompt,
