@@ -101,14 +101,16 @@ export function handleApiError(error: unknown): Response {
     );
   }
 
-  // Structured logging - never expose internals to client
+  // Generic Error instances - log full details, return message to client for debugging
+  const errMessage = error instanceof Error ? error.message : String(error);
   logger.error('Unhandled API error', {
-    message: error instanceof Error ? error.message : 'Unknown error',
+    message: errMessage,
     name: error instanceof Error ? error.name : undefined,
+    stack: error instanceof Error ? error.stack : undefined,
   });
 
   return Response.json(
-    { success: false, error: { code: 'INTERNAL_ERROR', message: '서버 오류가 발생했습니다.' } },
+    { success: false, error: { code: 'INTERNAL_ERROR', message: errMessage || '서버 오류가 발생했습니다.' } },
     { status: 500 }
   );
 }
