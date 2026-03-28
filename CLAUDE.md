@@ -105,6 +105,24 @@ pnpm test:coverage    # 커버리지 리포트
 - `README.md` — 프로젝트 전체 개요
 - `.github/PULL_REQUEST_TEMPLATE.md` — PR 템플릿
 
+## 배포 품질 원칙 (필수)
+
+이 서비스는 다수 사용자가 이용 중입니다. 배포 품질 = 서비스 신뢰도.
+
+### CSP / 보안 헤더 변경 시
+- `middleware.ts`, `site/[slug]/route.ts`, `preview/[projectId]/route.ts` 3개 파일을 반드시 동시에 확인
+- CSP 헤더가 2중 적용되는 경로가 없는지 검증 (HTTP 표준: CSP 2개면 둘 다 적용)
+- 프롬프트가 사용하는 CDN이 CSP에서 허용되는지 확인
+
+### 서빙 파이프라인 변경 시
+- 미리보기, 게시(직접), 게시(서브도메인) 3가지 경로 모두 추적
+- assembleHtml() 변경 시 CSS/JS 누락 여부 확인
+- "A에서는 되지만 B에서는 안 된다" 같은 경로별 차이가 없어야 함
+
+### 코드 수정 후
+- 수정한 함수/파일을 호출하는 모든 경로를 나열하고 각각 검증
+- 단일 파일만 보고 끝내지 않고 cross-cutting concern(미들웨어, 공통 함수) 영향 확인
+
 ## 커밋 메시지 규칙
 
 한국어 커밋 메시지 사용. prefix 패턴: `feat:`, `fix:`, `refactor:`, `ci:`, `docs:`, `test:`
