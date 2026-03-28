@@ -6,6 +6,10 @@ export function createClient() {
 
   if (!url || !key) {
     // Return a minimal mock during build/SSG when env vars are missing
+    if (typeof window !== 'undefined') {
+      // Warn at runtime (not during SSG/build) so misconfiguration is visible
+      console.warn('[Supabase] NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY is missing');
+    }
     return createBrowserClient('https://placeholder.supabase.co', 'placeholder-key');
   }
 

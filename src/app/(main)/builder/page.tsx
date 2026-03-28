@@ -165,6 +165,7 @@ export default function BuilderPage() {
             try {
               parsed = JSON.parse(eventData);
             } catch {
+              console.warn('[SSE] Failed to parse event data', { eventType, eventData });
               continue;
             }
 

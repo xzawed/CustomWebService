@@ -266,6 +266,46 @@ data: {"message": "재생성에 실패했습니다."}
 
 > 프로젝트당 최대 `maxRegenerationsPerProject`(기본 5회) 재생성 가능. 재생성도 일일 생성 횟수에 포함됩니다.
 
+### POST /api/v1/suggest-context
+선택된 API 기반 AI 서비스 아이디어 추천
+
+> 빌더 스텝 1(API 선택) → 스텝 2(서비스 설명) 전환 시 자동 호출
+
+**Auth:** 필수
+
+**Request Body:**
+```json
+{
+    "apis": [
+        {
+            "name": "OpenWeatherMap",
+            "description": "현재 날씨, 5일 예보, 대기질",
+            "category": "weather"
+        }
+    ]
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "suggestions": [
+            "실시간 날씨 대시보드를 만들고 싶어요. 현재 기온, 습도, 풍속을 시각적으로 보여주고...",
+            "여행지별 날씨를 한눈에 비교할 수 있는 앱을 만들어 주세요...",
+            "미세먼지와 자외선 지수를 함께 보여주는 오늘의 외출 도우미..."
+        ]
+    }
+}
+```
+
+| 상태코드 | 설명 |
+|---------|------|
+| 200 | 성공 (파싱 실패 시에도 200 + suggestions: []) |
+| 400 | apis 누락 또는 잘못된 형식 |
+| 401 | 인증 필요 |
+
 ---
 
 ## 4. 미리보기 (Preview)

@@ -32,6 +32,7 @@ export default function ContextSuggestions({
           <button
             type="button"
             onClick={onRefresh}
+            aria-label="AI 추천 컨텍스트 다시 생성"
             className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-400 transition-colors hover:bg-white hover:text-gray-600"
           >
             <RefreshCw className="h-3 w-3" />
@@ -81,6 +82,7 @@ export default function ContextSuggestions({
           <button
             type="button"
             onClick={onRefresh}
+            aria-label="AI 추천 컨텍스트 다시 시도"
             className="text-blue-500 underline hover:text-blue-600"
           >
             다시 시도

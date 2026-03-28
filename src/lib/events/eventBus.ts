@@ -13,7 +13,10 @@ class EventBus {
         try {
           handler(event);
         } catch (error) {
-          logger.error(`Event handler error for ${event.type}`, { error });
+          logger.error(`Event handler error for ${event.type}`, {
+            error,
+            handlerName: handler.name || '(anonymous)',
+          });
         }
       }
     }
@@ -25,7 +28,10 @@ class EventBus {
         try {
           handler(event);
         } catch (error) {
-          logger.error('Wildcard event handler error', { error });
+          logger.error('Wildcard event handler error', {
+            error,
+            handlerName: handler.name || '(anonymous)',
+          });
         }
       }
     }

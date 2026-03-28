@@ -33,6 +33,9 @@ export class CatalogRepository extends BaseRepository<ApiCatalogItem> {
         .slice(0, 100);
       if (sanitized) {
         query = query.or(`name.ilike.%${sanitized}%,description.ilike.%${sanitized}%`);
+      } else {
+        // All characters were stripped — return empty rather than unfiltered results
+        return { items: [], total: 0 };
       }
     }
 

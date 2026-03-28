@@ -69,7 +69,13 @@ export class GrokProvider implements IAiProvider {
       });
       return { available: true };
     } catch (error: unknown) {
-      const status = (error as { status?: number })?.status;
+      const status =
+        error !== null &&
+        typeof error === 'object' &&
+        'status' in error &&
+        typeof (error as { status: unknown }).status === 'number'
+          ? (error as { status: number }).status
+          : undefined;
       if (status === 429) {
         return { available: false, remainingQuota: 0 };
       }
