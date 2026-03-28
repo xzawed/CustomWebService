@@ -40,7 +40,7 @@ export class GenerationService {
 
     // Build prompt and generate
     const systemPrompt = buildSystemPrompt();
-    const userPrompt = buildUserPrompt(apis, project.context);
+    const userPrompt = buildUserPrompt(apis, project.context, project.id);
 
     onProgress?.(30, '코드 생성 중...');
 

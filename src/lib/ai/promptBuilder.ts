@@ -40,7 +40,7 @@ export function buildSystemPrompt(): string {
 이 패턴 덕분에 사용자는 항상 완성된 화면을 보게 됩니다.`;
 }
 
-export function buildUserPrompt(apis: ApiCatalogItem[], context: string): string {
+export function buildUserPrompt(apis: ApiCatalogItem[], context: string, projectId?: string): string {
   const apiDescriptions = apis
     .map((api, i) => {
       const endpoints = api.endpoints
@@ -50,10 +50,11 @@ export function buildUserPrompt(apis: ApiCatalogItem[], context: string): string
         )
         .join('\n');
 
+      const projectParam = projectId ? `&projectId=${projectId}` : '';
       const callMethod =
         api.authType === 'none'
           ? `직접 fetch (인증 불필요): ${api.baseUrl}`
-          : `서버 프록시 필수: /api/v1/proxy?apiId=${api.id}&proxyPath=<경로>&<파라미터>=<값>`;
+          : `서버 프록시 필수: /api/v1/proxy?apiId=${api.id}${projectParam}&proxyPath=<경로>&<파라미터>=<값>`;
 
       return `### API ${i + 1}: ${api.name}
 - API ID (프록시 호출 시 사용): ${api.id}

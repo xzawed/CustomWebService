@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
 import { useAuth } from '@/hooks/useAuth';
-import { Menu, X, LogOut, User as UserIcon, LayoutGrid, Hammer, BarChart3 } from 'lucide-react';
+import { Menu, X, LogOut, User as UserIcon, LayoutGrid, Hammer, BarChart3, Key } from 'lucide-react';
 
 const NAV_LINKS = [
   { href: '/catalog', label: '카탈로그', icon: LayoutGrid },
@@ -96,6 +96,14 @@ export function Header() {
                     </p>
                     <p className="truncate text-xs text-slate-400">{user.email}</p>
                   </div>
+                  <Link
+                    href="/settings/api-keys"
+                    onClick={() => setDropdownOpen(false)}
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-300 transition-colors hover:bg-white/[0.04] hover:text-white"
+                  >
+                    <Key className="h-4 w-4" />
+                    내 API 키 관리
+                  </Link>
                   <button
                     type="button"
                     onClick={signOut}

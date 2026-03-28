@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { CatalogRepository } from '@/repositories/catalogRepository';
+import { decryptApiKey } from '@/lib/encryption';
 
 // Hosts that must never be proxied (SSRF prevention)
 const BLOCKED_HOSTS = new Set([
@@ -72,14 +73,14 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
   }
 
   // Forward all query params except our own
-  const ownParams = new Set(['apiId', 'proxyPath']);
+  const ownParams = new Set(['apiId', 'proxyPath', 'projectId']);
   for (const [key, value] of searchParams.entries()) {
     if (!ownParams.has(key)) {
       targetUrl.searchParams.set(key, value);
     }
   }
 
-  // Inject API key from environment variable
+  // Inject API key — 우선순위: 사용자 키 > 프로젝트 오너 키 > 플랫폼 키
   const headers: Record<string, string> = {
     'User-Agent': 'CustomWebService-Proxy/1.0',
     Accept: 'application/json',
@@ -91,17 +92,46 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
       param_in?: string;
       env_var?: string;
     };
-    const key = cfg.env_var ? process.env[cfg.env_var] : undefined;
 
-    if (key && cfg.param_name) {
+    let resolvedKey: string | undefined;
+
+    // 1) 프로젝트 오너의 개인 API 키 조회 (projectId가 있을 때)
+    const projectId = searchParams.get('projectId');
+    if (projectId && UUID_RE.test(projectId)) {
+      try {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('user_id')
+          .eq('id', projectId)
+          .single();
+
+        if (project?.user_id) {
+          const { data: userKey } = await supabase
+            .from('user_api_keys')
+            .select('encrypted_key')
+            .eq('user_id', project.user_id)
+            .eq('api_id', apiId)
+            .single();
+
+          if (userKey?.encrypted_key) {
+            try { resolvedKey = decryptApiKey(userKey.encrypted_key); } catch { /* skip */ }
+          }
+        }
+      } catch { /* 조회 실패 시 플랫폼 키로 폴백 */ }
+    }
+
+    // 2) 플랫폼 공용 키 (환경변수)
+    if (!resolvedKey && cfg.env_var) {
+      resolvedKey = process.env[cfg.env_var];
+    }
+
+    if (resolvedKey && cfg.param_name) {
       if (cfg.param_in === 'header') {
-        headers[cfg.param_name] = key;
+        headers[cfg.param_name] = resolvedKey;
       } else {
-        // default: query parameter
-        targetUrl.searchParams.set(cfg.param_name, key);
+        targetUrl.searchParams.set(cfg.param_name, resolvedKey);
       }
     }
-    // If no key is configured, forward anyway — the downstream API will return its own error
   }
 
   // Forward the request
