@@ -23,7 +23,8 @@ export default function GuideQuestions({ onInsert }: GuideQuestionsProps) {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1 text-sm font-medium text-gray-700"
+        className="flex items-center gap-1 text-sm font-medium transition-colors"
+        style={{ color: 'var(--text-secondary)' }}
       >
         가이드 질문을 참고하세요
         {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -31,12 +32,15 @@ export default function GuideQuestions({ onInsert }: GuideQuestionsProps) {
       {isOpen && (
         <ul className="space-y-1">
           {QUESTIONS.map((q) => (
-            <li key={q} className="flex items-start gap-2 text-sm text-gray-500">
-              <span className="mt-0.5 text-blue-400">&#8226;</span>
+            <li key={q} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              <span className="mt-0.5" style={{ color: 'var(--accent-primary)' }}>•</span>
               <button
                 type="button"
                 onClick={() => onInsert(`\n${q}\n`)}
-                className="text-left hover:text-blue-600 hover:underline"
+                className="text-left transition-colors hover:underline"
+                style={{ color: 'var(--text-secondary)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-primary)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
               >
                 {q}
               </button>

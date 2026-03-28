@@ -59,8 +59,11 @@ export default function PopularServiceSuggestions({ onSelect }: PopularServiceSu
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-6">
-        <div className="flex items-center gap-3 text-amber-400">
+      <div
+        className="rounded-xl p-6"
+        style={{ border: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.05)' }}
+      >
+        <div className="flex items-center gap-3" style={{ color: '#d97706' }}>
           <Loader2 className="h-5 w-5 animate-spin" />
           <span className="text-sm font-medium">인기 서비스를 불러오는 중...</span>
         </div>
@@ -73,13 +76,16 @@ export default function PopularServiceSuggestions({ onSelect }: PopularServiceSu
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <Flame className="h-4 w-4 text-amber-400" />
-        <h3 className="text-sm font-semibold text-white">인기 서비스</h3>
-        <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400">
+        <Flame className="h-4 w-4" style={{ color: '#d97706' }} />
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>인기 서비스</h3>
+        <span
+          className="rounded-full px-2 py-0.5 text-xs"
+          style={{ background: 'rgba(245,158,11,0.12)', color: '#d97706' }}
+        >
           클릭하면 바로 시작
         </span>
       </div>
-      <p className="text-xs text-slate-400">
+      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
         어떤 서비스를 만들지 고민되시나요? 인기 있는 서비스를 선택해보세요.
       </p>
 
@@ -89,31 +95,40 @@ export default function PopularServiceSuggestions({ onSelect }: PopularServiceSu
             key={service.id}
             type="button"
             onClick={() => onSelect(service)}
-            className="group relative rounded-xl border border-white/[0.06] bg-[#0f1629] p-4 text-left transition-all hover:border-amber-500/30 hover:bg-amber-500/5"
+            className="card group relative p-4 text-left"
           >
             <div className="mb-2 flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-lg">{CATEGORY_EMOJI[service.category] ?? '⚡'}</span>
-                <h4 className="text-sm font-bold text-white group-hover:text-amber-300">
+                <h4 className="text-sm font-bold transition-colors" style={{ color: 'var(--text-primary)' }}>
                   {service.title}
                 </h4>
               </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-slate-600 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-400" />
+              <ChevronRight
+                className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5"
+                style={{ color: 'var(--text-muted)' }}
+              />
             </div>
 
-            <p className="mb-3 line-clamp-2 text-xs text-slate-400">{service.description}</p>
+            <p className="mb-3 line-clamp-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+              {service.description}
+            </p>
 
             <div className="flex flex-wrap gap-1.5">
               {service.apiNames.map((name) => (
                 <span
                   key={name}
-                  className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400"
+                  className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+                  style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
                 >
                   {name}
                 </span>
               ))}
               {service.usageCount > 0 && (
-                <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                <span
+                  className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                  style={{ background: 'rgba(245,158,11,0.12)', color: '#d97706' }}
+                >
                   <TrendingUp className="h-2.5 w-2.5" />
                   {service.usageCount}회 사용
                 </span>
