@@ -254,9 +254,26 @@ ${context}
 
 export function buildRegenerationPrompt(
   previousCode: { html: string; css: string; js: string },
-  feedback: string
+  feedback: string,
+  apis: ApiCatalogItem[] = []
 ): string {
-  return `## 이전 생성 코드
+  const apiSection = apis.length > 0
+    ? `## 프로젝트에 연결된 API (반드시 활용)
+${apis.map((api) => {
+  const projectParam = '';
+  const callMethod =
+    api.authType === 'none'
+      ? `직접 fetch: ${api.baseUrl}`
+      : `서버 프록시: /api/v1/proxy?apiId=${api.id}${projectParam}&proxyPath=<경로>`;
+  return `### ${api.name} (ID: ${api.id})
+- 호출 방법: ${callMethod}
+- 인증: ${api.authType}`;
+}).join('\n\n')}
+
+`
+    : '';
+
+  return `${apiSection}## 이전 생성 코드
 
 ### HTML
 \`\`\`html
@@ -276,5 +293,25 @@ ${previousCode.js}
 ## 사용자 수정 요청
 ${feedback}
 
-위 피드백을 반영하여 코드를 수정해주세요. 전체 코드를 반환해주세요.`;
+위 피드백을 반영하여 코드를 수정해주세요.
+- 수정 요청에 언급되지 않은 기존 기능은 그대로 유지하세요.
+- 위에 명시된 API가 코드에 없다면 자연스럽게 통합해주세요.
+- 전체 코드를 반환해주세요.
+
+다음 형식으로 코드를 반환해주세요:
+
+### HTML
+\`\`\`html
+(완전한 HTML 코드)
+\`\`\`
+
+### CSS
+\`\`\`css
+(CSS 코드)
+\`\`\`
+
+### JavaScript
+\`\`\`javascript
+(JavaScript 코드)
+\`\`\``;
 }

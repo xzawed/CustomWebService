@@ -14,6 +14,7 @@ import TemplateSelector from '@/components/builder/TemplateSelector';
 import type { Template } from '@/components/builder/TemplateSelector';
 import GenerationProgress from '@/components/builder/GenerationProgress';
 import PreviewFrame from '@/components/builder/PreviewFrame';
+import RePromptPanel from '@/components/builder/RePromptPanel';
 import ApiRecommendations from '@/components/builder/ApiRecommendations';
 import type { ApiRecommendation } from '@/components/builder/ApiRecommendations';
 import PopularServiceSuggestions from '@/components/builder/PopularServiceSuggestions';
@@ -37,6 +38,7 @@ export default function BuilderPage() {
   const [apis, setApis] = useState<ApiCatalogItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
+  const [previewVersion, setPreviewVersion] = useState<number | undefined>(undefined);
 
   // Context suggestion state (for api-first mode)
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -499,7 +501,15 @@ export default function BuilderPage() {
                 onNavigateDashboard={() => router.push('/dashboard')}
               />
 
-              {genStatus === 'completed' && projectId && <PreviewFrame projectId={projectId} />}
+              {genStatus === 'completed' && projectId && (
+                <PreviewFrame projectId={projectId} version={previewVersion} />
+              )}
+              {genStatus === 'completed' && projectId && (
+                <RePromptPanel
+                  projectId={projectId}
+                  onRegenerationComplete={(v) => setPreviewVersion(v)}
+                />
+              )}
             </div>
           )}
         </>
@@ -605,7 +615,15 @@ export default function BuilderPage() {
                 onNavigateDashboard={() => router.push('/dashboard')}
               />
 
-              {genStatus === 'completed' && projectId && <PreviewFrame projectId={projectId} />}
+              {genStatus === 'completed' && projectId && (
+                <PreviewFrame projectId={projectId} version={previewVersion} />
+              )}
+              {genStatus === 'completed' && projectId && (
+                <RePromptPanel
+                  projectId={projectId}
+                  onRegenerationComplete={(v) => setPreviewVersion(v)}
+                />
+              )}
             </div>
           )}
         </>

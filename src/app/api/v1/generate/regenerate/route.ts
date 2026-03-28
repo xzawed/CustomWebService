@@ -3,6 +3,7 @@ import { ProjectService } from '@/services/projectService';
 import { AuthService } from '@/services/authService';
 import { RateLimitService } from '@/services/rateLimitService';
 import { CodeRepository } from '@/repositories/codeRepository';
+import { CatalogService } from '@/services/catalogService';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import { buildSystemPrompt, buildRegenerationPrompt } from '@/lib/ai/promptBuilder';
@@ -53,6 +54,11 @@ export async function POST(request: Request): Promise<Response> {
     const projectService = new ProjectService(supabase);
     const project = await projectService.getById(projectId, user.id);
 
+    // Fetch project's APIs for context injection
+    const apiIds = await projectService.getProjectApiIds(projectId);
+    const catalogService = new CatalogService(supabase);
+    const projectApis = apiIds.length > 0 ? await catalogService.getByIds(apiIds) : [];
+
     // Check regeneration limit per project
     const codeRepo = new CodeRepository(supabase);
     const limits = getLimits();
@@ -72,7 +78,8 @@ export async function POST(request: Request): Promise<Response> {
     const systemPrompt = buildSystemPrompt();
     const userPrompt = buildRegenerationPrompt(
       { html: previousCode.codeHtml, css: previousCode.codeCss, js: previousCode.codeJs },
-      feedback
+      feedback,
+      projectApis
     );
 
     // SSE stream
