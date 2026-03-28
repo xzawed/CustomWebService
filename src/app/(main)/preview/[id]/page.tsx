@@ -43,14 +43,14 @@ export default function PreviewPage() {
         const projectData = await res.json();
         const currentVersion: number = projectData.data?.currentVersion ?? 0;
 
-        const codeRes = await fetch(`/api/v1/preview/${id}`);
+        // HEAD 요청으로 코드 존재 여부만 확인 (HTML은 iframe이 직접 로드)
+        const codeRes = await fetch(`/api/v1/preview/${id}`, { method: 'HEAD' });
         if (!codeRes.ok) {
           setError('생성된 코드가 없습니다. 먼저 빌더에서 코드를 생성해주세요.');
           return;
         }
 
-        const html = await codeRes.text();
-        setPreview({ html, version: currentVersion, validationErrors: [] });
+        setPreview({ html: '', version: currentVersion, validationErrors: [] });
       } catch (err) {
         setError(err instanceof Error ? err.message : '오류가 발생했습니다.');
       } finally {
@@ -85,7 +85,7 @@ export default function PreviewPage() {
     );
   }
 
-  const encodedHtml = `data:text/html;charset=utf-8,${encodeURIComponent(preview.html)}`;
+  const previewSrc = `/api/v1/preview/${id}`;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
@@ -129,10 +129,10 @@ export default function PreviewPage() {
           style={{ border: '1px solid var(--border)', background: '#ffffff', width: activeDevice.width, maxWidth: '100%' }}
         >
           <iframe
-            src={encodedHtml}
+            src={previewSrc}
             title="서비스 미리보기"
             className="h-[75vh] w-full"
-            sandbox="allow-scripts allow-same-origin"
+            sandbox="allow-scripts allow-same-origin allow-forms"
           />
         </div>
       </div>
