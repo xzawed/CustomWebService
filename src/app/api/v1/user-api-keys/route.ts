@@ -1,7 +1,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { encryptApiKey, maskApiKey, decryptApiKey } from '@/lib/encryption';
 import { CatalogRepository } from '@/repositories/catalogRepository';
-import { AuthRequiredError, ValidationError, handleApiError } from '@/lib/utils/errors';
+import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { z } from 'zod/v4';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -42,7 +42,7 @@ export async function GET(): Promise<Response> {
       };
     });
 
-    return Response.json({ success: true, data: items });
+    return jsonResponse({ success: true, data: items });
   } catch (error) {
     return handleApiError(error);
   }
@@ -73,7 +73,7 @@ export async function POST(request: Request): Promise<Response> {
     const catalogRepo = new CatalogRepository(svcClient);
     const api = await catalogRepo.findById(apiId);
     if (!api || !api.isActive) {
-      return Response.json(
+      return jsonResponse(
         { success: false, error: { code: 'NOT_FOUND', message: '해당 API를 찾을 수 없습니다.' } },
         { status: 404 }
       );
@@ -107,7 +107,7 @@ export async function POST(request: Request): Promise<Response> {
 
     if (error) throw error;
 
-    return Response.json({ success: true, data: { message: 'API 키가 저장되었습니다.' } });
+    return jsonResponse({ success: true, data: { message: 'API 키가 저장되었습니다.' } });
   } catch (error) {
     return handleApiError(error);
   }
@@ -132,7 +132,7 @@ export async function DELETE(request: Request): Promise<Response> {
 
     if (error) throw error;
 
-    return Response.json({ success: true, data: { message: 'API 키가 삭제되었습니다.' } });
+    return jsonResponse({ success: true, data: { message: 'API 키가 삭제되었습니다.' } });
   } catch (error) {
     return handleApiError(error);
   }

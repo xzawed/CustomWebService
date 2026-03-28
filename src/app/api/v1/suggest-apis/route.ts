@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { CatalogService } from '@/services/catalogService';
 import { LIMITS } from '@/lib/config/features';
-import { AuthRequiredError, ValidationError, handleApiError } from '@/lib/utils/errors';
+import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
@@ -69,7 +69,7 @@ ${context}
       logger.warn('API suggestion: could not parse AI response', {
         content: aiResponse.content.slice(0, 200),
       });
-      return Response.json({ success: true, data: { recommendations: [] } });
+      return jsonResponse({ success: true, data: { recommendations: [] } });
     }
 
     let recommendations: { id: string; reason: string }[];
@@ -91,7 +91,7 @@ ${context}
         }));
     } catch {
       logger.warn('API suggestion: JSON parse failed', { raw: match[0].slice(0, 200) });
-      return Response.json({ success: true, data: { recommendations: [] } });
+      return jsonResponse({ success: true, data: { recommendations: [] } });
     }
 
     // Validate that recommended IDs actually exist in catalog
@@ -111,7 +111,7 @@ ${context}
       recommendationCount: enriched.length,
     });
 
-    return Response.json({ success: true, data: { recommendations: enriched } });
+    return jsonResponse({ success: true, data: { recommendations: enriched } });
   } catch (error) {
     return handleApiError(error);
   }

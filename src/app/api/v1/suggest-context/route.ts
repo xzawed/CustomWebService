@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
-import { AuthRequiredError, ValidationError, handleApiError } from '@/lib/utils/errors';
+import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 
 interface SuggestApiItem {
@@ -64,7 +64,7 @@ export async function POST(request: Request): Promise<Response> {
     const match = aiResponse.content.match(/\[[\s\S]*?\]/);
     if (!match) {
       logger.warn('Context suggestion: could not parse AI response', { content: aiResponse.content.slice(0, 200) });
-      return Response.json({ success: true, data: { suggestions: [] } });
+      return jsonResponse({ success: true, data: { suggestions: [] } });
     }
 
     let suggestions: string[];
@@ -77,7 +77,7 @@ export async function POST(request: Request): Promise<Response> {
         .filter((s) => s.length > 0);
     } catch {
       logger.warn('Context suggestion: JSON parse failed', { raw: match[0].slice(0, 200) });
-      return Response.json({ success: true, data: { suggestions: [] } });
+      return jsonResponse({ success: true, data: { suggestions: [] } });
     }
 
     logger.info('Context suggestions generated', {
@@ -86,7 +86,7 @@ export async function POST(request: Request): Promise<Response> {
       suggestionsCount: suggestions.length,
     });
 
-    return Response.json({ success: true, data: { suggestions } });
+    return jsonResponse({ success: true, data: { suggestions } });
   } catch (error) {
     return handleApiError(error);
   }

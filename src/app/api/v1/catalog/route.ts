@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { CatalogService } from '@/services/catalogService';
-import { handleApiError } from '@/lib/utils/errors';
+import { handleApiError, jsonResponse } from '@/lib/utils/errors';
 
 // 카탈로그는 자주 변하지 않으므로 CDN/브라우저에 1시간 캐싱
 export const revalidate = 3600;
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
     // 검색어가 있으면 캐싱 단축, 없으면 1시간
     const maxAge = search ? 60 : 3600;
-    return Response.json(
+    return jsonResponse(
       { success: true, data: result },
       { headers: { 'Cache-Control': `public, s-maxage=${maxAge}, stale-while-revalidate=300` } }
     );

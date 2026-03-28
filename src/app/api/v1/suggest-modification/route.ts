@@ -2,7 +2,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { ProjectRepository } from '@/repositories/projectRepository';
 import { CatalogRepository } from '@/repositories/catalogRepository';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
-import { AuthRequiredError, NotFoundError, ValidationError, handleApiError } from '@/lib/utils/errors';
+import { AuthRequiredError, NotFoundError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
@@ -71,7 +71,7 @@ export async function POST(request: Request): Promise<Response> {
       logger.warn('Modification suggestion: could not parse AI response', {
         content: aiResponse.content.slice(0, 200),
       });
-      return Response.json({ success: true, data: { suggestions: [] } });
+      return jsonResponse({ success: true, data: { suggestions: [] } });
     }
 
     let suggestions: string[];
@@ -84,10 +84,10 @@ export async function POST(request: Request): Promise<Response> {
         .filter((s) => s.length > 0);
     } catch {
       logger.warn('Modification suggestion: JSON parse failed', { raw: match[0].slice(0, 200) });
-      return Response.json({ success: true, data: { suggestions: [] } });
+      return jsonResponse({ success: true, data: { suggestions: [] } });
     }
 
-    return Response.json({ success: true, data: { suggestions } });
+    return jsonResponse({ success: true, data: { suggestions } });
   } catch (error) {
     return handleApiError(error);
   }

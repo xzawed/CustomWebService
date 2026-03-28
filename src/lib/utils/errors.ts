@@ -60,9 +60,19 @@ export class DeployError extends AppError {
   }
 }
 
+const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' };
+
+/** Wrapper around Response that always includes charset=utf-8 in Content-Type */
+export function jsonResponse(body: unknown, init?: ResponseInit): Response {
+  return new Response(JSON.stringify(body), {
+    ...init,
+    headers: { ...JSON_HEADERS, ...(typeof init?.headers === 'object' ? init.headers : {}) },
+  });
+}
+
 export function handleApiError(error: unknown): Response {
   if (error instanceof AppError) {
-    return Response.json(
+    return jsonResponse(
       { success: false, error: { code: error.code, message: error.message } },
       { status: error.statusCode }
     );
@@ -70,7 +80,7 @@ export function handleApiError(error: unknown): Response {
 
   // ZodError → 400 Bad Request
   if (error instanceof Error && error.name === 'ZodError') {
-    return Response.json(
+    return jsonResponse(
       { success: false, error: { code: 'INVALID_INPUT', message: '입력값이 올바르지 않습니다.' } },
       { status: 400 }
     );
@@ -92,7 +102,7 @@ export function handleApiError(error: unknown): Response {
       hint: pgError.hint,
     });
 
-    return Response.json(
+    return jsonResponse(
       {
         success: false,
         error: { code: 'DATABASE_ERROR', message: `데이터베이스 오류: ${pgError.message}` },
@@ -115,7 +125,7 @@ export function handleApiError(error: unknown): Response {
       ? '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
       : errMessage || '서버 오류가 발생했습니다.';
 
-  return Response.json(
+  return jsonResponse(
     { success: false, error: { code: 'INTERNAL_ERROR', message: clientMessage } },
     { status: 500 }
   );

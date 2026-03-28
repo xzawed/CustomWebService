@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { AuthRequiredError, handleApiError } from '@/lib/utils/errors';
+import { AuthRequiredError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 
 export interface PopularService {
@@ -74,7 +74,7 @@ export async function GET(): Promise<Response> {
     const popularFromDb = await getPopularFromDatabase(supabase);
 
     if (popularFromDb.length >= 5) {
-      return Response.json({ success: true, data: { services: popularFromDb.slice(0, 5), source: 'usage' } });
+      return jsonResponse({ success: true, data: { services: popularFromDb.slice(0, 5), source: 'usage' } });
     }
 
     // Fall back to curated list, resolving API names to real IDs
@@ -90,7 +90,7 @@ export async function GET(): Promise<Response> {
       }
     }
 
-    return Response.json({ success: true, data: { services: merged.slice(0, 5), source: 'mixed' } });
+    return jsonResponse({ success: true, data: { services: merged.slice(0, 5), source: 'mixed' } });
   } catch (error) {
     return handleApiError(error);
   }

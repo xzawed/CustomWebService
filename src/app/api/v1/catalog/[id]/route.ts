@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { CatalogService } from '@/services/catalogService';
-import { handleApiError, NotFoundError } from '@/lib/utils/errors';
+import { handleApiError, NotFoundError, jsonResponse } from '@/lib/utils/errors';
 
 export async function GET(
   _request: Request,
@@ -14,7 +14,7 @@ export async function GET(
     const item = await service.getById(id);
     if (!item) throw new NotFoundError('API', id);
 
-    return Response.json({ success: true, data: item });
+    return jsonResponse({ success: true, data: item });
   } catch (error) {
     return handleApiError(error);
   }

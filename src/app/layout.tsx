@@ -18,6 +18,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko" data-theme="sky">
       <head>
         <meta charSet="utf-8" />
+        {/* Pretendard Variable — Korean-optimized web font via jsDelivr CDN */}
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+        />
         {/* Prevent flash of wrong theme by applying saved theme before hydration */}
         <script
           dangerouslySetInnerHTML={{

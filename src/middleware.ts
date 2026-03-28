@@ -56,8 +56,8 @@ export async function middleware(request: NextRequest) {
       "default-src 'self'",
       // Next.js App Router requires unsafe-inline for hydration scripts
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+      "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net",
       `img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com https://avatars.githubusercontent.com`,
       `connect-src 'self' ${supabaseUrl} ${supabaseWs}`,
       "frame-src 'self'",
