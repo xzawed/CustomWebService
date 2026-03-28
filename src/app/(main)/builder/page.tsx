@@ -6,6 +6,7 @@ import { CatalogView } from '@/components/catalog/CatalogView';
 import StepIndicator from '@/components/builder/StepIndicator';
 import SelectedApiZone from '@/components/builder/SelectedApiZone';
 import ContextInput from '@/components/builder/ContextInput';
+import ContextSuggestions from '@/components/builder/ContextSuggestions';
 import GuideQuestions from '@/components/builder/GuideQuestions';
 import TemplateSelector from '@/components/builder/TemplateSelector';
 import type { Template } from '@/components/builder/TemplateSelector';
@@ -26,6 +27,11 @@ export default function BuilderPage() {
   const [apis, setApis] = useState<ApiCatalogItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
+
+  // Context suggestion state
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState<number | null>(null);
 
   const { selectedApis, addApi, removeApi, clearApis } = useApiSelectionStore();
 
@@ -187,13 +193,63 @@ export default function BuilderPage() {
     }
   };
 
+  const fetchSuggestions = async () => {
+    if (selectedApis.length === 0) return;
+    setIsSuggestionsLoading(true);
+    setSuggestions([]);
+    setActiveSuggestionIndex(null);
+    try {
+      const res = await fetch('/api/v1/suggest-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apis: selectedApis.map((a) => ({
+            name: a.name,
+            description: a.description,
+            category: a.category,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to fetch suggestions');
+      const data = await res.json();
+      setSuggestions(data.data?.suggestions ?? []);
+    } catch {
+      setSuggestions([]);
+    } finally {
+      setIsSuggestionsLoading(false);
+    }
+  };
+
+  const handleNextStep = () => {
+    const next = Math.min(3, step + 1);
+    setStep(next);
+    if (step === 1) {
+      fetchSuggestions();
+    }
+  };
+
+  const handleSelectSuggestion = (suggestion: string, index: number) => {
+    setContext(suggestion);
+    setActiveSuggestionIndex(index);
+  };
+
+  const handleContextChange = (value: string) => {
+    setContext(value);
+    // Clear active marker if user edits away from the selected suggestion
+    if (activeSuggestionIndex !== null && value !== suggestions[activeSuggestionIndex]) {
+      setActiveSuggestionIndex(null);
+    }
+  };
+
   const handleApplyTemplate = (template: Template) => {
     setContext(template.text);
     setTemplate(template.id);
+    setActiveSuggestionIndex(null);
   };
 
   const handleInsertGuide = (text: string) => {
     setContext(context + text);
+    setActiveSuggestionIndex(null);
   };
 
   return (
@@ -235,13 +291,37 @@ export default function BuilderPage() {
       {/* Step 2: Context Input */}
       {step === 2 && (
         <div className="space-y-6">
-          <h2 className="text-xl font-bold text-gray-900">어떤 서비스를 만들고 싶으세요?</h2>
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">어떤 서비스를 만들고 싶으세요?</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              선택한 API를 기반으로 AI가 추천한 아이디어를 활용하거나, 직접 입력하세요.
+            </p>
+          </div>
+
+          <ContextSuggestions
+            suggestions={suggestions}
+            isLoading={isSuggestionsLoading}
+            activeIndex={activeSuggestionIndex}
+            onSelect={handleSelectSuggestion}
+            onRefresh={fetchSuggestions}
+          />
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-700">서비스 설명</label>
+              {activeSuggestionIndex !== null && (
+                <span className="flex items-center gap-1 text-xs text-blue-500">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
+                  추천 {activeSuggestionIndex + 1} 적용됨
+                </span>
+              )}
+            </div>
+            <ContextInput value={context} onChange={handleContextChange} />
+          </div>
 
           <GuideQuestions onInsert={handleInsertGuide} />
 
           <TemplateSelector onSelect={handleApplyTemplate} />
-
-          <ContextInput value={context} onChange={setContext} />
         </div>
       )}
 
@@ -283,7 +363,7 @@ export default function BuilderPage() {
         {step < 3 && (
           <button
             type="button"
-            onClick={() => setStep((s) => Math.min(3, s + 1))}
+            onClick={handleNextStep}
             disabled={(step === 1 && !canProceedStep1) || (step === 2 && !canProceedStep2)}
             className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
