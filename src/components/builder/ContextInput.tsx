@@ -31,9 +31,15 @@ export default function ContextInput({
           onChange={(e) => onChange(e.target.value)}
           placeholder="만들고 싶은 서비스를 자유롭게 설명해주세요..."
           rows={8}
-          className="w-full resize-none rounded-lg border border-gray-300 bg-white p-4 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full resize-none rounded-lg p-4 text-sm focus:outline-none focus:ring-1"
+          style={{
+            border: '1px solid var(--border)',
+            background: 'var(--bg-card)',
+            color: 'var(--text-primary)',
+            caretColor: 'var(--accent-primary)',
+          }}
         />
-        <div className="absolute bottom-3 right-3 text-xs text-gray-400">
+        <div className="absolute bottom-3 right-3 text-xs" style={{ color: 'var(--text-muted)' }}>
           <span className={colorClass}>{charCount}</span>/{maxLength}
         </div>
       </div>

@@ -7,12 +7,12 @@ export const metadata = {
 export default function TermsPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
-      <h1 className="mb-8 text-3xl font-bold text-gray-900">이용약관</h1>
+      <h1 className="mb-8 text-3xl font-bold text-[color:var(--text-primary)]">이용약관</h1>
       <p className="mb-8 text-sm text-gray-500">최종 수정일: 2026-03-28</p>
 
       <div className="space-y-8 text-gray-700 leading-relaxed">
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">제1조 (목적)</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">제1조 (목적)</h2>
           <p>
             본 약관은 CustomWebService(이하 &quot;서비스&quot;)의 이용 조건 및 절차, 이용자와 서비스
             제공자 간의 권리·의무를 규정합니다.
@@ -20,7 +20,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">제2조 (이용 자격)</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">제2조 (이용 자격)</h2>
           <ol className="list-decimal space-y-2 pl-6">
             <li>
               <span className="font-medium">연령 제한:</span> 본 서비스는{' '}
@@ -38,7 +38,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">제3조 (정의)</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">제3조 (정의)</h2>
           <ol className="list-decimal space-y-2 pl-6">
             <li>
               &quot;서비스&quot;란 사용자가 무료 API를 선택하고 서비스 설명을 입력하면 AI가
@@ -52,7 +52,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">제4조 (서비스 제공)</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">제4조 (서비스 제공)</h2>
           <ol className="list-decimal space-y-2 pl-6">
             <li>서비스는 무료로 제공됩니다.</li>
             <li>서비스 제공자는 사전 고지 없이 서비스의 내용을 변경하거나 중단할 수 있습니다.</li>
@@ -64,7 +64,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">제5조 (사용자 의무)</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">제5조 (사용자 의무)</h2>
           <ol className="list-decimal space-y-2 pl-6">
             <li>
               사용자는 다음 행위를 해서는 안 됩니다:
@@ -81,7 +81,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">제6조 (지적 재산권)</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">제6조 (지적 재산권)</h2>
           <ol className="list-decimal space-y-2 pl-6">
             <li>서비스 플랫폼의 지적 재산권은 서비스 제공자에게 있습니다.</li>
             <li>AI가 생성한 코드의 저작권은 사용자에게 귀속됩니다.</li>
@@ -90,7 +90,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">제7조 (면책 조항)</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">제7조 (면책 조항)</h2>
           <ol className="list-decimal space-y-2 pl-6">
             <li>AI가 생성한 코드의 정확성, 안전성, 완전성을 보장하지 않습니다.</li>
             <li>생성된 서비스로 인해 발생한 손해에 대해 책임지지 않습니다.</li>
@@ -100,7 +100,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">제8조 (서비스 이용 제한)</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">제8조 (서비스 이용 제한)</h2>
           <ol className="list-decimal space-y-2 pl-6">
             <li>사용자당 일일 서비스 생성 횟수: 10회</li>
             <li>프로젝트당 최대 API 선택 수: 5개</li>
@@ -109,7 +109,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">제9조 (계정 및 데이터)</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">제9조 (계정 및 데이터)</h2>
           <ol className="list-decimal space-y-2 pl-6">
             <li>사용자는 언제든지 계정을 삭제할 수 있습니다.</li>
             <li>계정 삭제 시 관련 데이터(프로젝트, 생성 코드)는 삭제됩니다.</li>
@@ -118,7 +118,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">제10조 (약관 변경)</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">제10조 (약관 변경)</h2>
           <ol className="list-decimal space-y-2 pl-6">
             <li>약관 변경 시 서비스 내 공지합니다.</li>
             <li>변경된 약관에 동의하지 않는 사용자는 서비스 이용을 중단할 수 있습니다.</li>
@@ -126,7 +126,7 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">제11조 (준거법 및 관할)</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">제11조 (준거법 및 관할)</h2>
           <p>본 약관은 대한민국 법을 준거법으로 합니다.</p>
         </section>
       </div>

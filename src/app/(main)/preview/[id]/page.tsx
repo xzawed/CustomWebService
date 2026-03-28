@@ -73,11 +73,11 @@ export default function PreviewPage() {
   if (error || !preview) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center">
-        <h2 className="text-lg font-semibold text-gray-900">{error ?? '생성된 코드가 없습니다'}</h2>
+        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>{error ?? '생성된 코드가 없습니다'}</h2>
         <button
           type="button"
           onClick={() => router.back()}
-          className="mt-4 rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          className="mt-4 btn-secondary text-sm"
         >
           돌아가기
         </button>
@@ -95,15 +95,16 @@ export default function PreviewPage() {
           <button
             type="button"
             onClick={() => router.push(`/dashboard/${id}`)}
-            className="rounded-lg border border-gray-300 p-2 text-gray-500 hover:bg-gray-50"
+            className="rounded-lg p-2 transition-colors"
+            style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <h1 className="text-lg font-bold text-gray-900">미리보기 (v{preview.version})</h1>
+          <h1 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>미리보기 (v{preview.version})</h1>
         </div>
 
         {/* Device Toggle */}
-        <div className="flex rounded-lg border border-gray-200 bg-white p-1">
+        <div className="flex rounded-lg p-1" style={{ border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
           {DEVICES.map(({ id: devId, label, icon: Icon }) => (
             <button
               key={devId}
@@ -111,8 +112,9 @@ export default function PreviewPage() {
               onClick={() => setDevice(devId)}
               title={label}
               className={`rounded-md p-2 transition-colors ${
-                device === devId ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'
+                device === devId ? 'bg-[var(--accent-primary)] text-white' : 'hover:bg-[var(--bg-surface)]'
               }`}
+              style={device === devId ? undefined : { color: 'var(--text-secondary)' }}
             >
               <Icon className="h-4 w-4" />
             </button>
@@ -121,10 +123,10 @@ export default function PreviewPage() {
       </div>
 
       {/* Preview Frame */}
-      <div className="flex justify-center rounded-xl border border-gray-200 bg-gray-100 p-4">
+      <div className="flex justify-center rounded-xl p-4" style={{ border: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
         <div
-          className="overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm transition-all duration-300"
-          style={{ width: activeDevice.width, maxWidth: '100%' }}
+          className="overflow-hidden rounded-lg shadow-sm transition-all duration-300"
+          style={{ border: '1px solid var(--border)', background: '#ffffff', width: activeDevice.width, maxWidth: '100%' }}
         >
           <iframe
             src={encodedHtml}

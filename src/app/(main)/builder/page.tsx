@@ -418,8 +418,8 @@ export default function BuilderPage() {
           {/* Step 1: API Selection */}
           {step === 1 && (
             <div className="space-y-6">
-              <h2 className="text-xl font-bold text-white">사용할 API를 선택하세요</h2>
-              <p className="text-sm text-slate-400">
+              <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>사용할 API를 선택하세요</h2>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 최대 {LIMITS.maxApisPerProject}개의 API를 선택할 수 있습니다.
               </p>
 
@@ -432,7 +432,7 @@ export default function BuilderPage() {
 
               {isLoadingCatalog ? (
                 <div className="flex items-center justify-center py-20">
-                  <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+                  <Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--accent-primary)' }} />
                 </div>
               ) : (
                 <CatalogView
@@ -451,8 +451,8 @@ export default function BuilderPage() {
           {step === 2 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-white">어떤 서비스를 만들고 싶으세요?</h2>
-                <p className="mt-1 text-sm text-slate-400">
+                <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>어떤 서비스를 만들고 싶으세요?</h2>
+                <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
                   선택한 API를 기반으로 AI가 추천한 아이디어를 활용하거나, 직접 입력하세요.
                 </p>
               </div>
@@ -467,10 +467,10 @@ export default function BuilderPage() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-slate-300">서비스 설명</label>
+                  <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>서비스 설명</label>
                   {activeSuggestionIndex !== null && (
-                    <span className="flex items-center gap-1 text-xs text-cyan-400">
-                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                    <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--accent-primary)' }}>
+                      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'var(--accent-primary)' }} />
                       추천 {activeSuggestionIndex + 1} 적용됨
                     </span>
                   )}
@@ -486,7 +486,7 @@ export default function BuilderPage() {
           {/* Step 3: Generation */}
           {step === 3 && (
             <div className="space-y-6">
-              <h2 className="text-xl font-bold text-white">서비스 생성</h2>
+              <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>서비스 생성</h2>
 
               <GenerationProgress
                 status={genStatus}
@@ -523,8 +523,8 @@ export default function BuilderPage() {
           {step === 1 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-white">어떤 서비스를 만들고 싶으세요?</h2>
-                <p className="mt-1 text-sm text-slate-400">
+                <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>어떤 서비스를 만들고 싶으세요?</h2>
+                <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
                   서비스를 설명하면 AI가 가장 적합한 API를 자동으로 찾아줍니다.
                 </p>
               </div>
@@ -535,7 +535,7 @@ export default function BuilderPage() {
               )}
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">서비스 설명</label>
+                <label className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>서비스 설명</label>
                 <ContextInput value={context} onChange={handleContextChange} />
               </div>
 
@@ -548,8 +548,8 @@ export default function BuilderPage() {
           {step === 2 && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-white">추천된 API를 확인하세요</h2>
-                <p className="mt-1 text-sm text-slate-400">
+                <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>추천된 API를 확인하세요</h2>
+                <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
                   AI가 서비스 설명을 분석하여 최적의 API를 추천했습니다. 추가/제거할 수 있습니다.
                 </p>
               </div>
@@ -573,14 +573,14 @@ export default function BuilderPage() {
 
               {/* Allow manual API browsing/addition */}
               <details className="group">
-                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-slate-400 transition-colors hover:text-white [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium transition-colors [&::-webkit-details-marker]:hidden" style={{ color: 'var(--text-muted)' }}>
                   <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
                   직접 API 추가하기
                 </summary>
                 <div className="mt-4">
                   {isLoadingCatalog ? (
                     <div className="flex items-center justify-center py-10">
-                      <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
+                      <Loader2 className="h-6 w-6 animate-spin" style={{ color: 'var(--accent-primary)' }} />
                     </div>
                   ) : (
                     <CatalogView
@@ -600,7 +600,7 @@ export default function BuilderPage() {
           {/* Step 3: Generation */}
           {step === 3 && (
             <div className="space-y-6">
-              <h2 className="text-xl font-bold text-white">서비스 생성</h2>
+              <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>서비스 생성</h2>
 
               <GenerationProgress
                 status={genStatus}

@@ -23,7 +23,7 @@
   /* ── Text ─────────────────────────────────── */
   --text-primary: #1a1d3b;
   --text-secondary: #4f566b;
-  --text-muted: #9aa0b4;
+  --text-muted: #6b7280;
   --text-inverse: #ffffff;
 
   /* ── Accent (changes per theme) ───────────── */
@@ -93,7 +93,7 @@
   --glass-strong-bg: rgba(255, 255, 255, 0.96);
   --text-primary: #1e1040;
   --text-secondary: #5b3f8e;
-  --text-muted: #a78bca;
+  --text-muted: #7c4fb5;
   --accent-primary: #7c3aed;
   --accent-secondary: #a78bfa;
   --accent-light: #ede9fe;
@@ -137,7 +137,7 @@
   --glass-strong-bg: rgba(255, 255, 255, 0.96);
   --text-primary: #0d2b23;
   --text-secondary: #1b5e44;
-  --text-muted: #6ab49a;
+  --text-muted: #2e7d60;
   --accent-primary: #059669;
   --accent-secondary: #34d399;
   --accent-light: #d1fae5;
@@ -181,7 +181,7 @@
   --glass-strong-bg: rgba(255, 255, 255, 0.96);
   --text-primary: #2c1503;
   --text-secondary: #7c3b0a;
-  --text-muted: #c58a5a;
+  --text-muted: #8b5e35;
   --accent-primary: #ea580c;
   --accent-secondary: #fb923c;
   --accent-light: #ffedd5;
@@ -225,7 +225,7 @@
   --glass-strong-bg: rgba(255, 255, 255, 0.96);
   --text-primary: #2d0614;
   --text-secondary: #8b1a36;
-  --text-muted: #c87090;
+  --text-muted: #9e3557;
   --accent-primary: #e11d48;
   --accent-secondary: #fb7185;
   --accent-light: #ffe4e6;
@@ -269,7 +269,7 @@
   --glass-strong-bg: rgba(14, 20, 36, 0.88);
   --text-primary: #f0f4ff;
   --text-secondary: #8b99b8;
-  --text-muted: #4f5e7a;
+  --text-muted: #6d7b98;
   --text-inverse: #0f172a;
   --accent-primary: #00d4ff;
   --accent-secondary: #4f8ef7;

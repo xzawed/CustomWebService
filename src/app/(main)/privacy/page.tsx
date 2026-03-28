@@ -8,12 +8,12 @@ export const metadata = {
 export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
-      <h1 className="mb-8 text-3xl font-bold text-gray-900">개인정보처리방침</h1>
+      <h1 className="mb-8 text-3xl font-bold text-[color:var(--text-primary)]">개인정보처리방침</h1>
       <p className="mb-8 text-sm text-gray-500">최종 수정일: 2026-03-28</p>
 
       <div className="space-y-8 text-gray-700 leading-relaxed">
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">1. 개인정보 처리의 법적 근거</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">1. 개인정보 처리의 법적 근거</h2>
           <p>개인정보보호법 제15조에 따라 다음의 법적 근거 하에 개인정보를 처리합니다:</p>
           <ul className="mt-2 list-disc space-y-1 pl-6">
             <li>정보주체의 동의 (로그인 시 소셜 인증을 통한 동의)</li>
@@ -23,7 +23,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">2. 만 14세 미만 아동의 개인정보</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">2. 만 14세 미만 아동의 개인정보</h2>
           <p className="font-medium text-red-700">
             본 서비스는 만 14세 미만 아동의 가입 및 이용을 제한합니다.
           </p>
@@ -36,7 +36,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">3. 수집하는 개인정보</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">3. 수집하는 개인정보</h2>
 
           <h3 className="mb-2 mt-4 font-semibold text-gray-800">가. 필수 수집 항목</h3>
           <ul className="list-disc space-y-1 pl-6">
@@ -58,7 +58,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">4. 개인정보의 이용 목적</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">4. 개인정보의 이용 목적</h2>
           <ul className="list-disc space-y-1 pl-6">
             <li>서비스 제공 및 사용자 인증</li>
             <li>생성된 프로젝트 관리</li>
@@ -68,7 +68,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">5. 개인정보의 보관 및 파기</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">5. 개인정보의 보관 및 파기</h2>
 
           <h3 className="mb-2 mt-4 font-semibold text-gray-800">가. 보관 기간</h3>
           <ul className="list-disc space-y-1 pl-6">
@@ -85,7 +85,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">6. 개인정보의 제3자 제공</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">6. 개인정보의 제3자 제공</h2>
           <p>개인정보를 제3자에게 제공하지 않습니다. 단, 다음의 경우 예외입니다:</p>
           <ul className="mt-2 list-disc space-y-1 pl-6">
             <li>법령에 따른 요청이 있는 경우</li>
@@ -94,7 +94,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">7. 개인정보의 처리 위탁</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">7. 개인정보의 처리 위탁</h2>
           <div className="overflow-x-auto">
             <table className="mt-2 w-full text-sm">
               <thead>
@@ -131,7 +131,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">8. 사용자의 권리</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">8. 사용자의 권리</h2>
           <p>사용자는 다음 권리를 행사할 수 있습니다:</p>
           <ul className="mt-2 list-disc space-y-1 pl-6">
             <li>개인정보 열람 요청</li>
@@ -142,7 +142,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">9. 쿠키 사용</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">9. 쿠키 사용</h2>
           <p>
             로그인 세션 유지를 위한 필수 쿠키만 사용합니다. 광고 추적 쿠키 및 제3자 마케팅 쿠키는
             사용하지 않습니다.
@@ -150,7 +150,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">10. 개인정보 보호 조치</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">10. 개인정보 보호 조치</h2>
           <ul className="list-disc space-y-1 pl-6">
             <li>데이터 전송 시 HTTPS(TLS) 암호화</li>
             <li>데이터베이스 Row Level Security 적용</li>
@@ -160,7 +160,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">11. 개인정보 보호책임자</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">11. 개인정보 보호책임자</h2>
           <p>개인정보 관련 문의, 불만 처리, 피해 구제 등은 아래로 연락해 주세요:</p>
           <ul className="mt-2 list-disc space-y-1 pl-6">
             <li>개인정보 보호책임자: CustomWebService 운영자</li>
@@ -174,7 +174,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-xl font-semibold text-gray-900">12. 방침 변경</h2>
+          <h2 className="mb-3 text-xl font-semibold text-[color:var(--text-primary)]">12. 방침 변경</h2>
           <p>본 방침 변경 시 서비스 내 공지합니다. 중요한 변경의 경우 변경 7일 전에 고지합니다.</p>
         </section>
       </div>

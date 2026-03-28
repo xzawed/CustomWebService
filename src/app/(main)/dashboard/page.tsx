@@ -38,10 +38,10 @@ export default async function DashboardPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">내 서비스</h1>
+        <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>내 서비스</h1>
         <Link
           href="/builder"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700"
+          className="btn-primary text-sm"
         >
           + 새 서비스 만들기
         </Link>

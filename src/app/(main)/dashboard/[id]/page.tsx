@@ -49,18 +49,18 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       {/* Breadcrumb */}
-      <nav className="mb-6 text-sm text-gray-500">
-        <Link href="/dashboard" className="hover:text-blue-600">
+      <nav className="mb-6 text-sm" style={{ color: 'var(--text-muted)' }}>
+        <Link href="/dashboard" style={{ color: 'var(--text-muted)' }} className="hover:underline">
           대시보드
         </Link>
         <span className="mx-2">/</span>
-        <span className="text-gray-900">{project.name}</span>
+        <span style={{ color: 'var(--text-primary)' }}>{project.name}</span>
       </nav>
 
       {/* Header */}
       <div className="mb-8 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{project.name}</h1>
           <span
             className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-medium ${status.className}`}
           >
@@ -72,7 +72,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             href={project.deployUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="btn-primary text-sm"
           >
             서비스 열기
           </a>
@@ -80,19 +80,20 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       </div>
 
       {/* Context */}
-      <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6">
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">서비스 설명</h2>
-        <p className="whitespace-pre-wrap text-sm text-gray-600">{project.context}</p>
+      <section className="mb-8 rounded-xl p-6" style={{ border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+        <h2 className="mb-3 text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>서비스 설명</h2>
+        <p className="whitespace-pre-wrap text-sm" style={{ color: 'var(--text-secondary)' }}>{project.context}</p>
       </section>
 
       {/* Selected APIs */}
-      <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6">
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">사용된 API ({apis.length}개)</h2>
+      <section className="mb-8 rounded-xl p-6" style={{ border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+        <h2 className="mb-3 text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>사용된 API ({apis.length}개)</h2>
         <div className="flex flex-wrap gap-2">
           {apis.map((api) => (
             <span
               key={api.id}
-              className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
+              className="rounded-full px-3 py-1 text-xs font-medium"
+              style={{ background: 'var(--accent-light)', color: 'var(--accent-primary)' }}
             >
               {api.name}
             </span>
@@ -102,28 +103,28 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
       {/* Generated Code Info */}
       {latestCode && (
-        <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6">
-          <h2 className="mb-3 text-sm font-semibold text-gray-700">생성 정보</h2>
+        <section className="mb-8 rounded-xl p-6" style={{ border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+          <h2 className="mb-3 text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>생성 정보</h2>
           <dl className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <dt className="text-gray-500">버전</dt>
-              <dd className="font-medium text-gray-900">v{latestCode.version}</dd>
+              <dt style={{ color: 'var(--text-muted)' }}>버전</dt>
+              <dd className="font-medium" style={{ color: 'var(--text-primary)' }}>v{latestCode.version}</dd>
             </div>
             <div>
-              <dt className="text-gray-500">AI 모델</dt>
-              <dd className="font-medium text-gray-900">{latestCode.aiModel ?? '-'}</dd>
+              <dt style={{ color: 'var(--text-muted)' }}>AI 모델</dt>
+              <dd className="font-medium" style={{ color: 'var(--text-primary)' }}>{latestCode.aiModel ?? '-'}</dd>
             </div>
             <div>
-              <dt className="text-gray-500">생성 소요 시간</dt>
-              <dd className="font-medium text-gray-900">
+              <dt style={{ color: 'var(--text-muted)' }}>생성 소요 시간</dt>
+              <dd className="font-medium" style={{ color: 'var(--text-primary)' }}>
                 {latestCode.generationTimeMs
                   ? `${(latestCode.generationTimeMs / 1000).toFixed(1)}초`
                   : '-'}
               </dd>
             </div>
             <div>
-              <dt className="text-gray-500">생성일</dt>
-              <dd className="font-medium text-gray-900">
+              <dt style={{ color: 'var(--text-muted)' }}>생성일</dt>
+              <dd className="font-medium" style={{ color: 'var(--text-primary)' }}>
                 {new Date(latestCode.createdAt).toLocaleDateString('ko-KR')}
               </dd>
             </div>
@@ -145,14 +146,15 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       <div className="flex gap-3">
         <Link
           href="/builder"
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="btn-secondary text-sm"
         >
           새 서비스 만들기
         </Link>
         {latestCode && (
           <Link
             href={`/preview/${id}`}
-            className="rounded-lg bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+            className="rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+            style={{ background: 'var(--accent-light)', color: 'var(--accent-primary)' }}
           >
             미리보기
           </Link>
