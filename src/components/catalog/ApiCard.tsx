@@ -16,63 +16,76 @@ const authTypeLabels: Record<string, string> = {
   oauth: 'OAuth',
 };
 
-const categoryColors: Record<string, string> = {
-  weather: 'from-sky-500/20 to-sky-400/5 text-sky-400',
-  finance: 'from-emerald-500/20 to-emerald-400/5 text-emerald-400',
-  data: 'from-blue-500/20 to-blue-400/5 text-blue-400',
-  entertainment: 'from-violet-500/20 to-violet-400/5 text-violet-400',
-  image: 'from-pink-500/20 to-pink-400/5 text-pink-400',
-  fun: 'from-amber-500/20 to-amber-400/5 text-amber-400',
-  utility: 'from-slate-500/20 to-slate-400/5 text-slate-300',
-  dictionary: 'from-teal-500/20 to-teal-400/5 text-teal-400',
-  news: 'from-orange-500/20 to-orange-400/5 text-orange-400',
-  social: 'from-indigo-500/20 to-indigo-400/5 text-indigo-400',
-  transport: 'from-cyan-500/20 to-cyan-400/5 text-cyan-400',
-  realestate: 'from-lime-500/20 to-lime-400/5 text-lime-400',
-  tourism: 'from-rose-500/20 to-rose-400/5 text-rose-400',
-  lifestyle: 'from-fuchsia-500/20 to-fuchsia-400/5 text-fuchsia-400',
-  location: 'from-cyan-500/20 to-cyan-400/5 text-cyan-400',
-  science: 'from-violet-500/20 to-violet-400/5 text-violet-400',
+// Hue-based category accent — bg uses accent-light equivalent, text uses accent-primary equivalent
+const categoryBadgeStyle: Record<string, { background: string; color: string }> = {
+  weather:     { background: 'rgba(14,165,233,0.12)',  color: '#0284c7' },
+  finance:     { background: 'rgba(16,185,129,0.12)',  color: '#059669' },
+  data:        { background: 'rgba(59,130,246,0.12)',  color: '#2563eb' },
+  entertainment:{ background: 'rgba(139,92,246,0.12)', color: '#7c3aed' },
+  image:       { background: 'rgba(236,72,153,0.12)',  color: '#db2777' },
+  fun:         { background: 'rgba(245,158,11,0.12)',  color: '#d97706' },
+  utility:     { background: 'rgba(100,116,139,0.12)', color: '#475569' },
+  dictionary:  { background: 'rgba(20,184,166,0.12)',  color: '#0d9488' },
+  news:        { background: 'rgba(249,115,22,0.12)',  color: '#ea580c' },
+  social:      { background: 'rgba(99,102,241,0.12)',  color: '#4f46e5' },
+  transport:   { background: 'rgba(6,182,212,0.12)',   color: '#0891b2' },
+  realestate:  { background: 'rgba(132,204,22,0.12)',  color: '#65a30d' },
+  tourism:     { background: 'rgba(244,63,94,0.12)',   color: '#e11d48' },
+  lifestyle:   { background: 'rgba(217,70,239,0.12)',  color: '#c026d3' },
+  location:    { background: 'rgba(6,182,212,0.12)',   color: '#0891b2' },
+  science:     { background: 'rgba(139,92,246,0.12)',  color: '#7c3aed' },
 };
 
 export function ApiCard({ api, isSelected, onSelect, onDetail }: ApiCardProps) {
-  const colorClass = categoryColors[api.category] ?? categoryColors.utility;
+  const catStyle = categoryBadgeStyle[api.category] ?? categoryBadgeStyle.utility;
 
   return (
     <div
       onClick={onSelect}
-      className={`card group relative cursor-pointer p-5 ${
-        isSelected ? 'ring-1 ring-cyan-500/50' : ''
-      }`}
-      style={isSelected ? { borderColor: 'rgba(6, 182, 212, 0.3)' } : undefined}
+      className="card group relative cursor-pointer p-5"
+      style={isSelected ? { borderColor: 'var(--accent-primary)', boxShadow: 'var(--shadow-glow)' } : undefined}
     >
       {/* Selection indicator */}
       <div className="absolute right-4 top-4">
         <div
-          className={`flex h-5 w-5 items-center justify-center rounded-md border transition-all ${
+          className="flex h-5 w-5 items-center justify-center rounded-md border transition-all"
+          style={
             isSelected
-              ? 'border-cyan-500 bg-cyan-500'
-              : 'border-slate-600 bg-transparent group-hover:border-slate-400'
-          }`}
+              ? { borderColor: 'var(--accent-primary)', background: 'var(--accent-primary)' }
+              : { borderColor: 'var(--border)', background: 'transparent' }
+          }
         >
           {isSelected && <Check className="h-3 w-3 text-white" />}
         </div>
       </div>
 
       <div className="pr-8">
-        <h3 className="text-sm font-bold text-white">{api.name}</h3>
-        <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-slate-400">
+        <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{api.name}</h3>
+        <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
           {api.description}
         </p>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <span className={`badge bg-gradient-to-r ${colorClass}`}>{api.category}</span>
-        <span className="badge bg-slate-700/50 text-slate-300">
+        <span
+          className="badge"
+          style={catStyle}
+        >
+          {api.category}
+        </span>
+        <span
+          className="badge"
+          style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+        >
           {authTypeLabels[api.authType] ?? api.authType}
         </span>
         {api.rateLimit && (
-          <span className="badge bg-amber-500/10 text-amber-400">{api.rateLimit}/min</span>
+          <span
+            className="badge"
+            style={{ background: 'rgba(245,158,11,0.12)', color: '#d97706' }}
+          >
+            {api.rateLimit}/min
+          </span>
         )}
       </div>
 
@@ -83,7 +96,10 @@ export function ApiCard({ api, isSelected, onSelect, onDetail }: ApiCardProps) {
           e.stopPropagation();
           onDetail();
         }}
-        className="absolute bottom-4 right-4 rounded-lg p-1.5 text-slate-500 opacity-0 transition-all hover:bg-white/[0.06] hover:text-cyan-400 group-hover:opacity-100"
+        className="absolute bottom-4 right-4 rounded-lg p-1.5 opacity-0 transition-all group-hover:opacity-100"
+        style={{ color: 'var(--text-muted)' }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-primary)')}
+        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
         aria-label="상세 보기"
       >
         <ExternalLink className="h-4 w-4" />

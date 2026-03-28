@@ -31,16 +31,17 @@ export default memo(function SelectedApiZone({
   return (
     <div
       className="rounded-xl border p-4"
-      style={{ borderColor: 'rgba(0,212,255,0.2)', background: 'rgba(0,212,255,0.04)' }}
+      style={{ borderColor: 'var(--border-accent)', background: 'var(--accent-light)' }}
     >
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-sm font-medium text-cyan-400">
+        <span className="text-sm font-medium" style={{ color: 'var(--accent-primary)' }}>
           선택된 API ({selectedApis.length}/{maxCount})
         </span>
         <button
           type="button"
           onClick={onClear}
-          className="text-xs text-slate-400 hover:text-white transition-colors"
+          className="text-xs transition-colors"
+          style={{ color: 'var(--text-muted)' }}
         >
           전체 해제
         </button>
@@ -50,13 +51,14 @@ export default memo(function SelectedApiZone({
           <span
             key={api.id}
             className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm"
-            style={{ background: 'var(--bg-surface)', color: 'var(--text)', border: '1px solid var(--border)' }}
+            style={{ background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
           >
             {api.name}
             <button
               type="button"
               onClick={() => onRemove(api.id)}
-              className="ml-1 text-slate-400 hover:text-white transition-colors"
+              className="ml-1 transition-colors"
+              style={{ color: 'var(--text-muted)' }}
             >
               <X className="h-3 w-3" />
             </button>

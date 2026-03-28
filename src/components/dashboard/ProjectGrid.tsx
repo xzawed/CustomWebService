@@ -46,11 +46,14 @@ export function ProjectGrid({ projects: initialProjects }: ProjectGridProps) {
         className="flex flex-col items-center justify-center rounded-2xl py-24"
         style={{ background: 'var(--bg-surface)', border: '1px dashed var(--glass-border)' }}
       >
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-violet-500/20">
-          <Hammer className="h-7 w-7 text-cyan-400" />
+        <div
+          className="flex h-16 w-16 items-center justify-center rounded-2xl"
+          style={{ background: 'var(--grad-subtle)' }}
+        >
+          <Hammer className="h-7 w-7" style={{ color: 'var(--accent-primary)' }} />
         </div>
-        <h2 className="mt-5 text-lg font-bold text-white">아직 만든 서비스가 없어요</h2>
-        <p className="mt-2 text-sm text-slate-400">
+        <h2 className="mt-5 text-lg font-bold" style={{ color: 'var(--text-primary)' }}>아직 만든 서비스가 없어요</h2>
+        <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
           API를 골라 담고 나만의 웹서비스를 만들어보세요
         </p>
         <Link href="/builder" className="btn-primary mt-8 inline-flex items-center gap-2">

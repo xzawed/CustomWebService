@@ -17,11 +17,12 @@ export function CategoryTabs({ categories, activeCategory, onCategoryChange }: C
         <button
           type="button"
           onClick={() => onCategoryChange('all')}
-          className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
+          className="shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-all"
+          style={
             activeCategory === 'all'
-              ? 'bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-cyan-400 ring-1 ring-cyan-500/30'
-              : 'text-slate-400 hover:bg-white/[0.04] hover:text-white'
-          }`}
+              ? { background: 'var(--accent-light)', color: 'var(--accent-primary)', border: '1px solid var(--border-accent)' }
+              : { color: 'var(--text-secondary)', border: '1px solid transparent' }
+          }
         >
           전체 ({totalCount})
         </button>
@@ -31,11 +32,12 @@ export function CategoryTabs({ categories, activeCategory, onCategoryChange }: C
             key={category.key}
             type="button"
             onClick={() => onCategoryChange(category.key)}
-            className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
+            className="shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-all"
+            style={
               activeCategory === category.key
-                ? 'bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-cyan-400 ring-1 ring-cyan-500/30'
-                : 'text-slate-400 hover:bg-white/[0.04] hover:text-white'
-            }`}
+                ? { background: 'var(--accent-light)', color: 'var(--accent-primary)', border: '1px solid var(--border-accent)' }
+                : { color: 'var(--text-secondary)', border: '1px solid transparent' }
+            }
           >
             {category.label} ({category.count})
           </button>

@@ -18,9 +18,9 @@ export function ApiCatalogGrid({ apis, selectedIds, onSelect, onDetail }: ApiCat
         className="flex flex-col items-center justify-center rounded-2xl py-20"
         style={{ background: 'var(--bg-surface)', border: '1px dashed var(--glass-border)' }}
       >
-        <SearchX className="h-10 w-10 text-slate-600" />
-        <p className="mt-4 text-sm font-medium text-slate-400">검색 결과가 없습니다</p>
-        <p className="mt-1 text-xs text-slate-500">다른 키워드로 검색해보세요</p>
+        <SearchX className="h-10 w-10" style={{ color: 'var(--text-muted)' }} />
+        <p className="mt-4 text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>검색 결과가 없습니다</p>
+        <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>다른 키워드로 검색해보세요</p>
       </div>
     );
   }
