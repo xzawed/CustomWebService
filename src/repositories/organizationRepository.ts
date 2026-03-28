@@ -29,10 +29,10 @@ export class OrganizationRepository extends BaseRepository<Organization> {
 
     if (error) throw error;
     return (data ?? [])
-      .filter((row) => row.organizations && typeof row.organizations === 'object')
+      .filter((row) => row.organizations && !Array.isArray(row.organizations) && typeof row.organizations === 'object')
       .map((row) => {
-        // PostgREST returns joined rows as objects; narrow the type safely
-        const org = row.organizations as Record<string, unknown>;
+        // PostgREST returns joined rows as objects; cast via unknown to satisfy strict TS
+        const org = row.organizations as unknown as Record<string, unknown>;
         return this.toDomain(org);
       });
   }
