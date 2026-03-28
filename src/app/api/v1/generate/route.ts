@@ -144,6 +144,14 @@ export async function POST(request: Request): Promise<Response> {
 
           const validation = validateAll(parsed.html, parsed.css, parsed.js);
 
+          if (validation.errors.length > 0) {
+            logger.warn('Generated code failed security validation', {
+              projectId,
+              errors: validation.errors,
+            });
+            throw new Error(`생성된 코드에 보안 문제가 감지되었습니다: ${validation.errors.join(', ')}`);
+          }
+
           const codeRepo = new CodeRepository(supabase);
           const nextVersion = await codeRepo.getNextVersion(projectId);
 

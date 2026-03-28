@@ -38,6 +38,7 @@ export class DeployService {
 
     eventBus.emit({ type: 'DEPLOYMENT_STARTED', payload: { projectId, platform } });
 
+    const previousStatus = project.status;
     onProgress?.(10, '배포 준비 중...');
     await this.projectRepo.update(projectId, { status: 'deploying' } as Partial<typeof project>);
 
@@ -93,8 +94,9 @@ export class DeployService {
 
       return { deployUrl, repoUrl };
     } catch (error) {
+      // Restore the previous status so user can retry deployment
       await this.projectRepo.update(projectId, {
-        status: 'failed',
+        status: previousStatus,
       } as Parameters<typeof this.projectRepo.update>[1]);
 
       eventBus.emit({

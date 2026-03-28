@@ -38,7 +38,7 @@ export default function BuilderPage() {
   const [apis, setApis] = useState<ApiCatalogItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
-  const [previewVersion, setPreviewVersion] = useState<number | undefined>(undefined);
+  const [regenVersion, setRegenVersion] = useState<number | undefined>(undefined);
 
   // Context suggestion state (for api-first mode)
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -68,6 +68,7 @@ export default function BuilderPage() {
     currentStep: genStep,
     error: genError,
     projectId,
+    version,
     startGeneration,
     updateProgress,
     completeGeneration,
@@ -219,7 +220,7 @@ export default function BuilderPage() {
             if (eventType === 'progress') {
               updateProgress(parsed.progress ?? 0, parsed.message ?? '');
             } else if (eventType === 'complete') {
-              completeGeneration(parsed.projectId ?? project.id);
+              completeGeneration(parsed.projectId ?? project.id, parsed.version as number | undefined);
               resetContext();
               clearApis();
               generationCompleted = true;
@@ -502,12 +503,12 @@ export default function BuilderPage() {
               />
 
               {genStatus === 'completed' && projectId && (
-                <PreviewFrame projectId={projectId} version={previewVersion} />
+                <PreviewFrame projectId={projectId} version={regenVersion ?? version ?? undefined} />
               )}
               {genStatus === 'completed' && projectId && (
                 <RePromptPanel
                   projectId={projectId}
-                  onRegenerationComplete={(v) => setPreviewVersion(v)}
+                  onRegenerationComplete={(v) => setRegenVersion(v)}
                 />
               )}
             </div>
@@ -616,12 +617,12 @@ export default function BuilderPage() {
               />
 
               {genStatus === 'completed' && projectId && (
-                <PreviewFrame projectId={projectId} version={previewVersion} />
+                <PreviewFrame projectId={projectId} version={regenVersion ?? version ?? undefined} />
               )}
               {genStatus === 'completed' && projectId && (
                 <RePromptPanel
                   projectId={projectId}
-                  onRegenerationComplete={(v) => setPreviewVersion(v)}
+                  onRegenerationComplete={(v) => setRegenVersion(v)}
                 />
               )}
             </div>

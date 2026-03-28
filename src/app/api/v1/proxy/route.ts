@@ -2,15 +2,33 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { CatalogRepository } from '@/repositories/catalogRepository';
 import { decryptApiKey } from '@/lib/encryption';
 
-// Hosts that must never be proxied (SSRF prevention)
+// Hosts/patterns that must never be proxied (SSRF prevention)
 const BLOCKED_HOSTS = new Set([
   'localhost',
   '127.0.0.1',
   '0.0.0.0',
   '::1',
-  '169.254.169.254', // AWS metadata
+  '::',
+  '169.254.169.254', // AWS/GCP metadata
   '100.100.100.200', // Alibaba metadata
 ]);
+
+// Private IP range regex patterns (RFC 1918 + loopback + link-local)
+const PRIVATE_IP_PATTERNS = [
+  /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,           // 10.0.0.0/8
+  /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/, // 172.16.0.0/12
+  /^192\.168\.\d{1,3}\.\d{1,3}$/,               // 192.168.0.0/16
+  /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,           // 127.0.0.0/8
+  /^169\.254\.\d{1,3}\.\d{1,3}$/,               // 169.254.0.0/16 link-local
+  /^0\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,             // 0.0.0.0/8
+  /^(fc|fd)[0-9a-f]{2}:/i,                       // IPv6 ULA
+  /^fe80:/i,                                      // IPv6 link-local
+];
+
+function isPrivateHost(hostname: string): boolean {
+  if (BLOCKED_HOSTS.has(hostname)) return true;
+  return PRIVATE_IP_PATTERNS.some((p) => p.test(hostname));
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -66,9 +84,9 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
     return error400('유효하지 않은 경로입니다.');
   }
 
-  // Enforce same host as registered base URL
+  // Enforce same host as registered base URL and block private networks
   const allowedHost = new URL(api.baseUrl).hostname;
-  if (targetUrl.hostname !== allowedHost || BLOCKED_HOSTS.has(targetUrl.hostname)) {
+  if (targetUrl.hostname !== allowedHost || isPrivateHost(targetUrl.hostname)) {
     return errorResponse(403, 'FORBIDDEN', '허용되지 않은 대상입니다.');
   }
 
@@ -140,6 +158,7 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
     upstream = await fetch(targetUrl.toString(), {
       method,
       headers,
+      redirect: 'error', // Prevent SSRF via open redirects
       ...(method === 'POST'
         ? {
             body: await request.text(),

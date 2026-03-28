@@ -4,36 +4,52 @@ export interface ValidationResult {
   warnings: string[];
 }
 
+// Patterns that indicate definite API key hardcoding (very specific formats)
+const DEFINITE_KEY_PATTERNS = [
+  /\bsk-[a-zA-Z0-9]{20,}\b/,           // OpenAI / Anthropic style keys
+  /\bAIza[a-zA-Z0-9_-]{35}\b/,          // Google API keys
+  /\bghp_[a-zA-Z0-9]{36}\b/,            // GitHub personal access tokens
+  /\bxoxb-[0-9]+-[a-zA-Z0-9-]+\b/,      // Slack bot tokens
+];
+
+// Patterns that suggest possible API key usage (warn, don't block)
+const SUSPICIOUS_KEY_PATTERNS = [
+  /api[_-]?key\s*[:=]\s*['"][^'"{\s]{16,}['"]/i,
+  /secret[_-]?key\s*[:=]\s*['"][^'"{\s]{16,}['"]/i,
+  /access[_-]?token\s*[:=]\s*['"][^'"{\s]{16,}['"]/i,
+];
+
 export function validateSecurity(code: string): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Check for eval usage
+  // Block: eval() usage
   if (/\beval\s*\(/.test(code)) {
     errors.push('eval() 사용이 감지되었습니다. 보안상 허용되지 않습니다.');
   }
 
-  // Check for innerHTML with user input
-  if (/\.innerHTML\s*=/.test(code)) {
-    warnings.push('innerHTML 사용이 감지되었습니다. XSS 위험이 있을 수 있습니다.');
-  }
-
-  // Check for hardcoded API keys (common patterns)
-  const apiKeyPatterns = [
-    /['"][A-Za-z0-9]{32,}['"]/,
-    /api[_-]?key\s*[:=]\s*['"][^'"{]+['"]/i,
-    /sk-[a-zA-Z0-9]{20,}/,
-    /AIza[a-zA-Z0-9_-]{35}/,
-  ];
-
-  for (const pattern of apiKeyPatterns) {
+  // Block: definite hardcoded key formats
+  for (const pattern of DEFINITE_KEY_PATTERNS) {
     if (pattern.test(code)) {
-      errors.push('하드코딩된 API 키가 감지되었습니다.');
+      errors.push('하드코딩된 API 키 형식이 감지되었습니다.');
       break;
     }
   }
 
-  // Check for document.write
+  // Warn: innerHTML assignment
+  if (/\.innerHTML\s*=/.test(code)) {
+    warnings.push('innerHTML 사용이 감지되었습니다. XSS 위험이 있을 수 있습니다.');
+  }
+
+  // Warn: suspicious key assignment patterns
+  for (const pattern of SUSPICIOUS_KEY_PATTERNS) {
+    if (pattern.test(code)) {
+      warnings.push('API 키를 직접 코드에 작성하는 패턴이 감지되었습니다.');
+      break;
+    }
+  }
+
+  // Warn: document.write
   if (/document\.write\s*\(/.test(code)) {
     warnings.push('document.write() 사용이 감지되었습니다.');
   }
@@ -45,37 +61,24 @@ export function validateSecurity(code: string): ValidationResult {
   };
 }
 
-export function validateFunctionality(html: string, css: string, js: string): ValidationResult {
+export function validateFunctionality(html: string, _css: string, js: string): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  // Check HTML has basic structure
   if (!html.includes('<!DOCTYPE') && !html.includes('<html')) {
     warnings.push('HTML 문서 구조가 불완전합니다.');
   }
 
-  // Check for viewport meta tag (responsive)
   if (!html.includes('viewport')) {
     warnings.push('viewport 메타 태그가 없습니다. 반응형 디자인이 적용되지 않을 수 있습니다.');
   }
 
-  // Check JS has no obvious syntax errors (basic check)
   if (js) {
-    try {
-      // Simple bracket matching
-      const opens = (js.match(/\{/g) || []).length;
-      const closes = (js.match(/\}/g) || []).length;
-      if (opens !== closes) {
-        warnings.push('JavaScript 코드의 중괄호가 일치하지 않습니다.');
-      }
-    } catch {
-      // ignore
+    const opens = (js.match(/\{/g) ?? []).length;
+    const closes = (js.match(/\}/g) ?? []).length;
+    if (Math.abs(opens - closes) > 3) {
+      warnings.push('JavaScript 코드의 중괄호 수가 불일치합니다.');
     }
-  }
-
-  // Check CSS is not empty if HTML uses classes
-  if (html.includes('class=') && !css) {
-    warnings.push('HTML에 클래스가 사용되었지만 CSS가 비어있습니다.');
   }
 
   return {

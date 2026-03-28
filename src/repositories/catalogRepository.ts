@@ -26,16 +26,17 @@ export class CatalogRepository extends BaseRepository<ApiCatalogItem> {
     }
 
     if (search) {
-      // Sanitize search input - remove special characters that could interfere
+      // Escape LIKE special characters to preserve search intent, then trim
       const sanitized = search
-        .replace(/[%_\\]/g, '')
         .trim()
-        .slice(0, 100);
+        .slice(0, 100)
+        .replace(/\\/g, '\\\\')
+        .replace(/%/g, '\\%')
+        .replace(/_/g, '\\_');
+
+      // Only skip search if the trimmed input is truly empty
       if (sanitized) {
         query = query.or(`name.ilike.%${sanitized}%,description.ilike.%${sanitized}%`);
-      } else {
-        // All characters were stripped — return empty rather than unfiltered results
-        return { items: [], total: 0 };
       }
     }
 

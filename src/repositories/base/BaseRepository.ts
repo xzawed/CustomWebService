@@ -117,7 +117,12 @@ export abstract class BaseRepository<T extends { id: string }> {
   }
 
   protected toSnake(str: string): string {
-    return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    return str
+      // Handle sequences like "HTMLParser" → "html_parser", "deployURL" → "deploy_url"
+      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+      // Handle "camelCase" → "camel_case"
+      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+      .toLowerCase();
   }
 
   protected toCamel(str: string): string {

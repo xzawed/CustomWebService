@@ -101,7 +101,7 @@ export function handleApiError(error: unknown): Response {
     );
   }
 
-  // Generic Error instances - log full details, return message to client for debugging
+  // Generic Error instances - log full details server-side only
   const errMessage = error instanceof Error ? error.message : String(error);
   logger.error('Unhandled API error', {
     message: errMessage,
@@ -109,8 +109,14 @@ export function handleApiError(error: unknown): Response {
     stack: error instanceof Error ? error.stack : undefined,
   });
 
+  // Never expose internal error details in production
+  const clientMessage =
+    process.env.NODE_ENV === 'production'
+      ? '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
+      : errMessage || '서버 오류가 발생했습니다.';
+
   return Response.json(
-    { success: false, error: { code: 'INTERNAL_ERROR', message: errMessage || '서버 오류가 발생했습니다.' } },
+    { success: false, error: { code: 'INTERNAL_ERROR', message: clientMessage } },
     { status: 500 }
   );
 }
