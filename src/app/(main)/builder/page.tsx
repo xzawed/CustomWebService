@@ -42,6 +42,8 @@ export default function BuilderPage() {
   // API recommendation state (for context-first mode)
   const [apiRecommendations, setApiRecommendations] = useState<ApiRecommendation[]>([]);
   const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(false);
+  const [recommendationsError, setRecommendationsError] = useState(false);
+  const [lastRecommendedContext, setLastRecommendedContext] = useState<string | null>(null);
 
   const { mode, setMode } = useBuilderModeStore();
   const { selectedApis, addApi, removeApi, clearApis } = useApiSelectionStore();
@@ -110,6 +112,8 @@ export default function BuilderPage() {
       resetContext();
       setSuggestions([]);
       setApiRecommendations([]);
+      setRecommendationsError(false);
+      setLastRecommendedContext(null);
       setActiveSuggestionIndex(null);
     },
     [setMode, clearApis, resetContext]
@@ -214,7 +218,7 @@ export default function BuilderPage() {
     } catch (err) {
       failGeneration(err instanceof Error ? err.message : '알 수 없는 오류');
     }
-  }, [selectedApis, selectedIds, context, startGeneration, updateProgress, completeGeneration, failGeneration, resetContext, clearApis]);
+  }, [selectedIds, context, startGeneration, updateProgress, completeGeneration, failGeneration, resetContext, clearApis]);
 
   // === API-first mode: fetch context suggestions ===
   const fetchSuggestions = useCallback(async () => {
@@ -246,9 +250,10 @@ export default function BuilderPage() {
 
   // === Context-first mode: fetch API recommendations ===
   const fetchApiRecommendations = useCallback(async () => {
-    if (!context || context.length < 10) return;
+    if (!context || context.length < LIMITS.contextMinLength) return;
     setIsRecommendationsLoading(true);
     setApiRecommendations([]);
+    setRecommendationsError(false);
     try {
       const res = await fetch('/api/v1/suggest-apis', {
         method: 'POST',
@@ -259,6 +264,7 @@ export default function BuilderPage() {
       const data = await res.json();
       const recs: ApiRecommendation[] = data.data?.recommendations ?? [];
       setApiRecommendations(recs);
+      setLastRecommendedContext(context);
       // Auto-select all recommended APIs
       clearApis();
       for (const rec of recs) {
@@ -266,6 +272,8 @@ export default function BuilderPage() {
       }
     } catch {
       setApiRecommendations([]);
+      setRecommendationsError(true);
+      setLastRecommendedContext(null);
     } finally {
       setIsRecommendationsLoading(false);
     }
@@ -279,9 +287,12 @@ export default function BuilderPage() {
       fetchSuggestions();
     }
     if (mode === 'context-first' && step === 1) {
-      fetchApiRecommendations();
+      // Only re-fetch if context changed since last recommendation
+      if (context !== lastRecommendedContext) {
+        fetchApiRecommendations();
+      }
     }
-  }, [step, mode, fetchSuggestions, fetchApiRecommendations]);
+  }, [step, mode, context, lastRecommendedContext, fetchSuggestions, fetchApiRecommendations]);
 
   const handleSelectSuggestion = useCallback(
     (suggestion: string, index: number) => {
@@ -326,7 +337,7 @@ export default function BuilderPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <BuilderModeToggle mode={mode} onChange={handleModeChange} />
+      <BuilderModeToggle mode={mode} onChange={handleModeChange} disabled={step === 3 && genStatus !== 'idle'} />
       <StepIndicator currentStep={step} steps={steps} />
 
       {/* ===================== API-FIRST MODE ===================== */}
@@ -461,6 +472,7 @@ export default function BuilderPage() {
               <ApiRecommendations
                 recommendations={apiRecommendations}
                 isLoading={isRecommendationsLoading}
+                hasError={recommendationsError}
                 selectedIds={selectedIds}
                 onSelect={addApi}
                 onDeselect={removeApi}
@@ -476,8 +488,9 @@ export default function BuilderPage() {
 
               {/* Allow manual API browsing/addition */}
               <details className="group">
-                <summary className="cursor-pointer text-sm font-medium text-slate-400 transition-colors hover:text-white">
-                  직접 API 추가하기 ▸
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-slate-400 transition-colors hover:text-white [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
+                  직접 API 추가하기
                 </summary>
                 <div className="mt-4">
                   {isLoadingCatalog ? (

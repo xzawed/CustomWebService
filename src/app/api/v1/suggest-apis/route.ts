@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { CatalogService } from '@/services/catalogService';
+import { LIMITS } from '@/lib/config/features';
 import { AuthRequiredError, ValidationError, handleApiError } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 
@@ -16,11 +17,11 @@ export async function POST(request: Request): Promise<Response> {
     try {
       const body = await request.json();
       context = String(body.context ?? '').trim();
-      if (context.length < 10) {
-        throw new ValidationError('서비스 설명은 최소 10자 이상이어야 합니다.');
+      if (context.length < LIMITS.contextMinLength) {
+        throw new ValidationError(`서비스 설명은 최소 ${LIMITS.contextMinLength}자 이상이어야 합니다.`);
       }
-      if (context.length > 2000) {
-        throw new ValidationError('서비스 설명은 최대 2000자까지 허용됩니다.');
+      if (context.length > LIMITS.contextMaxLength) {
+        throw new ValidationError(`서비스 설명은 최대 ${LIMITS.contextMaxLength}자까지 허용됩니다.`);
       }
     } catch (err) {
       if (err instanceof SyntaxError) {

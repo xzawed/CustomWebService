@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, Sparkles, Plus, Check, RefreshCw } from 'lucide-react';
+import { Loader2, Sparkles, Plus, Check, RefreshCw, AlertCircle } from 'lucide-react';
 import type { ApiCatalogItem } from '@/types/api';
 
 export interface ApiRecommendation {
@@ -11,6 +11,7 @@ export interface ApiRecommendation {
 interface ApiRecommendationsProps {
   recommendations: ApiRecommendation[];
   isLoading: boolean;
+  hasError?: boolean;
   selectedIds: string[];
   onSelect: (api: ApiCatalogItem) => void;
   onDeselect: (id: string) => void;
@@ -20,6 +21,7 @@ interface ApiRecommendationsProps {
 export default function ApiRecommendations({
   recommendations,
   isLoading,
+  hasError,
   selectedIds,
   onSelect,
   onDeselect,
@@ -30,14 +32,52 @@ export default function ApiRecommendations({
       <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-6">
         <div className="flex items-center gap-3 text-violet-400">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-sm font-medium">AI가 서비스에 적합한 API를 찾고 있습니다...</span>
+          <span className="text-sm font-medium">AI가 서비스에 적합��� API를 찾고 있습니다...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 text-rose-400">
+            <AlertCircle className="h-5 w-5" />
+            <span className="text-sm font-medium">API 추천에 실패했습니다. 아래에서 직접 API를 추가해주세요.</span>
+          </div>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-rose-400 transition-colors hover:bg-rose-500/10 hover:text-rose-300"
+          >
+            <RefreshCw className="h-3 w-3" />
+            재시도
+          </button>
         </div>
       </div>
     );
   }
 
   if (recommendations.length === 0) {
-    return null;
+    return (
+      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 text-amber-400">
+            <AlertCircle className="h-5 w-5" />
+            <span className="text-sm font-medium">적합한 API를 찾지 못했습니다. 아래에서 직접 추가하거나 서비스 설명을 수정해보세요.</span>
+          </div>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-amber-400 transition-colors hover:bg-amber-500/10 hover:text-amber-300"
+          >
+            <RefreshCw className="h-3 w-3" />
+            재시도
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

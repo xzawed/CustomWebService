@@ -6,16 +6,18 @@ import type { BuilderMode } from '@/stores/builderModeStore';
 interface BuilderModeToggleProps {
   mode: BuilderMode;
   onChange: (mode: BuilderMode) => void;
+  disabled?: boolean;
 }
 
-export default function BuilderModeToggle({ mode, onChange }: BuilderModeToggleProps) {
+export default function BuilderModeToggle({ mode, onChange, disabled }: BuilderModeToggleProps) {
   return (
-    <div className="mb-8 flex flex-col items-center gap-3">
+    <div className={`mb-8 flex flex-col items-center gap-3 ${disabled ? 'pointer-events-none opacity-50' : ''}`}>
       <p className="text-xs font-medium text-slate-400">빌드 모드 선택</p>
       <div className="inline-flex rounded-xl border border-white/[0.06] bg-[#0f1629] p-1">
         <button
           type="button"
           onClick={() => onChange('api-first')}
+          disabled={disabled}
           className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all ${
             mode === 'api-first'
               ? 'bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-cyan-400 shadow-lg shadow-cyan-500/10'
@@ -28,6 +30,7 @@ export default function BuilderModeToggle({ mode, onChange }: BuilderModeToggleP
         <button
           type="button"
           onClick={() => onChange('context-first')}
+          disabled={disabled}
           className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all ${
             mode === 'context-first'
               ? 'bg-gradient-to-r from-violet-500/20 to-rose-500/20 text-violet-400 shadow-lg shadow-violet-500/10'
