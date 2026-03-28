@@ -4,6 +4,7 @@ interface LogEntry {
   level: LogLevel;
   message: string;
   timestamp: string;
+  correlationId?: string;
   context?: Record<string, unknown>;
 }
 
@@ -20,13 +21,19 @@ function shouldLog(level: LogLevel): boolean {
   return LOG_LEVELS[level] >= LOG_LEVELS[CURRENT_LEVEL];
 }
 
-function log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
+function log(
+  level: LogLevel,
+  message: string,
+  context?: Record<string, unknown>,
+  correlationId?: string
+): void {
   if (!shouldLog(level)) return;
 
   const entry: LogEntry = {
     level,
     message,
     timestamp: new Date().toISOString(),
+    ...(correlationId && { correlationId }),
     ...(context && { context }),
   };
 
@@ -39,4 +46,14 @@ export const logger = {
   info: (message: string, context?: Record<string, unknown>) => log('info', message, context),
   warn: (message: string, context?: Record<string, unknown>) => log('warn', message, context),
   error: (message: string, context?: Record<string, unknown>) => log('error', message, context),
+  withCorrelationId: (correlationId: string) => ({
+    debug: (message: string, context?: Record<string, unknown>) =>
+      log('debug', message, context, correlationId),
+    info: (message: string, context?: Record<string, unknown>) =>
+      log('info', message, context, correlationId),
+    warn: (message: string, context?: Record<string, unknown>) =>
+      log('warn', message, context, correlationId),
+    error: (message: string, context?: Record<string, unknown>) =>
+      log('error', message, context, correlationId),
+  }),
 };

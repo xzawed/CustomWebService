@@ -24,6 +24,41 @@ export class CodeRepository extends BaseRepository<GeneratedCode> {
     return this.toDomain(data);
   }
 
+  async countByProject(projectId: string): Promise<number> {
+    const { count, error } = await this.supabase
+      .from(this.tableName)
+      .select('*', { count: 'exact', head: true })
+      .eq('project_id', projectId);
+    if (error) throw error;
+    return count ?? 0;
+  }
+
+  /**
+   * Deletes the oldest versions for a project, keeping only the newest `keepCount`.
+   * Called after a successful save to enforce the per-project version cap.
+   * Errors are thrown so callers can decide whether to surface them.
+   */
+  async pruneOldVersions(projectId: string, keepCount: number): Promise<void> {
+    // Fetch the version numbers to delete (everything beyond the newest N)
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select('id, version')
+      .eq('project_id', projectId)
+      .order('version', { ascending: false })
+      .range(keepCount, 999);
+
+    if (error) throw error;
+    if (!data || data.length === 0) return;
+
+    const idsToDelete = data.map((row) => row.id as string);
+    const { error: deleteError } = await this.supabase
+      .from(this.tableName)
+      .delete()
+      .in('id', idsToDelete);
+
+    if (deleteError) throw deleteError;
+  }
+
   async getNextVersion(projectId: string): Promise<number> {
     const { data, error } = await this.supabase
       .from(this.tableName)

@@ -1,7 +1,10 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
+import { getCorrelationId, CORRELATION_ID_HEADER } from '@/lib/utils/correlationId';
 
 export async function middleware(request: NextRequest) {
+  const correlationId = getCorrelationId(request);
+
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
 
   // 서브도메인 감지 — NEXT_PUBLIC_ROOT_DOMAIN이 설정된 경우에만 동작
@@ -17,6 +20,7 @@ export async function middleware(request: NextRequest) {
         url.pathname = `/site/${slug}${url.pathname === '/' ? '' : url.pathname}`;
         // 서브도메인 사이트는 인증 세션 업데이트 불필요 — 직접 rewrite
         const rewriteResponse = NextResponse.rewrite(url);
+        rewriteResponse.headers.set(CORRELATION_ID_HEADER, correlationId);
         rewriteResponse.headers.set('X-Frame-Options', 'DENY');
         rewriteResponse.headers.set('X-Content-Type-Options', 'nosniff');
         rewriteResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -26,6 +30,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const response = await updateSession(request);
+  response.headers.set(CORRELATION_ID_HEADER, correlationId);
 
   const path = request.nextUrl.pathname;
   const isApi = path.startsWith('/api/');

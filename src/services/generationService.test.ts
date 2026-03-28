@@ -7,7 +7,6 @@ vi.mock('@/repositories/projectRepository', () => ({
   ProjectRepository: vi.fn().mockImplementation(() => ({
     findById: vi.fn(),
     getProjectApiIds: vi.fn(),
-    countTodayGenerations: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
   })),
@@ -47,30 +46,23 @@ vi.mock('@/lib/events/eventBus', () => ({
 
 const makeSupabase = () => ({}) as never;
 
-describe('RateLimitService.checkDailyGenerationLimit()', () => {
+describe('RateLimitService.checkAndIncrementDailyLimit()', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  async function makeService() {
-    const service = new RateLimitService(makeSupabase());
-    const { ProjectRepository } = await import('@/repositories/projectRepository');
-    // Last mock instance corresponds to the just-created service
-    const instances = (ProjectRepository as ReturnType<typeof vi.fn>).mock.results;
-    const projectRepo = instances[instances.length - 1].value;
-    return { service, projectRepo };
+  function makeRpcSupabase(data: boolean | null, error: unknown = null) {
+    return { rpc: vi.fn().mockResolvedValue({ data, error }) } as never;
   }
 
-  it('일일 한도(10회)를 초과하면 RateLimitError를 던진다', async () => {
-    const { service, projectRepo } = await makeService();
-    projectRepo.countTodayGenerations.mockResolvedValue(10);
-    await expect(service.checkDailyGenerationLimit('user-1')).rejects.toThrow(RateLimitError);
+  it('data=false이면 RateLimitError를 던진다', async () => {
+    const service = new RateLimitService(makeRpcSupabase(false));
+    await expect(service.checkAndIncrementDailyLimit('user-1')).rejects.toThrow(RateLimitError);
   });
 
-  it('한도 미만이면 통과한다', async () => {
-    const { service, projectRepo } = await makeService();
-    projectRepo.countTodayGenerations.mockResolvedValue(9);
-    await expect(service.checkDailyGenerationLimit('user-1')).resolves.toBeUndefined();
+  it('data=true이면 통과한다', async () => {
+    const service = new RateLimitService(makeRpcSupabase(true));
+    await expect(service.checkAndIncrementDailyLimit('user-1')).resolves.toBeUndefined();
   });
 });
 

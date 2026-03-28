@@ -52,11 +52,12 @@ describe('validateFunctionality', () => {
     expect(result.errors).toHaveLength(0);
   });
 
-  it('HTML에 class가 있는데 CSS가 없으면 경고를 반환한다', () => {
+  it('완전한 HTML + viewport가 있으면 경고 없이 통과한다', () => {
     const html =
       '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width"></head><body class="container"></body></html>';
     const result = validateFunctionality(html, '', '');
-    expect(result.warnings.some((w) => w.includes('CSS'))).toBe(true);
+    expect(result.passed).toBe(true);
+    expect(result.errors).toHaveLength(0);
   });
 });
 

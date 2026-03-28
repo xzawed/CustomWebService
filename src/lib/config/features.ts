@@ -3,6 +3,7 @@ export interface FeatureLimits {
   maxDailyGenerations: number;
   maxProjectsPerUser: number;
   maxRegenerationsPerProject: number;
+  maxCodeVersionsPerProject: number;
   contextMinLength: number;
   contextMaxLength: number;
   generationTimeoutMs: number;
@@ -20,6 +21,7 @@ const DEFAULT_LIMITS: FeatureLimits = {
   maxDailyGenerations: env('MAX_DAILY_GENERATIONS', 10),
   maxProjectsPerUser: env('MAX_PROJECTS_PER_USER', 20),
   maxRegenerationsPerProject: env('MAX_REGENERATIONS', 5),
+  maxCodeVersionsPerProject: env('MAX_CODE_VERSIONS', 10),
   contextMinLength: env('CONTEXT_MIN_LENGTH', 50),
   contextMaxLength: env('CONTEXT_MAX_LENGTH', 2000),
   generationTimeoutMs: env('GENERATION_TIMEOUT_MS', 180000),
@@ -31,6 +33,7 @@ const PLAN_OVERRIDES: Record<string, Partial<FeatureLimits>> = {
     maxApisPerProject: 10,
     maxDailyGenerations: 50,
     maxProjectsPerUser: 100,
+    maxCodeVersionsPerProject: 50,
     contextMaxLength: 5000,
   },
 };

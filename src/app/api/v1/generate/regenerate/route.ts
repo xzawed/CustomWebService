@@ -1,8 +1,9 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { ProjectService } from '@/services/projectService';
 import { AuthService } from '@/services/authService';
 import { RateLimitService } from '@/services/rateLimitService';
 import { CodeRepository } from '@/repositories/codeRepository';
+import { EventRepository } from '@/repositories/eventRepository';
 import { CatalogService } from '@/services/catalogService';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
@@ -11,6 +12,7 @@ import { parseGeneratedCode } from '@/lib/ai/codeParser';
 import { validateAll } from '@/lib/ai/codeValidator';
 import { eventBus } from '@/lib/events/eventBus';
 import { getLimits } from '@/lib/config/features';
+import { getCorrelationId } from '@/lib/utils/correlationId';
 import {
   AuthRequiredError,
   NotFoundError,
@@ -18,6 +20,7 @@ import {
   ValidationError,
   handleApiError,
 } from '@/lib/utils/errors';
+// RateLimitError is still used for the per-project regeneration limit check below
 import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
@@ -46,9 +49,13 @@ export async function POST(request: Request): Promise<Response> {
       throw err;
     }
 
-    // H2: Centralized rate limit check — regenerations count toward daily limit
+    const correlationId = getCorrelationId(request);
+    const serviceSupabase = await createServiceClient();
+    const eventRepo = new EventRepository(serviceSupabase);
+
+    // Atomic check + increment — same approach as the initial generate route.
     const rateLimitService = new RateLimitService(supabase);
-    await rateLimitService.checkDailyGenerationLimit(user.id);
+    await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
     // Get project and verify ownership
     const projectService = new ProjectService(supabase);
@@ -104,9 +111,6 @@ export async function POST(request: Request): Promise<Response> {
 
         try {
           send('progress', { step: 'analyzing', progress: 10, message: '피드백 분석 중...' });
-
-          // C1: Second rate limit check right before the DB write to reduce race window
-          await rateLimitService.checkDailyGenerationLimit(user.id);
 
           send('progress', { step: 'generating_code', progress: 30, message: '코드 수정 중...' });
 
@@ -174,6 +178,13 @@ export async function POST(request: Request): Promise<Response> {
             },
           } as Parameters<typeof codeRepo.create>[0]);
 
+          // Prune versions beyond the per-project cap (best-effort)
+          try {
+            await codeRepo.pruneOldVersions(projectId, limits.maxCodeVersionsPerProject);
+          } catch (pruneErr) {
+            logger.warn('Failed to prune old code versions', { projectId, pruneErr });
+          }
+
           // C2: Compensating rollback — delete orphaned code if status update fails
           try {
             await projectService.updateStatus(projectId, 'generated');
@@ -193,15 +204,17 @@ export async function POST(request: Request): Promise<Response> {
             throw updateError;
           }
 
-          eventBus.emit({
-            type: 'CODE_GENERATED',
+          const generatedEvent = {
+            type: 'CODE_GENERATED' as const,
             payload: {
               projectId,
               version: nextVersion,
               provider: response.provider,
               durationMs: response.durationMs,
             },
-          });
+          };
+          eventBus.emit(generatedEvent);
+          eventRepo.persistAsync(generatedEvent, { userId: user.id, projectId, correlationId });
 
           send('complete', {
             projectId,
@@ -214,15 +227,20 @@ export async function POST(request: Request): Promise<Response> {
             error: error instanceof Error ? error.message : 'Unknown',
           });
 
+          // Compensate: restore the pre-incremented rate limit slot.
+          await rateLimitService.decrementDailyLimit(user.id);
+
           // H6: Use IAiProvider.name instead of hardcoded 'grok'
-          eventBus.emit({
-            type: 'CODE_GENERATION_FAILED',
+          const failedEvent = {
+            type: 'CODE_GENERATION_FAILED' as const,
             payload: {
               projectId,
               error: error instanceof Error ? error.message : 'Unknown error',
               provider: provider?.name ?? 'unknown',
             },
-          });
+          };
+          eventBus.emit(failedEvent);
+          eventRepo.persistAsync(failedEvent, { userId: user.id, projectId, correlationId });
 
           send('error', {
             message: error instanceof Error ? error.message : '코드 재생성에 실패했습니다.',
