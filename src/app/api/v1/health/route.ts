@@ -32,7 +32,7 @@ export async function GET(): Promise<Response> {
   checks.deploy = hasGithub || hasRailway ? 'ok' : 'unconfigured';
   if (checks.deploy !== 'ok') status = status === 'healthy' ? 'degraded' : status;
 
-  // Usage limits (system-wide counts for monitoring)
+  // Usage limits (system-wide counts for monitoring) — 병렬 실행으로 응답 단축
   try {
     if (!supabase) throw new Error('DB not available');
     const limits = getLimits();
@@ -40,29 +40,24 @@ export async function GET(): Promise<Response> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const { count: todayGenerations } = await supabase
-      .from('generated_codes')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', today.toISOString());
+    const [genResult, projectResult, userResult] = await Promise.all([
+      supabase
+        .from('generated_codes')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', today.toISOString()),
+      supabase.from('projects').select('id', { count: 'exact', head: true }),
+      supabase.from('users').select('id', { count: 'exact', head: true }),
+    ]);
 
-    const { count: totalProjects } = await supabase
-      .from('projects')
-      .select('id', { count: 'exact', head: true });
-
-    const { count: totalUsers } = await supabase
-      .from('users')
-      .select('id', { count: 'exact', head: true });
-
-    usage.todayGenerations = todayGenerations ?? 0;
-    usage.totalProjects = totalProjects ?? 0;
-    usage.totalUsers = totalUsers ?? 0;
+    usage.todayGenerations = genResult.count ?? 0;
+    usage.totalProjects = projectResult.count ?? 0;
+    usage.totalUsers = userResult.count ?? 0;
     usage.limits = {
       maxDailyGenerationsPerUser: limits.maxDailyGenerations,
       maxApisPerProject: limits.maxApisPerProject,
       maxProjectsPerUser: limits.maxProjectsPerUser,
     };
   } catch {
-    // Usage stats are non-critical
     usage.error = 'stats unavailable';
   }
 

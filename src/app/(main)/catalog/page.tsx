@@ -1,6 +1,12 @@
+import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { CatalogService } from '@/services/catalogService';
 import { CatalogView } from '@/components/catalog/CatalogView';
+
+export const metadata: Metadata = {
+  title: 'API 카탈로그 | CustomWebService',
+  description: '다양한 공공 및 민간 API를 탐색하고 웹서비스를 만들어보세요.',
+};
 
 export const dynamic = 'force-dynamic';
 

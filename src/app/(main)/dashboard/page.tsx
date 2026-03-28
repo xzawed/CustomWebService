@@ -1,9 +1,15 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { ProjectService } from '@/services/projectService';
 import { redirect } from 'next/navigation';
 import { ProjectGrid } from '@/components/dashboard/ProjectGrid';
 import type { Project } from '@/types/project';
+
+export const metadata: Metadata = {
+  title: '내 프로젝트 | CustomWebService',
+  description: '생성한 웹서비스 프로젝트를 관리하세요.',
+};
 
 export const dynamic = 'force-dynamic';
 

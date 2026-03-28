@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { memo, useState, useMemo } from 'react';
 import type { ApiCatalogItem, Category } from '@/types/api';
 import { CategoryTabs } from './CategoryTabs';
 import { ApiSearchBar } from './ApiSearchBar';
@@ -16,7 +16,7 @@ interface CatalogViewProps {
   onDeselect?: (id: string) => void;
 }
 
-export function CatalogView({
+export const CatalogView = memo(function CatalogView({
   initialApis,
   categories,
   selectionMode = false,
@@ -83,4 +83,4 @@ export function CatalogView({
       />
     </div>
   );
-}
+});

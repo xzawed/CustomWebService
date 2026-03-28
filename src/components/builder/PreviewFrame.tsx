@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Monitor, Tablet, Smartphone, RefreshCw } from 'lucide-react';
 
 interface PreviewFrameProps {
@@ -16,46 +16,82 @@ const DEVICES = [
 
 export default function PreviewFrame({ projectId, version }: PreviewFrameProps) {
   const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [cacheBust, setCacheBust] = useState(0);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const versionParam = version ? `&version=${version}` : '';
-  const previewUrl = `/api/v1/preview/${projectId}?t=${refreshKey}${versionParam}`;
+  const previewUrl = `/api/v1/preview/${projectId}?t=${cacheBust}${versionParam}`;
   const selectedDevice = DEVICES.find((d) => d.key === device)!;
 
+  function handleRefresh() {
+    // src 변경으로 브라우저가 iframe을 자연스럽게 리로드 — DOM 재마운트 없음
+    setCacheBust((k) => k + 1);
+  }
+
   return (
-    <div className="rounded-xl border border-gray-200 bg-white">
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2">
+    <div
+      className="overflow-hidden rounded-2xl"
+      style={{ border: '1px solid var(--border)', background: 'var(--bg-card)' }}
+    >
+      {/* 툴바 */}
+      <div
+        className="flex items-center justify-between px-4 py-3"
+        style={{ borderBottom: '1px solid var(--border)' }}
+      >
         <div className="flex gap-1">
           {DEVICES.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               type="button"
               onClick={() => setDevice(key)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                device === key ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
-              }`}
               title={label}
+              className="rounded-lg p-2 transition-all"
+              style={{
+                background: device === key ? 'rgba(0,212,255,0.12)' : 'transparent',
+                color: device === key ? 'var(--accent-cyan)' : 'var(--text-muted)',
+              }}
             >
               <Icon className="h-4 w-4" />
             </button>
           ))}
         </div>
+
+        {/* URL 표시 */}
+        <div
+          className="hidden flex-1 mx-4 rounded-lg px-3 py-1.5 text-xs sm:block"
+          style={{ background: 'var(--bg-surface)', color: 'var(--text-muted)' }}
+        >
+          미리보기 — {selectedDevice.label}
+        </div>
+
         <button
           type="button"
-          onClick={() => setRefreshKey((k) => k + 1)}
-          className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          onClick={handleRefresh}
           title="새로고침"
+          className="rounded-lg p-2 transition-all"
+          style={{ color: 'var(--text-muted)' }}
         >
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
-      <div className="flex justify-center bg-gray-50 p-4">
+
+      {/* iframe */}
+      <div
+        className="flex justify-center p-4"
+        style={{ background: 'var(--bg-surface)' }}
+      >
         <iframe
-          key={refreshKey}
+          ref={iframeRef}
           src={previewUrl}
           title="미리보기"
-          style={{ width: selectedDevice.width, maxWidth: '100%' }}
-          className="h-[600px] rounded-lg border border-gray-200 bg-white"
+          style={{
+            width: selectedDevice.width,
+            maxWidth: '100%',
+            height: '640px',
+            borderRadius: '12px',
+            border: '1px solid var(--border)',
+            background: '#fff',
+          }}
           sandbox="allow-scripts allow-same-origin"
         />
       </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
@@ -73,9 +74,11 @@ export function Header() {
                 className="flex items-center gap-2 rounded-full p-1 transition-all hover:ring-2 hover:ring-white/10"
               >
                 {user.avatarUrl ? (
-                  <img
+                  <Image
                     src={user.avatarUrl}
                     alt={user.name ?? ''}
+                    width={32}
+                    height={32}
                     className="h-8 w-8 rounded-full object-cover ring-2 ring-white/10"
                   />
                 ) : (

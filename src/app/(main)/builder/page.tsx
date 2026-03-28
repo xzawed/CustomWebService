@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { CatalogView } from '@/components/catalog/CatalogView';
 import StepIndicator from '@/components/builder/StepIndicator';
@@ -91,7 +91,7 @@ export default function BuilderPage() {
   const canProceedStep1 = selectedApis.length > 0;
   const canProceedStep2 = isContextValid();
 
-  const handleGenerate = async () => {
+  const handleGenerate = useCallback(async () => {
     startGeneration();
 
     try {
@@ -192,9 +192,9 @@ export default function BuilderPage() {
     } catch (err) {
       failGeneration(err instanceof Error ? err.message : '알 수 없는 오류');
     }
-  };
+  }, [selectedApis, selectedIds, context, startGeneration, updateProgress, completeGeneration, failGeneration, resetContext, clearApis]);
 
-  const fetchSuggestions = async () => {
+  const fetchSuggestions = useCallback(async () => {
     if (selectedApis.length === 0) return;
     setIsSuggestionsLoading(true);
     setSuggestions([]);
@@ -219,39 +219,39 @@ export default function BuilderPage() {
     } finally {
       setIsSuggestionsLoading(false);
     }
-  };
+  }, [selectedApis]);
 
-  const handleNextStep = () => {
+  const handleNextStep = useCallback(() => {
     const next = Math.min(3, step + 1);
     setStep(next);
     if (step === 1) {
       fetchSuggestions();
     }
-  };
+  }, [step, fetchSuggestions]);
 
-  const handleSelectSuggestion = (suggestion: string, index: number) => {
+  const handleSelectSuggestion = useCallback((suggestion: string, index: number) => {
     setContext(suggestion);
     setActiveSuggestionIndex(index);
-  };
+  }, [setContext]);
 
-  const handleContextChange = (value: string) => {
+  const handleContextChange = useCallback((value: string) => {
     setContext(value);
     // Clear active marker if user edits away from the selected suggestion
     if (activeSuggestionIndex !== null && value !== suggestions[activeSuggestionIndex]) {
       setActiveSuggestionIndex(null);
     }
-  };
+  }, [setContext, activeSuggestionIndex, suggestions]);
 
-  const handleApplyTemplate = (template: Template) => {
+  const handleApplyTemplate = useCallback((template: Template) => {
     setContext(template.text);
     setTemplate(template.id);
     setActiveSuggestionIndex(null);
-  };
+  }, [setContext, setTemplate]);
 
-  const handleInsertGuide = (text: string) => {
+  const handleInsertGuide = useCallback((text: string) => {
     setContext(context + text);
     setActiveSuggestionIndex(null);
-  };
+  }, [setContext, context]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -260,8 +260,8 @@ export default function BuilderPage() {
       {/* Step 1: API Selection */}
       {step === 1 && (
         <div className="space-y-6">
-          <h2 className="text-xl font-bold text-gray-900">사용할 API를 선택하세요</h2>
-          <p className="text-sm text-gray-500">
+          <h2 className="text-xl font-bold text-white">사용할 API를 선택하세요</h2>
+          <p className="text-sm text-slate-400">
             최대 {LIMITS.maxApisPerProject}개의 API를 선택할 수 있습니다.
           </p>
 
@@ -274,7 +274,7 @@ export default function BuilderPage() {
 
           {isLoadingCatalog ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
             </div>
           ) : (
             <CatalogView
@@ -293,8 +293,8 @@ export default function BuilderPage() {
       {step === 2 && (
         <div className="space-y-6">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">어떤 서비스를 만들고 싶으세요?</h2>
-            <p className="mt-1 text-sm text-gray-500">
+            <h2 className="text-xl font-bold text-white">어떤 서비스를 만들고 싶으세요?</h2>
+            <p className="mt-1 text-sm text-slate-400">
               선택한 API를 기반으로 AI가 추천한 아이디어를 활용하거나, 직접 입력하세요.
             </p>
           </div>
@@ -309,10 +309,10 @@ export default function BuilderPage() {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-gray-700">서비스 설명</label>
+              <label className="text-sm font-medium text-slate-300">서비스 설명</label>
               {activeSuggestionIndex !== null && (
-                <span className="flex items-center gap-1 text-xs text-blue-500">
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
+                <span className="flex items-center gap-1 text-xs text-cyan-400">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-cyan-400" />
                   추천 {activeSuggestionIndex + 1} 적용됨
                 </span>
               )}
@@ -329,7 +329,7 @@ export default function BuilderPage() {
       {/* Step 3: Generation */}
       {step === 3 && (
         <div className="space-y-6">
-          <h2 className="text-xl font-bold text-gray-900">서비스 생성</h2>
+          <h2 className="text-xl font-bold text-white">서비스 생성</h2>
 
           <GenerationProgress
             status={genStatus}
@@ -350,12 +350,15 @@ export default function BuilderPage() {
       )}
 
       {/* Navigation */}
-      <div className="mt-10 flex items-center justify-between border-t border-gray-200 pt-6">
+      <div
+        className="mt-10 flex items-center justify-between pt-6"
+        style={{ borderTop: '1px solid var(--border)' }}
+      >
         <button
           type="button"
           onClick={() => setStep((s) => Math.max(1, s - 1))}
           disabled={step === 1}
-          className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn-secondary inline-flex items-center gap-1 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ChevronLeft className="h-4 w-4" />
           이전
@@ -366,7 +369,7 @@ export default function BuilderPage() {
             type="button"
             onClick={handleNextStep}
             disabled={(step === 1 && !canProceedStep1) || (step === 2 && !canProceedStep2)}
-            className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="btn-primary inline-flex items-center gap-1 disabled:cursor-not-allowed disabled:opacity-40"
           >
             다음
             <ChevronRight className="h-4 w-4" />
@@ -377,7 +380,7 @@ export default function BuilderPage() {
           <button
             type="button"
             onClick={handleGenerate}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+            className="btn-primary inline-flex items-center gap-2"
           >
             <Sparkles className="h-4 w-4" />
             생성하기
