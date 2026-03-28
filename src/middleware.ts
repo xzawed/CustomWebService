@@ -34,6 +34,7 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   const isApi = path.startsWith('/api/');
+  const isSitePage = path.startsWith('/site/');
   const isPreviewApi = path.startsWith('/api/v1/preview');
 
   // Security headers
@@ -48,8 +49,12 @@ export async function middleware(request: NextRequest) {
     response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
   }
 
-  // CSP — skip for API routes (they set their own, or return JSON)
-  if (!isApi) {
+  // CSP — skip for API routes and /site/* pages (they set their own CSP headers).
+  // /site/* pages serve AI-generated HTML that depends on external CDN resources
+  // (Tailwind, Chart.js, Font Awesome etc.) — the route handler applies a permissive
+  // CSP specifically for those domains. Adding a second, restrictive CSP here would
+  // cause the browser to enforce both, blocking the CDNs.
+  if (!isApi && !isSitePage) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
     const supabaseWs = supabaseUrl.replace(/^https?:\/\//, 'wss://');
     const csp = [
