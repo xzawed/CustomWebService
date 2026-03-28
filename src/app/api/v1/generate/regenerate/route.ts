@@ -134,45 +134,33 @@ export async function POST(request: Request): Promise<Response> {
             message: '코드 수정 시작...',
           });
 
-          // AI 스트리밍 생성 + 타임아웃 — 실시간 진행률 전송
+          // AI 스트리밍 생성 — 실시간 진행률 전송 (타임아웃 없음: 스트리밍 중
+          // 사용자가 진행 상황을 확인 가능하며, 브라우저 종료 시 SSE cancel()로 자동 정리)
           let lastProgressUpdate = Date.now();
           const streamStartTime = Date.now();
 
-          const response = await Promise.race([
-            provider.generateCodeStream(
-              { system: systemPrompt, user: userPrompt },
-              (_chunk: string, accumulated: string) => {
-                if (isCancelled) return;
+          const response = await provider.generateCodeStream(
+            { system: systemPrompt, user: userPrompt },
+            (_chunk: string, accumulated: string) => {
+              if (isCancelled) return;
 
-                const now = Date.now();
-                if (now - lastProgressUpdate < 500) return;
-                lastProgressUpdate = now;
+              const now = Date.now();
+              if (now - lastProgressUpdate < 500) return;
+              lastProgressUpdate = now;
 
-                const estimatedProgress = Math.min(
-                  80,
-                  10 + Math.floor((accumulated.length / 15000) * 70)
-                );
-                const elapsed = Math.floor((now - streamStartTime) / 1000);
+              const estimatedProgress = Math.min(
+                80,
+                10 + Math.floor((accumulated.length / 15000) * 70)
+              );
+              const elapsed = Math.floor((now - streamStartTime) / 1000);
 
-                send('progress', {
-                  step: 'generating_code',
-                  progress: estimatedProgress,
-                  message: `코드 수정 중... (${elapsed}초 경과, ${(accumulated.length / 1024).toFixed(1)}KB)`,
-                });
-              },
-            ),
-            new Promise<never>((_, reject) =>
-              setTimeout(
-                () =>
-                  reject(
-                    new Error(
-                      `코드 생성 제한시간(${limits.generationTimeoutMs / 1000}초)을 초과했습니다.`
-                    )
-                  ),
-                limits.generationTimeoutMs
-              )
-            ),
-          ]);
+              send('progress', {
+                step: 'generating_code',
+                progress: estimatedProgress,
+                message: `코드 수정 중... (${elapsed}초 경과, ${(accumulated.length / 1024).toFixed(1)}KB)`,
+              });
+            },
+          );
 
           if (isCancelled) return;
 
