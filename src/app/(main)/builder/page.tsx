@@ -15,6 +15,8 @@ import GenerationProgress from '@/components/builder/GenerationProgress';
 import PreviewFrame from '@/components/builder/PreviewFrame';
 import ApiRecommendations from '@/components/builder/ApiRecommendations';
 import type { ApiRecommendation } from '@/components/builder/ApiRecommendations';
+import PopularServiceSuggestions from '@/components/builder/PopularServiceSuggestions';
+import type { PopularService } from '@/components/builder/PopularServiceSuggestions';
 import { useApiSelectionStore } from '@/stores/apiSelectionStore';
 import { useContextStore } from '@/stores/contextStore';
 import { useGenerationStore } from '@/stores/generationStore';
@@ -329,6 +331,34 @@ export default function BuilderPage() {
     [setContext, context]
   );
 
+  // === Context-first mode: select popular service ===
+  const handleSelectPopularService = useCallback(
+    (service: PopularService) => {
+      setContext(service.context);
+      // Pre-select APIs if IDs are available
+      if (service.apiIds.length > 0) {
+        clearApis();
+        for (const apiId of service.apiIds) {
+          const api = apis.find((a) => a.id === apiId);
+          if (api) addApi(api);
+        }
+        // Mark as pre-resolved so Step 2 shows pre-selected APIs
+        // instead of calling AI again
+        setApiRecommendations(
+          service.apiIds
+            .map((apiId) => {
+              const api = apis.find((a) => a.id === apiId);
+              return api ? { api, reason: '인기 서비스 추천 API' } : null;
+            })
+            .filter((r): r is ApiRecommendation => r !== null)
+        );
+        setLastRecommendedContext(service.context);
+        setRecommendationsError(false);
+      }
+    },
+    [setContext, clearApis, addApi, apis]
+  );
+
   // === Determine navigation validity ===
   const canProceedStep1 =
     mode === 'api-first' ? selectedApis.length > 0 : isContextValid();
@@ -448,6 +478,11 @@ export default function BuilderPage() {
                   서비스를 설명하면 AI가 가장 적합한 API를 자동으로 찾아줍니다.
                 </p>
               </div>
+
+              {/* Show popular services when context is empty or too short */}
+              {context.length < LIMITS.contextMinLength && (
+                <PopularServiceSuggestions onSelect={handleSelectPopularService} />
+              )}
 
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-300">서비스 설명</label>
