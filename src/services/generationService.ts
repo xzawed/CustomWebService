@@ -7,8 +7,7 @@ import { buildSystemPrompt, buildUserPrompt } from '@/lib/ai/promptBuilder';
 import { parseGeneratedCode } from '@/lib/ai/codeParser';
 import { validateAll } from '@/lib/ai/codeValidator';
 import { eventBus } from '@/lib/events/eventBus';
-import { getLimits } from '@/lib/config/features';
-import { RateLimitError, NotFoundError } from '@/lib/utils/errors';
+import { NotFoundError } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 import type { GeneratedCode } from '@/types/project';
 
@@ -21,14 +20,6 @@ export class GenerationService {
     this.projectRepo = new ProjectRepository(supabase);
     this.catalogRepo = new CatalogRepository(supabase);
     this.codeRepo = new CodeRepository(supabase);
-  }
-
-  async checkDailyLimit(userId: string): Promise<void> {
-    const todayCount = await this.projectRepo.countTodayGenerations(userId);
-    const limits = getLimits();
-    if (todayCount >= limits.maxDailyGenerations) {
-      throw new RateLimitError(`일일 생성 한도(${limits.maxDailyGenerations}회)를 초과했습니다.`);
-    }
   }
 
   async generate(

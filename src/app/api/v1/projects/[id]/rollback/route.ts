@@ -67,7 +67,7 @@ export async function POST(
       tokenUsage: null,
       dependencies: targetCode.dependencies,
       metadata: {
-        ...targetCode.metadata,
+        ...(targetCode.metadata ?? {}),
         rolledBackFrom: targetVersion,
       },
     } as Omit<typeof targetCode, 'id' | 'createdAt'>);

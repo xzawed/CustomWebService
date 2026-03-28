@@ -8,11 +8,17 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const service = new CatalogService(supabase);
 
+    // parseInt with radix avoids NaN from non-numeric strings (e.g., ?page=abc → 1)
+    const rawPage = searchParams.get('page');
+    const rawLimit = searchParams.get('limit');
+    const page = rawPage ? Math.max(1, parseInt(rawPage, 10) || 1) : 1;
+    const limit = rawLimit ? Math.min(100, Math.max(1, parseInt(rawLimit, 10) || 20)) : 20;
+
     const result = await service.search({
       category: searchParams.get('category') ?? undefined,
       search: searchParams.get('search') ?? undefined,
-      page: Number(searchParams.get('page') ?? 1),
-      limit: Number(searchParams.get('limit') ?? 20),
+      page,
+      limit,
     });
 
     return Response.json({ success: true, data: result });

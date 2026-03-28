@@ -62,7 +62,7 @@ export async function POST(request: Request): Promise<Response> {
             user.id,
             platform,
             (progress, message) => {
-              send('progress', { step: message, progress, message });
+              send('progress', { progress, message });
             }
           );
 

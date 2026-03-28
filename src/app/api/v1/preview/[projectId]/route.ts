@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { CodeRepository } from '@/repositories/codeRepository';
 import { ProjectRepository } from '@/repositories/projectRepository';
 import { assembleHtml } from '@/lib/ai/codeParser';
-import { AuthRequiredError, NotFoundError, handleApiError } from '@/lib/utils/errors';
+import { AuthRequiredError, NotFoundError, ValidationError, handleApiError } from '@/lib/utils/errors';
 
 export async function GET(
   request: Request,
@@ -26,7 +26,14 @@ export async function GET(
     // Get version from query params
     const url = new URL(request.url);
     const versionParam = url.searchParams.get('version');
-    const version = versionParam ? Number(versionParam) : undefined;
+    let version: number | undefined;
+    if (versionParam !== null) {
+      const parsed = parseInt(versionParam, 10);
+      if (isNaN(parsed) || parsed < 1) {
+        throw new ValidationError('version은 1 이상의 정수여야 합니다.');
+      }
+      version = parsed;
+    }
 
     const codeRepo = new CodeRepository(supabase);
     const code = await codeRepo.findByProject(projectId, version);

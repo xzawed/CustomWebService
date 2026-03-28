@@ -218,19 +218,22 @@ API 카탈로그 전체 조회
 **Response (SSE - Server-Sent Events):**
 ```
 event: progress
-data: {"step": "analyzing", "progress": 10, "message": "API 분석 중..."}
+data: {"progress": 10, "message": "API 분석 중..."}
 
 event: progress
-data: {"step": "generating_code", "progress": 40, "message": "코드 생성 중..."}
+data: {"progress": 30, "message": "코드 생성 중..."}
 
 event: progress
-data: {"step": "generating_ui", "progress": 70, "message": "UI 디자인 중..."}
+data: {"progress": 70, "message": "코드 파싱 중..."}
 
 event: progress
-data: {"step": "validating", "progress": 90, "message": "코드 검증 중..."}
+data: {"progress": 90, "message": "코드 검증 중..."}
 
 event: complete
-data: {"projectId": "uuid", "version": 1, "previewUrl": "/preview/uuid"}
+data: {"projectId": "uuid", "version": 1, "previewUrl": "/api/v1/preview/uuid"}
+
+event: error
+data: {"message": "코드 생성에 실패했습니다."}
 ```
 
 ### POST /api/v1/generate/regenerate
@@ -249,13 +252,16 @@ data: {"projectId": "uuid", "version": 1, "previewUrl": "/preview/uuid"}
 **Response (SSE):**
 ```
 event: progress
-data: {"step": "analyzing", "progress": 10, "message": "피드백 분석 중..."}
+data: {"progress": 10, "message": "피드백 분석 중..."}
 
 event: progress
-data: {"step": "generating_code", "progress": 30, "message": "코드 수정 중..."}
+data: {"progress": 30, "message": "코드 수정 중..."}
 
 event: complete
 data: {"projectId": "uuid", "version": 2, "previewUrl": "/api/v1/preview/uuid"}
+
+event: error
+data: {"message": "재생성에 실패했습니다."}
 ```
 
 > 프로젝트당 최대 `maxRegenerationsPerProject`(기본 5회) 재생성 가능. 재생성도 일일 생성 횟수에 포함됩니다.
@@ -270,7 +276,14 @@ data: {"projectId": "uuid", "version": 2, "previewUrl": "/api/v1/preview/uuid"}
 **Query Parameters:**
 | 파라미터 | 타입 | 필수 | 설명 |
 |---------|------|------|------|
-| version | number | N | 코드 버전 (기본 최신) |
+| version | number | N | 코드 버전 (기본 최신, 1 이상의 정수) |
+
+| 상태코드 | 설명 |
+|---------|------|
+| 200 | 성공 (text/html) |
+| 400 | version 파라미터가 1 미만이거나 정수가 아님 |
+| 401 | 인증 필요 |
+| 404 | 프로젝트 또는 코드 없음 |
 
 ---
 
@@ -291,16 +304,19 @@ data: {"projectId": "uuid", "version": 2, "previewUrl": "/api/v1/preview/uuid"}
 **Response (SSE):**
 ```
 event: progress
-data: {"step": "creating_repo", "message": "GitHub 저장소 생성 중..."}
+data: {"progress": 10, "message": "GitHub 저장소 생성 중..."}
 
 event: progress
-data: {"step": "pushing_code", "message": "코드 업로드 중..."}
+data: {"progress": 50, "message": "코드 업로드 중..."}
 
 event: progress
-data: {"step": "deploying", "message": "배포 중..."}
+data: {"progress": 80, "message": "배포 중..."}
 
 event: complete
-data: {"deployUrl": "https://svc-abc12345.up.railway.app", "repoUrl": "https://github.com/..."}
+data: {"projectId": "uuid", "deployUrl": "https://svc-abc12345.up.railway.app", "repoUrl": "https://github.com/...", "platform": "railway"}
+
+event: error
+data: {"message": "배포에 실패했습니다."}
 ```
 
 > **참고**: `GET /api/v1/deploy/:projectId/status`는 미구현 상태입니다. 프로젝트 상태는 `GET /api/v1/projects/:id`로 확인하세요.

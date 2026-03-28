@@ -10,7 +10,7 @@ export class CodeRepository extends BaseRepository<GeneratedCode> {
   async findByProject(projectId: string, version?: number): Promise<GeneratedCode | null> {
     let query = this.supabase.from(this.tableName).select('*').eq('project_id', projectId);
 
-    if (version) {
+    if (version !== undefined) {
       query = query.eq('version', version);
     } else {
       query = query.order('version', { ascending: false }).limit(1);

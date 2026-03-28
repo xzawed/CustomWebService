@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GenerationService } from './generationService';
+import { RateLimitService } from './rateLimitService';
 import { RateLimitError, NotFoundError } from '@/lib/utils/errors';
 
 vi.mock('@/repositories/projectRepository', () => ({
@@ -8,6 +9,7 @@ vi.mock('@/repositories/projectRepository', () => ({
     getProjectApiIds: vi.fn(),
     countTodayGenerations: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
   })),
 }));
 
@@ -45,26 +47,30 @@ vi.mock('@/lib/events/eventBus', () => ({
 
 const makeSupabase = () => ({}) as never;
 
-describe('GenerationService.checkDailyLimit()', () => {
-  let service: GenerationService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let projectRepo: any;
-
-  beforeEach(async () => {
+describe('RateLimitService.checkDailyGenerationLimit()', () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    service = new GenerationService(makeSupabase());
-    const { ProjectRepository } = await import('@/repositories/projectRepository');
-    projectRepo = (ProjectRepository as ReturnType<typeof vi.fn>).mock.results[0].value;
   });
 
+  async function makeService() {
+    const service = new RateLimitService(makeSupabase());
+    const { ProjectRepository } = await import('@/repositories/projectRepository');
+    // Last mock instance corresponds to the just-created service
+    const instances = (ProjectRepository as ReturnType<typeof vi.fn>).mock.results;
+    const projectRepo = instances[instances.length - 1].value;
+    return { service, projectRepo };
+  }
+
   it('일일 한도(10회)를 초과하면 RateLimitError를 던진다', async () => {
+    const { service, projectRepo } = await makeService();
     projectRepo.countTodayGenerations.mockResolvedValue(10);
-    await expect(service.checkDailyLimit('user-1')).rejects.toThrow(RateLimitError);
+    await expect(service.checkDailyGenerationLimit('user-1')).rejects.toThrow(RateLimitError);
   });
 
   it('한도 미만이면 통과한다', async () => {
+    const { service, projectRepo } = await makeService();
     projectRepo.countTodayGenerations.mockResolvedValue(9);
-    await expect(service.checkDailyLimit('user-1')).resolves.toBeUndefined();
+    await expect(service.checkDailyGenerationLimit('user-1')).resolves.toBeUndefined();
   });
 });
 
