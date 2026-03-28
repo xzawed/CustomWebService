@@ -57,31 +57,35 @@ export async function POST(request: Request): Promise<Response> {
     const rateLimitService = new RateLimitService(supabase);
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
-    // Get project and verify ownership
+    // 병렬 DB 조회: 프로젝트 정보 + API ID를 동시에 가져옴
     const projectService = new ProjectService(supabase);
-    const project = await projectService.getById(projectId, user.id);
+    const [project, apiIds] = await Promise.all([
+      projectService.getById(projectId, user.id),
+      projectService.getProjectApiIds(projectId),
+    ]);
 
-    // Fetch project's APIs for context injection
-    const apiIds = await projectService.getProjectApiIds(projectId);
     const catalogService = new CatalogService(supabase);
     const projectApis = apiIds.length > 0 ? await catalogService.getByIds(apiIds) : [];
 
-    // Check regeneration limit per project
+    // Check regeneration limit per project + get previous code (병렬)
     const codeRepo = new CodeRepository(supabase);
     const limits = getLimits();
-    const currentVersion = await codeRepo.getNextVersion(projectId);
+    const [currentVersion, previousCode] = await Promise.all([
+      codeRepo.getNextVersion(projectId),
+      codeRepo.findByProject(projectId),
+    ]);
+
     if (currentVersion - 1 >= limits.maxRegenerationsPerProject) {
       throw new RateLimitError(
         `프로젝트당 최대 재생성 횟수(${limits.maxRegenerationsPerProject}회)를 초과했습니다.`
       );
     }
 
-    // Get latest generated code to base regeneration on
-    const previousCode = await codeRepo.findByProject(projectId);
     if (!previousCode) {
       throw new NotFoundError('재생성할 기존 코드가 없습니다. 먼저 코드를 생성해주세요.');
     }
 
+    // 시스템 프롬프트 캐시 사용
     const systemPrompt = buildSystemPrompt();
     const userPrompt = buildRegenerationPrompt(
       { html: previousCode.codeHtml, css: previousCode.codeCss, js: previousCode.codeJs },
@@ -110,9 +114,11 @@ export async function POST(request: Request): Promise<Response> {
         let provider: IAiProvider | undefined;
 
         try {
-          send('progress', { step: 'analyzing', progress: 10, message: '피드백 분석 중...' });
-
-          send('progress', { step: 'generating_code', progress: 30, message: '코드 수정 중...' });
+          send('progress', {
+            step: 'analyzing',
+            progress: 5,
+            message: '피드백 분석 중...',
+          });
 
           try {
             provider = AiProviderFactory.create();
@@ -122,9 +128,39 @@ export async function POST(request: Request): Promise<Response> {
             );
           }
 
-          // H3: Enforce generation timeout — prevents SSE streams from hanging indefinitely
+          send('progress', {
+            step: 'generating_code',
+            progress: 10,
+            message: '코드 수정 시작...',
+          });
+
+          // AI 스트리밍 생성 + 타임아웃 — 실시간 진행률 전송
+          let lastProgressUpdate = Date.now();
+          const streamStartTime = Date.now();
+
           const response = await Promise.race([
-            provider.generateCode({ system: systemPrompt, user: userPrompt }),
+            provider.generateCodeStream(
+              { system: systemPrompt, user: userPrompt },
+              (_chunk: string, accumulated: string) => {
+                if (isCancelled) return;
+
+                const now = Date.now();
+                if (now - lastProgressUpdate < 500) return;
+                lastProgressUpdate = now;
+
+                const estimatedProgress = Math.min(
+                  80,
+                  10 + Math.floor((accumulated.length / 15000) * 70)
+                );
+                const elapsed = Math.floor((now - streamStartTime) / 1000);
+
+                send('progress', {
+                  step: 'generating_code',
+                  progress: estimatedProgress,
+                  message: `코드 수정 중... (${elapsed}초 경과, ${(accumulated.length / 1024).toFixed(1)}KB)`,
+                });
+              },
+            ),
             new Promise<never>((_, reject) =>
               setTimeout(
                 () =>
@@ -140,7 +176,7 @@ export async function POST(request: Request): Promise<Response> {
 
           if (isCancelled) return;
 
-          send('progress', { step: 'styling', progress: 70, message: '디자인 적용 중...' });
+          send('progress', { step: 'styling', progress: 85, message: '디자인 적용 중...' });
 
           const parsed = parseGeneratedCode(response.content);
 
@@ -178,12 +214,10 @@ export async function POST(request: Request): Promise<Response> {
             },
           } as Parameters<typeof codeRepo.create>[0]);
 
-          // Prune versions beyond the per-project cap (best-effort)
-          try {
-            await codeRepo.pruneOldVersions(projectId, limits.maxCodeVersionsPerProject);
-          } catch (pruneErr) {
+          // 버전 정리를 비동기로 실행 — SSE 응답을 블로킹하지 않음
+          codeRepo.pruneOldVersions(projectId, limits.maxCodeVersionsPerProject).catch((pruneErr) => {
             logger.warn('Failed to prune old code versions', { projectId, pruneErr });
-          }
+          });
 
           // C2: Compensating rollback — delete orphaned code if status update fails
           try {

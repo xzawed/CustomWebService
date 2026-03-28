@@ -143,7 +143,10 @@ async function setupHappyPath() {
   const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
   (AiProviderFactory.create as ReturnType<typeof vi.fn>).mockReturnValue({
     name: 'xai',
-    generateCode: vi.fn().mockResolvedValue(mockAiResponse),
+    generateCodeStream: vi.fn().mockImplementation((_prompt: unknown, onChunk: (chunk: string, accumulated: string) => void) => {
+      onChunk(mockAiResponse.content, mockAiResponse.content);
+      return Promise.resolve(mockAiResponse);
+    }),
   });
 }
 
@@ -255,7 +258,7 @@ describe('POST /api/v1/generate', () => {
     const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
     (AiProviderFactory.create as ReturnType<typeof vi.fn>).mockReturnValue({
       name: 'xai',
-      generateCode: vi.fn().mockRejectedValue(new Error('AI service unavailable')),
+      generateCodeStream: vi.fn().mockRejectedValue(new Error('AI service unavailable')),
     });
 
     const { RateLimitService } = await import('@/services/rateLimitService');

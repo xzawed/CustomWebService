@@ -1,6 +1,16 @@
 import type { ApiCatalogItem } from '@/types/api';
 
+// 시스템 프롬프트 모듈 레벨 캐싱 — 매 요청마다 재생성하지 않음
+let cachedSystemPrompt: string | null = null;
+
 export function buildSystemPrompt(): string {
+  if (cachedSystemPrompt) return cachedSystemPrompt;
+
+  cachedSystemPrompt = _buildSystemPrompt();
+  return cachedSystemPrompt;
+}
+
+function _buildSystemPrompt(): string {
   return `당신은 세계 최고 수준의 프론트엔드 개발자입니다. Notion, Linear, Vercel Dashboard처럼 실제 서비스에서 사용되는 완성도 높은 웹앱을 단일 HTML 파일로 생성합니다.
 
 ## 핵심 목표: 진짜 완성된 제품

@@ -53,11 +53,13 @@ export async function POST(request: Request): Promise<Response> {
     const rateLimitService = new RateLimitService(supabase);
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
-    // Get project and APIs
+    // 병렬 DB 조회: 프로젝트 정보 + API ID를 동시에 가져옴
     const projectService = new ProjectService(supabase);
-    const project = await projectService.getById(projectId, user.id);
+    const [project, apiIds] = await Promise.all([
+      projectService.getById(projectId, user.id),
+      projectService.getProjectApiIds(projectId),
+    ]);
 
-    const apiIds = await projectService.getProjectApiIds(projectId);
     if (apiIds.length === 0) {
       throw new ValidationError('프로젝트에 연결된 API가 없습니다.');
     }
@@ -68,7 +70,7 @@ export async function POST(request: Request): Promise<Response> {
       throw new ValidationError('선택된 API 정보를 찾을 수 없습니다.');
     }
 
-    // Build prompt
+    // Build prompt (시스템 프롬프트는 모듈 레벨 캐시 사용)
     const systemPrompt = buildSystemPrompt();
     const userPrompt = buildUserPrompt(apis, project.context);
     const limits = getLimits();
@@ -96,14 +98,8 @@ export async function POST(request: Request): Promise<Response> {
         try {
           send('progress', {
             step: 'analyzing',
-            progress: 10,
+            progress: 5,
             message: 'API 분석 중...',
-          });
-
-          send('progress', {
-            step: 'generating_code',
-            progress: 30,
-            message: '코드 생성 중...',
           });
 
           try {
@@ -114,9 +110,41 @@ export async function POST(request: Request): Promise<Response> {
             );
           }
 
-          // H3: Enforce generation timeout — prevents SSE streams from hanging indefinitely
+          send('progress', {
+            step: 'generating_code',
+            progress: 10,
+            message: '코드 생성 시작...',
+          });
+
+          // AI 스트리밍 생성 + 타임아웃 — 실시간 진행률 전송
+          let lastProgressUpdate = Date.now();
+          const streamStartTime = Date.now();
+
           const response = await Promise.race([
-            provider.generateCode({ system: systemPrompt, user: userPrompt }),
+            provider.generateCodeStream(
+              { system: systemPrompt, user: userPrompt },
+              (_chunk: string, accumulated: string) => {
+                if (isCancelled) return;
+
+                // 500ms마다 진행률 업데이트 (너무 자주 보내지 않음)
+                const now = Date.now();
+                if (now - lastProgressUpdate < 500) return;
+                lastProgressUpdate = now;
+
+                // 실시간 진행률: 누적 길이 기반 추정 (10% ~ 80%)
+                const estimatedProgress = Math.min(
+                  80,
+                  10 + Math.floor((accumulated.length / 15000) * 70)
+                );
+                const elapsed = Math.floor((now - streamStartTime) / 1000);
+
+                send('progress', {
+                  step: 'generating_code',
+                  progress: estimatedProgress,
+                  message: `코드 생성 중... (${elapsed}초 경과, ${(accumulated.length / 1024).toFixed(1)}KB)`,
+                });
+              },
+            ),
             new Promise<never>((_, reject) =>
               setTimeout(
                 () =>
@@ -134,7 +162,7 @@ export async function POST(request: Request): Promise<Response> {
 
           send('progress', {
             step: 'styling',
-            progress: 70,
+            progress: 85,
             message: '디자인 적용 중...',
           });
 
@@ -178,12 +206,10 @@ export async function POST(request: Request): Promise<Response> {
             },
           } as Parameters<typeof codeRepo.create>[0]);
 
-          // Prune versions beyond the per-project cap (best-effort — don't fail generation)
-          try {
-            await codeRepo.pruneOldVersions(projectId, limits.maxCodeVersionsPerProject);
-          } catch (pruneErr) {
+          // 버전 정리를 비동기로 실행 — SSE 응답을 블로킹하지 않음
+          codeRepo.pruneOldVersions(projectId, limits.maxCodeVersionsPerProject).catch((pruneErr) => {
             logger.warn('Failed to prune old code versions', { projectId, pruneErr });
-          }
+          });
 
           // C2: Compensating rollback — if status update fails after code is saved,
           // delete the orphaned code record to keep the DB consistent.

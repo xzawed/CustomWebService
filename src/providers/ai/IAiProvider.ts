@@ -13,11 +13,22 @@ export interface AiResponse {
   durationMs: number;
 }
 
+export interface AiStreamResult {
+  content: string;
+  tokensUsed: { input: number; output: number };
+  model: string;
+  provider: string;
+  durationMs: number;
+}
+
 export interface IAiProvider {
   readonly name: string;
   readonly model: string;
 
   generateCode(prompt: AiPrompt): Promise<AiResponse>;
-  generateCodeStream(prompt: AiPrompt): AsyncGenerator<string>;
+  generateCodeStream(
+    prompt: AiPrompt,
+    onChunk: (chunk: string, accumulated: string) => void,
+  ): Promise<AiStreamResult>;
   checkAvailability(): Promise<{ available: boolean; remainingQuota?: number }>;
 }
