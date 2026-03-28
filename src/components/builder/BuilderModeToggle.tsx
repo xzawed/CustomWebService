@@ -1,46 +1,51 @@
 'use client';
 
-import { MousePointerClick, Search } from 'lucide-react';
+import { MousePointerClick, Search, RotateCcw } from 'lucide-react';
 import type { BuilderMode } from '@/stores/builderModeStore';
 
 interface BuilderModeToggleProps {
   mode: BuilderMode;
-  onChange: (mode: BuilderMode) => void;
+  onReset: () => void;
   disabled?: boolean;
 }
 
-export default function BuilderModeToggle({ mode, onChange, disabled }: BuilderModeToggleProps) {
+export default function BuilderModeToggle({ mode, onReset, disabled }: BuilderModeToggleProps) {
+  const isApiFirst = mode === 'api-first';
+
   return (
-    <div className={`mb-8 flex flex-col items-center gap-3 ${disabled ? 'pointer-events-none opacity-50' : ''}`}>
-      <p className="text-xs font-medium text-slate-400">빌드 모드 선택</p>
-      <div className="inline-flex rounded-xl border border-white/[0.06] bg-[#0f1629] p-1">
-        <button
-          type="button"
-          onClick={() => onChange('api-first')}
-          disabled={disabled}
-          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all ${
-            mode === 'api-first'
-              ? 'bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-cyan-400 shadow-lg shadow-cyan-500/10'
-              : 'text-slate-400 hover:text-slate-200'
+    <div className={`mb-6 flex items-center justify-between ${disabled ? 'pointer-events-none opacity-50' : ''}`}>
+      <div className="flex items-center gap-2.5">
+        <div
+          className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+            isApiFirst
+              ? 'bg-cyan-500/10 text-cyan-400'
+              : 'bg-violet-500/10 text-violet-400'
           }`}
         >
-          <MousePointerClick className="h-4 w-4" />
-          API 선택 → 서비스 설명
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange('context-first')}
-          disabled={disabled}
-          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all ${
-            mode === 'context-first'
-              ? 'bg-gradient-to-r from-violet-500/20 to-rose-500/20 text-violet-400 shadow-lg shadow-violet-500/10'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <Search className="h-4 w-4" />
-          서비스 설명 → API 자동매칭
-        </button>
+          {isApiFirst ? (
+            <MousePointerClick className="h-4 w-4" />
+          ) : (
+            <Search className="h-4 w-4" />
+          )}
+        </div>
+        <div>
+          <span className="text-sm font-semibold text-white">
+            {isApiFirst ? 'API 직접 선택' : '아이디어로 시작'}
+          </span>
+          <span className="ml-2 text-xs text-slate-500">
+            {isApiFirst ? 'API 선택 → 서비스 설명 → 생성' : '서비스 설명 → API 매칭 → 생성'}
+          </span>
+        </div>
       </div>
+      <button
+        type="button"
+        onClick={onReset}
+        disabled={disabled}
+        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-white"
+      >
+        <RotateCcw className="h-3 w-3" />
+        방식 변경
+      </button>
     </div>
   );
 }

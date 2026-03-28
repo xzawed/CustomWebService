@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { CatalogView } from '@/components/catalog/CatalogView';
 import StepIndicator from '@/components/builder/StepIndicator';
+import BuilderModeSelector from '@/components/builder/BuilderModeSelector';
 import BuilderModeToggle from '@/components/builder/BuilderModeToggle';
 import SelectedApiZone from '@/components/builder/SelectedApiZone';
 import ContextInput from '@/components/builder/ContextInput';
@@ -31,6 +32,7 @@ const STEPS_CONTEXT_FIRST = [{ label: '서비스 설명' }, { label: 'API 매칭
 
 export default function BuilderPage() {
   const router = useRouter();
+  const [modeConfirmed, setModeConfirmed] = useState(false);
   const [step, setStep] = useState(1);
   const [apis, setApis] = useState<ApiCatalogItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -105,10 +107,11 @@ export default function BuilderPage() {
     return () => abortCtrl.abort();
   }, []);
 
-  // Reset step when mode changes
-  const handleModeChange = useCallback(
-    (newMode: BuilderMode) => {
-      setMode(newMode);
+  // === Mode selection from big cards ===
+  const handleModeSelect = useCallback(
+    (selectedMode: BuilderMode) => {
+      setMode(selectedMode);
+      setModeConfirmed(true);
       setStep(1);
       clearApis();
       resetContext();
@@ -120,6 +123,20 @@ export default function BuilderPage() {
     },
     [setMode, clearApis, resetContext]
   );
+
+  // === Go back to mode selection ===
+  const handleResetMode = useCallback(() => {
+    setModeConfirmed(false);
+    setStep(1);
+    clearApis();
+    resetContext();
+    resetGeneration();
+    setSuggestions([]);
+    setApiRecommendations([]);
+    setRecommendationsError(false);
+    setLastRecommendedContext(null);
+    setActiveSuggestionIndex(null);
+  }, [clearApis, resetContext, resetGeneration]);
 
   const handleGenerate = useCallback(async () => {
     startGeneration();
@@ -289,12 +306,19 @@ export default function BuilderPage() {
       fetchSuggestions();
     }
     if (mode === 'context-first' && step === 1) {
-      // Only re-fetch if context changed since last recommendation
       if (context !== lastRecommendedContext) {
         fetchApiRecommendations();
       }
     }
   }, [step, mode, context, lastRecommendedContext, fetchSuggestions, fetchApiRecommendations]);
+
+  const handlePrevStep = useCallback(() => {
+    if (step === 1) {
+      handleResetMode();
+    } else {
+      setStep((s) => Math.max(1, s - 1));
+    }
+  }, [step, handleResetMode]);
 
   const handleSelectSuggestion = useCallback(
     (suggestion: string, index: number) => {
@@ -335,15 +359,12 @@ export default function BuilderPage() {
   const handleSelectPopularService = useCallback(
     (service: PopularService) => {
       setContext(service.context);
-      // Pre-select APIs if IDs are available
       if (service.apiIds.length > 0) {
         clearApis();
         for (const apiId of service.apiIds) {
           const api = apis.find((a) => a.id === apiId);
           if (api) addApi(api);
         }
-        // Mark as pre-resolved so Step 2 shows pre-selected APIs
-        // instead of calling AI again
         setApiRecommendations(
           service.apiIds
             .map((apiId) => {
@@ -365,9 +386,27 @@ export default function BuilderPage() {
   const canProceedStep2 =
     mode === 'api-first' ? isContextValid() : selectedApis.length > 0;
 
+  // ======================================================
+  // MODE SELECTION SCREEN (entry point)
+  // ======================================================
+  if (!modeConfirmed) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-8">
+        <BuilderModeSelector onSelect={handleModeSelect} />
+      </div>
+    );
+  }
+
+  // ======================================================
+  // BUILDER FLOW (after mode is confirmed)
+  // ======================================================
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <BuilderModeToggle mode={mode} onChange={handleModeChange} disabled={step === 3 && genStatus !== 'idle'} />
+      <BuilderModeToggle
+        mode={mode}
+        onReset={handleResetMode}
+        disabled={step === 3 && genStatus !== 'idle'}
+      />
       <StepIndicator currentStep={step} steps={steps} />
 
       {/* ===================== API-FIRST MODE ===================== */}
@@ -579,12 +618,11 @@ export default function BuilderPage() {
       >
         <button
           type="button"
-          onClick={() => setStep((s) => Math.max(1, s - 1))}
-          disabled={step === 1}
-          className="btn-secondary inline-flex items-center gap-1 disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={handlePrevStep}
+          className="btn-secondary inline-flex items-center gap-1"
         >
           <ChevronLeft className="h-4 w-4" />
-          이전
+          {step === 1 ? '방식 선택' : '이전'}
         </button>
 
         {step < 3 && (
