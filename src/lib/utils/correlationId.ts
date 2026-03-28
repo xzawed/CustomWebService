@@ -1,5 +1,5 @@
-import { randomUUID } from 'crypto';
-
+// Use the Web Crypto API (globalThis.crypto) which is available in both
+// Node.js 19+ and the Edge Runtime — avoids importing the Node.js 'crypto' module.
 const HEADER_NAME = 'x-correlation-id';
 
 /**
@@ -11,7 +11,7 @@ export function getCorrelationId(request?: Request): string {
     const fromHeader = request.headers.get(HEADER_NAME);
     if (fromHeader) return fromHeader;
   }
-  return randomUUID();
+  return globalThis.crypto.randomUUID();
 }
 
 /**
