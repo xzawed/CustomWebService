@@ -32,7 +32,7 @@ export default function ApiRecommendations({
       <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-6">
         <div className="flex items-center gap-3 text-violet-400">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-sm font-medium">AI가 서비스에 적합��� API를 찾고 있습니다...</span>
+          <span className="text-sm font-medium">AI가 서비스에 적합한 API를 찾고 있습니다...</span>
         </div>
       </div>
     );
