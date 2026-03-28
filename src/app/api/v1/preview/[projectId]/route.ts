@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { CodeRepository } from '@/repositories/codeRepository';
 import { ProjectRepository } from '@/repositories/projectRepository';
 import { assembleHtml } from '@/lib/ai/codeParser';
@@ -16,8 +16,9 @@ export async function GET(
     } = await supabase.auth.getUser();
     if (!user) throw new AuthRequiredError();
 
-    // Verify ownership
-    const projectRepo = new ProjectRepository(supabase);
+    // Verify ownership using service client to bypass RLS auth context issues
+    const serviceSupabase = await createServiceClient();
+    const projectRepo = new ProjectRepository(serviceSupabase);
     const project = await projectRepo.findById(projectId);
     if (!project || project.userId !== user.id) {
       throw new NotFoundError('프로젝트', projectId);
@@ -35,7 +36,7 @@ export async function GET(
       version = parsed;
     }
 
-    const codeRepo = new CodeRepository(supabase);
+    const codeRepo = new CodeRepository(serviceSupabase);
     const code = await codeRepo.findByProject(projectId, version);
     if (!code) {
       throw new NotFoundError('생성된 코드', projectId);
