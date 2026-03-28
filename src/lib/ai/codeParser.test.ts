@@ -47,10 +47,11 @@ describe('parseGeneratedCode', () => {
 });
 
 describe('assembleHtml', () => {
-  it('이미 <style>과 <script>가 있는 완전한 HTML은 그대로 반환한다', () => {
+  it('이미 <style>과 <script>가 있어도 별도 CSS/JS를 추가 주입한다', () => {
     const html = '<html><head><style>a{}</style></head><body><script>var x</script></body></html>';
     const result = assembleHtml({ html, css: 'body{}', js: 'alert()' });
-    expect(result).toBe(html);
+    expect(result).toContain('<style>\nbody{}\n</style>');
+    expect(result).toContain('<script>\nalert()\n</script>');
   });
 
   it('</head>가 있는 HTML에 CSS를 주입한다', () => {

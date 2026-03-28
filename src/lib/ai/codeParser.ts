@@ -37,12 +37,7 @@ function sanitizeCss(css: string): string {
 export function assembleHtml(parsed: ParsedCode): string {
   const safeCss = parsed.css ? sanitizeCss(parsed.css) : '';
 
-  // If HTML already contains <style> and <script>, return as-is
-  if (parsed.html.includes('<style>') && parsed.html.includes('<script>')) {
-    return parsed.html;
-  }
-
-  // If HTML is a full document, inject CSS and JS
+  // If HTML is a full document, inject additional CSS and JS
   if (parsed.html.includes('</head>')) {
     let assembled = parsed.html;
 
