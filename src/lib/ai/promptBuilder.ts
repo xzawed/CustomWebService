@@ -101,19 +101,81 @@ body { font-family: 'Pretendard', -apple-system, sans-serif; background: var(--b
 </div>
 \`\`\`
 
-### 5. 모달 시스템 (필수 구현)
-- 항목 추가 모달: 폼 필드 3개 이상, 유효성 검사
-- 항목 상세 모달: 전체 정보 + 편집 버튼
-- 삭제 확인 모달: "정말 삭제하시겠습니까?"
-- 배경 클릭 또는 ESC 키로 닫기
+### 5. 상세보기 시스템 (모든 항목에 필수)
+**카드, 테이블 행, 리스트 항목 — 모든 클릭 가능한 요소는 반드시 상세보기를 제공해야 합니다.**
 
-### 6. 사이드바 패널 (선택 항목 클릭 시)
-오른쪽에서 슬라이드인 되는 상세 패널:
-\`\`\`css
-.sidebar { position:fixed; right:0; top:0; height:100vh; width:400px; background:var(--bg-card);
-  transform:translateX(100%); transition:transform 0.3s ease; z-index:200; }
-.sidebar.open { transform:translateX(0); }
+#### 5-1. 상세 모달 (기본 패턴)
+\`\`\`javascript
+// 상세 데이터를 풍부하게 표시하는 모달
+function openDetail(item) {
+  const modal = document.getElementById('detailModal');
+  const content = document.getElementById('detailContent');
+  // innerHTML 대신 createElement로 구성
+  content.innerHTML = '';
+
+  // 상단: 카테고리 배지 + 제목 + 날짜
+  const header = document.createElement('div');
+  header.style.cssText = 'padding:28px 32px; border-bottom:1px solid var(--border);';
+  // ... 제목, 배지, 메타 정보 추가
+
+  // 본문: 전체 내용 (뉴스면 전문, 상품이면 스펙, 데이터면 모든 필드)
+  const body = document.createElement('div');
+  body.style.cssText = 'padding:28px 32px; overflow-y:auto; max-height:60vh;';
+
+  // 하단: 액션 버튼 (북마크, 공유, 편집, 삭제 등)
+  const footer = document.createElement('div');
+  footer.style.cssText = 'padding:16px 32px; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end;';
+
+  content.append(header, body, footer);
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
 \`\`\`
+
+상세 모달 HTML 구조:
+\`\`\`html
+<div id="detailModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center; padding:20px;"
+     onclick="if(event.target===this) closeDetail()">
+  <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:16px; width:100%; max-width:720px; max-height:90vh; display:flex; flex-direction:column; overflow:hidden;">
+    <!-- 닫기 버튼 -->
+    <button onclick="closeDetail()" style="position:absolute; top:16px; right:16px; background:var(--bg-surface); border:none; width:32px; height:32px; border-radius:50%; color:var(--text-2); cursor:pointer; font-size:18px;">×</button>
+    <div id="detailContent" style="overflow-y:auto;"></div>
+  </div>
+</div>
+\`\`\`
+
+#### 5-2. 상세보기 포함 내용 (서비스 유형별)
+- **뉴스/미디어**: 카테고리 배지, 제목(대형), 출처+날짜+작성자, 본문 전체(3~5단락), 태그, 관련 뉴스 3개
+- **상품/쇼핑**: 상품명, 가격, 상세 스펙 테이블, 이미지 갤러리, 리뷰 목록, 구매 버튼
+- **날씨/과학 데이터**: 측정값 상세, 시간별 추이 미니 차트, 위치 정보, 관련 지표
+- **사람/프로필**: 아바타, 이름, 상세 정보 필드, 활동 이력, 연락처 버튼
+- **금융/주식**: 종목 상세, 가격 차트, 재무 지표 테이블, 뉴스 연동
+- **일정/할일**: 제목, 설명, 날짜/시간, 우선순위, 담당자, 하위 항목 목록
+
+#### 5-3. 항목 추가 모달
+- 폼 필드 3개 이상, 실시간 유효성 검사
+- 제출 시 목록에 즉시 추가 + 토스트 알림
+
+#### 5-4. 삭제 확인 모달
+- "정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+- 취소 / 삭제 버튼
+
+모달 공통: 배경 클릭 또는 ESC 키로 닫기
+\`\`\`javascript
+document.addEventListener('keydown', e => { if(e.key === 'Escape') { closeDetail(); closeAddModal(); } });
+\`\`\`
+
+### 6. 사이드 패널 상세보기 (대안 — 넓은 화면에서 선택 가능)
+오른쪽에서 슬라이드인되는 패널 (모달 대신 사용 가능):
+\`\`\`css
+.detail-panel { position:fixed; right:0; top:0; height:100vh; width:480px; background:var(--bg-card);
+  border-left:1px solid var(--border); transform:translateX(100%); transition:transform 0.3s ease;
+  z-index:300; overflow-y:auto; }
+.detail-panel.open { transform:translateX(0); }
+.panel-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:299; display:none; }
+.panel-overlay.open { display:block; }
+\`\`\`
+패널 내부: 상단 고정 헤더(닫기 버튼) + 스크롤 가능한 상세 내용 + 하단 고정 액션 버튼
 
 ### 7. 토스트 알림 (모든 액션에 표시)
 \`\`\`javascript
@@ -232,13 +294,16 @@ ${context}
 - [ ] 데이터 목록/테이블 (20개 이상 목 데이터, 정렬 기능)
 - [ ] 실시간 검색바 (타이핑 즉시 필터링)
 - [ ] 카테고리/상태 필터 드롭다운
+- [ ] **항목 상세보기 (필수 — 모든 카드/행/항목 클릭 시 상세 모달 또는 사이드 패널 열림)**
+  - 상세보기에는 해당 항목의 모든 정보를 풍부하게 표시
+  - 뉴스: 본문 전체 + 관련 뉴스 3개 / 상품: 스펙 + 리뷰 / 데이터: 모든 필드 + 차트
+  - 상세보기 내 액션 버튼: 북마크, 공유, 편집, 삭제 등 서비스에 맞는 버튼
 - [ ] 항목 추가 모달 (폼 + 유효성 검사 + 실제 목록 추가)
-- [ ] 항목 상세 보기 (모달 또는 사이드 패널)
 - [ ] 삭제 기능 (확인 다이얼로그 포함)
 - [ ] 토스트 알림 (모든 액션 후 피드백)
 - [ ] Chart.js 차트 1개 이상 (서비스 맥락에 맞는 시각화)
 - [ ] 페이지네이션 (10개 단위)
-- [ ] 반응형 레이아웃
+- [ ] 반응형 레이아웃 (모바일: 상세보기 전체화면 모달)
 
 ### API 호출
 - auth_type이 'api_key'인 API → 반드시 /api/v1/proxy?apiId=... 프록시 사용
@@ -306,6 +371,7 @@ ${feedback}
 위 피드백을 반영하여 코드를 수정해주세요.
 - 수정 요청에 언급되지 않은 기존 기능은 그대로 유지하세요.
 - 위에 명시된 API가 코드에 없다면 자연스럽게 통합해주세요.
+- 카드/테이블 행/리스트 항목 등 모든 클릭 가능한 요소에 상세보기(모달 또는 사이드 패널)가 없다면 추가해주세요.
 - 전체 코드를 반환해주세요.
 
 다음 형식으로 코드를 반환해주세요:
