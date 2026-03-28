@@ -22,7 +22,7 @@ const DEFAULT_LIMITS: FeatureLimits = {
   maxRegenerationsPerProject: env('MAX_REGENERATIONS', 5),
   contextMinLength: env('CONTEXT_MIN_LENGTH', 50),
   contextMaxLength: env('CONTEXT_MAX_LENGTH', 2000),
-  generationTimeoutMs: env('GENERATION_TIMEOUT_MS', 120000),
+  generationTimeoutMs: env('GENERATION_TIMEOUT_MS', 180000),
 };
 
 const PLAN_OVERRIDES: Record<string, Partial<FeatureLimits>> = {
