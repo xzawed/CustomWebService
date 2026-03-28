@@ -170,8 +170,16 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
     return error502('외부 API 서버에 연결할 수 없습니다.');
   }
 
-  const contentType = upstream.headers.get('content-type') ?? 'application/json';
+  const rawContentType = upstream.headers.get('content-type') ?? 'application/json';
   const body = await upstream.text();
+
+  // Ensure text responses always carry charset=utf-8 so Korean content renders correctly.
+  // Binary types (image/*, application/octet-stream, etc.) are left unchanged.
+  const isTextType = /^(text\/|application\/(json|xml|javascript|x-www-form-urlencoded))/.test(rawContentType);
+  const contentType =
+    isTextType && !rawContentType.toLowerCase().includes('charset')
+      ? `${rawContentType}; charset=utf-8`
+      : rawContentType;
 
   return new Response(body, {
     status: upstream.status,

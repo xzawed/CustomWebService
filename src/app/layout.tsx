@@ -17,6 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko" data-theme="sky">
       <head>
+        <meta charSet="utf-8" />
         {/* Prevent flash of wrong theme by applying saved theme before hydration */}
         <script
           dangerouslySetInnerHTML={{

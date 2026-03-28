@@ -211,7 +211,7 @@ describe('POST /api/v1/generate', () => {
     const response = await POST(makeRequest({ projectId: 'proj-1' }));
 
     expect(response.status).toBe(200);
-    expect(response.headers.get('Content-Type')).toBe('text/event-stream');
+    expect(response.headers.get('Content-Type')).toBe('text/event-stream; charset=utf-8');
     expect(response.headers.get('Cache-Control')).toBe('no-cache');
   });
 

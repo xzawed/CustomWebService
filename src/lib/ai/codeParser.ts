@@ -46,6 +46,20 @@ export function assembleHtml(parsed: ParsedCode): string {
   if (parsed.html.includes('</head>')) {
     let assembled = parsed.html;
 
+    // Ensure charset=UTF-8 is declared — AI sometimes omits it or uses a different encoding
+    const hasCharset =
+      /<meta\s[^>]*charset/i.test(assembled) ||
+      /<meta\s[^>]*http-equiv\s*=\s*["']?content-type/i.test(assembled);
+    if (!hasCharset) {
+      const headIdx = assembled.indexOf('<head>');
+      if (headIdx !== -1) {
+        assembled =
+          assembled.slice(0, headIdx + '<head>'.length) +
+          '\n  <meta charset="UTF-8">' +
+          assembled.slice(headIdx + '<head>'.length);
+      }
+    }
+
     if (safeCss) {
       const headIdx = assembled.lastIndexOf('</head>');
       assembled =
