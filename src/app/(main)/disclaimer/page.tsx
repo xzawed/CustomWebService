@@ -8,7 +8,7 @@ export default function DisclaimerPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
       <h1 className="mb-8 text-3xl font-bold text-gray-900">면책 조항</h1>
-      <p className="mb-8 text-sm text-gray-500">최종 수정일: 2026-03-26</p>
+      <p className="mb-8 text-sm text-gray-500">최종 수정일: 2026-03-28</p>
 
       <div className="space-y-8 text-gray-700 leading-relaxed">
         <section>
@@ -47,6 +47,23 @@ export default function DisclaimerPage() {
           <ul className="list-disc space-y-2 pl-6">
             <li>무료 서비스 특성상 데이터 백업을 보장하지 않습니다.</li>
             <li>중요한 데이터는 사용자가 별도 백업해야 합니다.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-xl font-semibold text-gray-900">5. 법적 한계</h2>
+          <ul className="list-disc space-y-2 pl-6">
+            <li>
+              본 서비스를 통해 생성된 웹서비스는 어떠한 법적 조언, 의료 조언, 금융 조언도
+              제공하지 않습니다.
+            </li>
+            <li>
+              생성된 서비스를 통해 제공되는 정보의 정확성·최신성·완전성을 보장하지 않습니다.
+            </li>
+            <li>
+              서비스 이용으로 인해 발생한 직접적·간접적·부수적 손해에 대해 서비스 제공자는
+              법률상 허용되는 최대 범위 내에서 책임을 제한합니다.
+            </li>
           </ul>
         </section>
       </div>

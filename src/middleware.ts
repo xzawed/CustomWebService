@@ -27,13 +27,41 @@ export async function middleware(request: NextRequest) {
 
   const response = await updateSession(request);
 
+  const path = request.nextUrl.pathname;
+  const isApi = path.startsWith('/api/');
+  const isPreviewApi = path.startsWith('/api/v1/preview');
+
   // Security headers
-  const isPreviewApi = request.nextUrl.pathname.startsWith('/api/v1/preview');
   response.headers.set('X-Frame-Options', isPreviewApi ? 'SAMEORIGIN' : 'DENY');
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-XSS-Protection', '1; mode=block');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+
+  // HSTS — production only (Railway serves over HTTPS)
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+  }
+
+  // CSP — skip for API routes (they set their own, or return JSON)
+  if (!isApi) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+    const supabaseWs = supabaseUrl.replace(/^https?:\/\//, 'wss://');
+    const csp = [
+      "default-src 'self'",
+      // Next.js App Router requires unsafe-inline for hydration scripts
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      `img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com https://avatars.githubusercontent.com`,
+      `connect-src 'self' ${supabaseUrl} ${supabaseWs}`,
+      "frame-src 'self'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; ');
+    response.headers.set('Content-Security-Policy', csp);
+  }
 
   return response;
 }
