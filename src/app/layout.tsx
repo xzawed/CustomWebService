@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { ThemeProvider } from '@/providers/ThemeProvider';
 
 export const metadata: Metadata = {
   title: 'CustomWebService - 무료 API로 나만의 웹서비스 만들기',
@@ -14,8 +15,18 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko">
-      <body className="noise min-h-screen antialiased">{children}</body>
+    <html lang="ko" data-theme="sky">
+      <head>
+        {/* Prevent flash of wrong theme by applying saved theme before hydration */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=JSON.parse(localStorage.getItem('cws-theme')||'{}');var t=s.state&&s.state.theme;if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
+          }}
+        />
+      </head>
+      <body className="noise min-h-screen antialiased">
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }

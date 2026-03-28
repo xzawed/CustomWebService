@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
 import { useAuth } from '@/hooks/useAuth';
+import { ThemeSelector } from '@/components/ui/ThemeSelector';
 import { Menu, X, LogOut, User as UserIcon, LayoutGrid, Hammer, BarChart3, Key } from 'lucide-react';
 
 const NAV_LINKS = [
@@ -38,7 +39,7 @@ export function Header() {
         {/* Logo */}
         <Link href="/" className="text-lg font-bold tracking-tight">
           <span className="gradient-text">Custom</span>
-          <span className="text-white">WebService</span>
+          <span style={{ color: 'var(--text-primary)' }}>WebService</span>
         </Link>
 
         {/* Desktop Nav */}
@@ -51,11 +52,24 @@ export function Header() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-white/[0.08] text-cyan-400'
-                    : 'text-slate-400 hover:bg-white/[0.04] hover:text-white'
-                }`}
+                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all"
+                style={{
+                  color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  background: isActive ? 'var(--ghost-hover-bg)' : 'transparent',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-primary)';
+                    (e.currentTarget as HTMLAnchorElement).style.background =
+                      'var(--ghost-hover-bg)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-secondary)';
+                    (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
+                  }
+                }}
               >
                 <Icon className="h-4 w-4" />
                 {link.label}
@@ -65,13 +79,19 @@ export function Header() {
         </nav>
 
         {/* Right Side */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* Theme Selector */}
+          <ThemeSelector />
+
           {isAuthenticated && user ? (
             <div className="relative" ref={dropdownRef}>
               <button
                 type="button"
                 onClick={() => setDropdownOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-full p-1 transition-all hover:ring-2 hover:ring-white/10"
+                className="flex items-center gap-2 rounded-full p-1 transition-all"
+                style={{
+                  outline: dropdownOpen ? '2px solid var(--border-accent)' : 'none',
+                }}
               >
                 {user.avatarUrl ? (
                   <Image
@@ -79,30 +99,56 @@ export function Header() {
                     alt={user.name ?? ''}
                     width={32}
                     height={32}
-                    className="h-8 w-8 rounded-full object-cover ring-2 ring-white/10"
+                    className="h-8 w-8 rounded-full object-cover"
+                    style={{ boxShadow: '0 0 0 2px var(--border-accent)' }}
                   />
                 ) : (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500/30 to-violet-500/30 ring-2 ring-white/10">
-                    <UserIcon className="h-4 w-4 text-cyan-400" />
+                  <div
+                    className="flex h-8 w-8 items-center justify-center rounded-full"
+                    style={{
+                      background: 'var(--grad-subtle)',
+                      boxShadow: '0 0 0 2px var(--border-accent)',
+                    }}
+                  >
+                    <UserIcon className="h-4 w-4" style={{ color: 'var(--accent-primary)' }} />
                   </div>
                 )}
               </button>
 
               {dropdownOpen && (
                 <div
-                  className="glass absolute right-0 mt-2 w-56 overflow-hidden rounded-xl py-1"
-                  style={{ background: 'var(--bg-card)' }}
+                  className="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl py-1 animate-fade-in"
+                  style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    boxShadow: 'var(--shadow-xl)',
+                  }}
                 >
-                  <div className="border-b px-4 py-3" style={{ borderColor: 'var(--border)' }}>
-                    <p className="truncate text-sm font-semibold text-white">
+                  <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <p
+                      className="truncate text-sm font-semibold"
+                      style={{ color: 'var(--text-primary)' }}
+                    >
                       {user.name ?? user.email}
                     </p>
-                    <p className="truncate text-xs text-slate-400">{user.email}</p>
+                    <p className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {user.email}
+                    </p>
                   </div>
                   <Link
                     href="/settings/api-keys"
                     onClick={() => setDropdownOpen(false)}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-300 transition-colors hover:bg-white/[0.04] hover:text-white"
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm transition-all"
+                    style={{ color: 'var(--text-secondary)' }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLAnchorElement).style.background =
+                        'var(--ghost-hover-bg)';
+                      (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-primary)';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
+                      (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text-secondary)';
+                    }}
                   >
                     <Key className="h-4 w-4" />
                     내 API 키 관리
@@ -110,7 +156,17 @@ export function Header() {
                   <button
                     type="button"
                     onClick={signOut}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-slate-300 transition-colors hover:bg-white/[0.04] hover:text-white"
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm transition-all"
+                    style={{ color: 'var(--text-secondary)' }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        'var(--ghost-hover-bg)';
+                      (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                      (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)';
+                    }}
                   >
                     <LogOut className="h-4 w-4" />
                     로그아웃
@@ -128,7 +184,14 @@ export function Header() {
           <button
             type="button"
             onClick={() => setMobileMenuOpen((v) => !v)}
-            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-white/[0.04] hover:text-white md:hidden"
+            className="rounded-lg p-2 transition-colors md:hidden"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)')
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)')
+            }
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -150,15 +213,23 @@ export function Header() {
                 key={link.href}
                 href={link.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium ${
-                  isActive ? 'text-cyan-400' : 'text-slate-400'
-                }`}
+                className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium"
+                style={{
+                  color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                }}
               >
                 <Icon className="h-4 w-4" />
                 {link.label}
               </Link>
             );
           })}
+          {/* Mobile theme selector */}
+          <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+            <p className="mb-2 px-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+              테마
+            </p>
+            <ThemeSelector />
+          </div>
         </nav>
       )}
     </header>
