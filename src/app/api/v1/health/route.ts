@@ -22,8 +22,14 @@ export async function GET(): Promise<Response> {
     status = 'unhealthy';
   }
 
-  // AI service check (verify env key is configured)
-  checks.ai = process.env.XAI_API_KEY ? 'ok' : 'unconfigured';
+  // AI service check (verify env key is configured for the active provider)
+  const aiProvider = (process.env.AI_PROVIDER as string) ?? 'claude';
+  const hasAiKey =
+    aiProvider === 'claude'
+      ? !!process.env.ANTHROPIC_API_KEY
+      : !!process.env.XAI_API_KEY;
+  checks.ai = hasAiKey ? 'ok' : 'unconfigured';
+  checks.aiProvider = aiProvider;
   if (checks.ai !== 'ok') status = status === 'healthy' ? 'degraded' : status;
 
   // Deploy service check (verify env keys are configured)
