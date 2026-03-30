@@ -44,7 +44,7 @@ export class GenerationService {
 
     onProgress?.(30, '코드 생성 중...');
 
-    const provider = AiProviderFactory.create();
+    const provider = AiProviderFactory.createForTask('generation');
     const response = await provider.generateCode({
       system: systemPrompt,
       user: userPrompt,

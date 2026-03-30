@@ -1,13 +1,15 @@
 import type { IAiProvider } from './IAiProvider';
 import { GrokProvider } from './GrokProvider';
+import { ClaudeProvider } from './ClaudeProvider';
 
-export type AiProviderType = 'grok' | 'openai' | 'ollama';
+export type AiProviderType = 'grok' | 'openai' | 'ollama' | 'claude';
+export type AiTaskType = 'generation' | 'suggestion';
 
 export class AiProviderFactory {
   private static providers = new Map<string, IAiProvider>();
 
   static create(type?: AiProviderType): IAiProvider {
-    const providerType = type ?? (process.env.AI_PROVIDER as AiProviderType) ?? 'grok';
+    const providerType = type ?? (process.env.AI_PROVIDER as AiProviderType) ?? 'claude';
 
     if (this.providers.has(providerType)) {
       return this.providers.get(providerType)!;
@@ -16,6 +18,12 @@ export class AiProviderFactory {
     let provider: IAiProvider;
 
     switch (providerType) {
+      case 'claude': {
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
+        provider = new ClaudeProvider(apiKey);
+        break;
+      }
       case 'grok': {
         const apiKey = process.env.XAI_API_KEY;
         if (!apiKey) throw new Error('XAI_API_KEY is not set');
@@ -33,8 +41,30 @@ export class AiProviderFactory {
     return provider;
   }
 
+  static createForTask(task: AiTaskType): IAiProvider {
+    const providerType = (process.env.AI_PROVIDER as AiProviderType) ?? 'claude';
+
+    if (providerType !== 'claude') {
+      return this.create(providerType);
+    }
+
+    const cacheKey = `claude:${task}`;
+    if (this.providers.has(cacheKey)) {
+      return this.providers.get(cacheKey)!;
+    }
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
+
+    const model = task === 'suggestion' ? 'claude-haiku-4-5' : 'claude-sonnet-4-6';
+    const provider = new ClaudeProvider(apiKey, model);
+
+    this.providers.set(cacheKey, provider);
+    return provider;
+  }
+
   static async getBestAvailable(): Promise<IAiProvider> {
-    const priorities: AiProviderType[] = ['grok'];
+    const priorities: AiProviderType[] = ['claude', 'grok'];
 
     for (const type of priorities) {
       try {

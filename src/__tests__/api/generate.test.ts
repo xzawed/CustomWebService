@@ -51,6 +51,7 @@ vi.mock('@/repositories/eventRepository', () => ({
 vi.mock('@/providers/ai/AiProviderFactory', () => ({
   AiProviderFactory: {
     create: vi.fn(),
+    createForTask: vi.fn(),
   },
 }));
 
@@ -141,7 +142,7 @@ async function setupHappyPath() {
   }));
 
   const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
-  (AiProviderFactory.create as ReturnType<typeof vi.fn>).mockReturnValue({
+  (AiProviderFactory.createForTask as ReturnType<typeof vi.fn>).mockReturnValue({
     name: 'xai',
     generateCodeStream: vi.fn().mockImplementation((_prompt: unknown, onChunk: (chunk: string, accumulated: string) => void) => {
       onChunk(mockAiResponse.content, mockAiResponse.content);
@@ -256,7 +257,7 @@ describe('POST /api/v1/generate', () => {
     await setupHappyPath();
 
     const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
-    (AiProviderFactory.create as ReturnType<typeof vi.fn>).mockReturnValue({
+    (AiProviderFactory.createForTask as ReturnType<typeof vi.fn>).mockReturnValue({
       name: 'xai',
       generateCodeStream: vi.fn().mockRejectedValue(new Error('AI service unavailable')),
     });

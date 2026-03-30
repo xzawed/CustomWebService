@@ -103,7 +103,7 @@ export async function POST(request: Request): Promise<Response> {
           });
 
           try {
-            provider = AiProviderFactory.create();
+            provider = AiProviderFactory.createForTask('generation');
           } catch (factoryErr) {
             throw new Error(
               `AI 서비스 초기화 실패: ${factoryErr instanceof Error ? factoryErr.message : 'Unknown'}`
