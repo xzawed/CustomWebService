@@ -41,7 +41,7 @@ export class AiProviderFactory {
     if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
 
     const model = task === 'suggestion'
-      ? (process.env.CLAUDE_SUGGESTION_MODEL ?? 'claude-haiku-4-5-20251001')
+      ? (process.env.CLAUDE_SUGGESTION_MODEL ?? 'claude-sonnet-4-6-20250514')
       : (process.env.CLAUDE_GENERATION_MODEL ?? 'claude-sonnet-4-6-20250514');
     const provider = new ClaudeProvider(apiKey, model);
 
