@@ -80,6 +80,12 @@ export class ClaudeProvider implements IAiProvider {
         };
       } catch (error) {
         lastError = error;
+        logger.error('Claude generateCode failed', {
+          attempt,
+          model: this.model,
+          status: getErrorStatus(error),
+          message: error instanceof Error ? error.message : String(error),
+        });
         if (attempt < MAX_RETRIES && isRetryableError(error)) {
           continue;
         }
@@ -137,6 +143,12 @@ export class ClaudeProvider implements IAiProvider {
         };
       } catch (error) {
         lastError = error;
+        logger.error('Claude generateCodeStream failed', {
+          attempt,
+          model: this.model,
+          status: getErrorStatus(error),
+          message: error instanceof Error ? error.message : String(error),
+        });
         if (attempt < MAX_RETRIES && isRetryableError(error)) {
           continue;
         }

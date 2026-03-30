@@ -48,8 +48,10 @@ export async function POST(request: Request): Promise<Response> {
       return jsonResponse({ success: true, data: { recommendations: [] } });
     }
 
-    const aiResponse = await provider.generateCode({
-      system: `당신은 웹 서비스 아이디어에 가장 적합한 API를 추천하는 전문가입니다.
+    let aiResponse;
+    try {
+      aiResponse = await provider.generateCode({
+        system: `당신은 웹 서비스 아이디어에 가장 적합한 API를 추천하는 전문가입니다.
 사용자가 만들고 싶은 서비스 설명을 읽고, 주어진 API 목록에서 가장 적합한 API를 1~5개 선택하세요.
 
 반드시 아래 JSON 형식만 반환하세요:
@@ -61,16 +63,22 @@ export async function POST(request: Request): Promise<Response> {
 - 가장 관련성 높은 순서로 정렬
 - reason은 한국어로 간결하게 작성
 - 마크다운, 코드 블록, 추가 설명 없이 순수 JSON 배열만 반환`,
-      user: `## 사용 가능한 API 목록
+        user: `## 사용 가능한 API 목록
 ${apiListForAi}
 
 ## 사용자가 만들고 싶은 서비스
 ${context}
 
 위 서비스에 가장 적합한 API를 선택해주세요.`,
-      temperature: 0.3,
-      maxTokens: 500,
-    });
+        temperature: 0.3,
+        maxTokens: 500,
+      });
+    } catch (err) {
+      logger.error('API suggestion: AI generation failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return jsonResponse({ success: true, data: { recommendations: [] } });
+    }
 
     // Parse AI response
     const match = aiResponse.content.match(/\[[\s\S]*?\]/);
