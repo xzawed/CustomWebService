@@ -54,8 +54,10 @@ export async function POST(request: Request): Promise<Response> {
       return jsonResponse({ success: true, data: { suggestions: [] } });
     }
 
-    const aiResponse = await provider.generateCode({
-      system: `당신은 웹 서비스 아이디어를 제안하는 도우미입니다.
+    let aiResponse;
+    try {
+      aiResponse = await provider.generateCode({
+        system: `당신은 웹 서비스 아이디어를 제안하는 도우미입니다.
 사용자가 선택한 API들을 기반으로 만들 수 있는 웹 서비스 아이디어 3가지를 제안하세요.
 반드시 JSON 배열만 반환하세요: ["제안1", "제안2", "제안3"]
 규칙:
@@ -64,10 +66,17 @@ export async function POST(request: Request): Promise<Response> {
 - 선택된 API를 자연스럽게 활용하는 아이디어
 - 3가지는 서로 다른 방향의 아이디어 (대시보드형/계산기형/정보조회형 등)
 - 마크다운, 코드 블록, 추가 설명 없이 순수 JSON 배열만 반환`,
-      user: `선택된 API:\n${apiList}\n\n이 API들을 활용한 웹 서비스 아이디어 3가지를 JSON 배열로 제안해주세요.`,
-      temperature: 0.8,
-      maxTokens: 600,
-    });
+        user: `선택된 API:\n${apiList}\n\n이 API들을 활용한 웹 서비스 아이디어 3가지를 JSON 배열로 제안해주세요.`,
+        temperature: 0.8,
+        maxTokens: 600,
+      });
+    } catch (err) {
+      logger.error('Context suggestion: AI generation failed', {
+        error: err instanceof Error ? err.message : String(err),
+        apiCount: apis.length,
+      });
+      return jsonResponse({ success: true, data: { suggestions: [] } });
+    }
 
     // Extract JSON array from response (tolerates surrounding text or code blocks)
     const match = aiResponse.content.match(/\[[\s\S]*?\]/);
