@@ -79,11 +79,11 @@ describe('AiProviderFactory.createForTask()', () => {
     expect(provider.model).toBe('claude-sonnet-4-6-20250514');
   });
 
-  it('suggestion 태스크는 Haiku 모델을 사용한다', () => {
+  it('suggestion 태스크도 Sonnet 모델을 기본 사용한다', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_PROVIDER;
     const provider = AiProviderFactory.createForTask('suggestion');
-    expect(provider.model).toBe('claude-haiku-4-5-20251001');
+    expect(provider.model).toBe('claude-sonnet-4-6-20250514');
   });
 
   it('같은 태스크는 싱글톤으로 반환된다', () => {
