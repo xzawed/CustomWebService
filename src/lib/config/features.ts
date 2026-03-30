@@ -24,7 +24,7 @@ const DEFAULT_LIMITS: FeatureLimits = {
   maxCodeVersionsPerProject: env('MAX_CODE_VERSIONS', 10),
   contextMinLength: env('CONTEXT_MIN_LENGTH', 50),
   contextMaxLength: env('CONTEXT_MAX_LENGTH', 2000),
-  generationTimeoutMs: env('GENERATION_TIMEOUT_MS', 90000),
+  generationTimeoutMs: env('GENERATION_TIMEOUT_MS', 120000),
 };
 
 const PLAN_OVERRIDES: Record<string, Partial<FeatureLimits>> = {

@@ -27,7 +27,7 @@ export class GrokProvider implements IAiProvider {
   readonly model: string;
   private client: OpenAI;
 
-  constructor(apiKey: string, model = 'grok-3') {
+  constructor(apiKey: string, model = 'grok-4') {
     this.client = new OpenAI({
       apiKey,
       baseURL: 'https://api.x.ai/v1',
@@ -57,7 +57,7 @@ export class GrokProvider implements IAiProvider {
             { role: 'user', content: prompt.user },
           ],
           temperature: prompt.temperature ?? 0.7,
-          max_tokens: prompt.maxTokens ?? 16000,
+          max_tokens: prompt.maxTokens ?? 32000,
         });
 
         const text = result.choices[0]?.message?.content ?? '';
@@ -110,7 +110,7 @@ export class GrokProvider implements IAiProvider {
             { role: 'user', content: prompt.user },
           ],
           temperature: prompt.temperature ?? 0.7,
-          max_tokens: prompt.maxTokens ?? 16000,
+          max_tokens: prompt.maxTokens ?? 32000,
           stream: true,
           stream_options: { include_usage: true },
         });
