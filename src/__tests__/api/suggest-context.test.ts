@@ -254,12 +254,13 @@ describe('POST /api/v1/suggest-context', () => {
       apis: [{ name: 'A', description: 'd', category: 'c' }],
     }));
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(503);
     const json = await response.json();
-    expect(json.data.suggestions).toEqual([]);
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('AI_UNAVAILABLE');
   });
 
-  it('AI generateCode 실패 시 빈 배열을 반환한다 (400 에러)', async () => {
+  it('AI generateCode 실패 시 502를 반환한다', async () => {
     const error400 = Object.assign(new Error('invalid_request_error'), { status: 400 });
     await setupProvider(mockAiProviderError(error400));
 
@@ -268,12 +269,13 @@ describe('POST /api/v1/suggest-context', () => {
       apis: [{ name: 'A', description: 'd', category: 'c' }],
     }));
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(502);
     const json = await response.json();
-    expect(json.data.suggestions).toEqual([]);
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('AI_GENERATION_FAILED');
   });
 
-  it('AI generateCode 타임아웃 시 빈 배열을 반환한다', async () => {
+  it('AI generateCode 타임아웃 시 502를 반환한다', async () => {
     const timeoutError = new Error('Request timed out');
     await setupProvider(mockAiProviderError(timeoutError));
 
@@ -282,12 +284,12 @@ describe('POST /api/v1/suggest-context', () => {
       apis: [{ name: 'A', description: 'd', category: 'c' }],
     }));
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(502);
     const json = await response.json();
-    expect(json.data.suggestions).toEqual([]);
+    expect(json.success).toBe(false);
   });
 
-  it('AI generateCode 429 에러 시 빈 배열을 반환한다', async () => {
+  it('AI generateCode 429 에러 시 502를 반환한다', async () => {
     const error429 = Object.assign(new Error('rate limited'), { status: 429 });
     await setupProvider(mockAiProviderError(error429));
 
@@ -296,8 +298,8 @@ describe('POST /api/v1/suggest-context', () => {
       apis: [{ name: 'A', description: 'd', category: 'c' }],
     }));
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(502);
     const json = await response.json();
-    expect(json.data.suggestions).toEqual([]);
+    expect(json.success).toBe(false);
   });
 });
