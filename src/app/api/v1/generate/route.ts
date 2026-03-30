@@ -246,7 +246,6 @@ export async function POST(request: Request): Promise<Response> {
           // Best-effort — errors from decrement are logged but not re-thrown.
           await rateLimitService.decrementDailyLimit(user.id);
 
-          // H6: Use IAiProvider.name instead of hardcoded 'grok'
           const failedEvent = {
             type: 'CODE_GENERATION_FAILED' as const,
             payload: {

@@ -92,8 +92,8 @@ const mockProject = {
 const mockApis = [{ id: 'api-1', name: 'Test API', description: 'desc' }];
 const mockAiResponse = {
   content: '<html>...</html>',
-  provider: 'xai',
-  model: 'grok-beta',
+  provider: 'claude',
+  model: 'claude-sonnet-4-6-20250514',
   durationMs: 1500,
   tokensUsed: { input: 100, output: 200 },
 };
@@ -143,7 +143,7 @@ async function setupHappyPath() {
 
   const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
   (AiProviderFactory.createForTask as ReturnType<typeof vi.fn>).mockReturnValue({
-    name: 'xai',
+    name: 'claude',
     generateCodeStream: vi.fn().mockImplementation((_prompt: unknown, onChunk: (chunk: string, accumulated: string) => void) => {
       onChunk(mockAiResponse.content, mockAiResponse.content);
       return Promise.resolve(mockAiResponse);
@@ -258,7 +258,7 @@ describe('POST /api/v1/generate', () => {
 
     const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
     (AiProviderFactory.createForTask as ReturnType<typeof vi.fn>).mockReturnValue({
-      name: 'xai',
+      name: 'claude',
       generateCodeStream: vi.fn().mockRejectedValue(new Error('AI service unavailable')),
     });
 

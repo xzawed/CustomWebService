@@ -252,7 +252,6 @@ export async function POST(request: Request): Promise<Response> {
           // Compensate: restore the pre-incremented rate limit slot.
           await rateLimitService.decrementDailyLimit(user.id);
 
-          // H6: Use IAiProvider.name instead of hardcoded 'grok'
           const failedEvent = {
             type: 'CODE_GENERATION_FAILED' as const,
             payload: {
