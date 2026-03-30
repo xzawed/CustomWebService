@@ -38,7 +38,7 @@ export async function POST(request: Request): Promise<Response> {
       .map((a) => `- [ID:${a.id}] ${a.name} (${a.category}): ${a.description}`)
       .join('\n');
 
-    const provider = AiProviderFactory.create();
+    const provider = AiProviderFactory.createForTask('suggestion');
     const aiResponse = await provider.generateCode({
       system: `당신은 웹 서비스 아이디어에 가장 적합한 API를 추천하는 전문가입니다.
 사용자가 만들고 싶은 서비스 설명을 읽고, 주어진 API 목록에서 가장 적합한 API를 1~5개 선택하세요.
