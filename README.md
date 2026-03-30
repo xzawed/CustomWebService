@@ -20,7 +20,7 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 |------|------|
 | API 카탈로그 | 54개 영구 무료 API를 카테고리별 탐색 및 검색 |
 | 3-Step 빌더 | API 선택 → 서비스 설명 → AI 코드 생성 (SSE 실시간 진행률) |
-| AI 코드 생성 | xAI Grok 기반 HTML/CSS/JS 자동 생성 + 보안 검증 |
+| AI 코드 생성 | Claude API 기반 HTML/CSS/JS 자동 생성 + 보안 검증 |
 | 서브도메인 게시 | `slug.xzawed.xyz` 형태로 즉시 게시 |
 | 대시보드 | 프로젝트 관리, 버전 롤백, 게시/게시취소 |
 | 미리보기 | 디바이스별(모바일/태블릿/데스크톱) 실시간 미리보기 |
@@ -55,7 +55,7 @@ Phase 3 (예정)   대규모 확장
 | Form | React Hook Form + Zod |
 | Database | Supabase (PostgreSQL + Row Level Security) |
 | Auth | Supabase Auth (Google, GitHub OAuth) |
-| AI | xAI Grok API (OpenAI SDK 호환) |
+| AI | Claude API (Anthropic SDK) |
 | Testing | Vitest (단위 + 통합, 136개 테스트) |
 | CI/CD | GitHub Actions + Dependabot |
 
@@ -77,7 +77,7 @@ Phase 3 (예정)   대규모 확장
 ┌──────▼──────┐   ┌──────────▼──────────┐
 │  Service    │   │  AI Provider        │
 │  Layer      │   │  IAiProvider        │
-│             │   │  └─ GrokProvider    │
+│             │   │  └─ ClaudeProvider  │
 └──────┬──────┘   └─────────────────────┘
        │
 ┌──────▼──────┐   ┌─────────────────────┐
@@ -107,7 +107,7 @@ slug.xzawed.xyz
 | 호스팅 | Railway (단일 인스턴스, 서브도메인 가상 호스팅) |
 | 데이터베이스 | Supabase (PostgreSQL, 전체 RLS 적용) |
 | 인증 | Supabase Auth (OAuth 2.0 — Google, GitHub) |
-| AI | xAI API (서버사이드 전용) |
+| AI | Claude API (서버사이드 전용) |
 | CDN/DNS | Railway 커스텀 도메인 |
 | 모니터링 | `/api/v1/health` 헬스체크 엔드포인트 |
 
@@ -116,7 +116,7 @@ slug.xzawed.xyz
 - **원자적 레이트리밋**: PostgreSQL `UPDATE WHERE count < limit RETURNING` 패턴으로 레이스 컨디션 제거
 - **이벤트 영속성**: 인메모리 EventBus + `platform_events` 테이블 병렬 저장 (fire-and-forget)
 - **요청 추적**: `X-Correlation-Id` 헤더로 모든 요청 단위 로그 추적 가능
-- **Provider 패턴**: `IAiProvider` 인터페이스로 AI 제공자 교체 가능 (현재: xAI Grok)
+- **Provider 패턴**: `IAiProvider` 인터페이스로 AI 제공자 교체 가능 (현재: Claude API)
 - **설정 기반 제한**: 환경변수로 생성 한도, 버전 수 등 비즈니스 규칙 조절
 
 ---

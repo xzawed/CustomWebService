@@ -25,7 +25,7 @@ function makeSupabase(
 
 const mockEvent: DomainEvent = {
   type: 'CODE_GENERATED',
-  payload: { projectId: 'proj-1', version: 1, provider: 'xai', durationMs: 1200 },
+  payload: { projectId: 'proj-1', version: 1, provider: 'claude', durationMs: 1200 },
 };
 
 describe('EventRepository', () => {

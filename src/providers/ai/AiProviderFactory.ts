@@ -1,8 +1,7 @@
 import type { IAiProvider } from './IAiProvider';
-import { GrokProvider } from './GrokProvider';
 import { ClaudeProvider } from './ClaudeProvider';
 
-export type AiProviderType = 'grok' | 'openai' | 'ollama' | 'claude';
+export type AiProviderType = 'claude';
 export type AiTaskType = 'generation' | 'suggestion';
 
 export class AiProviderFactory {
@@ -24,15 +23,6 @@ export class AiProviderFactory {
         provider = new ClaudeProvider(apiKey);
         break;
       }
-      case 'grok': {
-        const apiKey = process.env.XAI_API_KEY;
-        if (!apiKey) throw new Error('XAI_API_KEY is not set');
-        provider = new GrokProvider(apiKey);
-        break;
-      }
-      // Future providers:
-      // case 'openai': provider = new OpenAiProvider(...); break;
-      // case 'ollama': provider = new OllamaProvider(...); break;
       default:
         throw new Error(`Unknown AI provider: ${providerType}`);
     }
@@ -42,12 +32,6 @@ export class AiProviderFactory {
   }
 
   static createForTask(task: AiTaskType): IAiProvider {
-    const providerType = (process.env.AI_PROVIDER as AiProviderType) ?? 'claude';
-
-    if (providerType !== 'claude') {
-      return this.create(providerType);
-    }
-
     const cacheKey = `claude:${task}`;
     if (this.providers.has(cacheKey)) {
       return this.providers.get(cacheKey)!;
@@ -66,16 +50,12 @@ export class AiProviderFactory {
   }
 
   static async getBestAvailable(): Promise<IAiProvider> {
-    const priorities: AiProviderType[] = ['claude', 'grok'];
-
-    for (const type of priorities) {
-      try {
-        const provider = this.create(type);
-        const { available } = await provider.checkAvailability();
-        if (available) return provider;
-      } catch {
-        continue;
-      }
+    try {
+      const provider = this.create('claude');
+      const { available } = await provider.checkAvailability();
+      if (available) return provider;
+    } catch {
+      // fall through
     }
 
     throw new Error('No AI provider available');

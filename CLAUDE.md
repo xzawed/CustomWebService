@@ -18,7 +18,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 | Form | React Hook Form + Zod |
 | Database | Supabase (PostgreSQL + Row Level Security) |
 | Auth | Supabase Auth (Google, GitHub OAuth) |
-| AI | Claude API (Anthropic SDK) — 기본, Grok (롤백용) |
+| AI | Claude API (Anthropic SDK) |
 | Testing | Vitest, happy-dom, MSW |
 | CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
 | Package Manager | pnpm |
@@ -43,7 +43,7 @@ src/
 │   ├── supabase/    # Supabase 클라이언트
 │   └── utils/       # 공통 유틸리티, 에러 클래스
 ├── middleware.ts     # 서브도메인 라우팅, 보안 헤더 (CSP, HSTS)
-├── providers/       # AI Provider (IAiProvider → ClaudeProvider, GrokProvider)
+├── providers/       # AI Provider (IAiProvider → ClaudeProvider)
 ├── repositories/    # 데이터 접근 계층 (BaseRepository 패턴)
 ├── services/        # 비즈니스 로직 계층
 ├── stores/          # Zustand 스토어
@@ -96,15 +96,14 @@ pnpm test:coverage    # 커버리지 리포트
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_ROOT_DOMAIN` (서브도메인 가상 호스팅)
-- `ANTHROPIC_API_KEY` (Claude, 기본), `XAI_API_KEY` (Grok, 롤백용)
-- `AI_PROVIDER` — `claude` (기본) | `grok`
+- `ANTHROPIC_API_KEY`
 - `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
 
 ## 문서 참조
 
 - `.claude/docs/` — Claude Code 작업 가이드
   - `architecture.md` — 아키텍처 개요, 파이프라인 흐름
-  - `ai-provider.md` — AI Provider 시스템 (Claude/Grok)
+  - `ai-provider.md` — AI Provider 시스템 (Claude)
   - `debugging-guide.md` — 자주 발생하는 문제와 해결
   - `testing-guide.md` — 테스트 구조 및 패턴
   - `deployment.md` — 배포 환경변수 및 체크리스트
