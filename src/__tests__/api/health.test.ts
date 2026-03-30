@@ -42,6 +42,7 @@ describe('GET /api/v1/health', () => {
     expect(['healthy', 'degraded']).toContain(body.status);
     expect(body.checks.database).toBe('ok');
     expect(body.checks.ai).toBeDefined();
+    expect(body.checks.aiProvider).toBeDefined();
     expect(body.checks.deploy).toBeDefined();
     expect(body.timestamp).toBeDefined();
     expect(body.usage).toBeDefined();
