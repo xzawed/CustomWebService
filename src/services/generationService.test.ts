@@ -25,20 +25,24 @@ vi.mock('@/repositories/codeRepository', () => ({
   })),
 }));
 
-vi.mock('@/providers/ai/AiProviderFactory', () => ({
-  AiProviderFactory: {
-    create: vi.fn().mockReturnValue({
-      generateCode: vi.fn().mockResolvedValue({
-        content:
-          '```html\n<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width"><title>Test</title></head><body><p>test</p></body></html>\n```\n```css\nbody{}\n```\n```javascript\nconst x=1\n```',
-        provider: 'grok',
-        model: 'grok-3-mini',
-        durationMs: 1000,
-        tokensUsed: { prompt: 100, completion: 200 },
-      }),
+vi.mock('@/providers/ai/AiProviderFactory', () => {
+  const provider = {
+    generateCode: vi.fn().mockResolvedValue({
+      content:
+        '```html\n<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width"><title>Test</title></head><body><p>test</p></body></html>\n```\n```css\nbody{}\n```\n```javascript\nconst x=1\n```',
+      provider: 'claude',
+      model: 'claude-sonnet-4-6',
+      durationMs: 1000,
+      tokensUsed: { prompt: 100, completion: 200 },
     }),
-  },
-}));
+  };
+  return {
+    AiProviderFactory: {
+      create: vi.fn().mockReturnValue(provider),
+      createForTask: vi.fn().mockReturnValue(provider),
+    },
+  };
+});
 
 vi.mock('@/lib/events/eventBus', () => ({
   eventBus: { emit: vi.fn() },

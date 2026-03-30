@@ -44,7 +44,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const apiList = apis.map((a) => `- ${a.name}: ${a.description}`).join('\n');
 
-    const provider = AiProviderFactory.create();
+    const provider = AiProviderFactory.createForTask('suggestion');
     const aiResponse = await provider.generateCode({
       system: `당신은 웹 서비스 아이디어를 제안하는 도우미입니다.
 사용자가 선택한 API들을 기반으로 만들 수 있는 웹 서비스 아이디어 3가지를 제안하세요.
