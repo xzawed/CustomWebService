@@ -46,10 +46,10 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('eval');
   });
 
-  it('코드 블록 형식 규칙을 포함한다', () => {
+  it('코드 패턴 예시를 포함한다', () => {
     const prompt = buildSystemPrompt();
     expect(prompt).toContain('```html');
-    expect(prompt).toContain('```css');
+    expect(prompt).toContain('```javascript');
   });
 });
 
