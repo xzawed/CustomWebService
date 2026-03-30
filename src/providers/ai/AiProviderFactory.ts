@@ -4,28 +4,24 @@ import { ClaudeProvider } from './ClaudeProvider';
 export type AiProviderType = 'claude';
 export type AiTaskType = 'generation' | 'suggestion';
 
+const DEFAULT_MODEL = 'claude-sonnet-4-6-20250514';
+
 export class AiProviderFactory {
   private static providers = new Map<string, IAiProvider>();
 
   static create(type?: AiProviderType): IAiProvider {
-    const providerType = type ?? (process.env.AI_PROVIDER as AiProviderType) ?? 'claude';
+    // AI_PROVIDER 환경변수는 무시 — Claude 단일 체제
+    const providerType: AiProviderType = type ?? 'claude';
 
     if (this.providers.has(providerType)) {
       return this.providers.get(providerType)!;
     }
 
-    let provider: IAiProvider;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
 
-    switch (providerType) {
-      case 'claude': {
-        const apiKey = process.env.ANTHROPIC_API_KEY;
-        if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
-        provider = new ClaudeProvider(apiKey);
-        break;
-      }
-      default:
-        throw new Error(`Unknown AI provider: ${providerType}`);
-    }
+    const model = process.env.CLAUDE_GENERATION_MODEL || DEFAULT_MODEL;
+    const provider = new ClaudeProvider(apiKey, model);
 
     this.providers.set(providerType, provider);
     return provider;
@@ -41,8 +37,8 @@ export class AiProviderFactory {
     if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
 
     const model = task === 'suggestion'
-      ? (process.env.CLAUDE_SUGGESTION_MODEL ?? 'claude-sonnet-4-6-20250514')
-      : (process.env.CLAUDE_GENERATION_MODEL ?? 'claude-sonnet-4-6-20250514');
+      ? (process.env.CLAUDE_SUGGESTION_MODEL || DEFAULT_MODEL)
+      : (process.env.CLAUDE_GENERATION_MODEL || DEFAULT_MODEL);
     const provider = new ClaudeProvider(apiKey, model);
 
     this.providers.set(cacheKey, provider);

@@ -23,8 +23,7 @@ export async function GET(): Promise<Response> {
   }
 
   // AI service check (actual API validation)
-  const aiProvider = (process.env.AI_PROVIDER as string) ?? 'claude';
-  checks.aiProvider = aiProvider;
+  checks.aiProvider = 'claude';
   try {
     const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
     const provider = AiProviderFactory.createForTask('suggestion');

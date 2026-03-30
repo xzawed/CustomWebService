@@ -36,7 +36,7 @@ describe('AiProviderFactory.create()', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     const provider = AiProviderFactory.create('claude');
     expect(provider.name).toBe('claude');
-    expect(ClaudeProvider).toHaveBeenCalledWith('test-key');
+    expect(ClaudeProvider).toHaveBeenCalledWith('test-key', 'claude-sonnet-4-6-20250514');
   });
 
   it('같은 provider 타입은 싱글톤으로 반환된다', () => {
@@ -46,14 +46,16 @@ describe('AiProviderFactory.create()', () => {
     expect(p1).toBe(p2);
   });
 
-  it('알 수 없는 provider 타입은 에러를 던진다', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(() => AiProviderFactory.create('unknown' as any)).toThrow('Unknown AI provider');
-  });
-
   it('기본 provider가 claude이다', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_PROVIDER;
+    const provider = AiProviderFactory.create();
+    expect(provider.name).toBe('claude');
+  });
+
+  it('AI_PROVIDER 환경변수가 레거시 값이어도 claude를 사용한다', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    process.env.AI_PROVIDER = 'grok';
     const provider = AiProviderFactory.create();
     expect(provider.name).toBe('claude');
   });
