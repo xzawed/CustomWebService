@@ -260,10 +260,15 @@ export default function BuilderPage() {
           })),
         }),
       });
-      if (!res.ok) throw new Error('Failed to fetch suggestions');
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        console.error('[suggest-context]', res.status, errBody?.error?.message ?? 'Unknown error');
+        throw new Error(errBody?.error?.message ?? `HTTP ${res.status}`);
+      }
       const data = await res.json();
       setSuggestions(data.data?.suggestions ?? []);
-    } catch {
+    } catch (err) {
+      console.error('[suggest-context] failed:', err instanceof Error ? err.message : err);
       setSuggestions([]);
     } finally {
       setIsSuggestionsLoading(false);

@@ -48,10 +48,12 @@ export async function POST(request: Request): Promise<Response> {
     try {
       provider = AiProviderFactory.createForTask('suggestion');
     } catch (err) {
-      logger.warn('Context suggestion: AI provider unavailable', {
-        error: err instanceof Error ? err.message : 'Unknown',
-      });
-      return jsonResponse({ success: true, data: { suggestions: [] } });
+      const reason = err instanceof Error ? err.message : 'Unknown';
+      logger.error('Context suggestion: AI provider unavailable', { error: reason });
+      return jsonResponse(
+        { success: false, error: { code: 'AI_UNAVAILABLE', message: `AI 서비스를 초기화할 수 없습니다: ${reason}` } },
+        { status: 503 },
+      );
     }
 
     let aiResponse;
@@ -68,20 +70,25 @@ export async function POST(request: Request): Promise<Response> {
 - 마크다운, 코드 블록, 추가 설명 없이 순수 JSON 배열만 반환`,
         user: `선택된 API:\n${apiList}\n\n이 API들을 활용한 웹 서비스 아이디어 3가지를 JSON 배열로 제안해주세요.`,
         temperature: 0.8,
-        maxTokens: 600,
+        maxTokens: 1024,
       });
     } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
       logger.error('Context suggestion: AI generation failed', {
-        error: err instanceof Error ? err.message : String(err),
+        error: reason,
         apiCount: apis.length,
+        model: provider.model,
       });
-      return jsonResponse({ success: true, data: { suggestions: [] } });
+      return jsonResponse(
+        { success: false, error: { code: 'AI_GENERATION_FAILED', message: `AI 추천 생성에 실패했습니다: ${reason}` } },
+        { status: 502 },
+      );
     }
 
     // Extract JSON array from response (tolerates surrounding text or code blocks)
-    const match = aiResponse.content.match(/\[[\s\S]*?\]/);
+    const match = aiResponse.content.match(/\[[\s\S]*\]/);
     if (!match) {
-      logger.warn('Context suggestion: could not parse AI response', { content: aiResponse.content.slice(0, 200) });
+      logger.warn('Context suggestion: could not parse AI response', { content: aiResponse.content.slice(0, 500) });
       return jsonResponse({ success: true, data: { suggestions: [] } });
     }
 
@@ -94,7 +101,7 @@ export async function POST(request: Request): Promise<Response> {
         .map((s: unknown) => String(s).trim())
         .filter((s) => s.length > 0);
     } catch {
-      logger.warn('Context suggestion: JSON parse failed', { raw: match[0].slice(0, 200) });
+      logger.warn('Context suggestion: JSON parse failed', { raw: match[0].slice(0, 500) });
       return jsonResponse({ success: true, data: { suggestions: [] } });
     }
 
