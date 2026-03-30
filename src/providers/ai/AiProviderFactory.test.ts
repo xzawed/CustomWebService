@@ -18,7 +18,7 @@ vi.mock('./GrokProvider', () => ({
 vi.mock('./ClaudeProvider', () => ({
   ClaudeProvider: vi.fn().mockImplementation((_apiKey: string, model?: string) => ({
     name: 'claude',
-    model: model ?? 'claude-sonnet-4-6',
+    model: model ?? 'claude-sonnet-4-6-20250514',
     generateCode: vi.fn(),
     generateCodeStream: vi.fn(),
     checkAvailability: vi.fn().mockResolvedValue({ available: true }),
@@ -107,14 +107,14 @@ describe('AiProviderFactory.createForTask()', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_PROVIDER;
     const provider = AiProviderFactory.createForTask('generation');
-    expect(provider.model).toBe('claude-sonnet-4-6');
+    expect(provider.model).toBe('claude-sonnet-4-6-20250514');
   });
 
   it('suggestion 태스크는 Haiku 모델을 사용한다', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_PROVIDER;
     const provider = AiProviderFactory.createForTask('suggestion');
-    expect(provider.model).toBe('claude-haiku-4-5');
+    expect(provider.model).toBe('claude-haiku-4-5-20251001');
   });
 
   it('같은 태스크는 싱글톤으로 반환된다', () => {
