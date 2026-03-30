@@ -50,7 +50,6 @@ describe('buildSystemPrompt', () => {
     const prompt = buildSystemPrompt();
     expect(prompt).toContain('```html');
     expect(prompt).toContain('```css');
-    expect(prompt).toContain('```javascript');
   });
 });
 

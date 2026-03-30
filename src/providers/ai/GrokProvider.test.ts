@@ -36,8 +36,8 @@ describe('GrokProvider', () => {
     expect(provider.name).toBe('grok');
   });
 
-  it('기본 model이 grok-3이다', () => {
-    expect(provider.model).toBe('grok-3');
+  it('기본 model이 grok-4이다', () => {
+    expect(provider.model).toBe('grok-4');
   });
 
   it('커스텀 모델을 지정할 수 있다', () => {
@@ -79,9 +79,9 @@ describe('GrokProvider', () => {
       expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ temperature: 0.7 }));
     });
 
-    it('기본 max_tokens는 16000이다', async () => {
+    it('기본 max_tokens는 32000이다', async () => {
       await provider.generateCode({ system: 'sys', user: 'user' });
-      expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ max_tokens: 16000 }));
+      expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ max_tokens: 32000 }));
     });
   });
 
