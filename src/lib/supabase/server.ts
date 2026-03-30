@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 export async function createClient() {
@@ -35,10 +36,13 @@ export async function createServiceClient() {
     throw new Error('Supabase service environment variables are not set');
   }
 
-  return createServerClient(url, key, {
-    cookies: {
-      getAll: () => [],
-      setAll: () => {},
+  // Service role 클라이언트는 @supabase/supabase-js의 createClient를 직접 사용.
+  // @supabase/ssr의 createServerClient는 쿠키 기반 SSR용이라
+  // 빈 쿠키 + service role key 조합에서 RLS 우회가 불안정할 수 있음.
+  return createSupabaseClient(url, key, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
     },
   });
 }

@@ -2,7 +2,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { CodeRepository } from '@/repositories/codeRepository';
 import { ProjectRepository } from '@/repositories/projectRepository';
 import { assembleHtml } from '@/lib/ai/codeParser';
-import { AuthRequiredError, NotFoundError, ValidationError, handleApiError } from '@/lib/utils/errors';
+import { AuthRequiredError, ForbiddenError, NotFoundError, ValidationError, handleApiError } from '@/lib/utils/errors';
 
 export async function GET(
   request: Request,
@@ -16,12 +16,15 @@ export async function GET(
     } = await supabase.auth.getUser();
     if (!user) throw new AuthRequiredError();
 
-    // Verify ownership using service client to bypass RLS auth context issues
+    // Verify ownership using service client to bypass RLS
     const serviceSupabase = await createServiceClient();
     const projectRepo = new ProjectRepository(serviceSupabase);
     const project = await projectRepo.findById(projectId);
-    if (!project || project.userId !== user.id) {
+    if (!project) {
       throw new NotFoundError('프로젝트', projectId);
+    }
+    if (project.userId !== user.id) {
+      throw new ForbiddenError();
     }
 
     // Get version from query params
