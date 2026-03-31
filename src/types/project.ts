@@ -10,6 +10,16 @@ export type ProjectStatus =
   | 'unpublished' // 게시 취소
   | 'failed';
 
+export type DesignMood = 'auto' | 'light' | 'dark' | 'warm' | 'colorful' | 'minimal';
+export type DesignAudience = 'general' | 'business' | 'youth' | 'premium';
+export type DesignLayout = 'auto' | 'dashboard' | 'gallery' | 'feed' | 'landing' | 'tool';
+
+export interface DesignPreferences {
+  mood: DesignMood;
+  audience: DesignAudience;
+  layoutPreference: DesignLayout;
+}
+
 export interface Project {
   id: string;
   userId: string;
@@ -71,6 +81,20 @@ export interface CodeMetadata {
   externalLibs?: string[];
   userFeedback?: string | null;
   validationErrors?: string[];
+  // evaluateQuality fields (Phase 2)
+  structuralScore?: number;
+  hasSemanticHtml?: boolean;
+  hasMockData?: boolean;
+  hasInteraction?: boolean;
+  hasResponsiveClasses?: boolean;
+  hasFooter?: boolean;
+  hasImgAlt?: boolean;
+  details?: string[];
+  // Phase 6 fields
+  apiCategories?: string[];
+  inferredTheme?: string;
+  inferredLayout?: string;
+  qualityLoopUsed?: boolean;
 }
 
 export interface CreateProjectInput {
@@ -78,4 +102,5 @@ export interface CreateProjectInput {
   context: string;
   apiIds: string[];
   organizationId?: string;
+  designPreferences?: DesignPreferences;
 }

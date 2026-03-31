@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateSecurity, validateFunctionality, validateAll } from './codeValidator';
+import { validateSecurity, validateFunctionality, validateAll, evaluateQuality } from './codeValidator';
 
 describe('validateSecurity', () => {
   it('eval() 사용 시 에러를 반환한다', () => {
@@ -75,5 +75,56 @@ describe('validateAll', () => {
     const js = 'document.querySelector("body").textContent = "Hello"';
     const result = validateAll(html, css, js);
     expect(result.passed).toBe(true);
+  });
+});
+
+describe('evaluateQuality', () => {
+  it('모든 품질 요소가 있으면 점수 100을 반환한다', () => {
+    const html = `<!DOCTYPE html><html><head></head><body>
+      <nav>네비</nav>
+      <main>
+        <article>
+          <img src="https://picsum.photos/seed/a/600/400" alt="테스트 이미지">
+        </article>
+      </main>
+      <footer>푸터</footer>
+      <div class="sm:grid-cols-2 lg:grid-cols-3 transition-all">카드</div>
+    </body></html>`;
+    const js = `
+      const mockData = [{ id: 1, title: '테스트' }];
+      document.addEventListener('DOMContentLoaded', () => {});
+      btn.addEventListener('click', () => {});
+      el.addEventListener('input', () => {});
+    `;
+    const result = evaluateQuality(html, '', js);
+    expect(result.structuralScore).toBe(100);
+    expect(result.hasSemanticHtml).toBe(true);
+    expect(result.hasMockData).toBe(true);
+    expect(result.hasInteraction).toBe(true);
+    expect(result.hasFooter).toBe(true);
+  });
+
+  it('빈 코드는 낮은 점수를 반환한다', () => {
+    const result = evaluateQuality('<div></div>', '', '');
+    expect(result.structuralScore).toBeLessThan(30);
+    expect(result.hasMockData).toBe(false);
+    expect(result.hasInteraction).toBe(false);
+  });
+
+  it('details에 부족한 항목이 나열된다', () => {
+    const result = evaluateQuality('<div></div>', '', '');
+    expect(result.details.length).toBeGreaterThan(0);
+    expect(result.details.some((d) => d.includes('시맨틱'))).toBe(true);
+  });
+
+  it('한국어 텍스트가 있으면 hasKorean 점수 포함', () => {
+    const result = evaluateQuality('<div>안녕하세요</div>', '', '');
+    expect(result.structuralScore).toBeGreaterThan(0);
+  });
+
+  it('반응형 클래스가 있으면 감지한다', () => {
+    const html = '<div class="sm:grid-cols-2 lg:grid-cols-3">test</div>';
+    const result = evaluateQuality(html, '', '');
+    expect(result.hasResponsiveClasses).toBe(true);
   });
 });

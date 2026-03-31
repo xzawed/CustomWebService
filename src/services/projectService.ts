@@ -60,7 +60,9 @@ export class ProjectService {
       deployPlatform: null,
       repoUrl: null,
       previewUrl: null,
-      metadata: {} as ProjectMetadata,
+      metadata: {
+        ...(input.designPreferences ? { designPreferences: input.designPreferences } : {}),
+      } as ProjectMetadata,
       currentVersion: 0,
       apis: [] as ApiCatalogItem[], // stripped by ProjectRepository.toDatabase()
       slug: null,

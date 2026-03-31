@@ -1,4 +1,6 @@
 import type { ApiCatalogItem } from '@/types/api';
+import type { DesignPreferences } from '@/types/project';
+import { inferDesignFromCategories } from './categoryDesignMap';
 
 // 시스템 프롬프트 모듈 레벨 캐싱 — 매 요청마다 재생성하지 않음
 let cachedSystemPrompt: string | null = null;
@@ -21,15 +23,20 @@ function _buildSystemPrompt(): string {
 4. **레이아웃은 가로 방향 flex/grid를 기본으로 한다.** 서비스 타이틀이 세로로 깨지거나 요소가 한 줄에 하나씩 쌓이는 것은 심각한 결함이다.
 5. **모든 텍스트는 한국어로 작성한다.** UI, 목 데이터, placeholder, 토스트, 에러 메시지 전부 한국어.
 
-## 필수 CDN
+## 필수 CDN (항상 포함)
 
 \`\`\`html
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 \`\`\`
+
+## 조건부 CDN (필요한 경우에만 포함)
+
+- **Chart.js** — 차트, 그래프, 데이터 시각화가 필요한 서비스에만: \`<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\`
+- **Leaflet** — 지도가 필요한 서비스에만: \`<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">\` + \`<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>\`
+- 불필요한 CDN은 로드하지 마라. 갤러리, 쇼핑, 블로그 등 차트가 없는 서비스에 Chart.js를 넣지 마라.
 
 ## HTML 구조 필수 패턴
 
@@ -115,22 +122,143 @@ function _buildSystemPrompt(): string {
 - 사이드바: \`w-64 shrink-0 hidden lg:block\`
 - 메인: \`flex-1 min-w-0\`
 
-## 디자인 시스템 선택 (서비스에 맞게)
+## 디자인 시스템 선택 (서비스에 맞게 1개 선택)
 
-### 모던 다크 (금융, 개발자, 모니터링)
+### 1. 모던 다크 (금융, 개발자, 모니터링, 게임)
 body: \`bg-gray-950 text-gray-100\`
-카드: \`bg-gray-900 border border-gray-800\`
+카드: \`bg-gray-900 border border-gray-800 hover:border-gray-700\`
 액센트: \`text-blue-400 bg-blue-500/10\`
+헤더: \`bg-gray-950/80 border-gray-800\`
 
-### 클린 라이트 (뉴스, 쇼핑, 일반)
+### 2. 클린 라이트 (뉴스, 쇼핑, 일반, 교육)
 body: \`bg-gray-50 text-gray-900\`
-카드: \`bg-white shadow-sm\`
+카드: \`bg-white shadow-sm hover:shadow-lg\`
 액센트: \`text-blue-600 bg-blue-50\`
+헤더: \`bg-white/80 border-gray-200\`
 
-### 따뜻한 톤 (음식, 여행, 라이프스타일)
+### 3. 따뜻한 톤 (음식, 여행, 라이프스타일, 카페)
 body: \`bg-orange-50/30 text-gray-900\`
-카드: \`bg-white shadow-sm\`
+카드: \`bg-white shadow-sm hover:shadow-lg\`
 액센트: \`text-orange-600 bg-orange-50\`
+헤더: \`bg-orange-50/80 border-orange-100\`
+
+### 4. 오션 블루 (날씨, 여행, 물류, 교통)
+body: \`bg-slate-50 text-slate-900\`
+카드: \`bg-white shadow-sm border border-sky-100 hover:shadow-lg\`
+액센트: \`text-sky-600 bg-sky-50\`
+헤더: \`bg-white/80 border-sky-100\`
+특징: 물결/파도 느낌의 부드러운 곡선 섹션 구분선
+
+### 5. 포레스트 그린 (건강, 환경, 교육, 웰빙)
+body: \`bg-emerald-50/20 text-gray-900\`
+카드: \`bg-white shadow-sm hover:shadow-lg\`
+액센트: \`text-emerald-600 bg-emerald-50\`
+헤더: \`bg-white/80 border-emerald-100\`
+특징: 유기적인 둥근 모서리, 자연 톤 그래디언트
+
+### 6. 선셋 그래디언트 (엔터테인먼트, 음악, 이벤트, SNS)
+body: \`bg-gradient-to-br from-purple-950 via-indigo-950 to-slate-950 text-gray-100\`
+카드: \`bg-white/5 backdrop-blur-sm border border-white/10 hover:border-white/20\`
+액센트: \`text-purple-400 bg-purple-500/10\`
+헤더: \`bg-black/20 backdrop-blur-xl border-white/10\`
+특징: 그래디언트 배경, 글래스모피즘 카드, 네온 느낌 액센트
+
+### 7. 파스텔 (반려동물, 키즈, 커뮤니티, 취미)
+body: \`bg-pink-50/20 text-gray-800\`
+카드: \`bg-white shadow-sm rounded-3xl hover:shadow-lg\`
+액센트: \`text-rose-500 bg-rose-50\`
+헤더: \`bg-white/80 border-pink-100\`
+특징: 큰 둥근 모서리(\`rounded-3xl\`), 부드러운 파스텔 그래디언트, 아이콘 강조
+
+### 8. 모노크롬 (포트폴리오, 미니멀, 갤러리, 사진)
+body: \`bg-white text-gray-900\`
+카드: \`bg-gray-50 border border-gray-100 hover:border-gray-300\`
+액센트: \`text-gray-900 bg-gray-100\`
+헤더: \`bg-white border-gray-100\`
+특징: 여백 강조, 타이포그래피 중심, 흑백 + 단일 포인트 컬러
+
+## 히어로 섹션 변형 (서비스에 맞게 1개 선택)
+
+### 풀 이미지 히어로 (여행, 음식, 부동산)
+\`\`\`html
+<section class="relative h-[60vh] overflow-hidden">
+  <img src="https://picsum.photos/seed/hero/1920/1080" alt="히어로 배경" class="absolute inset-0 w-full h-full object-cover">
+  <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
+  <div class="relative z-10 max-w-7xl mx-auto px-4 h-full flex items-end pb-16">
+    <div>
+      <h2 class="text-4xl sm:text-5xl font-bold text-white mb-4">제목 텍스트</h2>
+      <p class="text-lg text-gray-200 max-w-2xl">설명 텍스트</p>
+    </div>
+  </div>
+</section>
+\`\`\`
+
+### 스플릿 히어로 (쇼핑, SaaS, 교육)
+\`\`\`html
+<section class="max-w-7xl mx-auto px-4 sm:px-6 py-16">
+  <div class="grid lg:grid-cols-2 gap-12 items-center">
+    <div>
+      <h2 class="text-4xl sm:text-5xl font-bold tracking-tight mb-6">제목 텍스트</h2>
+      <p class="text-lg text-gray-600 mb-8">설명 텍스트</p>
+      <div class="flex gap-4">
+        <button class="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors">시작하기</button>
+        <button class="px-6 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">자세히 보기</button>
+      </div>
+    </div>
+    <div class="relative">
+      <img src="https://picsum.photos/seed/split/800/600" alt="히어로 이미지" class="rounded-2xl shadow-2xl w-full">
+    </div>
+  </div>
+</section>
+\`\`\`
+
+### 그래디언트 히어로 (대시보드, 금융, 데이터)
+\`\`\`html
+<section class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white py-16">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 text-center">
+    <h2 class="text-3xl sm:text-4xl font-bold mb-4">제목 텍스트</h2>
+    <p class="text-blue-100 text-lg mb-8 max-w-2xl mx-auto">설명 텍스트</p>
+    <div class="relative max-w-xl mx-auto">
+      <input type="text" placeholder="검색어를 입력하세요" class="w-full px-6 py-4 rounded-2xl text-gray-900 shadow-lg focus:ring-4 focus:ring-blue-300/50">
+      <button class="absolute right-2 top-2 px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700">검색</button>
+    </div>
+  </div>
+</section>
+\`\`\`
+
+## 카드 변형 (혼합 사용 가능)
+
+### 이미지 탑 카드 (기본 — 쇼핑, 블로그, 갤러리)
+카드 상단에 이미지, 하단에 텍스트. \`aspect-video object-cover\` 필수.
+
+### 오버레이 카드 (여행, 영화, 이벤트)
+이미지 위에 어두운 그래디언트 오버레이 + 하단에 흰색 텍스트:
+\`\`\`html
+<div class="relative group rounded-2xl overflow-hidden cursor-pointer">
+  <img src="..." alt="..." class="w-full aspect-[4/3] object-cover group-hover:scale-105 transition-transform duration-500">
+  <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+  <div class="absolute bottom-0 p-5 text-white">
+    <h3 class="text-lg font-bold">카드 제목</h3>
+    <p class="text-sm text-gray-300 mt-1">카드 설명</p>
+  </div>
+</div>
+\`\`\`
+
+### 호리즌탈 카드 (뉴스, 리뷰, 검색 결과)
+좌측 이미지 + 우측 텍스트 가로 배치:
+\`\`\`html
+<div class="flex gap-4 bg-white rounded-xl shadow-sm hover:shadow-lg transition-all p-4 cursor-pointer">
+  <img src="..." alt="..." class="w-32 h-24 rounded-lg object-cover shrink-0">
+  <div class="flex-1 min-w-0">
+    <h3 class="font-semibold line-clamp-1">카드 제목</h3>
+    <p class="text-sm text-gray-500 line-clamp-2 mt-1">카드 설명</p>
+    <div class="flex items-center gap-3 mt-2 text-xs text-gray-400">
+      <span>2026.03.28</span>
+      <span>조회 1,234</span>
+    </div>
+  </div>
+</div>
+\`\`\`
 
 ## 목 데이터 작성 규칙 (★ 매우 중요)
 
@@ -277,6 +405,91 @@ function showToast(message, type = 'success') {
 - 태블릿 (768~1024px): \`sm:grid-cols-2\`
 - 데스크톱 (> 1024px): \`lg:grid-cols-3\` 이상, 사이드바 표시
 
+## 접근성 (a11y) 필수 규칙
+
+- 시맨틱 HTML 사용: \`<nav>\`, \`<main>\`, \`<article>\`, \`<section>\`, \`<figure>\`, \`<footer>\`
+- 모든 \`<img>\`에 한국어 \`alt\` 속성 필수 (예: \`alt="서울 강남 브런치 카페 인테리어"\`)
+- 색상 대비: 본문 텍스트는 배경 대비 4.5:1 이상 유지 (다크 모드에서도)
+- 아이콘만 있는 버튼에는 반드시 \`aria-label\` 추가 (예: \`<button aria-label="좋아요"><i class="fas fa-heart"></i></button>\`)
+- 클릭 액션은 \`<button>\` 사용 — \`<div onclick>\` 금지
+- 모달: \`role="dialog"\` + \`aria-modal="true"\` + ESC 키로 닫기
+- 폼 입력: \`<label>\`과 \`<input>\`을 연결 (for/id 또는 감싸기)
+- 키보드 탐색 가능: 탭 순서가 논리적, 포커스 표시 명확 (\`focus:ring-2\`)
+
+## 타이포그래피 체계
+
+일관된 텍스트 크기를 반드시 사용하라:
+- 페이지 타이틀: \`text-3xl sm:text-4xl font-bold tracking-tight\`
+- 섹션 제목: \`text-2xl font-bold\`
+- 카드/항목 제목: \`text-lg font-semibold\`
+- 본문: \`text-sm sm:text-base leading-relaxed\`
+- 캡션/보조: \`text-xs text-gray-500\`
+- 섹션 간 간격: \`space-y-8\` 또는 \`py-12\`
+- 텍스트 줄 간격: \`leading-relaxed\` (본문), \`leading-tight\` (제목)
+
+## 푸터 필수 패턴
+
+모든 페이지에 반드시 푸터를 포함하라:
+\`\`\`html
+<footer class="border-t border-gray-200 mt-16">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+    <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+      <p class="text-sm text-gray-500">© 2026 서비스이름. All rights reserved.</p>
+      <nav class="flex gap-6 text-sm text-gray-500">
+        <a href="#" class="hover:text-gray-900 transition-colors">이용약관</a>
+        <a href="#" class="hover:text-gray-900 transition-colors">개인정보처리방침</a>
+        <a href="#" class="hover:text-gray-900 transition-colors">고객센터</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+\`\`\`
+다크 테마일 경우 \`border-gray-800\`, \`text-gray-400\`, \`hover:text-gray-100\`으로 조정.
+
+## 마이크로 인터랙션 (필수 적용)
+
+모든 인터랙티브 요소에 세밀한 피드백을 적용하라:
+- 버튼 클릭: \`active:scale-95 transition-transform duration-150\`
+- 카드 호버: \`hover:-translate-y-1 hover:shadow-xl transition-all duration-300\`
+- 폼 포커스: \`focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-colors\`
+- 좋아요/북마크 토글: 색상 전환 + \`scale\` 애니메이션 (\`transform: scale(1.2)\` → \`scale(1)\`)
+- 링크/텍스트 호버: \`hover:text-blue-600 transition-colors duration-200\`
+- 텍스트 말줄임(\`line-clamp-2\`)에 호버 시 툴팁으로 전체 텍스트 표시
+- 드롭다운/메뉴 열기: \`opacity-0 scale-95\` → \`opacity-100 scale-100\` 트랜지션
+- 삭제 버튼: \`hover:bg-red-50 hover:text-red-600\` 경고 색상
+
+## 로딩 / 에러 / 빈 결과 상태 처리
+
+### API 호출 중 (로딩)
+목 데이터가 이미 렌더링된 상태에서 API 호출. 별도 로딩 스피너 불필요.
+만약 섹션별 업데이트가 필요하면 스켈레톤 UI 사용:
+\`\`\`html
+<div class="animate-pulse space-y-3">
+  <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+  <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+</div>
+\`\`\`
+
+### API 실패 시
+목 데이터를 유지하고, 상단에 비침습적 배너 표시:
+\`\`\`javascript
+function showApiBanner() {
+  const banner = document.createElement('div');
+  banner.className = 'bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-sm text-amber-700';
+  banner.innerHTML = '<i class="fas fa-info-circle mr-2"></i>실시간 데이터를 불러오지 못했습니다. 샘플 데이터를 표시합니다.';
+  document.body.prepend(banner);
+}
+\`\`\`
+
+### 검색 결과 0건
+\`\`\`html
+<div class="text-center py-16">
+  <i class="fas fa-search text-4xl text-gray-300 mb-4"></i>
+  <p class="text-gray-500 text-lg">"검색어"에 대한 결과가 없습니다</p>
+  <p class="text-gray-400 text-sm mt-2">다른 키워드로 검색해 보세요</p>
+</div>
+\`\`\`
+
 ## API 호출 규칙
 - auth_type이 'api_key'인 API → 서버 프록시:
   \`fetch('/api/v1/proxy?apiId=<ID>&proxyPath=<경로>&파라미터=값')\`
@@ -287,16 +500,31 @@ function showToast(message, type = 'success') {
 
 반환 전에 아래 항목을 하나씩 확인하세요. 하나라도 실패하면 수정 후 반환:
 
+### 콘텐츠 & 데이터
 □ 페이지를 열면 목 데이터가 즉시 보이는가? (빈 화면, "데이터가 없습니다" 없는가?)
+□ 목 데이터가 최소 15개 이상이고 현실적인 한국어인가?
+□ Chart.js에 실제 숫자가 들어있는가? (Chart.js가 불필요하면 포함하지 않았는가?)
+□ 모든 텍스트가 한국어인가? (UI, 목 데이터, placeholder 전부)
+
+### 레이아웃 & 디자인
 □ 헤더/타이틀이 가로로 정상 배치되는가? (세로 깨짐 없는가?)
-□ 카드가 그리드로 보기 좋게 배치되는가? (한 줄에 1개만 있지 않은가?)
-□ Chart.js에 실제 숫자가 들어있는가? (빈 차트가 아닌가?)
+□ 카드가 그리드로 보기 좋게 배치되는가? (데스크톱에서 2열 이상)
+□ 타이포그래피가 일관되는가? (H1 > H2 > H3 > 본문 > 캡션 크기 순서)
+□ 푸터가 포함되어 있는가? (서비스명 + 저작권 + 링크)
+□ 모바일에서도 레이아웃이 정상인가? (반응형 클래스 sm:/md:/lg: 사용)
+
+### 인터랙션 & UX
 □ 탭 클릭, 검색 입력, 카드 클릭 등 인터랙션이 모두 동작하는가?
-□ 모달/상세보기가 풍부한 내용으로 채워져 있는가?
-□ 모바일에서도 레이아웃이 정상인가?
-□ 모든 텍스트가 한국어인가?
+□ 모달/상세보기가 풍부한 내용으로 채워져 있고 ESC로 닫히는가?
 □ 호버 효과, 트랜지션, 애니메이션이 적용되어 있는가?
+□ 버튼 클릭 피드백(active:scale-95), 카드 호버 효과가 있는가?
 □ 화면에 움직이는 요소가 1개 이상 있는가? (카운터, 차트, 피드 등)
+
+### 접근성 & 품질
+□ 시맨틱 HTML을 사용하는가? (<main>, <nav>, <article>, <footer>)
+□ 모든 <img>에 한국어 alt 속성이 있는가?
+□ 아이콘만 있는 버튼에 aria-label이 있는가?
+□ API 호출 실패 시 목 데이터가 유지되는가?
 
 ## 절대 금지
 
@@ -309,10 +537,20 @@ function showToast(message, type = 'success') {
 - 정적이고 움직임이 없는 페이지
 - 영어 UI 텍스트 또는 영어 목 데이터
 - 서비스 타이틀이 세로로 표시되는 깨진 레이아웃
-- 1열로만 나열되는 카드/리스트 (데스크톱에서)`;
+- 1열로만 나열되는 카드/리스트 (데스크톱에서)
+- \`<div onclick>\` — 클릭 액션에는 반드시 \`<button>\` 사용
+- \`alt\` 속성 없는 \`<img>\` 태그
+- 푸터 없이 콘텐츠가 갑자기 끝나는 페이지
+- 불필요한 CDN 로드 (차트 없는 페이지에 Chart.js 등)
+- 일관성 없는 텍스트 크기 (체계 없이 제각각인 font-size)`;
 }
 
-export function buildUserPrompt(apis: ApiCatalogItem[], context: string, projectId?: string): string {
+export function buildUserPrompt(
+  apis: ApiCatalogItem[],
+  context: string,
+  projectId?: string,
+  designPreferences?: DesignPreferences
+): string {
   const apiDescriptions = apis
     .map((api, i) => {
       const endpoints = api.endpoints
@@ -338,12 +576,41 @@ ${endpoints}`;
     })
     .join('\n\n');
 
+  // 카테고리 기반 디자인 추론
+  const categories = [...new Set(apis.map((a) => a.category).filter(Boolean))];
+  const inference = inferDesignFromCategories(categories);
+
+  // 사용자 선호도 + AI 추론 결합
+  const hasUserPrefs = designPreferences && (
+    designPreferences.mood !== 'auto' ||
+    designPreferences.audience !== 'general' ||
+    designPreferences.layoutPreference !== 'auto'
+  );
+
+  const designSection = `
+## 디자인 가이드
+
+### API 분석 기반 추천
+- 감지된 API 카테고리: ${categories.join(', ') || '없음'}
+- 추천 서비스 유형: ${inference.description}
+- 추천 테마: ${inference.theme}
+- 추천 레이아웃: ${inference.layout}
+- 차트 필요: ${inference.useChart ? '예 (Chart.js CDN 포함)' : '아니오 (Chart.js 불필요)'}
+- 지도 필요: ${inference.useMap ? '예 (Leaflet CDN 포함)' : '아니오'}
+${hasUserPrefs ? `
+### 사용자 선호도 (추천보다 우선)
+${designPreferences.mood !== 'auto' ? `- 분위기: ${designPreferences.mood}` : ''}
+${designPreferences.audience !== 'general' ? `- 대상 고객: ${designPreferences.audience}` : ''}
+${designPreferences.layoutPreference !== 'auto' ? `- 레이아웃: ${designPreferences.layoutPreference}` : ''}
+사용자가 명시한 선호도는 위 AI 추천보다 우선 적용하세요.` : '위 추천을 기반으로 디자인하되, 사용자 요청에 더 적합한 대안이 있으면 자율적으로 변경 가능.'}`;
+
   return `## 선택된 API 목록
 
 ${apiDescriptions}
 
 ## 사용자 요청
 ${context}
+${designSection}
 
 ## 구현 지시
 

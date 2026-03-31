@@ -50,14 +50,14 @@ describe('assembleHtml', () => {
   it('이미 <style>과 <script>가 있어도 별도 CSS/JS를 추가 주입한다', () => {
     const html = '<html><head><style>a{}</style></head><body><script>var x</script></body></html>';
     const result = assembleHtml({ html, css: 'body{}', js: 'alert()' });
-    expect(result).toContain('<style>\nbody{}\n</style>');
+    expect(result).toContain('body{}');
     expect(result).toContain('<script>\nalert()\n</script>');
   });
 
   it('</head>가 있는 HTML에 CSS를 주입한다', () => {
     const html = '<html><head></head><body></body></html>';
     const result = assembleHtml({ html, css: 'body { color: red; }', js: '' });
-    expect(result).toContain('<style>\nbody { color: red; }\n</style>');
+    expect(result).toContain('body { color: red; }');
     expect(result).toContain('</head>');
   });
 
@@ -73,5 +73,34 @@ describe('assembleHtml', () => {
     expect(result).toContain('<!DOCTYPE html>');
     expect(result).toContain('<html lang="ko">');
     expect(result).toContain('<p>content</p>');
+  });
+
+  it('OG 메타태그와 파비콘을 자동 주입한다', () => {
+    const html = '<html><head><title>테스트 서비스</title></head><body></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    expect(result).toContain('og:type');
+    expect(result).toContain('og:locale');
+    expect(result).toContain('og:title');
+    expect(result).toContain('테스트 서비스');
+    expect(result).toContain('rel="icon"');
+  });
+
+  it('CSS 기본 변수와 프린트 스타일시트를 주입한다', () => {
+    const html = '<html><head></head><body></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    expect(result).toContain('--transition-fast');
+    expect(result).toContain('--shadow-sm');
+    expect(result).toContain('@media print');
+  });
+
+  it('이미지에 lazy loading과 decoding을 추가한다', () => {
+    const html = '<html><head></head><body><img src="a.jpg"><img src="b.jpg"><img src="https://picsum.photos/seed/test/600/400"></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    // 3rd image should have lazy loading
+    expect(result).toContain('loading="lazy"');
+    expect(result).toContain('decoding="async"');
+    // picsum.photos should get width/height
+    expect(result).toContain('width="600"');
+    expect(result).toContain('height="400"');
   });
 });

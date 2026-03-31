@@ -9,6 +9,13 @@ const createProjectSchema = z.object({
   context: z.string().min(50).max(2000),
   apiIds: z.array(z.string().uuid()).min(1).max(5),
   organizationId: z.string().uuid().optional(),
+  designPreferences: z
+    .object({
+      mood: z.enum(['auto', 'light', 'dark', 'warm', 'colorful', 'minimal']),
+      audience: z.enum(['general', 'business', 'youth', 'premium']),
+      layoutPreference: z.enum(['auto', 'dashboard', 'gallery', 'feed', 'landing', 'tool']),
+    })
+    .optional(),
 });
 
 export async function GET() {
