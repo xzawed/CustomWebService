@@ -86,9 +86,13 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Extract JSON array from response (tolerates surrounding text or code blocks)
-    const match = aiResponse.content.match(/\[[\s\S]*\]/);
+    // 비탐욕적 매칭으로 첫 번째 JSON 배열만 추출
+    const match = aiResponse.content.match(/\[[\s\S]*?\]/);
     if (!match) {
-      logger.warn('Context suggestion: could not parse AI response', { content: aiResponse.content.slice(0, 500) });
+      logger.warn('Context suggestion: could not parse AI response', {
+        content: aiResponse.content.slice(0, 500),
+        model: provider.model,
+      });
       return jsonResponse({ success: true, data: { suggestions: [] } });
     }
 
