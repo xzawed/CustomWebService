@@ -11,6 +11,7 @@ import ContextInput from '@/components/builder/ContextInput';
 import ContextSuggestions from '@/components/builder/ContextSuggestions';
 import GuideQuestions from '@/components/builder/GuideQuestions';
 import TemplateSelector from '@/components/builder/TemplateSelector';
+import DesignPreferences from '@/components/builder/DesignPreferences';
 import type { Template } from '@/components/builder/TemplateSelector';
 import GenerationProgress from '@/components/builder/GenerationProgress';
 import PreviewFrame from '@/components/builder/PreviewFrame';
@@ -59,6 +60,7 @@ export default function BuilderPage() {
     setContext,
     setTemplate,
     isValid: isContextValid,
+    getDesignPreferences,
     reset: resetContext,
   } = useContextStore();
 
@@ -153,6 +155,7 @@ export default function BuilderPage() {
           name: `프로젝트-${Date.now()}`,
           context,
           apiIds: selectedIds,
+          designPreferences: getDesignPreferences(),
         }),
       });
 
@@ -485,6 +488,7 @@ export default function BuilderPage() {
 
               <GuideQuestions onInsert={handleInsertGuide} />
               <TemplateSelector onSelect={handleApplyTemplate} />
+              <DesignPreferences />
             </div>
           )}
 
@@ -546,6 +550,7 @@ export default function BuilderPage() {
 
               <GuideQuestions onInsert={handleInsertGuide} />
               <TemplateSelector onSelect={handleApplyTemplate} />
+              <DesignPreferences />
             </div>
           )}
 
