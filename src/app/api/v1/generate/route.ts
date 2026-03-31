@@ -7,9 +7,12 @@ import { CodeRepository } from '@/repositories/codeRepository';
 import { EventRepository } from '@/repositories/eventRepository';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
+import type { DesignPreferences } from '@/types/project';
 import { buildSystemPrompt, buildUserPrompt } from '@/lib/ai/promptBuilder';
 import { parseGeneratedCode } from '@/lib/ai/codeParser';
-import { validateAll } from '@/lib/ai/codeValidator';
+import { validateAll, evaluateQuality } from '@/lib/ai/codeValidator';
+import { inferDesignFromCategories } from '@/lib/ai/categoryDesignMap';
+import { shouldRetryGeneration, buildQualityImprovementPrompt } from '@/lib/ai/qualityLoop';
 import { eventBus } from '@/lib/events/eventBus';
 import { getLimits } from '@/lib/config/features';
 import { getCorrelationId } from '@/lib/utils/correlationId';
@@ -72,7 +75,8 @@ export async function POST(request: Request): Promise<Response> {
 
     // Build prompt (시스템 프롬프트는 모듈 레벨 캐시 사용)
     const systemPrompt = buildSystemPrompt();
-    const userPrompt = buildUserPrompt(apis, project.context);
+    const designPreferences = (project.metadata as Record<string, unknown>)?.designPreferences as DesignPreferences | undefined;
+    const userPrompt = buildUserPrompt(apis, project.context, project.id, designPreferences);
     const limits = getLimits();
 
     // SSE stream with proper cancellation handling
@@ -154,7 +158,7 @@ export async function POST(request: Request): Promise<Response> {
             message: '디자인 적용 중...',
           });
 
-          const parsed = parseGeneratedCode(response.content);
+          let parsed = parseGeneratedCode(response.content);
 
           send('progress', {
             step: 'validating',
@@ -171,6 +175,43 @@ export async function POST(request: Request): Promise<Response> {
             });
             throw new Error(`생성된 코드에 보안 문제가 감지되었습니다: ${validation.errors.join(', ')}`);
           }
+
+          let quality = evaluateQuality(parsed.html, parsed.css, parsed.js);
+
+          // 품질 자동 재생성 (1회 제한)
+          let qualityLoopUsed = false;
+          if (shouldRetryGeneration(quality)) {
+            logger.info('Quality below threshold, attempting improvement', {
+              projectId,
+              score: quality.structuralScore,
+            });
+
+            send('progress', {
+              step: 'quality_improvement',
+              progress: 92,
+              message: '품질 개선 중...',
+            });
+
+            try {
+              const improvementPrompt = buildQualityImprovementPrompt(parsed, quality);
+              const retryResponse = await provider!.generateCode({ system: systemPrompt, user: improvementPrompt });
+              const retryParsed = parseGeneratedCode(retryResponse.content);
+
+              if (retryParsed.html) {
+                const retryQuality = evaluateQuality(retryParsed.html, retryParsed.css, retryParsed.js);
+                if (retryQuality.structuralScore > quality.structuralScore) {
+                  parsed = retryParsed;
+                  quality = retryQuality;
+                  qualityLoopUsed = true;
+                }
+              }
+            } catch (retryErr) {
+              logger.warn('Quality improvement retry failed', { projectId, retryErr });
+            }
+          }
+
+          const categories = [...new Set(apis.map((a) => a.category).filter(Boolean))];
+          const inference = inferDesignFromCategories(categories);
 
           const codeRepo = new CodeRepository(supabase);
           const nextVersion = await codeRepo.getNextVersion(projectId);
@@ -191,6 +232,11 @@ export async function POST(request: Request): Promise<Response> {
             metadata: {
               securityCheckPassed: validation.passed,
               validationErrors: [...validation.errors, ...validation.warnings],
+              ...quality,
+              apiCategories: categories,
+              inferredTheme: inference.theme,
+              inferredLayout: inference.layout,
+              qualityLoopUsed,
             },
           } as Parameters<typeof codeRepo.create>[0]);
 

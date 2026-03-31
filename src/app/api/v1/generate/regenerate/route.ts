@@ -9,7 +9,8 @@ import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import { buildSystemPrompt, buildRegenerationPrompt } from '@/lib/ai/promptBuilder';
 import { parseGeneratedCode } from '@/lib/ai/codeParser';
-import { validateAll } from '@/lib/ai/codeValidator';
+import { validateAll, evaluateQuality } from '@/lib/ai/codeValidator';
+import { inferDesignFromCategories } from '@/lib/ai/categoryDesignMap';
 import { eventBus } from '@/lib/events/eventBus';
 import { getLimits } from '@/lib/config/features';
 import { getCorrelationId } from '@/lib/utils/correlationId';
@@ -180,6 +181,9 @@ export async function POST(request: Request): Promise<Response> {
             throw new Error(`생성된 코드에 보안 문제가 감지되었습니다: ${validation.errors.join(', ')}`);
           }
 
+          const categories = [...new Set(projectApis.map((a) => a.category).filter(Boolean))];
+          const inference = inferDesignFromCategories(categories);
+
           const nextVersion = await codeRepo.getNextVersion(projectId);
 
           const savedCode = await codeRepo.create({
@@ -199,6 +203,10 @@ export async function POST(request: Request): Promise<Response> {
               securityCheckPassed: validation.passed,
               validationErrors: [...validation.errors, ...validation.warnings],
               userFeedback: feedback,
+              ...evaluateQuality(parsed.html, parsed.css, parsed.js),
+              apiCategories: categories,
+              inferredTheme: inference.theme,
+              inferredLayout: inference.layout,
             },
           } as Parameters<typeof codeRepo.create>[0]);
 

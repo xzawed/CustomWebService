@@ -74,6 +74,31 @@ vi.mock('@/lib/ai/codeValidator', () => ({
     errors: [],
     warnings: [],
   }),
+  evaluateQuality: vi.fn().mockReturnValue({
+    structuralScore: 80,
+    hasSemanticHtml: true,
+    hasMockData: true,
+    hasInteraction: true,
+    hasResponsiveClasses: true,
+    hasFooter: true,
+    hasImgAlt: true,
+    details: [],
+  }),
+}));
+
+vi.mock('@/lib/ai/categoryDesignMap', () => ({
+  inferDesignFromCategories: vi.fn().mockReturnValue({
+    theme: 'clean-light',
+    layout: 'hero-tabs-grid',
+    useChart: false,
+    useMap: false,
+    description: 'test',
+  }),
+}));
+
+vi.mock('@/lib/ai/qualityLoop', () => ({
+  shouldRetryGeneration: vi.fn().mockReturnValue(false),
+  buildQualityImprovementPrompt: vi.fn().mockReturnValue('improvement prompt'),
 }));
 
 vi.mock('@/lib/events/eventBus', () => ({
@@ -144,6 +169,7 @@ async function setupHappyPath() {
   const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
   (AiProviderFactory.createForTask as ReturnType<typeof vi.fn>).mockReturnValue({
     name: 'claude',
+    generateCode: vi.fn().mockResolvedValue(mockAiResponse),
     generateCodeStream: vi.fn().mockImplementation((_prompt: unknown, onChunk: (chunk: string, accumulated: string) => void) => {
       onChunk(mockAiResponse.content, mockAiResponse.content);
       return Promise.resolve(mockAiResponse);
