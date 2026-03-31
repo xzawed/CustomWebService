@@ -88,6 +88,127 @@ export function validateFunctionality(html: string, _css: string, js: string): V
   };
 }
 
+export interface QualityMetrics {
+  structuralScore: number;
+  hasSemanticHtml: boolean;
+  hasMockData: boolean;
+  hasInteraction: boolean;
+  hasResponsiveClasses: boolean;
+  hasFooter: boolean;
+  hasImgAlt: boolean;
+  details: string[];
+}
+
+/**
+ * Evaluate structural quality of generated code.
+ * Returns a score (0-100) and individual quality flags.
+ * These are informational — they do not block code storage.
+ */
+export function evaluateQuality(html: string, _css: string, js: string): QualityMetrics {
+  const fullCode = `${html}\n${js}`;
+  const details: string[] = [];
+  let score = 0;
+  const maxScore = 10; // number of checks
+
+  // 1. Semantic HTML: <main>, <nav>, <article>, <section>, <footer>
+  const semanticTags = ['<main', '<nav', '<footer', '<section', '<article'];
+  const semanticCount = semanticTags.filter((tag) => html.includes(tag)).length;
+  const hasSemanticHtml = semanticCount >= 2;
+  if (hasSemanticHtml) {
+    score++;
+  } else {
+    details.push(`시맨틱 HTML 부족 (${semanticCount}/2 태그)`);
+  }
+
+  // 2. Mock data array exists
+  const hasMockData = /const\s+\w*(mock|data|items|list|posts|products|cards)\w*\s*=\s*\[/i.test(js);
+  if (hasMockData) {
+    score++;
+  } else {
+    details.push('목 데이터 배열이 감지되지 않았습니다');
+  }
+
+  // 3. DOMContentLoaded listener
+  const hasDomReady = /DOMContentLoaded|addEventListener\s*\(\s*['"]load['"]/i.test(js);
+  if (hasDomReady) {
+    score++;
+  } else {
+    details.push('DOMContentLoaded 리스너가 없습니다');
+  }
+
+  // 4. Event listeners (interaction)
+  const listenerCount = (js.match(/addEventListener\s*\(/g) ?? []).length;
+  const hasInteraction = listenerCount >= 2;
+  if (hasInteraction) {
+    score++;
+  } else {
+    details.push(`이벤트 리스너 부족 (${listenerCount}개)`);
+  }
+
+  // 5. Responsive Tailwind classes
+  const hasResponsiveClasses = /\b(sm|md|lg|xl):/i.test(fullCode);
+  if (hasResponsiveClasses) {
+    score++;
+  } else {
+    details.push('반응형 클래스(sm:/md:/lg:)가 없습니다');
+  }
+
+  // 6. Footer
+  const hasFooter = /<footer[\s>]/i.test(html);
+  if (hasFooter) {
+    score++;
+  } else {
+    details.push('<footer> 태그가 없습니다');
+  }
+
+  // 7. Image alt attributes
+  const imgTags = html.match(/<img\s[^>]*>/gi) ?? [];
+  const imgsWithAlt = imgTags.filter((tag) => /\balt\s*=/i.test(tag)).length;
+  const hasImgAlt = imgTags.length === 0 || imgsWithAlt >= imgTags.length * 0.7;
+  if (hasImgAlt) {
+    score++;
+  } else {
+    details.push(`이미지 alt 속성 부족 (${imgsWithAlt}/${imgTags.length})`);
+  }
+
+  // 8. Transitions / animations
+  const hasTransitions = /transition|animate|animation/i.test(fullCode);
+  if (hasTransitions) {
+    score++;
+  } else {
+    details.push('트랜지션/애니메이션이 없습니다');
+  }
+
+  // 9. Korean text present
+  const hasKorean = /[\uAC00-\uD7AF]/.test(fullCode);
+  if (hasKorean) {
+    score++;
+  } else {
+    details.push('한국어 텍스트가 감지되지 않았습니다');
+  }
+
+  // 10. Grid or flex layout
+  const hasGridOrFlex = /grid-cols|flex\s|flex-|display:\s*flex|display:\s*grid/i.test(fullCode);
+  if (hasGridOrFlex) {
+    score++;
+  } else {
+    details.push('그리드/플렉스 레이아웃이 없습니다');
+  }
+
+  const structuralScore = Math.round((score / maxScore) * 100);
+
+  return {
+    structuralScore,
+    hasSemanticHtml,
+    hasMockData,
+    hasInteraction,
+    hasResponsiveClasses,
+    hasFooter,
+    hasImgAlt,
+    details,
+  };
+}
+
 export function validateAll(html: string, css: string, js: string): ValidationResult {
   const fullCode = `${html}\n${css}\n${js}`;
   const securityResult = validateSecurity(fullCode);
