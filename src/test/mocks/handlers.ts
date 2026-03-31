@@ -30,7 +30,7 @@ console.log('loaded');
 \`\`\``,
         },
       ],
-      model: 'claude-sonnet-4-6-20250514',
+      model: 'claude-sonnet-4-6',
       stop_reason: 'end_turn',
       usage: { input_tokens: 100, output_tokens: 200 },
     });

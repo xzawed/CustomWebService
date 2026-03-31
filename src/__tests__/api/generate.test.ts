@@ -93,7 +93,7 @@ const mockApis = [{ id: 'api-1', name: 'Test API', description: 'desc' }];
 const mockAiResponse = {
   content: '<html>...</html>',
   provider: 'claude',
-  model: 'claude-sonnet-4-6-20250514',
+  model: 'claude-sonnet-4-6',
   durationMs: 1500,
   tokensUsed: { input: 100, output: 200 },
 };

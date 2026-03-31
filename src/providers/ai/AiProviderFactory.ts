@@ -4,7 +4,7 @@ import { ClaudeProvider } from './ClaudeProvider';
 export type AiProviderType = 'claude';
 export type AiTaskType = 'generation' | 'suggestion';
 
-const DEFAULT_MODEL = 'claude-sonnet-4-6-20250514';
+const DEFAULT_MODEL = 'claude-sonnet-4-6';
 
 export class AiProviderFactory {
   private static providers = new Map<string, IAiProvider>();

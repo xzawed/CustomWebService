@@ -47,13 +47,13 @@ describe('ClaudeProvider', () => {
     expect(provider.name).toBe('claude');
   });
 
-  it('기본 model이 claude-sonnet-4-6-20250514이다', () => {
-    expect(provider.model).toBe('claude-sonnet-4-6-20250514');
+  it('기본 model이 claude-sonnet-4-6이다', () => {
+    expect(provider.model).toBe('claude-sonnet-4-6');
   });
 
   it('커스텀 모델을 지정할 수 있다', () => {
-    const p = new ClaudeProvider('key', 'claude-haiku-4-5-20251001');
-    expect(p.model).toBe('claude-haiku-4-5-20251001');
+    const p = new ClaudeProvider('key', 'claude-haiku-4-5');
+    expect(p.model).toBe('claude-haiku-4-5');
   });
 
   // ── generateCode() ─────────────────────────────
@@ -66,7 +66,7 @@ describe('ClaudeProvider', () => {
     it('provider와 model 정보를 반환한다', async () => {
       const result = await provider.generateCode({ system: 'sys', user: 'user' });
       expect(result.provider).toBe('claude');
-      expect(result.model).toBe('claude-sonnet-4-6-20250514');
+      expect(result.model).toBe('claude-sonnet-4-6');
     });
 
     it('token 사용량을 반환한다', async () => {
@@ -118,7 +118,7 @@ describe('ClaudeProvider', () => {
         maxTokens: 600,
       });
       expect(mockCreate).toHaveBeenCalledWith({
-        model: 'claude-sonnet-4-6-20250514',
+        model: 'claude-sonnet-4-6',
         system: '당신은 웹 서비스 아이디어를 제안하는 도우미입니다.',
         messages: [{ role: 'user', content: expect.stringContaining('Weather API') }],
         temperature: 0.8,
@@ -128,11 +128,11 @@ describe('ClaudeProvider', () => {
 
     // ── Haiku 모델 호출 ──
     it('Haiku 모델로 suggestion 호출이 정상 동작한다', async () => {
-      const haiku = new ClaudeProvider('key', 'claude-haiku-4-5-20251001');
+      const haiku = new ClaudeProvider('key', 'claude-haiku-4-5');
       await haiku.generateCode({ system: 'sys', user: 'user', maxTokens: 600 });
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'claude-haiku-4-5-20251001',
+          model: 'claude-haiku-4-5',
           max_tokens: 600,
         })
       );
@@ -242,13 +242,13 @@ describe('ClaudeProvider', () => {
         () => {}
       );
       expect(result.provider).toBe('claude');
-      expect(result.model).toBe('claude-sonnet-4-6-20250514');
+      expect(result.model).toBe('claude-sonnet-4-6');
     });
 
     it('stream에 올바른 파라미터를 전달한다', async () => {
       await provider.generateCodeStream({ system: 'sys', user: 'user' }, () => {});
       expect(mockStream).toHaveBeenCalledWith({
-        model: 'claude-sonnet-4-6-20250514',
+        model: 'claude-sonnet-4-6',
         system: 'sys',
         messages: [{ role: 'user', content: 'user' }],
         temperature: 0.7,
@@ -362,14 +362,14 @@ describe('ClaudeProvider', () => {
     });
 
     it('model 필드가 정확히 전달된다 (Haiku)', async () => {
-      const haiku = new ClaudeProvider('key', 'claude-haiku-4-5-20251001');
+      const haiku = new ClaudeProvider('key', 'claude-haiku-4-5');
       await haiku.generateCode({ system: 's', user: 'u' });
-      expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ model: 'claude-haiku-4-5-20251001' }));
+      expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ model: 'claude-haiku-4-5' }));
     });
 
     it('model 필드가 정확히 전달된다 (Sonnet)', async () => {
       await provider.generateCode({ system: 's', user: 'u' });
-      expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ model: 'claude-sonnet-4-6-20250514' }));
+      expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ model: 'claude-sonnet-4-6' }));
     });
   });
 });

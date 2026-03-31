@@ -6,7 +6,7 @@ import { ClaudeProvider } from './ClaudeProvider';
 vi.mock('./ClaudeProvider', () => ({
   ClaudeProvider: vi.fn().mockImplementation((_apiKey: string, model?: string) => ({
     name: 'claude',
-    model: model ?? 'claude-sonnet-4-6-20250514',
+    model: model ?? 'claude-sonnet-4-6',
     generateCode: vi.fn(),
     generateCodeStream: vi.fn(),
     checkAvailability: vi.fn().mockResolvedValue({ available: true }),
@@ -36,7 +36,7 @@ describe('AiProviderFactory.create()', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     const provider = AiProviderFactory.create('claude');
     expect(provider.name).toBe('claude');
-    expect(ClaudeProvider).toHaveBeenCalledWith('test-key', 'claude-sonnet-4-6-20250514');
+    expect(ClaudeProvider).toHaveBeenCalledWith('test-key', 'claude-sonnet-4-6');
   });
 
   it('같은 provider 타입은 싱글톤으로 반환된다', () => {
@@ -78,14 +78,14 @@ describe('AiProviderFactory.createForTask()', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_PROVIDER;
     const provider = AiProviderFactory.createForTask('generation');
-    expect(provider.model).toBe('claude-sonnet-4-6-20250514');
+    expect(provider.model).toBe('claude-sonnet-4-6');
   });
 
   it('suggestion 태스크도 Sonnet 모델을 기본 사용한다', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_PROVIDER;
     const provider = AiProviderFactory.createForTask('suggestion');
-    expect(provider.model).toBe('claude-sonnet-4-6-20250514');
+    expect(provider.model).toBe('claude-sonnet-4-6');
   });
 
   it('같은 태스크는 싱글톤으로 반환된다', () => {
