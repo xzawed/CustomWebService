@@ -119,7 +119,7 @@ function optimizeImages(html: string): string {
       newAttrs += ' decoding="async"';
     }
 
-    // Extract width/height from picsum.photos URL pattern: /seed/x/{w}/{h} or /{w}/{h}
+    // Extract width/height from image URL patterns
     if (/picsum\.photos/i.test(newAttrs)) {
       const sizeMatch = newAttrs.match(/picsum\.photos\/(?:seed\/[^/]+\/)?(\d+)\/(\d+)/i);
       if (sizeMatch) {
@@ -128,6 +128,18 @@ function optimizeImages(html: string): string {
         }
         if (!/\bheight\s*=/i.test(newAttrs)) {
           newAttrs += ` height="${sizeMatch[2]}"`;
+        }
+      }
+    } else if (/images\.unsplash\.com/i.test(newAttrs) || /source\.unsplash\.com/i.test(newAttrs)) {
+      // Extract width/height from Unsplash URL: ?w=600&h=400 or /600x400/
+      const unsplashWH = newAttrs.match(/[?&]w=(\d+)&h=(\d+)/i) ||
+        newAttrs.match(/source\.unsplash\.com\/(\d+)x(\d+)/i);
+      if (unsplashWH) {
+        if (!/\bwidth\s*=/i.test(newAttrs)) {
+          newAttrs += ` width="${unsplashWH[1]}"`;
+        }
+        if (!/\bheight\s*=/i.test(newAttrs)) {
+          newAttrs += ` height="${unsplashWH[2]}"`;
         }
       }
     }
