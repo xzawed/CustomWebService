@@ -211,7 +211,7 @@ export async function POST(request: Request): Promise<Response> {
             });
 
             try {
-              const improvementPrompt = buildQualityImprovementPrompt(parsed, quality);
+              const improvementPrompt = buildQualityImprovementPrompt(parsed, quality, qcReport);
               const retryResponse = await provider!.generateCode({ system: systemPrompt, user: improvementPrompt });
               const retryParsed = parseGeneratedCode(retryResponse.content);
 

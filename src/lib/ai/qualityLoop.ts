@@ -19,9 +19,19 @@ export function shouldRetryGeneration(metrics: QualityMetrics, qcReport?: QcRepo
 
 export function buildQualityImprovementPrompt(
   previousCode: { html: string; css: string; js: string },
-  metrics: QualityMetrics
+  metrics: QualityMetrics,
+  qcReport?: QcReport | null
 ): string {
   const issues = metrics.details.map((d) => `- ${d}`).join('\n');
+  const qcIssues = qcReport
+    ? qcReport.checks
+        .filter(c => !c.passed)
+        .map(c => {
+          const detailStr = c.details.length > 0 ? ` (${c.details.join(', ')})` : '';
+          return `- [렌더링 QC] ${c.name}${detailStr}`;
+        })
+        .join('\n')
+    : '';
 
   return `## 이전 생성 코드
 
@@ -46,7 +56,7 @@ ${previousCode.js}
 아래 문제를 반드시 수정하세요:
 
 ${issues}
-
+${qcIssues ? `\n브라우저 렌더링 검증에서 발견된 추가 문제:\n${qcIssues}\n` : ''}
 수정 규칙:
 - 기존 기능과 디자인은 최대한 유지하면서 위 문제만 정확히 수정
 - 시맨틱 HTML 태그(<main>, <nav>, <footer>, <article>) 사용
@@ -61,6 +71,9 @@ ${issues}
 - 모바일 네비게이션: hidden md:flex / md:hidden 패턴 적용
 - 모든 버튼/링크에 py-3 이상의 터치 영역 확보
 - 가로 스크롤이 발생하지 않도록 레이아웃 수정
+${qcIssues ? `- 브라우저에서 JavaScript 에러가 발생하지 않도록 코드 수정
+- 375px 모바일 화면에서 가로 스크롤이 절대 발생하지 않도록 수정
+- <footer>가 페이지 하단에 보이도록 확인` : ''}
 
 전체 코드를 반환해주세요:
 
