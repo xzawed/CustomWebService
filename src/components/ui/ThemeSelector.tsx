@@ -56,7 +56,7 @@ export function ThemeSelector() {
 
       {open && (
         <div
-          className="absolute right-0 mt-2 w-72 overflow-hidden rounded-2xl p-4 animate-fade-in"
+          className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-16px)] overflow-hidden rounded-2xl p-4 animate-fade-in"
           style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border)',

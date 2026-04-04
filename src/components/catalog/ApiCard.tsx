@@ -96,7 +96,7 @@ export function ApiCard({ api, isSelected, onSelect, onDetail }: ApiCardProps) {
           e.stopPropagation();
           onDetail();
         }}
-        className="absolute bottom-4 right-4 rounded-lg p-1.5 opacity-0 transition-all group-hover:opacity-100"
+        className="absolute bottom-4 right-4 rounded-lg p-2 opacity-100 transition-all sm:opacity-0 sm:group-hover:opacity-100"
         style={{ color: 'var(--text-muted)' }}
         onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent-primary)')}
         onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}

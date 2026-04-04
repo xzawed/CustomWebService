@@ -88,7 +88,7 @@ export function Header() {
               <button
                 type="button"
                 onClick={() => setDropdownOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-full p-1 transition-all"
+                className="flex items-center gap-2 rounded-full p-2 transition-all"
                 style={{
                   outline: dropdownOpen ? '2px solid var(--border-accent)' : 'none',
                 }}
@@ -117,7 +117,7 @@ export function Header() {
 
               {dropdownOpen && (
                 <div
-                  className="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl py-1 animate-fade-in"
+                  className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-32px)] overflow-hidden rounded-xl py-1 animate-fade-in"
                   style={{
                     background: 'var(--bg-card)',
                     border: '1px solid var(--border)',

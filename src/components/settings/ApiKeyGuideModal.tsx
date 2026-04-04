@@ -34,7 +34,7 @@ export function ApiKeyGuideModal({ apiName, guide, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+            className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
             aria-label="닫기"
           >
             <X className="h-5 w-5" />
