@@ -81,15 +81,17 @@ describe('validateAll', () => {
 describe('evaluateQuality', () => {
   it('모든 품질 요소가 있으면 점수 100을 반환한다', () => {
     const html = `<!DOCTYPE html><html><head></head><body>
-      <nav>네비</nav>
-      <main>
-        <article>
-          <img src="https://picsum.photos/seed/a/600/400" alt="테스트 이미지">
-        </article>
-      </main>
-      <footer>푸터</footer>
-      <div class="sm:grid-cols-2 lg:grid-cols-3 transition-all">카드</div>
-    </body></html>`;
+  <nav class="hidden md:flex">데스크톱 메뉴</nav>
+  <button class="md:hidden">햄버거</button>
+  <main>
+    <article class="sm:px-6 lg:px-8">
+      <img src="https://picsum.photos/seed/a/600/400" alt="테스트 이미지" class="w-full max-w-full object-cover">
+    </article>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">카드</div>
+  </main>
+  <footer class="sm:flex lg:justify-between">푸터</footer>
+  <div class="transition-all sm:text-lg">텍스트</div>
+</body></html>`;
     const js = `
       const mockData = [{ id: 1, title: '테스트' }];
       document.addEventListener('DOMContentLoaded', () => {});
@@ -102,6 +104,11 @@ describe('evaluateQuality', () => {
     expect(result.hasMockData).toBe(true);
     expect(result.hasInteraction).toBe(true);
     expect(result.hasFooter).toBe(true);
+    expect(result.mobileScore).toBe(100);
+    expect(result.hasAdequateResponsive).toBe(true);
+    expect(result.noFixedOverflow).toBe(true);
+    expect(result.hasImageProtection).toBe(true);
+    expect(result.hasMobileNav).toBe(true);
   });
 
   it('빈 코드는 낮은 점수를 반환한다', () => {
@@ -126,5 +133,35 @@ describe('evaluateQuality', () => {
     const html = '<div class="sm:grid-cols-2 lg:grid-cols-3">test</div>';
     const result = evaluateQuality(html, '', '');
     expect(result.hasResponsiveClasses).toBe(true);
+  });
+
+  it('반응형 클래스가 8개 이상이면 hasAdequateResponsive가 true', () => {
+    const html = '<div class="sm:flex md:grid lg:block xl:hidden sm:p-4 md:p-6 lg:p-8 sm:text-lg">test</div>';
+    const result = evaluateQuality(html, '', '');
+    expect(result.hasAdequateResponsive).toBe(true);
+  });
+
+  it('고정 너비 500px 이상이면 noFixedOverflow가 false', () => {
+    const html = '<div class="w-[1000px]">wide</div>';
+    const result = evaluateQuality(html, '', '');
+    expect(result.noFixedOverflow).toBe(false);
+  });
+
+  it('이미지에 w-full이 있으면 hasImageProtection이 true', () => {
+    const html = '<img src="a.jpg" class="w-full"><img src="b.jpg" class="max-w-full object-cover">';
+    const result = evaluateQuality(html, '', '');
+    expect(result.hasImageProtection).toBe(true);
+  });
+
+  it('모바일 네비게이션 패턴이 있으면 hasMobileNav가 true', () => {
+    const html = '<nav class="hidden md:flex">데스크톱</nav><button class="md:hidden">메뉴</button>';
+    const result = evaluateQuality(html, '', '');
+    expect(result.hasMobileNav).toBe(true);
+  });
+
+  it('mobileScore는 0-100 범위', () => {
+    const result = evaluateQuality('<div></div>', '', '');
+    expect(result.mobileScore).toBeGreaterThanOrEqual(0);
+    expect(result.mobileScore).toBeLessThanOrEqual(100);
   });
 });
