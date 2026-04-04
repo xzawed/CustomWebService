@@ -98,6 +98,7 @@ pnpm test:coverage    # 커버리지 리포트
 - `NEXT_PUBLIC_ROOT_DOMAIN` (서브도메인 가상 호스팅)
 - `ANTHROPIC_API_KEY`
 - `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
+- `ENABLE_RENDERING_QC` — Playwright 렌더링 QC 활성화 (true/false)
 
 ## 문서 참조
 
@@ -107,6 +108,7 @@ pnpm test:coverage    # 커버리지 리포트
   - `debugging-guide.md` — 자주 발생하는 문제와 해결
   - `testing-guide.md` — 테스트 구조 및 패턴
   - `deployment.md` — 배포 환경변수 및 체크리스트
+- `docs/20_QC_표준_프로세스.md` — **QC 표준 프로세스** (모든 생성/수정에 적용)
 - `docs/` — 40+ 상세 설계 문서 (한국어): 아키텍처, DB, API, UI/UX, 스프린트 계획
 - `README.md` — 프로젝트 전체 개요
 - `.github/PULL_REQUEST_TEMPLATE.md` — PR 템플릿
@@ -128,6 +130,11 @@ pnpm test:coverage    # 커버리지 리포트
 ### 코드 수정 후
 - 수정한 함수/파일을 호출하는 모든 경로를 나열하고 각각 검증
 - 단일 파일만 보고 끝내지 않고 cross-cutting concern(미들웨어, 공통 함수) 영향 확인
+
+### QC 프로세스 (생성/재생성 공통)
+- 모든 코드 생성/재생성은 `docs/20_QC_표준_프로세스.md`의 8단계를 동일하게 거침
+- 보안 검증 → 코드 품질 → Fast QC → 자동 재생성 → 재검증 → 저장 → Deep QC → 사용자 알림
+- QC 관련 파일 수정 시: generate/route.ts와 regenerate/route.ts 양쪽 모두 동일하게 반영
 
 ## 커밋 메시지 규칙
 
