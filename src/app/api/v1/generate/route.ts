@@ -292,9 +292,9 @@ export async function POST(request: Request): Promise<Response> {
             logger.warn('Failed to prune old code versions', { projectId, pruneErr });
           });
 
-          // 렌더링 Deep QC — 비동기 실행, 응답 블로킹하지 않음
+          // 렌더링 Deep QC — 비동기 실행, 결과를 DB에 저장
           if (isQcEnabled()) {
-            runDeepQc(assembleHtml(parsed)).then((deepReport) => {
+            runDeepQc(assembleHtml(parsed)).then(async (deepReport) => {
               if (deepReport) {
                 logger.info('Deep QC completed', {
                   projectId,
@@ -302,6 +302,29 @@ export async function POST(request: Request): Promise<Response> {
                   qcPassed: deepReport.passed,
                   checks: deepReport.checks.map(c => ({ name: c.name, passed: c.passed, score: c.score })),
                 });
+                // Deep QC 결과를 DB 메타데이터에 저장 (Fast QC 결과를 덮어씀)
+                try {
+                  const existingCode = await codeRepo.findByProject(projectId);
+                  if (existingCode) {
+                    const updatedMetadata = {
+                      ...(existingCode.metadata as Record<string, unknown> ?? {}),
+                      renderingQcScore: deepReport.overallScore,
+                      renderingQcPassed: deepReport.passed,
+                      renderingQcChecks: deepReport.checks.map(c => ({
+                        name: c.name,
+                        passed: c.passed,
+                        score: c.score,
+                        details: c.details,
+                      })),
+                    };
+                    await supabase
+                      .from('codes')
+                      .update({ metadata: updatedMetadata })
+                      .eq('id', existingCode.id);
+                  }
+                } catch (updateErr) {
+                  logger.warn('Deep QC metadata update failed', { projectId, updateErr });
+                }
               }
             }).catch((qcErr) => {
               logger.warn('Deep QC failed', { projectId, qcErr });
@@ -344,6 +367,15 @@ export async function POST(request: Request): Promise<Response> {
             projectId,
             version: nextVersion,
             previewUrl: `/api/v1/preview/${projectId}`,
+            ...(qcReport && {
+              qcResult: {
+                score: qcReport.overallScore,
+                passed: qcReport.passed,
+                issues: qcReport.checks
+                  .filter(c => !c.passed)
+                  .map(c => ({ name: c.name, details: c.details })),
+              },
+            }),
           });
         } catch (error) {
           logger.error('Code generation failed', {
