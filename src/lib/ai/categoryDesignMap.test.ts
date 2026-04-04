@@ -38,4 +38,16 @@ describe('inferDesignFromCategories', () => {
     expect(inferDesignFromCategories(['maps']).useMap).toBe(true);
     expect(inferDesignFromCategories(['news']).useMap).toBe(false);
   });
+
+  it('allowedSections을 반환한다', () => {
+    const result = inferDesignFromCategories(['weather']);
+    expect(result.allowedSections).toBeDefined();
+    expect(result.allowedSections.length).toBeGreaterThan(0);
+  });
+
+  it('기본값에도 allowedSections이 포함된다', () => {
+    const result = inferDesignFromCategories([]);
+    expect(result.allowedSections).toBeDefined();
+    expect(result.allowedSections.length).toBeGreaterThan(0);
+  });
 });

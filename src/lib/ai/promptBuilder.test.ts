@@ -51,6 +51,13 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('```html');
     expect(prompt).toContain('```javascript');
   });
+
+  it('모바일 퍼스트 반응형 규칙을 포함한다', () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain('모바일 퍼스트');
+    expect(prompt).toContain('터치 UI');
+    expect(prompt).toContain('44px');
+  });
 });
 
 describe('buildUserPrompt', () => {
@@ -82,6 +89,17 @@ describe('buildUserPrompt', () => {
   it('엔드포인트 경로가 포함된다', () => {
     const prompt = buildUserPrompt([mockApi], '테스트');
     expect(prompt).toContain('/current');
+  });
+
+  it('콘텐츠 범위 제한을 포함한다', () => {
+    const prompt = buildUserPrompt([mockApi], '날씨 서비스');
+    expect(prompt).toContain('콘텐츠 범위');
+    expect(prompt).toContain('날씨 API');
+  });
+
+  it('허용 섹션 목록을 포함한다', () => {
+    const prompt = buildUserPrompt([mockApi], '날씨 대시보드');
+    expect(prompt).toContain('허용되는 UI 섹션');
   });
 });
 
