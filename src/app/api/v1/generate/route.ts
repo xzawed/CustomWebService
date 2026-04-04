@@ -9,7 +9,8 @@ import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import type { DesignPreferences } from '@/types/project';
 import { buildSystemPrompt, buildUserPrompt } from '@/lib/ai/promptBuilder';
-import { parseGeneratedCode } from '@/lib/ai/codeParser';
+import { parseGeneratedCode, assembleHtml } from '@/lib/ai/codeParser';
+import { runFastQc, runDeepQc, isQcEnabled } from '@/lib/qc';
 import { validateAll, evaluateQuality } from '@/lib/ai/codeValidator';
 import { inferDesignFromCategories } from '@/lib/ai/categoryDesignMap';
 import { shouldRetryGeneration, buildQualityImprovementPrompt } from '@/lib/ai/qualityLoop';
@@ -178,9 +179,26 @@ export async function POST(request: Request): Promise<Response> {
 
           let quality = evaluateQuality(parsed.html, parsed.css, parsed.js);
 
+          // 렌더링 QC (Fast — 인라인, 3초 제한)
+          let qcReport: import('@/types/qc').QcReport | null = null;
+          if (isQcEnabled()) {
+            try {
+              qcReport = await runFastQc(assembleHtml(parsed));
+              if (qcReport) {
+                logger.info('Fast QC completed', {
+                  projectId,
+                  qcScore: qcReport.overallScore,
+                  qcPassed: qcReport.passed,
+                });
+              }
+            } catch (qcErr) {
+              logger.warn('Fast QC failed, continuing without', { projectId, qcErr });
+            }
+          }
+
           // 품질 자동 재생성 (1회 제한)
           let qualityLoopUsed = false;
-          if (shouldRetryGeneration(quality)) {
+          if (shouldRetryGeneration(quality, qcReport)) {
             logger.info('Quality below threshold, attempting improvement', {
               projectId,
               score: quality.structuralScore,
@@ -238,6 +256,16 @@ export async function POST(request: Request): Promise<Response> {
               inferredTheme: inference.theme,
               inferredLayout: inference.layout,
               qualityLoopUsed,
+              ...(qcReport && {
+                renderingQcScore: qcReport.overallScore,
+                renderingQcPassed: qcReport.passed,
+                renderingQcChecks: qcReport.checks.map(c => ({
+                  name: c.name,
+                  passed: c.passed,
+                  score: c.score,
+                  details: c.details,
+                })),
+              }),
             },
           } as Parameters<typeof codeRepo.create>[0]);
 
@@ -245,6 +273,22 @@ export async function POST(request: Request): Promise<Response> {
           codeRepo.pruneOldVersions(projectId, limits.maxCodeVersionsPerProject).catch((pruneErr) => {
             logger.warn('Failed to prune old code versions', { projectId, pruneErr });
           });
+
+          // 렌더링 Deep QC — 비동기 실행, 응답 블로킹하지 않음
+          if (isQcEnabled()) {
+            runDeepQc(assembleHtml(parsed)).then((deepReport) => {
+              if (deepReport) {
+                logger.info('Deep QC completed', {
+                  projectId,
+                  qcScore: deepReport.overallScore,
+                  qcPassed: deepReport.passed,
+                  checks: deepReport.checks.map(c => ({ name: c.name, passed: c.passed, score: c.score })),
+                });
+              }
+            }).catch((qcErr) => {
+              logger.warn('Deep QC failed', { projectId, qcErr });
+            });
+          }
 
           // C2: Compensating rollback — if status update fails after code is saved,
           // delete the orphaned code record to keep the DB consistent.
