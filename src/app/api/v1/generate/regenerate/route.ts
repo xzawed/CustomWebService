@@ -196,9 +196,23 @@ export async function POST(request: Request): Promise<Response> {
                   qcScore: qcReport.overallScore,
                   qcPassed: qcReport.passed,
                 });
+                eventBus.emit({
+                  type: 'QC_REPORT_COMPLETED',
+                  payload: {
+                    projectId,
+                    overallScore: qcReport.overallScore,
+                    passed: qcReport.passed,
+                    checks: qcReport.checks.map(c => ({ name: c.name, passed: c.passed, score: c.score })),
+                    isDeep: false,
+                  },
+                });
               }
             } catch (qcErr) {
               logger.warn('Regen Fast QC failed, continuing without', { projectId, qcErr });
+              eventBus.emit({
+                type: 'QC_REPORT_FAILED',
+                payload: { projectId, stage: 'fast' as const, error: qcErr instanceof Error ? qcErr.message : String(qcErr) },
+              });
             }
           }
 
@@ -305,6 +319,16 @@ export async function POST(request: Request): Promise<Response> {
                   qcScore: deepReport.overallScore,
                   qcPassed: deepReport.passed,
                 });
+                eventBus.emit({
+                  type: 'QC_REPORT_COMPLETED',
+                  payload: {
+                    projectId,
+                    overallScore: deepReport.overallScore,
+                    passed: deepReport.passed,
+                    checks: deepReport.checks.map(c => ({ name: c.name, passed: c.passed, score: c.score })),
+                    isDeep: true,
+                  },
+                });
                 try {
                   const existingCode = await codeRepo.findByProject(projectId);
                   if (existingCode) {
@@ -331,6 +355,10 @@ export async function POST(request: Request): Promise<Response> {
               }
             }).catch((qcErr) => {
               logger.warn('Regen Deep QC failed', { projectId, qcErr });
+              eventBus.emit({
+                type: 'QC_REPORT_FAILED',
+                payload: { projectId, stage: 'deep' as const, error: qcErr instanceof Error ? qcErr.message : String(qcErr) },
+              });
             });
           }
 
