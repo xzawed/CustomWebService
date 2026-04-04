@@ -1,5 +1,5 @@
 {
-  "name": "CWS | Event Router",
+  "name": "CWS | Event Dispatch Router",
   "nodes": [
     {
       "parameters": {
