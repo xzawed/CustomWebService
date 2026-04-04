@@ -1,11 +1,19 @@
 import type { QualityMetrics } from '@/lib/ai/codeValidator';
+import type { QcReport } from '@/types/qc';
 
 const QUALITY_THRESHOLD = 40;
 const MOBILE_THRESHOLD = 40;
 
-export function shouldRetryGeneration(metrics: QualityMetrics): boolean {
+export function shouldRetryGeneration(metrics: QualityMetrics, qcReport?: QcReport | null): boolean {
   if (metrics.structuralScore < QUALITY_THRESHOLD) return true;
   if (metrics.mobileScore < MOBILE_THRESHOLD) return true;
+  // Rendering QC: force retry if JS errors or horizontal scroll detected
+  if (qcReport) {
+    const consoleCheck = qcReport.checks.find(c => c.name === 'consoleErrors');
+    const scrollCheck = qcReport.checks.find(c => c.name === 'horizontalScroll');
+    if (consoleCheck && !consoleCheck.passed) return true;
+    if (scrollCheck && !scrollCheck.passed) return true;
+  }
   return false;
 }
 
