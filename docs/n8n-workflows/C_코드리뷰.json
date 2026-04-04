@@ -1,0 +1,225 @@
+{
+  "name": "C. Claude PR 코드 리뷰 (SuperGrok)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "github-pr",
+        "options": {}
+      },
+      "id": "webhook-github",
+      "name": "Webhook: GitHub PR",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "notesInFlow": true,
+      "notes": "GitHub 웹훅 Payload URL로 이 URL 사용"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.action }}",
+              "rightValue": "opened",
+              "operator": { "type": "string", "operation": "equals" }
+            },
+            {
+              "leftValue": "={{ $json.body.pull_request.head.ref }}",
+              "rightValue": "claude/",
+              "operator": { "type": "string", "operation": "startsWith" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-claude-pr",
+      "name": "Filter: Claude PR만",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $json.body.repository.full_name }}/pulls/{{ $json.body.pull_request.number }}/files",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-pr-files",
+      "name": "HTTP: PR 파일 목록",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [690, 300],
+      "credentials": {
+        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const files = $input.all()[0].json;\nconst diff = Array.isArray(files) ? files.map(f => `### ${f.filename} (${f.status}, +${f.additions} -${f.deletions})\\n\\`\\`\\`\\n${f.patch || '(binary)'}\\n\\`\\`\\``).join('\\n\\n') : 'No files';\nconst totalLines = Array.isArray(files) ? files.reduce((sum, f) => sum + (f.additions || 0) + (f.deletions || 0), 0) : 0;\n\nif (totalLines > 5000) {\n  return [{ json: { skip: true, reason: 'Too large: ' + totalLines + ' lines' } }];\n}\n\nreturn [{ json: { skip: false, diff, totalLines, fileCount: Array.isArray(files) ? files.length : 0 } }];"
+      },
+      "id": "build-diff",
+      "name": "Code: Diff 조합",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": { "type": "boolean", "operation": "false" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-not-skip",
+      "name": "IF: 리뷰 가능?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1130, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.x.ai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"grok-3\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"You are a senior code reviewer for xzawed.xyz (Next.js 16, TypeScript strict, Supabase).\\n\\nReview this PR. Focus on:\\n1. Security (no hardcoded keys, no eval)\\n2. Architecture (Route → Service → Repository pattern)\\n3. TypeScript (no any, explicit return types)\\n4. QC consistency (generate and regenerate routes must be identical)\\n5. Error handling (AppError subclasses)\\n\\n## PR: {{ $('Webhook: GitHub PR').item.json.body.pull_request.title }}\\n## Files: {{ $json.fileCount }}, Lines: {{ $json.totalLines }}\\n\\n## Diff:\\n{{ $json.diff }}\\n\\nReturn JSON only:\\n{\\n  \\\"verdict\\\": \\\"approve|request_changes\\\",\\n  \\\"summary\\\": \\\"한국어 리뷰 요약\\\",\\n  \\\"comments\\\": [{\\\"file\\\": \\\"path\\\", \\\"severity\\\": \\\"critical|warning|suggestion\\\", \\\"comment\\\": \\\"설명\\\"}]\\n}\"\n    }\n  ],\n  \"temperature\": 0.2\n}",
+        "options": {}
+      },
+      "id": "supergrok-review",
+      "name": "SuperGrok: 코드 리뷰",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1350, 200],
+      "credentials": {
+        "httpHeaderAuth": { "id": "", "name": "xAI SuperGrok" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $input.all()[0].json.choices?.[0]?.message?.content || '{}';\ntry {\n  return [{ json: JSON.parse(content) }];\n} catch {\n  return [{ json: { verdict: 'request_changes', summary: 'SuperGrok 응답 파싱 실패', comments: [] } }];\n}"
+      },
+      "id": "parse-review",
+      "name": "Code: 리뷰 결과 파싱",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1570, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.verdict }}",
+              "rightValue": "approve",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-approved",
+      "name": "IF: 승인?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1790, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{ $('Webhook: GitHub PR').item.json.body.repository.full_name }}/pulls/{{ $('Webhook: GitHub PR').item.json.body.pull_request.number }}/reviews",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"event\": \"APPROVE\",\n  \"body\": \"✅ SuperGrok 자동 리뷰 승인\\n\\n{{ $json.summary }}\"\n}",
+        "options": {}
+      },
+      "id": "approve-pr",
+      "name": "GitHub: PR 승인",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2010, 100],
+      "credentials": {
+        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{ $('Webhook: GitHub PR').item.json.body.repository.full_name }}/pulls/{{ $('Webhook: GitHub PR').item.json.body.pull_request.number }}/reviews",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"event\": \"REQUEST_CHANGES\",\n  \"body\": \"🔄 SuperGrok 코드 리뷰 — 수정 필요\\n\\n{{ $json.summary }}\\n\\n{{ $json.comments.map(c => `- **${c.file}** (${c.severity}): ${c.comment}`).join('\\n') }}\"\n}",
+        "options": {}
+      },
+      "id": "request-changes",
+      "name": "GitHub: 변경 요청",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2010, 300],
+      "credentials": {
+        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "",
+        "options": {},
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "content",
+              "value": "=🔍 **코드 리뷰 완료** — PR #{{ $('Webhook: GitHub PR').item.json.body.pull_request.number }}\n- 결과: {{ $json.verdict === 'approve' ? '✅ 승인' : '🔄 수정 요청' }}\n- 요약: {{ $json.summary }}"
+            }
+          ]
+        }
+      },
+      "id": "discord-review",
+      "name": "Discord: 리뷰 결과",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2230, 200],
+      "notesInFlow": true,
+      "notes": "Discord Webhook URL 입력"
+    }
+  ],
+  "connections": {
+    "Webhook: GitHub PR": { "main": [[{ "node": "Filter: Claude PR만", "type": "main", "index": 0 }]] },
+    "Filter: Claude PR만": { "main": [[{ "node": "HTTP: PR 파일 목록", "type": "main", "index": 0 }]] },
+    "HTTP: PR 파일 목록": { "main": [[{ "node": "Code: Diff 조합", "type": "main", "index": 0 }]] },
+    "Code: Diff 조합": { "main": [[{ "node": "IF: 리뷰 가능?", "type": "main", "index": 0 }]] },
+    "IF: 리뷰 가능?": {
+      "main": [
+        [{ "node": "SuperGrok: 코드 리뷰", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "SuperGrok: 코드 리뷰": { "main": [[{ "node": "Code: 리뷰 결과 파싱", "type": "main", "index": 0 }]] },
+    "Code: 리뷰 결과 파싱": { "main": [[{ "node": "IF: 승인?", "type": "main", "index": 0 }]] },
+    "IF: 승인?": {
+      "main": [
+        [{ "node": "GitHub: PR 승인", "type": "main", "index": 0 }],
+        [{ "node": "GitHub: 변경 요청", "type": "main", "index": 0 }]
+      ]
+    },
+    "GitHub: PR 승인": { "main": [[{ "node": "Discord: 리뷰 결과", "type": "main", "index": 0 }]] },
+    "GitHub: 변경 요청": { "main": [[{ "node": "Discord: 리뷰 결과", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
