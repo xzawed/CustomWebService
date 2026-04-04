@@ -199,7 +199,8 @@ export async function POST(request: Request): Promise<Response> {
 
               if (retryParsed.html) {
                 const retryQuality = evaluateQuality(retryParsed.html, retryParsed.css, retryParsed.js);
-                if (retryQuality.structuralScore > quality.structuralScore) {
+                if (retryQuality.structuralScore > quality.structuralScore ||
+                    retryQuality.mobileScore > quality.mobileScore) {
                   parsed = retryParsed;
                   quality = retryQuality;
                   qualityLoopUsed = true;
