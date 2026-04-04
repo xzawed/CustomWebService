@@ -1,5 +1,5 @@
 {
-  "name": "A. QC 실패 → 자동 수정",
+  "name": "CWS | A. QC Auto-Fix",
   "nodes": [
     {
       "parameters": {},
@@ -7,17 +7,25 @@
       "name": "Execute Workflow Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
-      "position": [250, 300]
+      "position": [
+        250,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true },
+          "options": {
+            "caseSensitive": true
+          },
           "conditions": [
             {
               "leftValue": "={{ $json.body.payload.isDeep }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true" }
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
           ],
           "combinator": "and"
@@ -27,7 +35,10 @@
       "name": "Filter: Deep QC만",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
-      "position": [470, 300]
+      "position": [
+        470,
+        300
+      ]
     },
     {
       "parameters": {
@@ -40,9 +51,15 @@
       "name": "HTTP: QC 트렌드 조회",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [690, 300],
+      "position": [
+        690,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "App Admin API" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "App Admin API"
+        }
       }
     },
     {
@@ -60,9 +77,15 @@
       "name": "SuperGrok: QC 분석",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [910, 300],
+      "position": [
+        910,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "xAI SuperGrok" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "xAI SuperGrok"
+        }
       }
     },
     {
@@ -73,17 +96,25 @@
       "name": "Code: 파싱",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1130, 300]
+      "position": [
+        1130,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true },
+          "options": {
+            "caseSensitive": true
+          },
           "conditions": [
             {
               "leftValue": "={{ $json.autoFixable }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true" }
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
           ],
           "combinator": "and"
@@ -93,7 +124,10 @@
       "name": "IF: 자동 수정 가능?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1350, 300]
+      "position": [
+        1350,
+        300
+      ]
     },
     {
       "parameters": {
@@ -110,9 +144,15 @@
       "name": "GitHub: Claude CLI 트리거",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1570, 200],
+      "position": [
+        1570,
+        200
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub PAT"
+        }
       }
     },
     {
@@ -130,9 +170,15 @@
       "name": "GitHub: 자동수정 Issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1790, 200],
+      "position": [
+        1790,
+        200
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub PAT"
+        }
       }
     },
     {
@@ -150,25 +196,105 @@
       "name": "GitHub: 수동조치 Issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1570, 400],
+      "position": [
+        1570,
+        400
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub PAT"
+        }
       }
     }
   ],
   "connections": {
-    "Execute Workflow Trigger": { "main": [[{ "node": "Filter: Deep QC만", "type": "main", "index": 0 }]] },
-    "Filter: Deep QC만": { "main": [[{ "node": "HTTP: QC 트렌드 조회", "type": "main", "index": 0 }]] },
-    "HTTP: QC 트렌드 조회": { "main": [[{ "node": "SuperGrok: QC 분석", "type": "main", "index": 0 }]] },
-    "SuperGrok: QC 분석": { "main": [[{ "node": "Code: 파싱", "type": "main", "index": 0 }]] },
-    "Code: 파싱": { "main": [[{ "node": "IF: 자동 수정 가능?", "type": "main", "index": 0 }]] },
-    "IF: 자동 수정 가능?": {
+    "Execute Workflow Trigger": {
       "main": [
-        [{ "node": "GitHub: Claude CLI 트리거", "type": "main", "index": 0 }],
-        [{ "node": "GitHub: 수동조치 Issue", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Filter: Deep QC만",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "GitHub: Claude CLI 트리거": { "main": [[{ "node": "GitHub: 자동수정 Issue", "type": "main", "index": 0 }]] }
+    "Filter: Deep QC만": {
+      "main": [
+        [
+          {
+            "node": "HTTP: QC 트렌드 조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: QC 트렌드 조회": {
+      "main": [
+        [
+          {
+            "node": "SuperGrok: QC 분석",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SuperGrok: QC 분석": {
+      "main": [
+        [
+          {
+            "node": "Code: 파싱",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: 파싱": {
+      "main": [
+        [
+          {
+            "node": "IF: 자동 수정 가능?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: 자동 수정 가능?": {
+      "main": [
+        [
+          {
+            "node": "GitHub: Claude CLI 트리거",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GitHub: 수동조치 Issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub: Claude CLI 트리거": {
+      "main": [
+        [
+          {
+            "node": "GitHub: 자동수정 Issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1"
+  }
 }

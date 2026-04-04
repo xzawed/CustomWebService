@@ -1,5 +1,5 @@
 {
-  "name": "C. Claude PR 코드 리뷰 (SuperGrok)",
+  "name": "CWS | C. Code Review (SuperGrok)",
   "nodes": [
     {
       "parameters": {
@@ -11,24 +11,35 @@
       "name": "Webhook: GitHub PR",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "notesInFlow": true,
       "notes": "GitHub 웹훅 Payload URL로 이 URL 사용"
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true },
+          "options": {
+            "caseSensitive": true
+          },
           "conditions": [
             {
               "leftValue": "={{ $json.body.action }}",
               "rightValue": "opened",
-              "operator": { "type": "string", "operation": "equals" }
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             },
             {
               "leftValue": "={{ $json.body.pull_request.head.ref }}",
               "rightValue": "claude/",
-              "operator": { "type": "string", "operation": "startsWith" }
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
             }
           ],
           "combinator": "and"
@@ -38,7 +49,10 @@
       "name": "Filter: Claude PR만",
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2,
-      "position": [470, 300]
+      "position": [
+        470,
+        300
+      ]
     },
     {
       "parameters": {
@@ -51,9 +65,15 @@
       "name": "HTTP: PR 파일 목록",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [690, 300],
+      "position": [
+        690,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub PAT"
+        }
       }
     },
     {
@@ -64,17 +84,25 @@
       "name": "Code: Diff 조합",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [910, 300]
+      "position": [
+        910,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true },
+          "options": {
+            "caseSensitive": true
+          },
           "conditions": [
             {
               "leftValue": "={{ $json.skip }}",
               "rightValue": false,
-              "operator": { "type": "boolean", "operation": "false" }
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
             }
           ],
           "combinator": "and"
@@ -84,7 +112,10 @@
       "name": "IF: 리뷰 가능?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1130, 300]
+      "position": [
+        1130,
+        300
+      ]
     },
     {
       "parameters": {
@@ -101,9 +132,15 @@
       "name": "SuperGrok: 코드 리뷰",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1350, 200],
+      "position": [
+        1350,
+        200
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "xAI SuperGrok" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "xAI SuperGrok"
+        }
       }
     },
     {
@@ -114,17 +151,25 @@
       "name": "Code: 리뷰 결과 파싱",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1570, 200]
+      "position": [
+        1570,
+        200
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true },
+          "options": {
+            "caseSensitive": true
+          },
           "conditions": [
             {
               "leftValue": "={{ $json.verdict }}",
               "rightValue": "approve",
-              "operator": { "type": "string", "operation": "equals" }
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -134,7 +179,10 @@
       "name": "IF: 승인?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1790, 200]
+      "position": [
+        1790,
+        200
+      ]
     },
     {
       "parameters": {
@@ -151,9 +199,15 @@
       "name": "GitHub: PR 승인",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2010, 100],
+      "position": [
+        2010,
+        100
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub PAT"
+        }
       }
     },
     {
@@ -171,33 +225,127 @@
       "name": "GitHub: 변경 요청",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2010, 300],
+      "position": [
+        2010,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub PAT"
+        }
       }
     }
   ],
   "connections": {
-    "Webhook: GitHub PR": { "main": [[{ "node": "Filter: Claude PR만", "type": "main", "index": 0 }]] },
-    "Filter: Claude PR만": { "main": [[{ "node": "HTTP: PR 파일 목록", "type": "main", "index": 0 }]] },
-    "HTTP: PR 파일 목록": { "main": [[{ "node": "Code: Diff 조합", "type": "main", "index": 0 }]] },
-    "Code: Diff 조합": { "main": [[{ "node": "IF: 리뷰 가능?", "type": "main", "index": 0 }]] },
+    "Webhook: GitHub PR": {
+      "main": [
+        [
+          {
+            "node": "Filter: Claude PR만",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: Claude PR만": {
+      "main": [
+        [
+          {
+            "node": "HTTP: PR 파일 목록",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: PR 파일 목록": {
+      "main": [
+        [
+          {
+            "node": "Code: Diff 조합",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Diff 조합": {
+      "main": [
+        [
+          {
+            "node": "IF: 리뷰 가능?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "IF: 리뷰 가능?": {
       "main": [
-        [{ "node": "SuperGrok: 코드 리뷰", "type": "main", "index": 0 }],
+        [
+          {
+            "node": "SuperGrok: 코드 리뷰",
+            "type": "main",
+            "index": 0
+          }
+        ],
         []
       ]
     },
-    "SuperGrok: 코드 리뷰": { "main": [[{ "node": "Code: 리뷰 결과 파싱", "type": "main", "index": 0 }]] },
-    "Code: 리뷰 결과 파싱": { "main": [[{ "node": "IF: 승인?", "type": "main", "index": 0 }]] },
-    "IF: 승인?": {
+    "SuperGrok: 코드 리뷰": {
       "main": [
-        [{ "node": "GitHub: PR 승인", "type": "main", "index": 0 }],
-        [{ "node": "GitHub: 변경 요청", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Code: 리뷰 결과 파싱",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "GitHub: PR 승인": { "main": [[]] },
-    "GitHub: 변경 요청": { "main": [[]] }
+    "Code: 리뷰 결과 파싱": {
+      "main": [
+        [
+          {
+            "node": "IF: 승인?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: 승인?": {
+      "main": [
+        [
+          {
+            "node": "GitHub: PR 승인",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GitHub: 변경 요청",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub: PR 승인": {
+      "main": [
+        []
+      ]
+    },
+    "GitHub: 변경 요청": {
+      "main": [
+        []
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1"
+  }
 }

@@ -1,15 +1,24 @@
 {
-  "name": "B. 일일 QC 모니터링",
+  "name": "CWS | B. Daily QC Monitoring",
   "nodes": [
     {
       "parameters": {
-        "rule": { "interval": [{ "triggerAtHour": 0 }] }
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 0
+            }
+          ]
+        }
       },
       "id": "schedule",
       "name": "Schedule: 매일 09:00 KST",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "notesInFlow": true,
       "notes": "UTC 00:00 = KST 09:00"
     },
@@ -18,15 +27,23 @@
         "url": "=https://xzawed.xyz/api/v1/admin/qc-stats?days=7",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "options": { "timeout": 15000 }
+        "options": {
+          "timeout": 15000
+        }
       },
       "id": "qc-stats",
       "name": "HTTP: QC 통계 (7일)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [470, 300],
+      "position": [
+        470,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "App Admin API" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "App Admin API"
+        }
       }
     },
     {
@@ -37,17 +54,25 @@
       "name": "Code: 통계 분석",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [690, 300]
+      "position": [
+        690,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true },
+          "options": {
+            "caseSensitive": true
+          },
           "conditions": [
             {
               "leftValue": "={{ $json.hasIssue }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true" }
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
           ],
           "combinator": "and"
@@ -57,7 +82,10 @@
       "name": "IF: 이슈 있는가?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [910, 300]
+      "position": [
+        910,
+        300
+      ]
     },
     {
       "parameters": {
@@ -74,9 +102,15 @@
       "name": "SuperGrok: 트렌드 분석",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1130, 200],
+      "position": [
+        1130,
+        200
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "xAI SuperGrok" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "xAI SuperGrok"
+        }
       }
     },
     {
@@ -87,7 +121,10 @@
       "name": "Code: 리포트 포맷",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1350, 200]
+      "position": [
+        1350,
+        200
+      ]
     },
     {
       "parameters": {
@@ -104,24 +141,88 @@
       "name": "GitHub: 일일 리포트 Issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1570, 200],
+      "position": [
+        1570,
+        200
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub PAT"
+        }
       }
     }
   ],
   "connections": {
-    "Schedule: 매일 09:00 KST": { "main": [[{ "node": "HTTP: QC 통계 (7일)", "type": "main", "index": 0 }]] },
-    "HTTP: QC 통계 (7일)": { "main": [[{ "node": "Code: 통계 분석", "type": "main", "index": 0 }]] },
-    "Code: 통계 분석": { "main": [[{ "node": "IF: 이슈 있는가?", "type": "main", "index": 0 }]] },
+    "Schedule: 매일 09:00 KST": {
+      "main": [
+        [
+          {
+            "node": "HTTP: QC 통계 (7일)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: QC 통계 (7일)": {
+      "main": [
+        [
+          {
+            "node": "Code: 통계 분석",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: 통계 분석": {
+      "main": [
+        [
+          {
+            "node": "IF: 이슈 있는가?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "IF: 이슈 있는가?": {
       "main": [
-        [{ "node": "SuperGrok: 트렌드 분석", "type": "main", "index": 0 }],
+        [
+          {
+            "node": "SuperGrok: 트렌드 분석",
+            "type": "main",
+            "index": 0
+          }
+        ],
         []
       ]
     },
-    "SuperGrok: 트렌드 분석": { "main": [[{ "node": "Code: 리포트 포맷", "type": "main", "index": 0 }]] },
-    "Code: 리포트 포맷": { "main": [[{ "node": "GitHub: 일일 리포트 Issue", "type": "main", "index": 0 }]] }
+    "SuperGrok: 트렌드 분석": {
+      "main": [
+        [
+          {
+            "node": "Code: 리포트 포맷",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: 리포트 포맷": {
+      "main": [
+        [
+          {
+            "node": "GitHub: 일일 리포트 Issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1"
+  }
 }

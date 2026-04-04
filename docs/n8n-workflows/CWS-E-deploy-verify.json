@@ -1,5 +1,5 @@
 {
-  "name": "E. 배포 검증",
+  "name": "CWS | E. Deploy Verification",
   "nodes": [
     {
       "parameters": {},
@@ -7,7 +7,10 @@
       "name": "Execute Workflow Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
-      "position": [250, 300]
+      "position": [
+        250,
+        300
+      ]
     },
     {
       "parameters": {
@@ -18,29 +21,45 @@
       "name": "Wait 30초 (안정화)",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [470, 300]
+      "position": [
+        470,
+        300
+      ]
     },
     {
       "parameters": {
         "url": "https://xzawed.xyz/api/v1/health",
-        "options": { "timeout": 15000 },
-        "retry": { "maxTries": 3, "waitBetweenTries": 10000 }
+        "options": {
+          "timeout": 15000
+        },
+        "retry": {
+          "maxTries": 3,
+          "waitBetweenTries": 10000
+        }
       },
       "id": "health",
       "name": "HTTP: 헬스 체크",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [690, 300]
+      "position": [
+        690,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true },
+          "options": {
+            "caseSensitive": true
+          },
           "conditions": [
             {
               "leftValue": "={{ $json.status }}",
               "rightValue": "healthy",
-              "operator": { "type": "string", "operation": "equals" }
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -50,7 +69,10 @@
       "name": "IF: Healthy?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [910, 300]
+      "position": [
+        910,
+        300
+      ]
     },
     {
       "parameters": {
@@ -67,22 +89,66 @@
       "name": "GitHub: 실패 Issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1130, 400],
+      "position": [
+        1130,
+        400
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub PAT"
+        }
       }
     }
   ],
   "connections": {
-    "Execute Workflow Trigger": { "main": [[{ "node": "Wait 30초 (안정화)", "type": "main", "index": 0 }]] },
-    "Wait 30초 (안정화)": { "main": [[{ "node": "HTTP: 헬스 체크", "type": "main", "index": 0 }]] },
-    "HTTP: 헬스 체크": { "main": [[{ "node": "IF: Healthy?", "type": "main", "index": 0 }]] },
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Wait 30초 (안정화)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 30초 (안정화)": {
+      "main": [
+        [
+          {
+            "node": "HTTP: 헬스 체크",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: 헬스 체크": {
+      "main": [
+        [
+          {
+            "node": "IF: Healthy?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "IF: Healthy?": {
       "main": [
         [],
-        [{ "node": "GitHub: 실패 Issue", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "GitHub: 실패 Issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1"
+  }
 }

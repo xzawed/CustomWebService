@@ -1,5 +1,5 @@
 {
-  "name": "D. 에러 알림 + SuperGrok 분류",
+  "name": "CWS | D. Error Alert + Triage",
   "nodes": [
     {
       "parameters": {},
@@ -7,7 +7,10 @@
       "name": "Execute Workflow Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
-      "position": [250, 300]
+      "position": [
+        250,
+        300
+      ]
     },
     {
       "parameters": {
@@ -24,9 +27,15 @@
       "name": "SuperGrok: 에러 분류",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [470, 300],
+      "position": [
+        470,
+        300
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "xAI SuperGrok" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "xAI SuperGrok"
+        }
       }
     },
     {
@@ -37,17 +46,25 @@
       "name": "Code: 파싱",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [690, 300]
+      "position": [
+        690,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true },
+          "options": {
+            "caseSensitive": true
+          },
           "conditions": [
             {
               "leftValue": "={{ $json.isAutoFixable }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true" }
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
           ],
           "combinator": "and"
@@ -57,7 +74,10 @@
       "name": "IF: 자동 수정 가능?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [910, 300]
+      "position": [
+        910,
+        300
+      ]
     },
     {
       "parameters": {
@@ -74,9 +94,15 @@
       "name": "GitHub: Claude CLI 트리거",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1130, 200],
+      "position": [
+        1130,
+        200
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub PAT"
+        }
       }
     },
     {
@@ -94,23 +120,83 @@
       "name": "GitHub: Issue 생성",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1130, 400],
+      "position": [
+        1130,
+        400
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub PAT"
+        }
       }
     }
   ],
   "connections": {
-    "Execute Workflow Trigger": { "main": [[{ "node": "SuperGrok: 에러 분류", "type": "main", "index": 0 }]] },
-    "SuperGrok: 에러 분류": { "main": [[{ "node": "Code: 파싱", "type": "main", "index": 0 }]] },
-    "Code: 파싱": { "main": [[{ "node": "IF: 자동 수정 가능?", "type": "main", "index": 0 }]] },
-    "IF: 자동 수정 가능?": {
+    "Execute Workflow Trigger": {
       "main": [
-        [{ "node": "GitHub: Claude CLI 트리거", "type": "main", "index": 0 }],
-        [{ "node": "GitHub: Issue 생성", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "SuperGrok: 에러 분류",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "GitHub: Claude CLI 트리거": { "main": [[{ "node": "GitHub: Issue 생성", "type": "main", "index": 0 }]] }
+    "SuperGrok: 에러 분류": {
+      "main": [
+        [
+          {
+            "node": "Code: 파싱",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: 파싱": {
+      "main": [
+        [
+          {
+            "node": "IF: 자동 수정 가능?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: 자동 수정 가능?": {
+      "main": [
+        [
+          {
+            "node": "GitHub: Claude CLI 트리거",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GitHub: Issue 생성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub: Claude CLI 트리거": {
+      "main": [
+        [
+          {
+            "node": "GitHub: Issue 생성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "settings": { "executionOrder": "v1" }
+  "settings": {
+    "executionOrder": "v1"
+  }
 }
