@@ -38,6 +38,20 @@ export type DomainEvent =
   | {
       type: 'API_QUOTA_WARNING';
       payload: { service: string; usage: number; limit: number };
+    }
+  | {
+      type: 'QC_REPORT_COMPLETED';
+      payload: {
+        projectId: string;
+        overallScore: number;
+        passed: boolean;
+        checks: Array<{ name: string; passed: boolean; score: number }>;
+        isDeep: boolean;
+      };
+    }
+  | {
+      type: 'QC_REPORT_FAILED';
+      payload: { projectId: string; stage: 'fast' | 'deep'; error: string };
     };
 
 export type DomainEventType = DomainEvent['type'];

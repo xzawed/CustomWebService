@@ -1,3 +1,4 @@
+import '@/lib/events/init';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { ProjectService } from '@/services/projectService';
 import { CatalogService } from '@/services/catalogService';
@@ -190,9 +191,23 @@ export async function POST(request: Request): Promise<Response> {
                   qcScore: qcReport.overallScore,
                   qcPassed: qcReport.passed,
                 });
+                eventBus.emit({
+                  type: 'QC_REPORT_COMPLETED',
+                  payload: {
+                    projectId,
+                    overallScore: qcReport.overallScore,
+                    passed: qcReport.passed,
+                    checks: qcReport.checks.map(c => ({ name: c.name, passed: c.passed, score: c.score })),
+                    isDeep: false,
+                  },
+                });
               }
             } catch (qcErr) {
               logger.warn('Fast QC failed, continuing without', { projectId, qcErr });
+              eventBus.emit({
+                type: 'QC_REPORT_FAILED',
+                payload: { projectId, stage: 'fast' as const, error: qcErr instanceof Error ? qcErr.message : String(qcErr) },
+              });
             }
           }
 
@@ -302,6 +317,16 @@ export async function POST(request: Request): Promise<Response> {
                   qcPassed: deepReport.passed,
                   checks: deepReport.checks.map(c => ({ name: c.name, passed: c.passed, score: c.score })),
                 });
+                eventBus.emit({
+                  type: 'QC_REPORT_COMPLETED',
+                  payload: {
+                    projectId,
+                    overallScore: deepReport.overallScore,
+                    passed: deepReport.passed,
+                    checks: deepReport.checks.map(c => ({ name: c.name, passed: c.passed, score: c.score })),
+                    isDeep: true,
+                  },
+                });
                 // Deep QC 결과를 DB 메타데이터에 저장 (Fast QC 결과를 덮어씀)
                 try {
                   const existingCode = await codeRepo.findByProject(projectId);
@@ -328,6 +353,10 @@ export async function POST(request: Request): Promise<Response> {
               }
             }).catch((qcErr) => {
               logger.warn('Deep QC failed', { projectId, qcErr });
+              eventBus.emit({
+                type: 'QC_REPORT_FAILED',
+                payload: { projectId, stage: 'deep' as const, error: qcErr instanceof Error ? qcErr.message : String(qcErr) },
+              });
             });
           }
 
