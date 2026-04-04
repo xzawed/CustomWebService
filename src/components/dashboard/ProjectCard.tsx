@@ -102,7 +102,7 @@ export function ProjectCard({ project, onDelete, onPublish, onUnpublish }: Proje
           <button
             type="button"
             onClick={handleCopyUrl}
-            className="shrink-0 rounded p-1 transition-colors"
+            className="shrink-0 rounded p-2 transition-colors"
             style={{ color: 'var(--text-muted)' }}
             title="URL 복사"
           >
