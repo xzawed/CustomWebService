@@ -217,10 +217,28 @@ export async function POST(request: Request): Promise<Response> {
 
               if (retryParsed.html) {
                 const retryQuality = evaluateQuality(retryParsed.html, retryParsed.css, retryParsed.js);
-                if (retryQuality.structuralScore > quality.structuralScore ||
-                    retryQuality.mobileScore > quality.mobileScore) {
+
+                // 재생성 코드에 대해 Fast QC 재검증
+                let retryQcReport: import('@/types/qc').QcReport | null = null;
+                if (isQcEnabled()) {
+                  try {
+                    retryQcReport = await runFastQc(assembleHtml(retryParsed));
+                  } catch {
+                    // QC 실패해도 코드 레벨 비교는 진행
+                  }
+                }
+
+                // 코드 레벨 + 렌더링 QC 모두 고려하여 채택 결정
+                const codeImproved = retryQuality.structuralScore > quality.structuralScore ||
+                    retryQuality.mobileScore > quality.mobileScore;
+                const qcImproved = retryQcReport && qcReport
+                  ? retryQcReport.overallScore > qcReport.overallScore
+                  : false;
+
+                if (codeImproved || qcImproved) {
                   parsed = retryParsed;
                   quality = retryQuality;
+                  if (retryQcReport) qcReport = retryQcReport;
                   qualityLoopUsed = true;
                 }
               }
