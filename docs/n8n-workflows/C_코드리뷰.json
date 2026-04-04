@@ -175,7 +175,7 @@
       "credentials": {
         "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
       }
-    },
+    }
   ],
   "connections": {
     "Webhook: GitHub PR": { "main": [[{ "node": "Filter: Claude PR만", "type": "main", "index": 0 }]] },
