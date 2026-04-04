@@ -66,7 +66,7 @@ function buildHeadInjections(html: string, safeCss: string): string {
     );
   }
 
-  // CSS custom properties + print stylesheet
+  // CSS custom properties + print stylesheet + mobile safety
   const cssInjection = [
     ':root {',
     '  --transition-fast: 150ms ease;',
@@ -79,6 +79,17 @@ function buildHeadInjections(html: string, safeCss: string): string {
     '@media print {',
     '  header, footer, .no-print { display: none; }',
     '  body { background: white !important; color: black !important; }',
+    '}',
+    '/* Mobile safety */',
+    '*, *::before, *::after { box-sizing: border-box; }',
+    'img, video, canvas, svg { max-width: 100%; height: auto; display: block; }',
+    'body { overflow-x: hidden; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }',
+    '@supports (padding: env(safe-area-inset-bottom)) {',
+    '  body {',
+    '    padding-left: env(safe-area-inset-left);',
+    '    padding-right: env(safe-area-inset-right);',
+    '    padding-bottom: env(safe-area-inset-bottom);',
+    '  }',
     '}',
   ].join('\n');
 
@@ -143,6 +154,27 @@ export function assembleHtml(parsed: ParsedCode): string {
           assembled.slice(0, headIdx + '<head>'.length) +
           '\n  <meta charset="UTF-8">' +
           assembled.slice(headIdx + '<head>'.length);
+      }
+    }
+
+    // Ensure viewport meta is present for responsive design
+    const hasViewport = /<meta[^>]*name\s*=\s*["']viewport["']/i.test(assembled);
+    if (!hasViewport) {
+      const charsetMatch = assembled.match(/<meta[^>]*charset[^>]*>/i);
+      if (charsetMatch) {
+        const insertIdx = assembled.indexOf(charsetMatch[0]) + charsetMatch[0].length;
+        assembled =
+          assembled.slice(0, insertIdx) +
+          '\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+          assembled.slice(insertIdx);
+      } else {
+        const headIdx = assembled.indexOf('<head>');
+        if (headIdx !== -1) {
+          assembled =
+            assembled.slice(0, headIdx + '<head>'.length) +
+            '\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+            assembled.slice(headIdx + '<head>'.length);
+        }
       }
     }
 
