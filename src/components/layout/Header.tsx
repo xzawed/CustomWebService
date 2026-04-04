@@ -34,7 +34,7 @@ export function Header() {
   }, []);
 
   return (
-    <header className="glass sticky top-0 z-50">
+    <header className="glass safe-top sticky top-0 z-50">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
         {/* Logo */}
         <Link href="/" className="text-lg font-bold tracking-tight">
