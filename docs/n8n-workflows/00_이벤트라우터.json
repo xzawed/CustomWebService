@@ -1,0 +1,144 @@
+{
+  "name": "00. 이벤트 라우터 (단일 웹훅)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "app-events",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook: App Events",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.type }}",
+                    "rightValue": "QC_REPORT_COMPLETED",
+                    "operator": { "type": "string", "operation": "equals" }
+                  },
+                  {
+                    "leftValue": "={{ $json.body.payload.passed }}",
+                    "rightValue": "false",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputLabel": "QC 실패 → A"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.type }}",
+                    "rightValue": "FAILED",
+                    "operator": { "type": "string", "operation": "contains" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputLabel": "에러 → D"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.type }}",
+                    "rightValue": "DEPLOYMENT_COMPLETED",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputLabel": "배포 완료 → E"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "id": "switch-type",
+      "name": "Switch: 이벤트 라우팅",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        }
+      },
+      "id": "call-a",
+      "name": "Execute: A. QC 자동수정",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [750, 150],
+      "notesInFlow": true,
+      "notes": "A 워크플로우 ID를 선택하세요"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        }
+      },
+      "id": "call-d",
+      "name": "Execute: D. 에러알림",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [750, 300],
+      "notesInFlow": true,
+      "notes": "D 워크플로우 ID를 선택하세요"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        }
+      },
+      "id": "call-e",
+      "name": "Execute: E. 배포검증",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [750, 450],
+      "notesInFlow": true,
+      "notes": "E 워크플로우 ID를 선택하세요"
+    }
+  ],
+  "connections": {
+    "Webhook: App Events": {
+      "main": [[{ "node": "Switch: 이벤트 라우팅", "type": "main", "index": 0 }]]
+    },
+    "Switch: 이벤트 라우팅": {
+      "main": [
+        [{ "node": "Execute: A. QC 자동수정", "type": "main", "index": 0 }],
+        [{ "node": "Execute: D. 에러알림", "type": "main", "index": 0 }],
+        [{ "node": "Execute: E. 배포검증", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}

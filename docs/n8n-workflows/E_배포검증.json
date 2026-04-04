@@ -2,47 +2,23 @@
   "name": "E. 배포 검증",
   "nodes": [
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "app-events",
-        "options": {}
-      },
-      "id": "webhook-trigger",
-      "name": "Webhook: App Events",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "parameters": {},
+      "id": "trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
       "position": [250, 300]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": { "caseSensitive": true },
-          "conditions": [
-            {
-              "leftValue": "={{ $json.body.type }}",
-              "rightValue": "DEPLOYMENT_COMPLETED",
-              "operator": { "type": "string", "operation": "equals" }
-            }
-          ],
-          "combinator": "and"
-        }
-      },
-      "id": "filter-deploy",
-      "name": "Filter: 배포 완료만",
-      "type": "n8n-nodes-base.filter",
-      "typeVersion": 2,
-      "position": [470, 300]
     },
     {
       "parameters": {
         "amount": 30,
         "unit": "seconds"
       },
-      "id": "wait-30s",
+      "id": "wait",
       "name": "Wait 30초 (안정화)",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [690, 300]
+      "position": [470, 300]
     },
     {
       "parameters": {
@@ -50,11 +26,11 @@
         "options": { "timeout": 15000 },
         "retry": { "maxTries": 3, "waitBetweenTries": 10000 }
       },
-      "id": "health-check",
+      "id": "health",
       "name": "HTTP: 헬스 체크",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [910, 300]
+      "position": [690, 300]
     },
     {
       "parameters": {
@@ -70,11 +46,11 @@
           "combinator": "and"
         }
       },
-      "id": "check-healthy",
+      "id": "check",
       "name": "IF: Healthy?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1130, 300]
+      "position": [910, 300]
     },
     {
       "parameters": {
@@ -84,28 +60,27 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"title\": \"[Deploy] 헬스 체크 실패\",\n  \"body\": \"## 배포 후 헬스 체크 실패\\n\\n- 상태: {{ $json.status }}\\n- DB: {{ $json.checks.database }}\\n- AI: {{ $json.checks.ai }}\\n- 플랫폼: {{ $('Webhook: App Events').item.json.body.payload.platform }}\\n- 시간: {{ new Date().toISOString() }}\\n\\n즉시 확인 필요합니다.\",\n  \"labels\": [\"deploy\", \"critical\"]\n}",
+        "jsonBody": "={\n  \"title\": \"[Deploy] 헬스 체크 실패\",\n  \"body\": \"## 배포 후 헬스 체크 실패\\n\\n- 상태: {{ $json.status }}\\n- DB: {{ $json.checks.database }}\\n- AI: {{ $json.checks.ai }}\\n- 시간: {{ new Date().toISOString() }}\\n\\n즉시 확인 필요합니다.\",\n  \"labels\": [\"deploy\", \"critical\"]\n}",
         "options": {}
       },
-      "id": "issue-failure",
-      "name": "GitHub: 실패 Issue 생성",
+      "id": "issue",
+      "name": "GitHub: 실패 Issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1350, 400],
+      "position": [1130, 400],
       "credentials": {
         "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
       }
     }
   ],
   "connections": {
-    "Webhook: App Events": { "main": [[{ "node": "Filter: 배포 완료만", "type": "main", "index": 0 }]] },
-    "Filter: 배포 완료만": { "main": [[{ "node": "Wait 30초 (안정화)", "type": "main", "index": 0 }]] },
+    "Execute Workflow Trigger": { "main": [[{ "node": "Wait 30초 (안정화)", "type": "main", "index": 0 }]] },
     "Wait 30초 (안정화)": { "main": [[{ "node": "HTTP: 헬스 체크", "type": "main", "index": 0 }]] },
     "HTTP: 헬스 체크": { "main": [[{ "node": "IF: Healthy?", "type": "main", "index": 0 }]] },
     "IF: Healthy?": {
       "main": [
         [],
-        [{ "node": "GitHub: 실패 Issue 생성", "type": "main", "index": 0 }]
+        [{ "node": "GitHub: 실패 Issue", "type": "main", "index": 0 }]
       ]
     }
   },

@@ -2,36 +2,12 @@
   "name": "D. 에러 알림 + SuperGrok 분류",
   "nodes": [
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "app-events",
-        "options": {}
-      },
-      "id": "webhook-trigger",
-      "name": "Webhook: App Events",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "parameters": {},
+      "id": "trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
       "position": [250, 300]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": { "caseSensitive": true },
-          "conditions": [
-            {
-              "leftValue": "={{ $json.body.type }}",
-              "rightValue": "FAILED",
-              "operator": { "type": "string", "operation": "contains" }
-            }
-          ],
-          "combinator": "and"
-        }
-      },
-      "id": "filter-errors",
-      "name": "Filter: FAILED 이벤트만",
-      "type": "n8n-nodes-base.filter",
-      "typeVersion": 2,
-      "position": [470, 300]
     },
     {
       "parameters": {
@@ -44,11 +20,11 @@
         "jsonBody": "={\n  \"model\": \"grok-3\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"You are an SRE for xzawed.xyz (Next.js AI no-code website builder on Railway).\\n\\nTriage this error:\\n- Type: {{ $json.body.type }}\\n- Error: {{ $json.body.payload.error || 'N/A' }}\\n- Project: {{ $json.body.payload.projectId || 'N/A' }}\\n- Provider: {{ $json.body.payload.provider || 'N/A' }}\\n- Time: {{ $json.body.timestamp }}\\n\\nReturn JSON only:\\n{\\n  \\\"severity\\\": \\\"critical|high|medium|low\\\",\\n  \\\"category\\\": \\\"infrastructure|ai_provider|code_bug|user_input|external_api\\\",\\n  \\\"isAutoFixable\\\": boolean,\\n  \\\"summary\\\": \\\"한국어 한 줄 요약\\\",\\n  \\\"fixInstructions\\\": \\\"Claude CLI 수정 지시 (자동 수정 불가 시 null)\\\"\\n}\"\n    }\n  ],\n  \"temperature\": 0.2\n}",
         "options": {}
       },
-      "id": "supergrok-triage",
+      "id": "supergrok",
       "name": "SuperGrok: 에러 분류",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [690, 300],
+      "position": [470, 300],
       "credentials": {
         "httpHeaderAuth": { "id": "", "name": "xAI SuperGrok" }
       }
@@ -57,11 +33,11 @@
       "parameters": {
         "jsCode": "const content = $input.all()[0].json.choices?.[0]?.message?.content || '{}';\ntry {\n  return [{ json: JSON.parse(content) }];\n} catch {\n  return [{ json: { severity: 'medium', category: 'unknown', isAutoFixable: false, summary: '분석 실패', fixInstructions: null } }];\n}"
       },
-      "id": "parse-response",
-      "name": "Code: 응답 파싱",
+      "id": "parse",
+      "name": "Code: 파싱",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [910, 300]
+      "position": [690, 300]
     },
     {
       "parameters": {
@@ -81,7 +57,7 @@
       "name": "IF: 자동 수정 가능?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1130, 300]
+      "position": [910, 300]
     },
     {
       "parameters": {
@@ -91,14 +67,14 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"event_type\": \"claude-fix\",\n  \"client_payload\": {\n    \"task_description\": \"{{ $json.fixInstructions }}\",\n    \"commit_message\": \"fix: 자동 에러 수정 — {{ $json.summary }}\",\n    \"pr_title\": \"[Auto] Error Fix: {{ $json.summary }}\",\n    \"pr_body\": \"## SuperGrok 분석\\n- 심각도: {{ $json.severity }}\\n- 분류: {{ $json.category }}\\n- 요약: {{ $json.summary }}\\n\\n## 원본 에러\\n- 타입: {{ $('Webhook: App Events').item.json.body.type }}\\n- 에러: {{ $('Webhook: App Events').item.json.body.payload.error || 'N/A' }}\"\n  }\n}",
+        "jsonBody": "={\n  \"event_type\": \"claude-fix\",\n  \"client_payload\": {\n    \"task_description\": \"{{ $json.fixInstructions }}\",\n    \"commit_message\": \"fix: 자동 에러 수정 — {{ $json.summary }}\",\n    \"pr_title\": \"[Auto] Error Fix: {{ $json.summary }}\",\n    \"pr_body\": \"## SuperGrok 분석\\n- 심각도: {{ $json.severity }}\\n- 분류: {{ $json.category }}\\n- 요약: {{ $json.summary }}\\n\\n## 원본 에러\\n- 타입: {{ $('Execute Workflow Trigger').item.json.body.type }}\\n- 에러: {{ $('Execute Workflow Trigger').item.json.body.payload.error || 'N/A' }}\"\n  }\n}",
         "options": {}
       },
       "id": "claude-dispatch",
       "name": "GitHub: Claude CLI 트리거",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1350, 200],
+      "position": [1130, 200],
       "credentials": {
         "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
       }
@@ -111,24 +87,23 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"title\": \"[Error] {{ $json.severity }}: {{ $json.summary }}\",\n  \"body\": \"## SuperGrok 에러 분류\\n\\n- 심각도: {{ $json.severity }}\\n- 분류: {{ $json.category }}\\n- 요약: {{ $json.summary }}\\n- 자동 수정: {{ $json.isAutoFixable ? '진행 중 (Claude CLI)' : '불가 — 수동 조치 필요' }}\\n\\n## 원본 에러\\n\\n- 타입: {{ $('Webhook: App Events').item.json.body.type }}\\n- 에러: {{ $('Webhook: App Events').item.json.body.payload.error || 'N/A' }}\\n- 프로젝트: {{ $('Webhook: App Events').item.json.body.payload.projectId || 'N/A' }}\\n- 시간: {{ $('Webhook: App Events').item.json.body.timestamp }}\",\n  \"labels\": [\"error\", \"{{ $json.severity }}\"]\n}",
+        "jsonBody": "={\n  \"title\": \"[Error] {{ $json.severity }}: {{ $json.summary }}\",\n  \"body\": \"## SuperGrok 에러 분류\\n\\n- 심각도: {{ $json.severity }}\\n- 분류: {{ $json.category }}\\n- 요약: {{ $json.summary }}\\n- 자동 수정: {{ $json.isAutoFixable ? '진행 중 (Claude CLI)' : '불가 — 수동 조치 필요' }}\\n\\n## 원본 에러\\n- 타입: {{ $('Execute Workflow Trigger').item.json.body.type }}\\n- 에러: {{ $('Execute Workflow Trigger').item.json.body.payload.error || 'N/A' }}\\n- 프로젝트: {{ $('Execute Workflow Trigger').item.json.body.payload.projectId || 'N/A' }}\\n- 시간: {{ $('Execute Workflow Trigger').item.json.body.timestamp }}\",\n  \"labels\": [\"error\", \"{{ $json.severity }}\"]\n}",
         "options": {}
       },
       "id": "create-issue",
       "name": "GitHub: Issue 생성",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1350, 400],
+      "position": [1130, 400],
       "credentials": {
         "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
       }
     }
   ],
   "connections": {
-    "Webhook: App Events": { "main": [[{ "node": "Filter: FAILED 이벤트만", "type": "main", "index": 0 }]] },
-    "Filter: FAILED 이벤트만": { "main": [[{ "node": "SuperGrok: 에러 분류", "type": "main", "index": 0 }]] },
-    "SuperGrok: 에러 분류": { "main": [[{ "node": "Code: 응답 파싱", "type": "main", "index": 0 }]] },
-    "Code: 응답 파싱": { "main": [[{ "node": "IF: 자동 수정 가능?", "type": "main", "index": 0 }]] },
+    "Execute Workflow Trigger": { "main": [[{ "node": "SuperGrok: 에러 분류", "type": "main", "index": 0 }]] },
+    "SuperGrok: 에러 분류": { "main": [[{ "node": "Code: 파싱", "type": "main", "index": 0 }]] },
+    "Code: 파싱": { "main": [[{ "node": "IF: 자동 수정 가능?", "type": "main", "index": 0 }]] },
     "IF: 자동 수정 가능?": {
       "main": [
         [{ "node": "GitHub: Claude CLI 트리거", "type": "main", "index": 0 }],
