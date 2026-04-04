@@ -67,7 +67,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"grok-3\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"You are an AI code quality analyst for xzawed.xyz (no-code website builder).\\n\\nAnalyze this QC failure and determine if it can be auto-fixed.\\n\\n## QC Report\\n- Project: {{ $('Webhook: App Events').item.json.body.payload.projectId }}\\n- Overall Score: {{ $('Webhook: App Events').item.json.body.payload.overallScore }}/100\\n- Failed Checks:\\n{{ $('Webhook: App Events').item.json.body.payload.checks.filter(c => !c.passed).map(c => `  - ${c.name}: ${c.score}/100`).join('\\n') }}\\n\\n## Recent Trends (7 days)\\n- Total: {{ $json.data.totalGenerations }} generations\\n- Pass Rate: {{ Math.round($json.data.qcPassRate * 100) }}%\\n- Common Failures: {{ $json.data.commonFailures.map(f => `${f.check}(${f.failCount})`).join(', ') }}\\n\\nReturn JSON only:\\n{\\n  \\\"autoFixable\\\": boolean,\\n  \\\"fixApproach\\\": \\\"specific instructions for Claude CLI to fix the code generation pipeline (which file, what to change)\\\",\\n  \\\"severity\\\": \\\"low|medium|high\\\",\\n  \\\"affectedArea\\\": \\\"which file/component needs fixing\\\",\\n  \\\"summary\\\": \\\"한국어 한 줄 요약\\\"\\n}\"\n    }\n  ],\n  \"temperature\": 0.2\n}",
+        "jsonBody": "={\n  \"model\": \"grok-3\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"You are an AI code quality analyst for xzawed.xyz (no-code website builder).\\n\\nAnalyze this QC failure and determine if it can be auto-fixed by modifying the code generation pipeline.\\n\\n## QC Report\\n- Project: {{ $('Webhook: App Events').item.json.body.payload.projectId }}\\n- Overall Score: {{ $('Webhook: App Events').item.json.body.payload.overallScore }}/100\\n- Failed Checks:\\n{{ $('Webhook: App Events').item.json.body.payload.checks.filter(c => !c.passed).map(c => '  - ' + c.name + ': ' + c.score + '/100').join('\\n') }}\\n\\n## Recent Trends (7 days)\\n- Pass Rate: {{ Math.round($json.data.qcPassRate * 100) }}%\\n- Common Failures: {{ $json.data.commonFailures.map(f => f.check + '(' + f.failCount + ')').join(', ') }}\\n\\nReturn JSON only:\\n{\\n  \\\"autoFixable\\\": boolean,\\n  \\\"fixApproach\\\": \\\"specific instructions for Claude CLI (which file, what to change)\\\",\\n  \\\"severity\\\": \\\"low|medium|high\\\",\\n  \\\"affectedArea\\\": \\\"which file/component\\\",\\n  \\\"summary\\\": \\\"한국어 한 줄 요약\\\"\\n}\"\n    }\n  ],\n  \"temperature\": 0.2\n}",
         "options": {}
       },
       "id": "supergrok-analysis",
@@ -132,24 +132,22 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "",
-        "options": {},
-        "bodyParametersUi": {
-          "parameter": [
-            {
-              "name": "content",
-              "value": "=🔧 **QC 자동 수정 시작**\n- 프로젝트: {{ $('Webhook: App Events').item.json.body.payload.projectId }}\n- QC 점수: {{ $('Webhook: App Events').item.json.body.payload.overallScore }}/100\n- 영역: {{ $json.affectedArea }}\n- 요약: {{ $json.summary }}\n\nClaude CLI가 PR을 생성할 예정입니다."
-            }
-          ]
-        }
+        "url": "https://api.github.com/repos/xzawed/CustomWebService/issues",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"title\": \"[QC Auto] {{ $json.severity }}: {{ $json.summary }}\",\n  \"body\": \"## SuperGrok 분석\\n\\n- 심각도: {{ $json.severity }}\\n- 영향 영역: {{ $json.affectedArea }}\\n- 자동 수정: Claude CLI PR 생성 중\\n- 요약: {{ $json.summary }}\\n\\n## 수정 방법\\n{{ $json.fixApproach }}\\n\\n## QC 상세\\n- 프로젝트: {{ $('Webhook: App Events').item.json.body.payload.projectId }}\\n- 점수: {{ $('Webhook: App Events').item.json.body.payload.overallScore }}/100\",\n  \"labels\": [\"qc\", \"auto-fix\", \"{{ $json.severity }}\"]\n}",
+        "options": {}
       },
-      "id": "discord-autofix",
-      "name": "Discord: 자동 수정 알림",
+      "id": "issue-autofix",
+      "name": "GitHub: 자동수정 Issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1790, 200],
-      "notesInFlow": true,
-      "notes": "Discord Webhook URL 입력"
+      "credentials": {
+        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+      }
     },
     {
       "parameters": {
@@ -159,39 +157,17 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"title\": \"[QC] {{ $json.severity }}: {{ $json.summary }}\",\n  \"body\": \"## SuperGrok 분석\\n- 심각도: {{ $json.severity }}\\n- 영향 영역: {{ $json.affectedArea }}\\n- 자동 수정: 불가\\n\\n## 수동 조치 필요\\n{{ $json.fixApproach || '추가 분석 필요' }}\\n\\n## QC 상세\\n- 프로젝트: {{ $('Webhook: App Events').item.json.body.payload.projectId }}\\n- 점수: {{ $('Webhook: App Events').item.json.body.payload.overallScore }}/100\",\n  \"labels\": [\"qc\", \"{{ $json.severity }}\"]\n}",
+        "jsonBody": "={\n  \"title\": \"[QC] {{ $json.severity }}: {{ $json.summary }}\",\n  \"body\": \"## SuperGrok 분석\\n\\n- 심각도: {{ $json.severity }}\\n- 영향 영역: {{ $json.affectedArea }}\\n- 자동 수정: 불가\\n\\n## 수동 조치 필요\\n{{ $json.fixApproach || '추가 분석 필요' }}\\n\\n## QC 상세\\n- 프로젝트: {{ $('Webhook: App Events').item.json.body.payload.projectId }}\\n- 점수: {{ $('Webhook: App Events').item.json.body.payload.overallScore }}/100\",\n  \"labels\": [\"qc\", \"manual\", \"{{ $json.severity }}\"]\n}",
         "options": {}
       },
-      "id": "create-issue",
-      "name": "GitHub: Issue 생성",
+      "id": "issue-manual",
+      "name": "GitHub: 수동조치 Issue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1570, 400],
       "credentials": {
         "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
       }
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "",
-        "options": {},
-        "bodyParametersUi": {
-          "parameter": [
-            {
-              "name": "content",
-              "value": "=⚠️ **QC 이슈 — 수동 조치 필요**\n- 심각도: {{ $json.severity }}\n- 요약: {{ $json.summary }}\n- GitHub Issue 생성됨"
-            }
-          ]
-        }
-      },
-      "id": "discord-manual",
-      "name": "Discord: 수동 조치 알림",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1790, 400],
-      "notesInFlow": true,
-      "notes": "Discord Webhook URL 입력"
     }
   ],
   "connections": {
@@ -203,11 +179,10 @@
     "IF: 자동 수정 가능?": {
       "main": [
         [{ "node": "GitHub: Claude CLI 트리거", "type": "main", "index": 0 }],
-        [{ "node": "GitHub: Issue 생성", "type": "main", "index": 0 }]
+        [{ "node": "GitHub: 수동조치 Issue", "type": "main", "index": 0 }]
       ]
     },
-    "GitHub: Claude CLI 트리거": { "main": [[{ "node": "Discord: 자동 수정 알림", "type": "main", "index": 0 }]] },
-    "GitHub: Issue 생성": { "main": [[{ "node": "Discord: 수동 조치 알림", "type": "main", "index": 0 }]] }
+    "GitHub: Claude CLI 트리거": { "main": [[{ "node": "GitHub: 자동수정 Issue", "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1" }
 }

@@ -176,28 +176,6 @@
         "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
       }
     },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "",
-        "options": {},
-        "bodyParametersUi": {
-          "parameter": [
-            {
-              "name": "content",
-              "value": "=🔍 **코드 리뷰 완료** — PR #{{ $('Webhook: GitHub PR').item.json.body.pull_request.number }}\n- 결과: {{ $json.verdict === 'approve' ? '✅ 승인' : '🔄 수정 요청' }}\n- 요약: {{ $json.summary }}"
-            }
-          ]
-        }
-      },
-      "id": "discord-review",
-      "name": "Discord: 리뷰 결과",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2230, 200],
-      "notesInFlow": true,
-      "notes": "Discord Webhook URL 입력"
-    }
   ],
   "connections": {
     "Webhook: GitHub PR": { "main": [[{ "node": "Filter: Claude PR만", "type": "main", "index": 0 }]] },
@@ -218,8 +196,8 @@
         [{ "node": "GitHub: 변경 요청", "type": "main", "index": 0 }]
       ]
     },
-    "GitHub: PR 승인": { "main": [[{ "node": "Discord: 리뷰 결과", "type": "main", "index": 0 }]] },
-    "GitHub: 변경 요청": { "main": [[{ "node": "Discord: 리뷰 결과", "type": "main", "index": 0 }]] }
+    "GitHub: PR 승인": { "main": [[]] },
+    "GitHub: 변경 요청": { "main": [[]] }
   },
   "settings": { "executionOrder": "v1" }
 }

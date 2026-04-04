@@ -47,13 +47,8 @@
     {
       "parameters": {
         "url": "https://xzawed.xyz/api/v1/health",
-        "options": {
-          "timeout": 15000
-        },
-        "retry": {
-          "maxTries": 3,
-          "waitBetweenTries": 10000
-        }
+        "options": { "timeout": 15000 },
+        "retry": { "maxTries": 3, "waitBetweenTries": 10000 }
       },
       "id": "health-check",
       "name": "HTTP: 헬스 체크",
@@ -84,46 +79,22 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "",
-        "options": {},
-        "bodyParametersUi": {
-          "parameter": [
-            {
-              "name": "content",
-              "value": "=✅ **배포 성공**\n- URL: {{ $('Webhook: App Events').item.json.body.payload.url }}\n- 플랫폼: {{ $('Webhook: App Events').item.json.body.payload.platform }}\n- 헬스: {{ $json.status }}\n- DB: {{ $json.checks.database }}\n- AI: {{ $json.checks.ai }}\n- 시간: {{ new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}) }}"
-            }
-          ]
-        }
+        "url": "https://api.github.com/repos/xzawed/CustomWebService/issues",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"title\": \"[Deploy] 헬스 체크 실패\",\n  \"body\": \"## 배포 후 헬스 체크 실패\\n\\n- 상태: {{ $json.status }}\\n- DB: {{ $json.checks.database }}\\n- AI: {{ $json.checks.ai }}\\n- 플랫폼: {{ $('Webhook: App Events').item.json.body.payload.platform }}\\n- 시간: {{ new Date().toISOString() }}\\n\\n즉시 확인 필요합니다.\",\n  \"labels\": [\"deploy\", \"critical\"]\n}",
+        "options": {}
       },
-      "id": "discord-success",
-      "name": "Discord: 배포 성공",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1350, 200],
-      "notesInFlow": true,
-      "notes": "Discord Webhook URL을 url 필드에 입력하세요"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "",
-        "options": {},
-        "bodyParametersUi": {
-          "parameter": [
-            {
-              "name": "content",
-              "value": "=🚨 **배포 후 헬스 체크 실패**\n- 상태: {{ $json.status }}\n- DB: {{ $json.checks.database }}\n- AI: {{ $json.checks.ai }}\n- 프로젝트: {{ $('Webhook: App Events').item.json.body.payload.projectId }}\n- 시간: {{ new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'}) }}\n\n⚠️ 수동 확인 필요"
-            }
-          ]
-        }
-      },
-      "id": "discord-failure",
-      "name": "Discord: 배포 실패",
+      "id": "issue-failure",
+      "name": "GitHub: 실패 Issue 생성",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1350, 400],
-      "notesInFlow": true,
-      "notes": "Discord Webhook URL을 url 필드에 입력하세요"
+      "credentials": {
+        "httpHeaderAuth": { "id": "", "name": "GitHub PAT" }
+      }
     }
   ],
   "connections": {
@@ -133,12 +104,10 @@
     "HTTP: 헬스 체크": { "main": [[{ "node": "IF: Healthy?", "type": "main", "index": 0 }]] },
     "IF: Healthy?": {
       "main": [
-        [{ "node": "Discord: 배포 성공", "type": "main", "index": 0 }],
-        [{ "node": "Discord: 배포 실패", "type": "main", "index": 0 }]
+        [],
+        [{ "node": "GitHub: 실패 Issue 생성", "type": "main", "index": 0 }]
       ]
     }
   },
-  "settings": {
-    "executionOrder": "v1"
-  }
+  "settings": { "executionOrder": "v1" }
 }
