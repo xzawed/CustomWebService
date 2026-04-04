@@ -1,3 +1,4 @@
+import '@/lib/events/init';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { ProjectService } from '@/services/projectService';
 import { AuthService } from '@/services/authService';
