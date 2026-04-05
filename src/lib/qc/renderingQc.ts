@@ -64,6 +64,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
+async function withCheckTimeout<T>(fn: () => Promise<T>, name: string, timeoutMs = 1500): Promise<T> {
+  return Promise.race([
+    fn(),
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Check timeout: ${name}`)), timeoutMs)
+    ),
+  ]);
+}
+
 // ---------------------------------------------------------------------------
 // Fast QC
 // ---------------------------------------------------------------------------
@@ -84,13 +93,14 @@ async function runFastQcInternal(html: string): Promise<QcReport> {
     });
 
     await page.setViewportSize({ width: 375, height: 812 });
+    page.setDefaultTimeout(5000); // Prevent any single operation from hanging
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 3000 });
 
     const [scrollResult, footerResult, overlapResult] = settledResults(
       await Promise.allSettled([
-        checkHorizontalScroll(page, 375),
-        checkFooterVisible(page),
-        checkNoLayoutOverlap(page),
+        withCheckTimeout(() => checkHorizontalScroll(page, 375), 'horizontalScroll'),
+        withCheckTimeout(() => checkFooterVisible(page), 'footerVisible'),
+        withCheckTimeout(() => checkNoLayoutOverlap(page), 'noLayoutOverlap'),
       ]),
       ['horizontalScroll', 'footerVisible', 'noLayoutOverlap']
     );
@@ -137,6 +147,7 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
     });
 
     await page.setViewportSize({ width: 375, height: 812 });
+    page.setDefaultTimeout(5000); // Prevent any single operation from hanging
     await page.setContent(html, { waitUntil: 'networkidle', timeout: 8000 });
 
     const [
@@ -149,13 +160,13 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
       a11yResult,
     ] = settledResults(
       await Promise.allSettled([
-        checkHorizontalScroll(page, 375),
-        checkFooterVisible(page),
-        checkNoLayoutOverlap(page),
-        checkImageLoading(page),
-        checkTouchTargets(page),
-        checkResponsiveBreakpoints(page),
-        checkAccessibility(page),
+        withCheckTimeout(() => checkHorizontalScroll(page, 375), 'horizontalScroll'),
+        withCheckTimeout(() => checkFooterVisible(page), 'footerVisible'),
+        withCheckTimeout(() => checkNoLayoutOverlap(page), 'noLayoutOverlap'),
+        withCheckTimeout(() => checkImageLoading(page), 'imageLoading'),
+        withCheckTimeout(() => checkTouchTargets(page), 'touchTargets'),
+        withCheckTimeout(() => checkResponsiveBreakpoints(page), 'responsiveBreakpoints'),
+        withCheckTimeout(() => checkAccessibility(page), 'accessibility'),
       ]),
       [
         'horizontalScroll',

@@ -6,7 +6,7 @@ on:
 
 concurrency:
   group: claude-automation
-  cancel-in-progress: false
+  cancel-in-progress: true  # Issue 4.5: 동시 실행 방지 — 이전 작업 취소
 
 jobs:
   claude-task:
@@ -49,6 +49,8 @@ jobs:
           echo "BRANCH=$BRANCH" >> $GITHUB_ENV
 
       - name: Run Claude CLI
+        id: claude
+        continue-on-error: true  # Issue 4.1: 실패해도 워크플로우 계속
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -56,11 +58,64 @@ jobs:
             --allowedTools "Edit,Write,Bash,Read,Glob,Grep" \
             --max-turns 20
 
+      # Issue 4.1: Claude CLI 실패 시 Issue 생성
+      - name: Report Claude CLI failure
+        if: steps.claude.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "[Auto] Claude CLI 실행 실패 — ${{ github.event.action }}" \
+            --body "## Claude CLI 실행 실패
+
+          - 워크플로우: \`${{ github.event.action }}\`
+          - Run ID: \`${{ github.run_id }}\`
+          - 원인: Claude CLI 또는 ANTHROPIC_API_KEY 오류
+
+          ## 원본 작업 내용
+          ${{ github.event.client_payload.task_description || 'N/A' }}
+
+          수동 확인이 필요합니다." \
+            --label "auto-fix,failed"
+
+      - name: Stop if Claude failed
+        if: steps.claude.outcome == 'failure'
+        run: exit 0
+
       - name: Run verification
+        id: verify
+        continue-on-error: true  # Issue 4.2: 테스트 실패해도 진행
         run: |
           pnpm lint || true
           pnpm type-check
           pnpm test
+
+      # Issue 4.2: 테스트 실패 시 변경 되돌리고 Issue 생성
+      - name: Handle verification failure
+        if: steps.verify.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git checkout -- .
+          gh issue create \
+            --title "[Auto] Claude CLI 수정 후 테스트 실패 — ${{ github.event.action }}" \
+            --body "## 테스트 실패
+
+          Claude CLI가 코드를 수정했으나 테스트가 실패했습니다.
+
+          - 워크플로우: \`${{ github.event.action }}\`
+          - Run ID: \`${{ github.run_id }}\`
+          - 브랜치: \`${{ env.BRANCH }}\`
+
+          ## 원본 작업 내용
+          ${{ github.event.client_payload.task_description || 'N/A' }}
+
+          수동 수정이 필요합니다." \
+            --label "auto-fix,test-failed"
+
+      - name: Stop if verification failed
+        if: steps.verify.outcome == 'failure'
+        run: exit 0
 
       - name: Check for changes
         id: changes
@@ -68,9 +123,15 @@ jobs:
           git add -A
           if git diff --staged --quiet; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "::notice::Claude CLI completed but made no changes"
           else
             echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
+
+      # Issue 4.3: 변경 없음 시 명시적 로그
+      - name: Log no changes
+        if: steps.changes.outputs.has_changes == 'false'
+        run: echo "::notice::No code changes were made by Claude CLI — task may not require code modification"
 
       - name: Commit and push
         if: steps.changes.outputs.has_changes == 'true'

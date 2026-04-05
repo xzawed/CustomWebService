@@ -8,6 +8,39 @@ export function isQcEnabled(): boolean {
   return process.env.ENABLE_RENDERING_QC === 'true';
 }
 
+// --- Semaphore ---
+
+let activePages = 0;
+const waitQueue: Array<(value: boolean) => void> = [];
+
+async function acquireSemaphore(timeoutMs = 10000): Promise<boolean> {
+  if (activePages < MAX_CONCURRENT_PAGES) {
+    activePages++;
+    return true;
+  }
+  return new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => {
+      // Remove from queue and return false (timeout)
+      const idx = waitQueue.indexOf(resolve);
+      if (idx !== -1) waitQueue.splice(idx, 1);
+      resolve(false);
+    }, timeoutMs);
+    waitQueue.push((value: boolean) => {
+      clearTimeout(timer);
+      resolve(value);
+    });
+  });
+}
+
+function releaseSemaphore(): void {
+  const next = waitQueue.shift();
+  if (next) {
+    next(true);
+  } else {
+    activePages--;
+  }
+}
+
 // --- Browser singleton ---
 
 let browserInstance: Browser | null = null;
@@ -21,7 +54,12 @@ async function getBrowser(): Promise<Browser | null> {
     }
 
     // Close stale instance if disconnected
-    if (browserInstance) {
+    if (browserInstance && !browserInstance.isConnected()) {
+      logger.warn('[QC] Browser disconnected, resetting pool');
+      // Reset semaphore — all orphaned pages are gone
+      activePages = 0;
+      waitQueue.forEach(resolve => resolve(true)); // unblock waiters
+      waitQueue.length = 0;
       try {
         await browserInstance.close();
       } catch {
@@ -44,50 +82,29 @@ async function getBrowser(): Promise<Browser | null> {
   }
 }
 
-// --- Semaphore ---
-
-let activePages = 0;
-const waitQueue: Array<() => void> = [];
-
-function acquireSemaphore(): Promise<void> {
-  return new Promise<void>((resolve) => {
-    if (activePages < MAX_CONCURRENT_PAGES) {
-      activePages++;
-      resolve();
-    } else {
-      waitQueue.push(() => {
-        activePages++;
-        resolve();
-      });
-    }
-  });
-}
-
-function releaseSemaphore(): void {
-  const next = waitQueue.shift();
-  if (next) {
-    next();
-  } else {
-    activePages--;
-  }
-}
-
 // --- Public API ---
 
 export async function getPage(): Promise<Page | null> {
   if (!isQcEnabled()) return null;
 
-  const browser = await getBrowser();
-  if (!browser) return null;
+  const acquired = await acquireSemaphore(10000);
+  if (!acquired) {
+    logger.warn('[QC] Browser pool semaphore timeout — possible deadlock');
+    return null;
+  }
 
   try {
-    await acquireSemaphore();
+    const browser = await getBrowser();
+    if (!browser) {
+      releaseSemaphore();
+      return null;
+    }
 
     const context: BrowserContext = await browser.newContext();
     const page: Page = await context.newPage();
     return page;
   } catch (err) {
-    releaseSemaphore();
+    releaseSemaphore(); // Ensure semaphore is released on error
     logger.error('[QC] Failed to create page', {
       error: err instanceof Error ? err.message : String(err),
     });
@@ -98,11 +115,10 @@ export async function getPage(): Promise<Page | null> {
 export async function releasePage(page: Page): Promise<void> {
   try {
     const context = page.context();
-    await context.close();
-  } catch (err) {
-    logger.warn('[QC] Failed to close page context', {
-      error: err instanceof Error ? err.message : String(err),
-    });
+    await page.close().catch(() => {});
+    await context.close().catch(() => {});
+  } catch {
+    // Page/context may already be closed after crash
   } finally {
     releaseSemaphore();
   }
