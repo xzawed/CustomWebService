@@ -154,11 +154,12 @@
           "id": "",
           "name": "GitHub PAT"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const remaining = $input.all()[0].json.resources?.core?.remaining ?? 0; return [{ json: { remaining, available: remaining > 10 } }];"
+        "jsCode": "const data = $input.all()[0].json; const remaining = data.resources?.core?.remaining ?? 0; const isError = !!data.error || !data.resources; return [{ json: { remaining: isError ? 0 : remaining, available: !isError && remaining > 10 } }];"
       },
       "id": "check-quota",
       "name": "Code: 한도 확인",

@@ -343,10 +343,12 @@ export async function POST(request: Request): Promise<Response> {
             },
           } as Parameters<typeof codeRepo.create>[0]);
 
-          // 버전 정리를 비동기로 실행 — SSE 응답을 블로킹하지 않음
-          codeRepo.pruneOldVersions(projectId, limits.maxCodeVersionsPerProject).catch((pruneErr) => {
+          // 버전 정리 — 동기 실행으로 동시 생성 시 경합 방지 (Issue 6.2)
+          try {
+            await codeRepo.pruneOldVersions(projectId, limits.maxCodeVersionsPerProject);
+          } catch (pruneErr) {
             logger.warn('Failed to prune old code versions', { projectId, pruneErr });
-          });
+          }
 
           // 렌더링 Deep QC — 비동기 실행, 결과를 DB에 저장
           if (isQcEnabled()) {
