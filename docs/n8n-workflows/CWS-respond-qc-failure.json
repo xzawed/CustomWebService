@@ -206,6 +206,71 @@
           "name": "GitHub PAT"
         }
       }
+    },
+    {
+      "parameters": {
+        "url": "https://api.github.com/rate_limit",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "rate-limit-check",
+      "name": "GitHub: Rate Limit 체크",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1270,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "GitHub PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const remaining = $input.all()[0].json.resources?.core?.remaining ?? 0; return [{ json: { remaining, available: remaining > 10 } }];"
+      },
+      "id": "check-quota",
+      "name": "Code: 한도 확인",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1270,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.available }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-quota",
+      "name": "IF: GitHub 한도 여유?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1270,
+        500
+      ]
     }
   ],
   "connections": {
@@ -257,7 +322,7 @@
       "main": [
         [
           {
-            "node": "IF: 자동 수정 가능?",
+            "node": "GitHub: Rate Limit 체크",
             "type": "main",
             "index": 0
           }
@@ -291,6 +356,40 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "GitHub: Rate Limit 체크": {
+      "main": [
+        [
+          {
+            "node": "Code: 한도 확인",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: 한도 확인": {
+      "main": [
+        [
+          {
+            "node": "IF: GitHub 한도 여유?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: GitHub 한도 여유?": {
+      "main": [
+        [
+          {
+            "node": "IF: 자동 수정 가능?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   },

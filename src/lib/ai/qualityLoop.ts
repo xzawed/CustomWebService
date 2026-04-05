@@ -4,15 +4,33 @@ import type { QcReport } from '@/types/qc';
 const QUALITY_THRESHOLD = 40;
 const MOBILE_THRESHOLD = 40;
 
-export function shouldRetryGeneration(metrics: QualityMetrics, qcReport?: QcReport | null): boolean {
-  if (metrics.structuralScore < QUALITY_THRESHOLD) return true;
-  if (metrics.mobileScore < MOBILE_THRESHOLD) return true;
+// 강화 모드: 외부 자동 수정(GitHub) 불가 시 내부 품질 기준을 높임
+const STRICT_QUALITY_THRESHOLD = 60;
+const STRICT_MOBILE_THRESHOLD = 60;
+
+export function shouldRetryGeneration(
+  metrics: QualityMetrics,
+  qcReport?: QcReport | null,
+  strictMode = false
+): boolean {
+  const qualityThreshold = strictMode ? STRICT_QUALITY_THRESHOLD : QUALITY_THRESHOLD;
+  const mobileThreshold = strictMode ? STRICT_MOBILE_THRESHOLD : MOBILE_THRESHOLD;
+
+  if (metrics.structuralScore < qualityThreshold) return true;
+  if (metrics.mobileScore < mobileThreshold) return true;
   // Rendering QC: force retry if JS errors or horizontal scroll detected
   if (qcReport) {
     const consoleCheck = qcReport.checks.find(c => c.name === 'consoleErrors');
     const scrollCheck = qcReport.checks.find(c => c.name === 'horizontalScroll');
     if (consoleCheck && !consoleCheck.passed) return true;
     if (scrollCheck && !scrollCheck.passed) return true;
+    // 강화 모드: 푸터 미존재, 레이아웃 겹침도 재시도 트리거
+    if (strictMode) {
+      const footerCheck = qcReport.checks.find(c => c.name === 'footerVisible');
+      const overlapCheck = qcReport.checks.find(c => c.name === 'noLayoutOverlap');
+      if (footerCheck && !footerCheck.passed) return true;
+      if (overlapCheck && !overlapCheck.passed) return true;
+    }
   }
   return false;
 }

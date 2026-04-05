@@ -38,6 +38,14 @@ function createSignature(payload: string): string {
   return `sha256=${crypto.createHmac('sha256', N8N_WEBHOOK_SECRET).update(payload).digest('hex')}`;
 }
 
+// 외부 연결 상태 추적 — 연속 실패 시 내부 QC 강화 모드 활성화
+let consecutiveFailures = 0;
+const MAX_FAILURES_FOR_STRICT = 3;
+
+export function isExternalAvailable(): boolean {
+  return N8N_WEBHOOK_URL !== undefined && consecutiveFailures < MAX_FAILURES_FOR_STRICT;
+}
+
 async function forwardEvent(event: DomainEvent): Promise<void> {
   if (!N8N_WEBHOOK_URL) return;
   if (isDuplicate(event)) return;
@@ -57,17 +65,29 @@ async function forwardEvent(event: DomainEvent): Promise<void> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FORWARD_TIMEOUT_MS);
-    await fetch(N8N_WEBHOOK_URL, {
+    const response = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',
       headers,
       body,
       signal: controller.signal,
     });
     clearTimeout(timeout);
+    if (response.ok) {
+      consecutiveFailures = 0;
+    } else {
+      consecutiveFailures++;
+      logger.warn('Webhook forward HTTP error', {
+        type: event.type,
+        status: response.status,
+        consecutiveFailures,
+      });
+    }
   } catch (err) {
+    consecutiveFailures++;
     logger.warn('Webhook forward failed', {
       type: event.type,
       error: err instanceof Error ? err.message : String(err),
+      consecutiveFailures,
     });
   }
 }
