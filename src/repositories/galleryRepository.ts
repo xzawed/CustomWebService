@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { GalleryFilter, GalleryItem, GalleryPage } from '@/types/gallery';
+import { NotFoundError } from '@/lib/utils/errors';
 
 interface ProjectRow {
   id: string;
@@ -39,9 +40,12 @@ export class GalleryRepository {
     }
 
     if (filter.search) {
-      query = query.or(
-        `name.ilike.%${filter.search}%,context.ilike.%${filter.search}%`
-      );
+      // C1: Sanitize search string to prevent PostgREST injection via special chars
+      const sanitized = filter.search
+        .replace(/[%_,.()\[\]{}]/g, ' ')
+        .trim()
+        .substring(0, 200);
+      query = query.or(`name.ilike.%${sanitized}%,context.ilike.%${sanitized}%`);
     }
 
     if (filter.sortBy === 'popular') {
@@ -93,58 +97,53 @@ export class GalleryRepository {
     projectId: string,
     userId: string
   ): Promise<{ liked: boolean; newCount: number }> {
-    // Check if the like already exists
-    const { data: existing, error: checkError } = await this.supabase
+    // C2: Atomic delete-first pattern eliminates TOCTOU race condition.
+    // Try to delete — if it existed, we're unliking; if not, we're liking.
+    const { data: deleted, error: deleteError } = await this.supabase
       .from('project_likes')
-      .select('id')
+      .delete()
       .eq('project_id', projectId)
       .eq('user_id', userId)
-      .maybeSingle();
+      .select('id');
 
-    if (checkError) throw checkError;
+    if (deleteError) throw deleteError;
 
-    if (existing) {
-      // Unlike: delete the row and decrement count
-      const { error: deleteError } = await this.supabase
-        .from('project_likes')
-        .delete()
-        .eq('project_id', projectId)
-        .eq('user_id', userId);
-
-      if (deleteError) throw deleteError;
-
+    if (deleted && deleted.length > 0) {
+      // Was liked → now unlike — decrement
       const { error: rpcError } = await this.supabase.rpc('decrement_project_likes', {
         p_id: projectId,
       });
       if (rpcError) throw rpcError;
-    } else {
-      // Like: insert row and increment count
-      const { error: insertError } = await this.supabase.from('project_likes').insert({
-        project_id: projectId,
-        user_id: userId,
-      });
 
+      const { data: proj, error: projError } = await this.supabase
+        .from('projects')
+        .select('likes_count')
+        .eq('id', projectId)
+        .single();
+      if (projError) throw projError;
+
+      return { liked: false, newCount: (proj as { likes_count: number }).likes_count };
+    } else {
+      // Was not liked → insert and increment
+      const { error: insertError } = await this.supabase
+        .from('project_likes')
+        .insert({ project_id: projectId, user_id: userId });
       if (insertError) throw insertError;
 
       const { error: rpcError } = await this.supabase.rpc('increment_project_likes', {
         p_id: projectId,
       });
       if (rpcError) throw rpcError;
+
+      const { data: proj, error: projError } = await this.supabase
+        .from('projects')
+        .select('likes_count')
+        .eq('id', projectId)
+        .single();
+      if (projError) throw projError;
+
+      return { liked: true, newCount: (proj as { likes_count: number }).likes_count };
     }
-
-    // Fetch updated count
-    const { data: projectData, error: fetchError } = await this.supabase
-      .from('projects')
-      .select('likes_count')
-      .eq('id', projectId)
-      .single();
-
-    if (fetchError) throw fetchError;
-
-    return {
-      liked: !existing,
-      newCount: (projectData?.likes_count as number) ?? 0,
-    };
   }
 
   async forkProject(
@@ -159,7 +158,8 @@ export class GalleryRepository {
       .single();
 
     if (srcError) throw srcError;
-    if (!source) throw new Error(`Project ${projectId} not found`);
+    // I4: Use NotFoundError instead of plain Error
+    if (!source) throw new NotFoundError('Project', projectId);
 
     // Generate a unique slug for the fork
     const baseSlug = await this.buildForkSlug(
@@ -215,9 +215,10 @@ export class GalleryRepository {
         framework: latestCode.framework,
         ai_provider: latestCode.ai_provider,
         ai_model: latestCode.ai_model,
-        ai_prompt_used: latestCode.ai_prompt_used,
+        // I2: Null out sensitive prompt/token data on forked code
+        ai_prompt_used: null,
         generation_time_ms: latestCode.generation_time_ms,
-        token_usage: latestCode.token_usage,
+        token_usage: null,
         dependencies: latestCode.dependencies,
         metadata: latestCode.metadata,
       });
@@ -237,6 +238,9 @@ export class GalleryRepository {
   }
 
   private async buildForkSlug(sourceSlug: string | null, sourceName: string): Promise<string> {
+    // I3: Guard against infinite loop with MAX_ATTEMPTS
+    const MAX_ATTEMPTS = 20;
+
     const base = sourceSlug
       ? `${sourceSlug}-copy`
       : sourceName
@@ -247,7 +251,7 @@ export class GalleryRepository {
     let candidate = base;
     let attempt = 0;
 
-    while (true) {
+    while (attempt <= MAX_ATTEMPTS) {
       const { data, error } = await this.supabase
         .from('projects')
         .select('id')
@@ -260,5 +264,9 @@ export class GalleryRepository {
       attempt += 1;
       candidate = `${base}-${attempt}`;
     }
+
+    throw new Error(
+      `buildForkSlug: MAX_ATTEMPTS(${MAX_ATTEMPTS}) 초과 — 고유한 슬러그를 생성할 수 없습니다 (base: ${base})`
+    );
   }
 }

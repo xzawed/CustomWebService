@@ -179,25 +179,25 @@ describe('GalleryRepository.toggleLike', () => {
   });
 
   it('아직 좋아요를 누르지 않은 경우 — INSERT 후 liked: true 반환', async () => {
-    // Calls in order:
-    // 1) from('project_likes').select().eq().eq().maybeSingle() → check existing
-    // 2) from('project_likes').insert()                         → insert like
+    // New delete-first pattern:
+    // 1) from('project_likes').delete().eq().eq().select() → delete returns no rows (not liked)
+    // 2) from('project_likes').insert()                    → insert like
     // 3) rpc('increment_project_likes')
-    // 4) from('projects').select().eq().single()               → fetch updated count
+    // 4) from('projects').select().eq().single()           → fetch updated count
 
-    const checkChain = makeChain();
+    const deleteChain = makeChain();
     const insertChain = makeChain();
     const countChain = makeChain();
 
     const { supabase, rpc } = makeSupabase(
-      [checkChain, insertChain, countChain],
+      [deleteChain, insertChain, countChain],
       [{ data: null, error: null }] // rpc result
     );
 
-    // 1) no existing like
-    checkChain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    // 1) delete returns empty array → was not liked
+    deleteChain.select.mockResolvedValueOnce({ data: [], error: null });
 
-    // 2) insert resolves when awaited (insert is terminal here)
+    // 2) insert resolves when awaited
     insertChain.insert.mockResolvedValueOnce({ error: null });
 
     // 4) fetch count
@@ -212,31 +212,23 @@ describe('GalleryRepository.toggleLike', () => {
   });
 
   it('이미 좋아요를 누른 경우 — DELETE 후 liked: false 반환', async () => {
-    // Calls in order:
-    // 1) from('project_likes').select().eq().eq().maybeSingle() → existing found
-    // 2) from('project_likes').delete().eq().eq()               → delete like
-    // 3) rpc('decrement_project_likes')
-    // 4) from('projects').select().eq().single()               → fetch updated count
+    // New delete-first pattern:
+    // 1) from('project_likes').delete().eq().eq().select() → delete returns a row (was liked)
+    // 2) rpc('decrement_project_likes')
+    // 3) from('projects').select().eq().single()           → fetch updated count
 
-    const checkChain = makeChain();
     const deleteChain = makeChain();
     const countChain = makeChain();
 
     const { supabase, rpc } = makeSupabase(
-      [checkChain, deleteChain, countChain],
+      [deleteChain, countChain],
       [{ data: null, error: null }] // rpc result
     );
 
-    // 1) existing like found
-    checkChain.maybeSingle.mockResolvedValueOnce({ data: { id: 'like-1' }, error: null });
+    // 1) delete returns a row → was liked
+    deleteChain.select.mockResolvedValueOnce({ data: [{ id: 'like-id' }], error: null });
 
-    // 2) delete chain: delete().eq().eq() — the second .eq() resolves the promise
-    // deleteChain.eq returns `this` for the first call, resolves for second
-    deleteChain.eq
-      .mockReturnValueOnce(deleteChain)          // first .eq (project_id)
-      .mockResolvedValueOnce({ error: null });    // second .eq (user_id) → resolves
-
-    // 4) fetch count
+    // 3) fetch count
     countChain.single.mockResolvedValueOnce({ data: { likes_count: 1 }, error: null });
 
     const repo = new GalleryRepository(supabase);
@@ -290,9 +282,9 @@ describe('GalleryRepository.forkProject', () => {
       framework: 'vanilla',
       ai_provider: null,
       ai_model: null,
-      ai_prompt_used: null,
+      ai_prompt_used: 'some prompt',
       generation_time_ms: null,
-      token_usage: null,
+      token_usage: { input: 100, output: 200 },
       dependencies: [],
       metadata: {},
     };
@@ -340,6 +332,11 @@ describe('GalleryRepository.forkProject', () => {
 
     expect(result.newProjectId).toBe('new-1');
     expect(result.newSlug).toBe('my-site-copy');
+
+    // I2: Verify sensitive fields are nulled out in the inserted code copy
+    const insertedPayload = chain5.insert.mock.calls[0][0] as Record<string, unknown>;
+    expect(insertedPayload.ai_prompt_used).toBeNull();
+    expect(insertedPayload.token_usage).toBeNull();
   });
 
   it('슬러그 충돌 시 -copy-1 슬러그를 사용한다', async () => {
@@ -396,5 +393,49 @@ describe('GalleryRepository.forkProject', () => {
 
     expect(result.newSlug).toBe('site-copy-1');
     expect(result.newProjectId).toBe('new-2');
+  });
+
+  it('buildForkSlug가 MAX_ATTEMPTS 초과 시 에러를 던진다', async () => {
+    const MAX_ATTEMPTS = 20;
+    const sourceProject = {
+      id: 'orig-3',
+      slug: 'busy-slug',
+      name: 'Busy Slug',
+      context: null,
+      status: 'published',
+      user_id: 'owner-3',
+      organization_id: null,
+      deploy_url: null,
+      deploy_platform: null,
+      repo_url: null,
+      preview_url: null,
+      metadata: {},
+      current_version: 1,
+      published_at: null,
+      likes_count: 0,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    };
+
+    // We need: 1 chain for source fetch + (MAX_ATTEMPTS + 1) slug collision chains
+    // attempt=0: base candidate 'busy-slug-copy' → collision
+    // attempt=1..MAX_ATTEMPTS: 'busy-slug-copy-1' ... 'busy-slug-copy-20' → all collision
+    const totalSlugChecks = MAX_ATTEMPTS + 1; // 21 checks
+    const sourceChain = makeChain();
+    const slugChains = Array.from({ length: totalSlugChecks }, () => makeChain());
+
+    const { supabase } = makeSupabase([sourceChain, ...slugChains]);
+
+    sourceChain.single.mockResolvedValueOnce({ data: sourceProject, error: null });
+
+    // All slug checks return a collision
+    slugChains.forEach((c) => {
+      c.maybeSingle.mockResolvedValueOnce({ data: { id: 'collision' }, error: null });
+    });
+
+    const repo = new GalleryRepository(supabase);
+    await expect(repo.forkProject('orig-3', 'new-owner-3')).rejects.toThrow(
+      /MAX_ATTEMPTS/
+    );
   });
 });
