@@ -346,7 +346,7 @@ describe('shouldRetryGeneration — QcReport 통합', () => {
     expect(shouldRetryGeneration(metrics, qcReport)).toBe(true);
   });
 
-  it('고품질 + QcReport에 다른 체크만 실패 (consoleErrors/horizontalScroll 외) → false', () => {
+  it('고품질 + QcReport에 footerVisible 실패 → true (재시도 트리거)', () => {
     const metrics = makeHighQualityMetrics();
     const qcReport: QcReport = {
       overallScore: 70,
@@ -360,6 +360,6 @@ describe('shouldRetryGeneration — QcReport 통합', () => {
         { name: 'footerVisible', passed: false, score: 0, details: ['No <footer>'], durationMs: 1 },
       ],
     };
-    expect(shouldRetryGeneration(metrics, qcReport)).toBe(false);
+    expect(shouldRetryGeneration(metrics, qcReport)).toBe(true);
   });
 });

@@ -1,0 +1,74 @@
+name: QC Monitor
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 매일 09:00 KST
+  workflow_dispatch:
+
+jobs:
+  daily-qc-report:
+    name: Daily QC Report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check QC Stats
+        id: qc
+        run: |
+          RESPONSE=$(curl -sf -H "Authorization: Bearer ${{ secrets.ADMIN_API_KEY }}" \
+            "https://xzawed.xyz/api/v1/admin/qc-stats?days=7" || echo '{"data":{"qcPassRate":1,"totalGenerations":0}}')
+          echo "response<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESPONSE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          PASS_RATE=$(echo "$RESPONSE" | jq -r '.data.qcPassRate // 1')
+          TOTAL=$(echo "$RESPONSE" | jq -r '.data.totalGenerations // 0')
+          echo "pass_rate=$PASS_RATE" >> $GITHUB_OUTPUT
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+
+      - name: Create Issue if QC issues found
+        if: steps.qc.outputs.total != '0' && steps.qc.outputs.pass_rate < 0.7
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STATS: ${{ steps.qc.outputs.response }}
+        run: |
+          PASS_PCT=$(echo "$STATS" | jq -r '(.data.qcPassRate * 100 | round)')
+          TOTAL=$(echo "$STATS" | jq -r '.data.totalGenerations')
+          STRUCT=$(echo "$STATS" | jq -r '.data.avgStructuralScore')
+          MOBILE=$(echo "$STATS" | jq -r '.data.avgMobileScore')
+          FAILURES=$(echo "$STATS" | jq -r '.data.commonFailures[]? | "- \(.check): \(.failCount)건"' 2>/dev/null || echo "없음")
+          gh issue create \
+            --title "[QC Daily] 통과율 ${PASS_PCT}%" \
+            --body "## 일일 QC 리포트
+
+          | 항목 | 값 |
+          |------|-----|
+          | 생성 수 | ${TOTAL}건 |
+          | QC 통과율 | ${PASS_PCT}% |
+          | 구조 점수 | ${STRUCT} |
+          | 모바일 점수 | ${MOBILE} |
+
+          ### 주요 실패
+          ${FAILURES}" \
+            --label "qc-daily"
+
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Health
+        id: health
+        run: |
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" https://xzawed.xyz/api/v1/health || echo "000")
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+
+      - name: Alert if unhealthy
+        if: steps.health.outputs.status != '200'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "[Deploy] 헬스 체크 실패 (HTTP ${{ steps.health.outputs.status }})" \
+            --body "헬스 체크 실패. 즉시 확인 필요." \
+            --label "deploy,critical"

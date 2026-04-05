@@ -41,9 +41,9 @@ describe('shouldRetryGeneration', () => {
     expect(shouldRetryGeneration(metrics)).toBe(false);
   });
 
-  it('정확히 40이면 false를 반환한다', () => {
+  it('정확히 60이면 false를 반환한다', () => {
     const metrics: QualityMetrics = {
-      structuralScore: 40,
+      structuralScore: 60,
       mobileScore: 80,
       hasSemanticHtml: true,
       hasMockData: true,
