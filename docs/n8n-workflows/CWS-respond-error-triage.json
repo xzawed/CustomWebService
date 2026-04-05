@@ -36,11 +36,12 @@
           "id": "",
           "name": "xAI SuperGrok"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const content = $input.all()[0].json.choices?.[0]?.message?.content || '{}';\ntry {\n  return [{ json: JSON.parse(content) }];\n} catch {\n  return [{ json: { severity: 'medium', category: 'unknown', isAutoFixable: false, summary: '분석 실패', fixInstructions: null } }];\n}"
+        "jsCode": "const raw = .all()[0].json;\n// SuperGrok API 에러 감지 (continueOnFail 시 error 필드 존재)\nif (raw.error || !raw.choices) {\n  // Grok 불가 → 기본 분류: 자동수정 불가, medium, GitHub Issue만 생성\n  return [{ json: { severity: 'medium', category: 'unknown', isAutoFixable: false, summary: 'SuperGrok 분석 불가 — 수동 확인 필요', fixInstructions: null, grokUnavailable: true } }];\n}\nconst content = raw.choices?.[0]?.message?.content || '{}';\ntry {\n  return [{ json: JSON.parse(content) }];\n} catch {\n  return [{ json: { severity: 'medium', category: 'unknown', isAutoFixable: false, summary: '분석 실패', fixInstructions: null } }];\n}"
       },
       "id": "parse",
       "name": "Code: 파싱",

@@ -141,11 +141,12 @@
           "id": "",
           "name": "xAI SuperGrok"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const content = $input.all()[0].json.choices?.[0]?.message?.content || '{}';\ntry {\n  return [{ json: JSON.parse(content) }];\n} catch {\n  return [{ json: { verdict: 'request_changes', summary: 'SuperGrok 응답 파싱 실패', comments: [] } }];\n}"
+        "jsCode": "const raw = .all()[0].json;\nif (raw.error || !raw.choices) {\n  // Grok 불가 → 리뷰 불가로 표시, 변경 요청도 승인도 하지 않음\n  return [{ json: { verdict: 'skip', summary: 'SuperGrok 분석 불가 — 수동 리뷰 필요', comments: [], grokUnavailable: true } }];\n}\nconst content = raw.choices?.[0]?.message?.content || '{}';\ntry {\n  return [{ json: JSON.parse(content) }];\n} catch {\n  return [{ json: { verdict: 'request_changes', summary: 'SuperGrok 응답 파싱 실패', comments: [] } }];\n}"
       },
       "id": "parse-review",
       "name": "Code: 리뷰 결과 파싱",
@@ -218,7 +219,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"event\": \"REQUEST_CHANGES\",\n  \"body\": \"🔄 SuperGrok 코드 리뷰 — 수정 필요\\n\\n{{ $json.summary }}\\n\\n{{ $json.comments.map(c => `- **${c.file}** (${c.severity}): ${c.comment}`).join('\\n') }}\"\n}",
+        "jsonBody": "={\n  \"event\": \"REQUEST_CHANGES\",\n  \"body\": \"🔄 SuperGrok 코드 리뷰 — 수동 리뷰 필요 (SuperGrok 분석 불가 시 수동 리뷰가 필요합니다)\\n\\n{{ $json.summary }}\\n\\n{{ $json.comments.map(c => `- **${c.file}** (${c.severity}): ${c.comment}`).join('\\n') }}\"\n}",
         "options": {}
       },
       "id": "request-changes",

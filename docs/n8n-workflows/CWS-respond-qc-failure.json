@@ -86,7 +86,8 @@
           "id": "",
           "name": "xAI SuperGrok"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
