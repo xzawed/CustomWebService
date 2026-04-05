@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { GalleryRepository } from '@/repositories/galleryRepository';
-import { handleApiError } from '@/lib/utils/errors';
+import { GalleryService } from '@/services/galleryService';
+import { handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { z } from 'zod/v4';
 
 const querySchema = z.object({
@@ -9,7 +8,11 @@ const querySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(50).default(12),
   category: z.string().optional(),
   sortBy: z.enum(['popular', 'newest']).default('newest'),
-  search: z.string().max(200).optional(),
+  search: z
+    .string()
+    .max(200)
+    .optional()
+    .transform((v) => (v === '' ? undefined : v)),
 });
 
 export async function GET(request: Request): Promise<Response> {
@@ -36,13 +39,13 @@ export async function GET(request: Request): Promise<Response> {
       // Not authenticated — continue without user context
     }
 
-    const repo = new GalleryRepository(supabase);
-    const galleryPage = await repo.findPublished(
+    const service = new GalleryService(supabase);
+    const galleryPage = await service.getGallery(
       { category: params.category, sortBy: params.sortBy, search: params.search },
       { page: params.page, pageSize: params.pageSize, currentUserId }
     );
 
-    return NextResponse.json({ success: true, data: galleryPage });
+    return jsonResponse({ success: true, data: galleryPage });
   } catch (error) {
     return handleApiError(error);
   }

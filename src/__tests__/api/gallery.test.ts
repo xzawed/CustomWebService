@@ -5,11 +5,12 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }));
 
-// GalleryRepository mock
-vi.mock('@/repositories/galleryRepository', () => ({
-  GalleryRepository: vi.fn().mockImplementation(() => ({
-    findPublished: vi.fn(),
-    toggleLike: vi.fn(),
+// GalleryService mock
+vi.mock('@/services/galleryService', () => ({
+  GalleryService: vi.fn().mockImplementation(() => ({
+    getGallery: vi.fn(),
+    likeProject: vi.fn(),
+    unlikeProject: vi.fn(),
     forkProject: vi.fn(),
   })),
 }));
@@ -55,9 +56,9 @@ describe('GET /api/v1/gallery', () => {
     const { createClient } = await import('@/lib/supabase/server');
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
 
-    const { GalleryRepository } = await import('@/repositories/galleryRepository');
-    (GalleryRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      findPublished: vi.fn().mockResolvedValue(mockGalleryPage),
+    const { GalleryService } = await import('@/services/galleryService');
+    (GalleryService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      getGallery: vi.fn().mockResolvedValue(mockGalleryPage),
     }));
 
     const { GET } = await import('@/app/api/v1/gallery/route');
@@ -75,10 +76,10 @@ describe('GET /api/v1/gallery', () => {
     const { createClient } = await import('@/lib/supabase/server');
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock(null) as never);
 
-    const { GalleryRepository } = await import('@/repositories/galleryRepository');
-    const findPublishedMock = vi.fn().mockResolvedValue({ ...mockGalleryPage, items: [] });
-    (GalleryRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      findPublished: findPublishedMock,
+    const { GalleryService } = await import('@/services/galleryService');
+    const getGalleryMock = vi.fn().mockResolvedValue({ ...mockGalleryPage, items: [] });
+    (GalleryService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      getGallery: getGalleryMock,
     }));
 
     const { GET } = await import('@/app/api/v1/gallery/route');
@@ -86,8 +87,8 @@ describe('GET /api/v1/gallery', () => {
     const response = await GET(request);
 
     expect(response.status).toBe(200);
-    // currentUserId should be undefined (passed as undefined to findPublished)
-    const callArgs = findPublishedMock.mock.calls[0];
+    // currentUserId should be undefined (passed as undefined to getGallery)
+    const callArgs = getGalleryMock.mock.calls[0];
     expect(callArgs[1].currentUserId).toBeUndefined();
   });
 
@@ -119,10 +120,10 @@ describe('GET /api/v1/gallery', () => {
     const { createClient } = await import('@/lib/supabase/server');
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
 
-    const { GalleryRepository } = await import('@/repositories/galleryRepository');
-    const findPublishedMock = vi.fn().mockResolvedValue(mockGalleryPage);
-    (GalleryRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      findPublished: findPublishedMock,
+    const { GalleryService } = await import('@/services/galleryService');
+    const getGalleryMock = vi.fn().mockResolvedValue(mockGalleryPage);
+    (GalleryService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      getGallery: getGalleryMock,
     }));
 
     const { GET } = await import('@/app/api/v1/gallery/route');
@@ -131,7 +132,7 @@ describe('GET /api/v1/gallery', () => {
     );
     await GET(request);
 
-    expect(findPublishedMock).toHaveBeenCalledWith(
+    expect(getGalleryMock).toHaveBeenCalledWith(
       { category: 'blog', sortBy: 'popular', search: '날씨' },
       { page: 2, pageSize: 6, currentUserId: 'user-1' }
     );
@@ -180,9 +181,9 @@ describe('POST /api/v1/gallery/[id]/like', () => {
     const { createClient } = await import('@/lib/supabase/server');
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
 
-    const { GalleryRepository } = await import('@/repositories/galleryRepository');
-    (GalleryRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      toggleLike: vi.fn().mockResolvedValue({ liked: true, newCount: 6 }),
+    const { GalleryService } = await import('@/services/galleryService');
+    (GalleryService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      likeProject: vi.fn().mockResolvedValue({ liked: true, likesCount: 6 }),
     }));
 
     const { POST } = await import('@/app/api/v1/gallery/[id]/like/route');
@@ -213,9 +214,9 @@ describe('DELETE /api/v1/gallery/[id]/like', () => {
     const { createClient } = await import('@/lib/supabase/server');
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
 
-    const { GalleryRepository } = await import('@/repositories/galleryRepository');
-    (GalleryRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      toggleLike: vi.fn().mockResolvedValue({ liked: false, newCount: 4 }),
+    const { GalleryService } = await import('@/services/galleryService');
+    (GalleryService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      unlikeProject: vi.fn().mockResolvedValue({ liked: false, likesCount: 4 }),
     }));
 
     const { DELETE } = await import('@/app/api/v1/gallery/[id]/like/route');
@@ -285,11 +286,11 @@ describe('POST /api/v1/gallery/[id]/fork', () => {
     const { createClient } = await import('@/lib/supabase/server');
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
 
-    const { GalleryRepository } = await import('@/repositories/galleryRepository');
-    (GalleryRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    const { GalleryService } = await import('@/services/galleryService');
+    (GalleryService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
       forkProject: vi
         .fn()
-        .mockResolvedValue({ newProjectId: 'new-proj-1', newSlug: 'test-project-copy' }),
+        .mockResolvedValue({ projectId: 'new-proj-1', slug: 'test-project-copy' }),
     }));
 
     const { POST } = await import('@/app/api/v1/gallery/[id]/fork/route');

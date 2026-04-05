@@ -1,10 +1,9 @@
-import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { GalleryRepository } from '@/repositories/galleryRepository';
-import { AuthRequiredError, ValidationError, handleApiError } from '@/lib/utils/errors';
+import { GalleryService } from '@/services/galleryService';
+import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
+import { z } from 'zod/v4';
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const idSchema = z.string().uuid();
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -14,7 +13,7 @@ export async function POST(
 ): Promise<Response> {
   try {
     const { id } = await params;
-    if (!UUID_RE.test(id)) throw new ValidationError('유효하지 않은 프로젝트 ID입니다.');
+    if (!idSchema.safeParse(id).success) throw new ValidationError('유효하지 않은 프로젝트 ID입니다.');
 
     const supabase = await createClient();
     const {
@@ -22,10 +21,10 @@ export async function POST(
     } = await supabase.auth.getUser();
     if (!user) throw new AuthRequiredError();
 
-    const repo = new GalleryRepository(supabase);
-    const { liked, newCount } = await repo.toggleLike(id, user.id);
+    const service = new GalleryService(supabase);
+    const result = await service.likeProject(id, user.id);
 
-    return NextResponse.json({ success: true, data: { liked, likesCount: newCount } });
+    return jsonResponse({ success: true, data: result });
   } catch (error) {
     return handleApiError(error);
   }
@@ -37,7 +36,7 @@ export async function DELETE(
 ): Promise<Response> {
   try {
     const { id } = await params;
-    if (!UUID_RE.test(id)) throw new ValidationError('유효하지 않은 프로젝트 ID입니다.');
+    if (!idSchema.safeParse(id).success) throw new ValidationError('유효하지 않은 프로젝트 ID입니다.');
 
     const supabase = await createClient();
     const {
@@ -45,10 +44,10 @@ export async function DELETE(
     } = await supabase.auth.getUser();
     if (!user) throw new AuthRequiredError();
 
-    const repo = new GalleryRepository(supabase);
-    const { liked, newCount } = await repo.toggleLike(id, user.id);
+    const service = new GalleryService(supabase);
+    const result = await service.unlikeProject(id, user.id);
 
-    return NextResponse.json({ success: true, data: { liked, likesCount: newCount } });
+    return jsonResponse({ success: true, data: result });
   } catch (error) {
     return handleApiError(error);
   }
