@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useTransition } from 'react';
+import React, { useState, useCallback, useTransition } from 'react';
 import { GalleryCard } from '@/components/gallery/GalleryCard';
 import { GalleryFilters } from '@/components/gallery/GalleryFilters';
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';

@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 import { Heart, GitFork, ExternalLink } from 'lucide-react';
 import type { GalleryItem } from '@/types/gallery';
