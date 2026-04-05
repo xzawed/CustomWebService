@@ -1,4 +1,3 @@
-import '@/lib/events/init';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { ProjectService } from '@/services/projectService';
 import { AuthService } from '@/services/authService';
@@ -11,7 +10,6 @@ import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import { buildSystemPrompt, buildRegenerationPrompt } from '@/lib/ai/promptBuilder';
 import { parseGeneratedCode, assembleHtml } from '@/lib/ai/codeParser';
 import { shouldRetryGeneration, buildQualityImprovementPrompt } from '@/lib/ai/qualityLoop';
-import { isExternalAvailable } from '@/lib/events/webhookForwarder';
 import { runFastQc, runDeepQc, isQcEnabled } from '@/lib/qc';
 import { validateAll, evaluateQuality } from '@/lib/ai/codeValidator';
 import { inferDesignFromCategories } from '@/lib/ai/categoryDesignMap';
@@ -231,8 +229,7 @@ export async function POST(request: Request): Promise<Response> {
             }
           }
 
-          // 외부 자동 수정 불가 시 내부 QC 강화 모드 (2.5: strictMode는 루프 내에서 매 반복마다 재평가)
-          const maxRetries = !isExternalAvailable() ? 2 : 1;
+          // 품질 자동 재생성 (최대 2회)
 
           // 품질 자동 재생성
           // 2.4 — 최선 버전 추적: 재시도 중 개선→악화 시 최선 버전 유지
@@ -241,17 +238,13 @@ export async function POST(request: Request): Promise<Response> {
           let bestQcReport = qcReport;
           let qualityLoopUsed = false;
 
-          for (let retryAttempt = 0; retryAttempt < maxRetries; retryAttempt++) {
-            // 2.5 — 매 반복마다 strictMode 재평가
-            const currentStrictMode = !isExternalAvailable();
-            if (!shouldRetryGeneration(bestQuality, bestQcReport, currentStrictMode)) break;
+          for (let retryAttempt = 0; retryAttempt < 2; retryAttempt++) {
+            if (!shouldRetryGeneration(bestQuality, bestQcReport)) break;
 
             logger.info('Regen quality below threshold, attempting improvement', {
               projectId,
               score: bestQuality.structuralScore,
               attempt: retryAttempt + 1,
-              maxRetries,
-              strictMode: currentStrictMode,
             });
 
             send('progress', {
@@ -305,7 +298,6 @@ export async function POST(request: Request): Promise<Response> {
           quality = bestQuality;
           qcReport = bestQcReport;
 
-          const strictMode = !isExternalAvailable();
 
           const categories = [...new Set(projectApis.map((a) => a.category).filter(Boolean))];
           const inference = inferDesignFromCategories(categories);
@@ -334,7 +326,7 @@ export async function POST(request: Request): Promise<Response> {
               inferredTheme: inference.theme,
               inferredLayout: inference.layout,
               qualityLoopUsed,
-              qcStrictMode: strictMode,
+
               ...(qcReport && {
                 renderingQcScore: qcReport.overallScore,
                 renderingQcPassed: qcReport.passed,
@@ -355,8 +347,8 @@ export async function POST(request: Request): Promise<Response> {
             logger.warn('Failed to prune old code versions', { projectId, pruneErr });
           }
 
-          // 렌더링 Deep QC — 비동기 실행
-          if (isQcEnabled()) {
+          // 렌더링 Deep QC — Fast QC 실패 시에만 실행 (비용 최적화)
+          if (isQcEnabled() && qcReport && !qcReport.passed) {
             // 6.3 — savedCode.id를 클로저로 캡처하여 버전 불일치 방지
             const codeId = savedCode.id;
             const assembledForDeepQc = safeAssembleHtml(parsed);
