@@ -111,11 +111,12 @@
           "id": "",
           "name": "xAI SuperGrok"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const stats = $('Code: 통계 분석').item.json;\nconst grokRaw = $input.all()[0].json.choices?.[0]?.message?.content || '{}';\nlet grok;\ntry { grok = JSON.parse(grokRaw); } catch { grok = { severity: 'medium', summary: '분석 실패', topIssues: [], recommendedAction: 'none' }; }\n\nconst issueList = grok.topIssues?.map((i, idx) => `${idx + 1}. **${i.issue}**\\n   → ${i.suggestedFix}`).join('\\n') || '없음';\n\nconst body = `## 일일 QC 리포트 (${stats.period})\\n\\n` +\n  `| 항목 | 값 |\\n|------|-----|\\n` +\n  `| 생성 수 | ${stats.total}건 |\\n` +\n  `| QC 통과율 | ${stats.passRate}% |\\n` +\n  `| 구조 점수 | ${stats.avgStructural} |\\n` +\n  `| 모바일 점수 | ${stats.avgMobile} |\\n` +\n  `| 렌더링 QC | ${stats.avgQc} |\\n` +\n  `| 품질루프 사용 | ${stats.loopRate}% |\\n\\n` +\n  `## SuperGrok 분석 (심각도: ${grok.severity})\\n\\n${grok.summary}\\n\\n` +\n  `### 주요 이슈\\n${issueList}\\n\\n` +\n  `### 실패 현황\\n${stats.failureList}\\n\\n` +\n  `> 권장 조치: ${grok.recommendedAction}`;\n\nreturn [{ json: { title: `[QC Daily] ${grok.severity}: ${grok.summary}`, body, severity: grok.severity, action: grok.recommendedAction, grok } }];"
+        "jsCode": "const stats = .item.json;\nconst raw = .all()[0].json;\nconst grokAvailable = raw.choices && !raw.error;\nlet grok;\nif (grokAvailable) {\n  try { grok = JSON.parse(raw.choices[0].message.content); } catch { grok = null; }\n}\nif (!grok) {\n  grok = { severity: 'unknown', summary: 'SuperGrok 분석 불가 — 통계만 표시', topIssues: [], recommendedAction: 'none' };\n}\n\nconst issueList = grok.topIssues?.map((i, idx) => idx+1 + '. **' + i.issue + '**\n   → ' + i.suggestedFix).join('\n') || '없음';\n\nconst body = '## 일일 QC 리포트 (' + stats.period + ')\n\n' +\n  '| 항목 | 값 |\n|------|-----|\n' +\n  '| 생성 수 | ' + stats.total + '건 |\n' +\n  '| QC 통과율 | ' + stats.passRate + '% |\n' +\n  '| 구조 점수 | ' + stats.avgStructural + ' |\n' +\n  '| 모바일 점수 | ' + stats.avgMobile + ' |\n' +\n  '| 렌더링 QC | ' + stats.avgQc + ' |\n' +\n  '| 품질루프 사용 | ' + stats.loopRate + '% |\n\n' +\n  (grokAvailable ? '## SuperGrok 분석 (심각도: ' + grok.severity + ')\n\n' + grok.summary + '\n\n### 주요 이슈\n' + issueList : '## SuperGrok 분석 불가\n통계 데이터만 표시됩니다.') +\n  '\n\n### 실패 현황\n' + stats.failureList +\n  '\n\n> 권장 조치: ' + grok.recommendedAction;\n\nreturn [{ json: { title: '[QC Daily] ' + grok.severity + ': ' + grok.summary, body, severity: grok.severity, action: grok.recommendedAction, grok } }];"
       },
       "id": "format-report",
       "name": "Code: 리포트 포맷",
