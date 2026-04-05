@@ -15,6 +15,7 @@ import { runFastQc, runDeepQc, isQcEnabled } from '@/lib/qc';
 import { validateAll, evaluateQuality } from '@/lib/ai/codeValidator';
 import { inferDesignFromCategories } from '@/lib/ai/categoryDesignMap';
 import { shouldRetryGeneration, buildQualityImprovementPrompt } from '@/lib/ai/qualityLoop';
+import { isExternalAvailable } from '@/lib/events/webhookForwarder';
 import { eventBus } from '@/lib/events/eventBus';
 import { getLimits } from '@/lib/config/features';
 import { getCorrelationId } from '@/lib/utils/correlationId';
@@ -211,12 +212,19 @@ export async function POST(request: Request): Promise<Response> {
             }
           }
 
-          // 품질 자동 재생성 (1회 제한)
+          // 외부 자동 수정 불가 시 내부 QC 강화 모드
+          const strictMode = !isExternalAvailable();
+          const maxRetries = strictMode ? 2 : 1;
+
+          // 품질 자동 재생성
           let qualityLoopUsed = false;
-          if (shouldRetryGeneration(quality, qcReport)) {
+          for (let retryAttempt = 0; retryAttempt < maxRetries && shouldRetryGeneration(quality, qcReport, strictMode); retryAttempt++) {
             logger.info('Quality below threshold, attempting improvement', {
               projectId,
               score: quality.structuralScore,
+              attempt: retryAttempt + 1,
+              maxRetries,
+              strictMode,
             });
 
             send('progress', {
@@ -289,6 +297,7 @@ export async function POST(request: Request): Promise<Response> {
               inferredTheme: inference.theme,
               inferredLayout: inference.layout,
               qualityLoopUsed,
+              qcStrictMode: strictMode,
               ...(qcReport && {
                 renderingQcScore: qcReport.overallScore,
                 renderingQcPassed: qcReport.passed,
