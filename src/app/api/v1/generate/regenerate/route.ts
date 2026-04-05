@@ -405,13 +405,38 @@ export async function POST(request: Request): Promise<Response> {
                     });
                   }
                 }
-              }).catch((qcErr) => {
+              }).catch(async (qcErr) => {
                 // 2.1 — 상세 스택 트레이스 포함
-                logger.warn('Regen Deep QC failed', { projectId, error: qcErr instanceof Error ? qcErr.stack : String(qcErr) });
+                logger.warn('Regen Deep QC failed', { projectId, codeId, error: qcErr instanceof Error ? qcErr.stack : String(qcErr) });
                 eventBus.emit({
                   type: 'QC_REPORT_FAILED',
                   payload: { projectId, stage: 'deep' as const, error: qcErr instanceof Error ? qcErr.message : String(qcErr) },
                 });
+                // 관리자가 qc-stats에서 실패를 인지할 수 있도록 메타데이터에 기록
+                try {
+                  const serviceClient = await createServiceClient();
+                  const { data: current } = await serviceClient
+                    .from('generated_codes')
+                    .select('metadata')
+                    .eq('id', codeId)
+                    .single();
+                  if (current) {
+                    await serviceClient
+                      .from('generated_codes')
+                      .update({
+                        metadata: {
+                          ...(current.metadata as Record<string, unknown> ?? {}),
+                          deepQcFailed: true,
+                        },
+                      })
+                      .eq('id', codeId);
+                  }
+                } catch (updateErr) {
+                  logger.warn('Regen Deep QC failure metadata update failed', {
+                    codeId,
+                    error: updateErr instanceof Error ? updateErr.message : String(updateErr),
+                  });
+                }
               });
             } else {
               logger.warn('safeAssembleHtml returned null for Regen Deep QC, skipping', { projectId });

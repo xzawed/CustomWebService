@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { CatalogService } from '@/services/catalogService';
+import { RateLimitService } from '@/services/rateLimitService';
 import { LIMITS } from '@/lib/config/features';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
@@ -12,6 +13,9 @@ export async function POST(request: Request): Promise<Response> {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new AuthRequiredError();
+
+    const rateLimitService = new RateLimitService(supabase);
+    await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
     let context: string;
     try {

@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server';
+import { CodeRepository } from '@/repositories/codeRepository';
 import { adminCorsHeaders, verifyAdminKey, withAdminCors } from '@/lib/utils/adminAuth';
 import { handleApiError, jsonResponse } from '@/lib/utils/errors';
 
@@ -17,16 +18,10 @@ export async function GET(request: Request): Promise<Response> {
       const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
       const supabase = await createServiceClient();
+      const codeRepo = new CodeRepository(supabase);
+      const codes = await codeRepo.findMetadataByDateRange(from);
 
-      const { data: codes, error } = await supabase
-        .from('generated_codes')
-        .select('metadata, created_at')
-        .gte('created_at', from.toISOString())
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const total = codes?.length ?? 0;
+      const total = codes.length;
       if (total === 0) {
         return jsonResponse({
           success: true,
@@ -49,9 +44,10 @@ export async function GET(request: Request): Promise<Response> {
       let qcCount = 0;
       let passCount = 0;
       let loopUsedCount = 0;
+      let deepQcFailedCount = 0;
       const failureCounts = new Map<string, number>();
 
-      for (const code of codes!) {
+      for (const code of codes) {
         const meta = code.metadata as Record<string, unknown> | null;
         if (!meta) continue;
 
@@ -63,6 +59,7 @@ export async function GET(request: Request): Promise<Response> {
         }
         if (meta.renderingQcPassed === true) passCount++;
         if (meta.qualityLoopUsed === true) loopUsedCount++;
+        if (meta.deepQcFailed === true) deepQcFailedCount++;
 
         const checks = meta.renderingQcChecks as Array<{ name: string; passed: boolean }> | undefined;
         if (checks) {
@@ -93,6 +90,7 @@ export async function GET(request: Request): Promise<Response> {
           avgRenderingQcScore: qcCount > 0 ? Math.round((sumQc / qcCount) * 10) / 10 : 0,
           qcPassRate: qcCount > 0 ? Math.round((passCount / qcCount) * 100) / 100 : 0,
           qualityLoopUsageRate: Math.round((loopUsedCount / total) * 100) / 100,
+          deepQcFailedCount,
           commonFailures,
         },
       });
