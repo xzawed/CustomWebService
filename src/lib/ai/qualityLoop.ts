@@ -1,15 +1,13 @@
 import type { QualityMetrics } from '@/lib/ai/codeValidator';
 import type { QcReport } from '@/types/qc';
-
-const QUALITY_THRESHOLD = 60;
-const MOBILE_THRESHOLD = 60;
+import { QC_THRESHOLDS } from '@/lib/config/qc';
 
 export function shouldRetryGeneration(
   metrics: QualityMetrics,
   qcReport?: QcReport | null
 ): boolean {
-  if (metrics.structuralScore < QUALITY_THRESHOLD) return true;
-  if (metrics.mobileScore < MOBILE_THRESHOLD) return true;
+  if (metrics.structuralScore < QC_THRESHOLDS.QUALITY) return true;
+  if (metrics.mobileScore < QC_THRESHOLDS.MOBILE) return true;
   if (qcReport) {
     const consoleCheck = qcReport.checks.find(c => c.name === 'consoleErrors');
     const scrollCheck = qcReport.checks.find(c => c.name === 'horizontalScroll');
@@ -64,7 +62,7 @@ ${jsPreview}
 
 ## 품질 개선 요청
 
-이전 코드의 품질 점수: 구조 ${metrics.structuralScore}/100, 모바일 ${metrics.mobileScore}/100 (기준: ${QUALITY_THRESHOLD}).
+이전 코드의 품질 점수: 구조 ${metrics.structuralScore}/100, 모바일 ${metrics.mobileScore}/100 (기준: ${QC_THRESHOLDS.QUALITY}).
 아래 문제를 반드시 수정하세요:
 
 ${issues}

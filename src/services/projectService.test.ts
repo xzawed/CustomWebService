@@ -39,10 +39,8 @@ const validInput = {
 
 describe('ProjectService.create()', () => {
   let service: ProjectService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let projectRepo: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let catalogRepo: any;
+  let projectRepo: Record<string, ReturnType<typeof vi.fn>>;
+  let catalogRepo: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -112,8 +110,7 @@ describe('ProjectService.create()', () => {
 
 describe('ProjectService.getById()', () => {
   let service: ProjectService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let projectRepo: any;
+  let projectRepo: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -141,8 +138,7 @@ describe('ProjectService.getById()', () => {
 
 describe('ProjectService.delete()', () => {
   let service: ProjectService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let projectRepo: any;
+  let projectRepo: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
     vi.clearAllMocks();

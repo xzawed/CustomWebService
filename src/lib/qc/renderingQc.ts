@@ -1,5 +1,6 @@
 import type { QcReport, QcCheckResult } from '@/types/qc';
 import { logger } from '@/lib/utils/logger';
+import { QC_THRESHOLDS, QC_TIMEOUTS, QC_VIEWPORTS } from '@/lib/config/qc';
 import { isQcEnabled, getPage, releasePage } from './browserPool';
 import {
   checkConsoleErrors,
@@ -64,7 +65,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
-async function withCheckTimeout<T>(fn: () => Promise<T>, name: string, timeoutMs = 1500): Promise<T> {
+async function withCheckTimeout<T>(fn: () => Promise<T>, name: string, timeoutMs = QC_TIMEOUTS.CHECK_MS): Promise<T> {
   return Promise.race([
     fn(),
     new Promise<T>((_, reject) =>
@@ -82,7 +83,7 @@ async function runFastQcInternal(html: string): Promise<QcReport> {
   const page: Page | null = await getPage();
   if (!page) {
     logger.warn('[QC] Fast QC: could not acquire page from pool');
-    return buildReport([], [375], startTime, 60);
+    return buildReport([], QC_VIEWPORTS.FAST, startTime, QC_THRESHOLDS.FAST_PASS);
   }
 
   try {
@@ -93,8 +94,8 @@ async function runFastQcInternal(html: string): Promise<QcReport> {
     });
 
     await page.setViewportSize({ width: 375, height: 812 });
-    page.setDefaultTimeout(5000); // Prevent any single operation from hanging
-    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 3000 });
+    page.setDefaultTimeout(QC_TIMEOUTS.PAGE_DEFAULT_MS);
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: QC_TIMEOUTS.FAST_CONTENT_MS });
 
     const [scrollResult, footerResult, overlapResult] = settledResults(
       await Promise.allSettled([
@@ -108,7 +109,7 @@ async function runFastQcInternal(html: string): Promise<QcReport> {
     const consoleResult = checkConsoleErrors(errors);
 
     const checks = [consoleResult, scrollResult, footerResult, overlapResult];
-    return buildReport(checks, [375], startTime, 60);
+    return buildReport(checks, QC_VIEWPORTS.FAST, startTime, QC_THRESHOLDS.FAST_PASS);
   } finally {
     await releasePage(page);
   }
@@ -118,7 +119,7 @@ export async function runFastQc(html: string): Promise<QcReport | null> {
   if (!isQcEnabled()) return null;
 
   try {
-    return await withTimeout(runFastQcInternal(html), 3000);
+    return await withTimeout(runFastQcInternal(html), QC_TIMEOUTS.FAST_MS);
   } catch (err) {
     logger.error('[QC] Fast QC failed', {
       error: err instanceof Error ? err.message : String(err),
@@ -136,7 +137,7 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
   const page: Page | null = await getPage();
   if (!page) {
     logger.warn('[QC] Deep QC: could not acquire page from pool');
-    return buildReport([], [375, 768, 1280], startTime, 50);
+    return buildReport([], QC_VIEWPORTS.DEEP, startTime, QC_THRESHOLDS.DEEP_PASS);
   }
 
   try {
@@ -147,8 +148,8 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
     });
 
     await page.setViewportSize({ width: 375, height: 812 });
-    page.setDefaultTimeout(5000); // Prevent any single operation from hanging
-    await page.setContent(html, { waitUntil: 'networkidle', timeout: 8000 });
+    page.setDefaultTimeout(QC_TIMEOUTS.PAGE_DEFAULT_MS);
+    await page.setContent(html, { waitUntil: 'networkidle', timeout: QC_TIMEOUTS.DEEP_CONTENT_MS });
 
     const [
       scrollResult,
@@ -191,7 +192,7 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
       breakpointResult,
       a11yResult,
     ];
-    return buildReport(checks, [375, 768, 1280], startTime, 50);
+    return buildReport(checks, QC_VIEWPORTS.DEEP, startTime, QC_THRESHOLDS.DEEP_PASS);
   } finally {
     await releasePage(page);
   }
@@ -201,7 +202,7 @@ export async function runDeepQc(html: string): Promise<QcReport | null> {
   if (!isQcEnabled()) return null;
 
   try {
-    return await withTimeout(runDeepQcInternal(html), 10000);
+    return await withTimeout(runDeepQcInternal(html), QC_TIMEOUTS.DEEP_MS);
   } catch (err) {
     logger.error('[QC] Deep QC failed', {
       error: err instanceof Error ? err.message : String(err),

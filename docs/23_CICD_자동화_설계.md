@@ -59,7 +59,7 @@
 │         ├── ⑫ Railway 프로덕션 배포 (자동)                                 │
 │         ├── ⑬ 배포 후 Health Check                                       │
 │         ├── ⑭ 배포 후 Smoke Test (핵심 API 확인)                          │
-│         └── ⑮ 알림 발송 (Discord Webhook)                                │
+│         └── ⑮ 알림 발송 (GitHub Issue)                                   │
 │                                                                          │
 │  [배포 후 자동화]                                                         │
 │   ├── Sentry 에러 모니터링 (실시간)                                       │
@@ -69,7 +69,7 @@
 │   │     ├── DB 용량/한도 체크 (매일 09:00)                                │
 │   │     ├── 비활성 프로젝트 정리 (매주 월요일)                              │
 │   │     └── 의존성 보안 스캔 (매주 월요일, Dependabot)                      │
-│   └── 이상 감지 시 알림 (Discord Webhook)                                 │
+│   └── 이상 감지 시 알림 (GitHub Issue 자동 생성)                           │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -91,7 +91,7 @@
 | **Dependabot** | 의존성 보안 스캔 | GitHub 내장 무료 | $0 |
 | **Sentry** | 에러 추적 | 5,000 이벤트/월 | $0 |
 | **UptimeRobot** | 가동 모니터링 | 50 모니터 | $0 |
-| **Discord Webhook** | 알림 | 무제한 | $0 |
+| **GitHub Issue** | 알림 | Actions 무료 내 | $0 |
 
 ---
 
@@ -909,25 +909,20 @@ POST /api/v1/projects/{id}/rollback?version=2
 
 ## 9. 알림 체계
 
-### Discord Webhook 알림 포맷
+> **구현 방식**: GitHub Actions에서 `gh issue create` 명령으로 GitHub Issue를 자동 생성.
+> Discord Webhook은 사용하지 않음.
 
-| 이벤트 | 아이콘 | 메시지 예시 |
-|--------|--------|-----------|
-| 프로덕션 배포 성공 | ✅ | `✅ 프로덕션 배포 성공 v1.3.0 - https://...` |
-| 프로덕션 배포 실패 | 🚨 | `🚨 프로덕션 배포 실패 - 로그: https://...` |
-| DB 마이그레이션 실패 | 🚨 | `🚨 DB 마이그레이션 실패 - 002_add_orgs.sql` |
-| API 상태 이상 | ⚠️ | `⚠️ API 상태 이상 - ❌ OpenWeatherMap: 503` |
-| DB 용량 경고 | ⚠️ | `⚠️ DB 용량 경고: 420MB / 500MB (84%)` |
-| 주간 정리 완료 | 🧹 | `🧹 주간 정리 완료 - 삭제 프로젝트: 5개` |
-| 보안 취약점 발견 | 🔒 | `🔒 보안 취약점 - high 1건 (lodash@4.17.20)` |
-| E2E 테스트 실패 | 🧪 | `🧪 E2E 테스트 실패 - 빌더 플로우 / 로그: ...` |
+### GitHub Issue 알림 이벤트
 
-### Discord Webhook 설정
-```
-1. Discord 서버 → 채널 설정 → 연동 → 웹후크 → 새 웹후크
-2. 이름: "CustomWebService CI/CD"
-3. URL 복사 → GitHub Secrets에 DISCORD_WEBHOOK_URL로 저장
-```
+| 이벤트 | 라벨 | 조건 |
+|--------|------|------|
+| 헬스 체크 실패 | `deploy,critical` | HTTP 200 이외 응답 |
+| QC 통과율 저하 | `qc-daily` | qcPassRate < 70% |
+| 외부 API 이상 | `api-health` | 7일 연속 실패 |
+
+### 구현 파일
+- `.github/workflows/qc-monitor.yml` — 주간 QC 리포트 + 헬스 체크 (매주 토요일 09:00 KST)
+- `.github/workflows/scheduled.yml` — 외부 API 상태 점검
 
 ---
 
@@ -944,10 +939,9 @@ Repository → Settings → Secrets and variables → Actions
 │  SUPABASE_ACCESS_TOKEN           Supabase CLI 토큰              │
 │  SUPABASE_DB_PASSWORD            Supabase DB 비밀번호           │
 │  SUPABASE_PROJECT_ID             Supabase 프로젝트 ID           │
-│  XAI_API_KEY                     xAI Grok API 키                │
+│  ANTHROPIC_API_KEY               Claude API 키                  │
 │  GITHUB_TOKEN                    (자동 제공)                    │
 │  RAILWAY_TOKEN                   Railway 배포 토큰              │
-│  DISCORD_WEBHOOK_URL             Discord 알림 웹훅 URL           │
 │  ADMIN_API_KEY                   관리 API 인증 키                │
 │                                                                │
 ├─── Variables (비민감 설정) ─────────────────────────────────────┤
