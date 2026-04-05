@@ -26,6 +26,15 @@ import {
 } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 
+// 2.2 — Safe wrapper: assembleHtml() can throw (e.g. malformed parsed output)
+function safeAssembleHtml(code: { html: string; css: string; js: string }): string | null {
+  try {
+    return assembleHtml(code);
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
   try {
     const supabase = await createClient();
@@ -184,8 +193,12 @@ export async function POST(request: Request): Promise<Response> {
           // 렌더링 QC (Fast — 인라인, 3초 제한)
           let qcReport: import('@/types/qc').QcReport | null = null;
           if (isQcEnabled()) {
+            const assembledForFastQc = safeAssembleHtml(parsed);
+            if (!assembledForFastQc) {
+              logger.warn('safeAssembleHtml returned null for Fast QC, skipping', { projectId });
+            }
             try {
-              qcReport = await runFastQc(assembleHtml(parsed));
+              qcReport = assembledForFastQc ? await runFastQc(assembledForFastQc) : null;
               if (qcReport) {
                 logger.info('Fast QC completed', {
                   projectId,
@@ -212,19 +225,27 @@ export async function POST(request: Request): Promise<Response> {
             }
           }
 
-          // 외부 자동 수정 불가 시 내부 QC 강화 모드
-          const strictMode = !isExternalAvailable();
-          const maxRetries = strictMode ? 2 : 1;
+          // 외부 자동 수정 불가 시 내부 QC 강화 모드 (2.5: strictMode는 루프 내에서 매 반복마다 재평가)
+          const maxRetries = !isExternalAvailable() ? 2 : 1;
 
           // 품질 자동 재생성
+          // 2.4 — 최선 버전 추적: 재시도 중 개선→악화 시 최선 버전 유지
+          let bestParsed = parsed;
+          let bestQuality = quality;
+          let bestQcReport = qcReport;
           let qualityLoopUsed = false;
-          for (let retryAttempt = 0; retryAttempt < maxRetries && shouldRetryGeneration(quality, qcReport, strictMode); retryAttempt++) {
+
+          for (let retryAttempt = 0; retryAttempt < maxRetries; retryAttempt++) {
+            // 2.5 — 매 반복마다 strictMode 재평가
+            const currentStrictMode = !isExternalAvailable();
+            if (!shouldRetryGeneration(bestQuality, bestQcReport, currentStrictMode)) break;
+
             logger.info('Quality below threshold, attempting improvement', {
               projectId,
-              score: quality.structuralScore,
+              score: bestQuality.structuralScore,
               attempt: retryAttempt + 1,
               maxRetries,
-              strictMode,
+              strictMode: currentStrictMode,
             });
 
             send('progress', {
@@ -234,34 +255,38 @@ export async function POST(request: Request): Promise<Response> {
             });
 
             try {
-              const improvementPrompt = buildQualityImprovementPrompt(parsed, quality, qcReport);
+              const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport);
               const retryResponse = await provider!.generateCode({ system: systemPrompt, user: improvementPrompt });
               const retryParsed = parseGeneratedCode(retryResponse.content);
 
               if (retryParsed.html) {
                 const retryQuality = evaluateQuality(retryParsed.html, retryParsed.css, retryParsed.js);
 
-                // 재생성 코드에 대해 Fast QC 재검증
+                // 재생성 코드에 대해 Fast QC 재검증 (2.2: safeAssembleHtml 사용)
                 let retryQcReport: import('@/types/qc').QcReport | null = null;
                 if (isQcEnabled()) {
                   try {
-                    retryQcReport = await runFastQc(assembleHtml(retryParsed));
+                    const assembledForRetryQc = safeAssembleHtml(retryParsed);
+                    if (assembledForRetryQc) {
+                      retryQcReport = await runFastQc(assembledForRetryQc);
+                    }
                   } catch {
                     // QC 실패해도 코드 레벨 비교는 진행
                   }
                 }
 
                 // 코드 레벨 + 렌더링 QC 모두 고려하여 채택 결정
-                const codeImproved = retryQuality.structuralScore > quality.structuralScore ||
-                    retryQuality.mobileScore > quality.mobileScore;
-                const qcImproved = retryQcReport && qcReport
-                  ? retryQcReport.overallScore > qcReport.overallScore
+                const codeImproved = retryQuality.structuralScore > bestQuality.structuralScore ||
+                    retryQuality.mobileScore > bestQuality.mobileScore;
+                const qcImproved = retryQcReport && bestQcReport
+                  ? retryQcReport.overallScore > bestQcReport.overallScore
                   : false;
 
+                // 2.4 — 개선된 경우에만 bestParsed 갱신
                 if (codeImproved || qcImproved) {
-                  parsed = retryParsed;
-                  quality = retryQuality;
-                  if (retryQcReport) qcReport = retryQcReport;
+                  bestParsed = retryParsed;
+                  bestQuality = retryQuality;
+                  if (retryQcReport) bestQcReport = retryQcReport;
                   qualityLoopUsed = true;
                 }
               }
@@ -269,6 +294,13 @@ export async function POST(request: Request): Promise<Response> {
               logger.warn('Quality improvement retry failed', { projectId, retryErr });
             }
           }
+
+          // 2.4 — 루프 종료 후 최선 버전 적용
+          parsed = bestParsed;
+          quality = bestQuality;
+          qcReport = bestQcReport;
+
+          const strictMode = !isExternalAvailable();
 
           const categories = [...new Set(apis.map((a) => a.category).filter(Boolean))];
           const inference = inferDesignFromCategories(categories);
@@ -318,55 +350,73 @@ export async function POST(request: Request): Promise<Response> {
 
           // 렌더링 Deep QC — 비동기 실행, 결과를 DB에 저장
           if (isQcEnabled()) {
-            runDeepQc(assembleHtml(parsed)).then(async (deepReport) => {
-              if (deepReport) {
-                logger.info('Deep QC completed', {
-                  projectId,
-                  qcScore: deepReport.overallScore,
-                  qcPassed: deepReport.passed,
-                  checks: deepReport.checks.map(c => ({ name: c.name, passed: c.passed, score: c.score })),
-                });
-                eventBus.emit({
-                  type: 'QC_REPORT_COMPLETED',
-                  payload: {
+            // 6.3 — savedCode.id를 클로저로 캡처하여 버전 불일치 방지
+            const codeId = savedCode.id;
+            const assembledForDeepQc = safeAssembleHtml(parsed);
+            if (assembledForDeepQc) {
+              runDeepQc(assembledForDeepQc).then(async (deepReport) => {
+                if (deepReport) {
+                  logger.info('Deep QC completed', {
                     projectId,
-                    overallScore: deepReport.overallScore,
-                    passed: deepReport.passed,
+                    qcScore: deepReport.overallScore,
+                    qcPassed: deepReport.passed,
                     checks: deepReport.checks.map(c => ({ name: c.name, passed: c.passed, score: c.score })),
-                    isDeep: true,
-                  },
-                });
-                // Deep QC 결과를 DB 메타데이터에 저장 (Fast QC 결과를 덮어씀)
-                try {
-                  const existingCode = await codeRepo.findByProject(projectId);
-                  if (existingCode) {
-                    const updatedMetadata = {
-                      ...(existingCode.metadata as Record<string, unknown> ?? {}),
-                      renderingQcScore: deepReport.overallScore,
-                      renderingQcPassed: deepReport.passed,
-                      renderingQcChecks: deepReport.checks.map(c => ({
-                        name: c.name,
-                        passed: c.passed,
-                        score: c.score,
-                        details: c.details,
-                      })),
-                    };
-                    await supabase
-                      .from('codes')
-                      .update({ metadata: updatedMetadata })
-                      .eq('id', existingCode.id);
+                  });
+                  eventBus.emit({
+                    type: 'QC_REPORT_COMPLETED',
+                    payload: {
+                      projectId,
+                      overallScore: deepReport.overallScore,
+                      passed: deepReport.passed,
+                      checks: deepReport.checks.map(c => ({ name: c.name, passed: c.passed, score: c.score })),
+                      isDeep: true,
+                    },
+                  });
+                  // 6.1 — codeId(savedCode.id) 직접 사용으로 findByProject() 버전 불일치 제거
+                  try {
+                    const serviceClient = await createServiceClient();
+                    const { data: current } = await serviceClient
+                      .from('generated_codes')
+                      .select('metadata')
+                      .eq('id', codeId)
+                      .single();
+                    if (current) {
+                      await serviceClient
+                        .from('generated_codes')
+                        .update({
+                          metadata: {
+                            ...(current.metadata as Record<string, unknown> ?? {}),
+                            renderingQcScore: deepReport.overallScore,
+                            renderingQcPassed: deepReport.passed,
+                            renderingQcChecks: deepReport.checks.map(c => ({
+                              name: c.name,
+                              passed: c.passed,
+                              score: c.score,
+                              details: c.details,
+                            })),
+                          },
+                        })
+                        .eq('id', codeId);
+                    }
+                  } catch (updateErr) {
+                    logger.warn('Deep QC metadata update failed', {
+                      projectId,
+                      codeId,
+                      error: updateErr instanceof Error ? updateErr.message : String(updateErr),
+                    });
                   }
-                } catch (updateErr) {
-                  logger.warn('Deep QC metadata update failed', { projectId, updateErr });
                 }
-              }
-            }).catch((qcErr) => {
-              logger.warn('Deep QC failed', { projectId, qcErr });
-              eventBus.emit({
-                type: 'QC_REPORT_FAILED',
-                payload: { projectId, stage: 'deep' as const, error: qcErr instanceof Error ? qcErr.message : String(qcErr) },
+              }).catch((qcErr) => {
+                // 2.1 — 상세 스택 트레이스 포함
+                logger.warn('Deep QC failed', { projectId, error: qcErr instanceof Error ? qcErr.stack : String(qcErr) });
+                eventBus.emit({
+                  type: 'QC_REPORT_FAILED',
+                  payload: { projectId, stage: 'deep' as const, error: qcErr instanceof Error ? qcErr.message : String(qcErr) },
+                });
               });
-            });
+            } else {
+              logger.warn('safeAssembleHtml returned null for Deep QC, skipping', { projectId });
+            }
           }
 
           // C2: Compensating rollback — if status update fails after code is saved,
