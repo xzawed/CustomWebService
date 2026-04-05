@@ -3,9 +3,12 @@
 > 코드 커밋부터 프로덕션 배포, 모니터링, 롤백까지 전 과정을 자동화하는 설계 문서
 > 모든 도구는 무료 플랜 내에서 운영
 >
-> **구현 상태** (2026-03-24 기준)
-> - ✅ **구현 완료**: CI 파이프라인 (lint → typecheck → test → build → deploy), 단위/통합 테스트 94개, Railway 배포, 스케줄 API 점검
-> - 📋 **계획 중**: Husky, E2E(Playwright), Semantic Release, Lighthouse CI, DB 마이그레이션 자동화
+> **구현 상태** (2026-04-05 기준)
+> - ✅ **구현 완료**: CI 파이프라인 (lint → typecheck → test → build → e2e → deploy), 단위/통합 테스트 253개, E2E(Playwright), Railway 배포, 스케줄 API 점검, 렌더링 QC, Claude CLI 자동화, 주간 QC 모니터링
+> - 📋 **계획 중**: Husky, Semantic Release, Lighthouse CI, DB 마이그레이션 자동화
+> - ❌ **제거됨**: Discord 알림 (GitHub Issue로 대체), n8n 워크플로우, SuperGrok 분석
+>
+> ⚠️ 이 문서의 Discord Webhook 관련 내용은 미구현이며 GitHub Issue 기반 알림으로 대체되었습니다.
 
 ---
 

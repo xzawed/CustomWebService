@@ -94,11 +94,14 @@ pnpm test:coverage    # 커버리지 리포트
 
 ## 환경변수 (참고용 — 값 절대 포함 금지)
 
-- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - `NEXT_PUBLIC_ROOT_DOMAIN` (서브도메인 가상 호스팅)
 - `ANTHROPIC_API_KEY`
-- `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
+- `ADMIN_API_KEY` — 관리자 API 인증 (QC 통계, 수동 QC 트리거)
 - `ENABLE_RENDERING_QC` — Playwright 렌더링 QC 활성화 (true/false)
+- `ENCRYPTION_KEY` — 사용자 API 키 암호화
+- `GITHUB_TOKEN`, `RAILWAY_TOKEN` — 배포용
+- `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
 
 ## 문서 참조
 

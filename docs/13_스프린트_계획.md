@@ -1,345 +1,280 @@
-# 스프린트 계획 (Sprint Plan)
+# 스프린트 계획 v2 (Sprint Plan - Extensibility Applied)
 
-## 스프린트 운영 원칙
-- **스프린트 주기**: 1주 단위
-- **총 스프린트**: 8 스프린트
-- **각 스프린트 구조**: 기능 개발 → 테스트 → 코드 리뷰 → 회고
-- **완료 기준(DoD)**: 코드 작성 + 기본 테스트 + 브라우저 동작 확인
+> v1 대비 변경사항: 각 스프린트에 확장성 기반 태스크 추가 (★ 표시)
+>
+> **구현 현황** (2026-03-23 기준): Sprint 1~7 구현 완료, Sprint 8 일부 완료
 
 ---
 
-## Sprint 1: 프로젝트 기반 구축
+## Sprint 1: 프로젝트 기반 구축 + 확장성 인프라
 
 ### 목표
-> 개발 환경 셋업, DB 스키마 생성, 인증 시스템 구축
+> 개발 환경 + 인증 + **레이어드 아키텍처 기반** + **설정 시스템**
 
-### 태스크
+### 태스크 (기존 + ★확장성)
 
-| # | 태스크 | 상세 | 산출물 |
-|---|--------|------|--------|
-| 1.1 | Next.js 프로젝트 초기화 | App Router, TypeScript, Tailwind CSS, ESLint, Prettier | `package.json`, 디렉토리 구조 |
-| 1.2 | shadcn/ui 설정 | 초기화 + 필수 컴포넌트 설치 (button, card, input, dialog 등) | `components/ui/` |
-| 1.3 | Supabase 프로젝트 생성 | 클라우드 프로젝트 생성, 환경변수 설정 | `.env.local` |
-| 1.4 | DB 마이그레이션 실행 | users, api_catalog, projects, project_apis, generated_codes 테이블 생성 | `supabase/migrations/001_initial.sql` |
-| 1.5 | RLS 정책 설정 | 각 테이블별 Row Level Security 정책 적용 | 마이그레이션 SQL |
-| 1.6 | Supabase Auth 연동 | 클라이언트 초기화, 세션 관리 미들웨어 | `src/lib/supabase/` |
-| 1.7 | Google OAuth 설정 | Google Cloud Console → Supabase OAuth 연동 | 소셜 로그인 |
-| 1.8 | GitHub OAuth 설정 | GitHub Developer Settings → Supabase OAuth 연동 | 소셜 로그인 |
-| 1.9 | useAuth 훅 구현 | signIn, signOut, 세션 상태 관리 | `src/hooks/useAuth.ts` |
-| 1.10 | 인증 미들웨어 | 보호 경로 리다이렉트 (/builder, /dashboard → 로그인 필요) | `src/middleware.ts` |
-| 1.11 | 공통 레이아웃 | Header(로고, 네비, 로그인 버튼), Footer | `src/components/layout/` |
-| 1.12 | 타입 정의 | ApiCatalogItem, Project, GeneratedCode 등 전체 타입 | `src/types/` |
-| 1.13 | Railway 연동 | GitHub 저장소 → Railway 프로젝트 연결, 자동 배포 확인 | Railway 대시보드 |
+| # | 태스크 | 산출물 | 구분 |
+|---|--------|--------|------|
+| 1.1 | Next.js 프로젝트 초기화 | 프로젝트 구조 | 기존 |
+| 1.2 | shadcn/ui 설정 | components/ui/ | 기존 |
+| 1.3 | Supabase 프로젝트 생성 | .env.local | 기존 |
+| 1.4 | DB 마이그레이션 v2 실행 | 10개 테이블 (organizations, memberships, event_log, feature_flags 포함) | ★수정 |
+| 1.5 | RLS 정책 v2 설정 | 조직 기반 RLS 포함 | ★수정 |
+| 1.6 | Supabase Auth 연동 | 클라이언트 초기화 | 기존 |
+| 1.7 | OAuth 설정 (Google, GitHub) | 소셜 로그인 | 기존 |
+| 1.8 | **★ BaseRepository 클래스 생성** | `repositories/base/BaseRepository.ts` | ★신규 |
+| 1.9 | **★ Repository 레이어 생성** | userRepo, projectRepo, catalogRepo, codeRepo, orgRepo | ★신규 |
+| 1.10 | **★ Service 레이어 스캐폴딩** | authService, catalogService, projectService (빈 껍데기) | ★신규 |
+| 1.11 | **★ 설정 시스템 (features.ts)** | 비즈니스 규칙 설정 파일 | ★신규 |
+| 1.12 | **★ 이벤트 버스 기반** | eventBus.ts, domainEvents.ts | ★신규 |
+| 1.13 | **★ i18n 기본 구조** | i18n/index.ts, locales/ko.json (주요 텍스트만) | ★신규 |
+| 1.14 | **★ 구조적 로거** | lib/utils/logger.ts | ★신규 |
+| 1.15 | **★ 커스텀 에러 클래스** | lib/utils/errors.ts (AppError, NotFoundError 등) | ★신규 |
+| 1.16 | useAuth 훅 + authStore | 인증 상태 관리 | 기존 |
+| 1.17 | 인증 미들웨어 | middleware.ts | 기존 |
+| 1.18 | 공통 레이아웃 (Header, Footer) | components/layout/ | 기존 |
+| 1.19 | 타입 정의 v2 | organization.ts, events.ts 포함 | ★수정 |
+| 1.20 | Railway 연동 | 자동 배포 | 기존 |
+
+### ★ 핵심 추가: BaseRepository
+
+```typescript
+// src/repositories/base/BaseRepository.ts
+export abstract class BaseRepository<T> {
+  constructor(
+    protected supabase: SupabaseClient,
+    protected tableName: string
+  ) {}
+
+  async findById(id: string): Promise<T | null> { ... }
+  async findMany(filter?: Partial<T>, options?: QueryOptions): Promise<T[]> { ... }
+  async create(data: Omit<T, 'id' | 'createdAt'>): Promise<T> { ... }
+  async update(id: string, data: Partial<T>): Promise<T> { ... }
+  async delete(id: string): Promise<void> { ... }
+  async count(filter?: Partial<T>): Promise<number> { ... }
+}
+```
 
 ### 완료 기준
-- [x] `pnpm dev`로 로컬 개발 서버 정상 실행
-- [x] Google/GitHub 소셜 로그인 동작
-- [x] 로그인/로그아웃 시 UI 상태 변경
-- [x] 보호 경로 접근 시 로그인 페이지 리다이렉트
-- [x] Supabase 테이블 생성 및 RLS 정상 동작
-- [x] Railway 자동 배포 동작
-
-### 의존성
-- 없음 (첫 스프린트)
+- [x] 기존 Sprint 1 기준 모두 충족
+- [x] Repository를 통한 DB 접근 동작 확인
+- [x] features.ts 설정값 로드 확인
+- [x] eventBus 이벤트 발행/구독 동작 확인
+- [x] i18n `t('key')` 함수 동작 확인
 
 ---
 
 ## Sprint 2: API 카탈로그 시스템
 
-### 목표
-> API 카탈로그 시드 데이터 구축, 카탈로그 조회 API 및 UI 구현
+### 추가 태스크 (★확장성)
 
-### 태스크
+| # | 태스크 | 산출물 | 구분 |
+|---|--------|--------|------|
+| 2.1~2.5 | (기존 태스크 유지) | | 기존 |
+| 2.13 | **★ CatalogService 구현** | catalogService.ts (Repository 통해 데이터 접근) | ★신규 |
+| 2.14 | **★ API 버저닝 적용** | `/api/v1/catalog` 경로 | ★신규 |
+| 2.15 | **★ 커서 기반 페이지네이션** | cursor 파라미터 지원 | ★신규 |
+| 2.16 | **★ API deprecated 필터** | 폐기 API 자동 필터링 + 후속 API 안내 | ★신규 |
+| 2.17 | **★ 시드 데이터에 확장 컬럼 포함** | api_version, cors_supported, credit_required 데이터 | ★신규 |
 
-| # | 태스크 | 상세 | 산출물 |
-|---|--------|------|--------|
-| 2.1 | API 시드 데이터 작성 | 16개 카테고리, 54개 API의 상세 데이터 (엔드포인트, 파라미터, 한글 설명) | `supabase/seed.sql` |
-| 2.2 | 시드 데이터 검증 | 각 API 실제 호출 테스트, 무료 여부 재확인 | 검증 결과 |
-| 2.3 | GET /api/v1/catalog 구현 | 카탈로그 조회 (카테고리 필터, 검색, 페이지네이션) | `src/app/api/v1/catalog/route.ts` |
-| 2.4 | GET /api/v1/catalog/categories 구현 | 카테고리 목록 (카운트 포함) | `src/app/api/v1/catalog/categories/route.ts` |
-| 2.5 | GET /api/v1/catalog/[id] 구현 | API 상세 조회 | `src/app/api/v1/catalog/[id]/route.ts` |
-| 2.6 | useApiCatalog 훅 구현 | 카탈로그 데이터 패칭, 필터링, 캐싱 | `src/hooks/useApiCatalog.ts` |
-| 2.7 | ApiCard 컴포넌트 | API 카드 (이름, 설명, 카테고리, 한도, 인증, 체크박스) | `src/components/catalog/ApiCard.tsx` |
-| 2.8 | ApiCatalogGrid 컴포넌트 | API 카드 그리드 (반응형: 1/2/3열) | `src/components/catalog/ApiCatalogGrid.tsx` |
-| 2.9 | CategoryTabs 컴포넌트 | 카테고리 탭 필터 (전체 + 10개 카테고리) | `src/components/catalog/CategoryTabs.tsx` |
-| 2.10 | ApiSearchBar 컴포넌트 | 검색 입력 (debounce 300ms) | `src/components/catalog/ApiSearchBar.tsx` |
-| 2.11 | ApiDetailModal 컴포넌트 | API 상세 모달 (엔드포인트, 응답 예시, 문서 링크) | `src/components/catalog/ApiDetailModal.tsx` |
-| 2.12 | 카탈로그 페이지 조립 | 검색 + 카테고리 + 그리드 통합 페이지 | `src/app/(main)/catalog/page.tsx` |
+### API Route 구조 변경
+```
+기존: src/app/api/v1/catalog/route.ts
+변경: src/app/api/v1/catalog/route.ts  ← 버저닝 적용
 
-### 완료 기준
-- [x] API 카탈로그 페이지에서 54개 API 카드 정상 표시
-- [x] 카테고리 탭 필터링 동작
-- [x] 검색 동작 (이름, 설명)
-- [x] API 카드 클릭 시 상세 모달 정상 표시
-- [x] 반응형 레이아웃 (모바일/태블릿/데스크톱)
-
-### 의존성
-- Sprint 1 완료 (DB, 인증, 레이아웃)
+// route.ts 내부 (v2에서 변경)
+export async function GET(req: Request) {
+  // 검증만 담당
+  const params = parseSearchParams(req);
+  // Service에 위임
+  const result = await catalogService.search(params);
+  return Response.json({ success: true, data: result });
+}
+```
 
 ---
 
 ## Sprint 3: 빌더 Step 1 - API 선택 UI
 
-### 목표
-> 드래그 앤 드롭 + 체크박스 기반 API 선택 인터페이스 구현
+### 추가 태스크 (★확장성)
 
-### 태스크
+| # | 태스크 | 산출물 | 구분 |
+|---|--------|--------|------|
+| 3.1 | ★ **Zustand 스토어 분리** | apiSelectionStore, contextStore, generationStore, deployStore | ★수정 |
+| 3.2 | StepIndicator → ★ **동적 스텝 시스템** | StepRegistry.ts + StepIndicator (N-step 지원) | ★수정 |
+| 3.3~3.11 | (기존 태스크 유지, builderStore → 분리된 스토어 사용) | | 수정 |
 
-| # | 태스크 | 상세 | 산출물 |
-|---|--------|------|--------|
-| 3.1 | builderStore 구현 | Zustand 스토어 (selectedApis, step, context 등 전체 상태) | `src/stores/builderStore.ts` |
-| 3.2 | StepIndicator 컴포넌트 | 3단계 진행 표시 (완료/현재/미완료) | `src/components/builder/StepIndicator.tsx` |
-| 3.3 | DnD Provider 설정 | @dnd-kit/core DndContext, 센서 설정 | 빌더 페이지 레이아웃 |
-| 3.4 | DraggableApiCard 컴포넌트 | 기존 ApiCard에 draggable 기능 추가 | `src/components/builder/DraggableApiCard.tsx` |
-| 3.5 | SelectedApiZone 컴포넌트 | 드롭 존 + 선택된 API 미니 카드 목록 | `src/components/builder/SelectedApiZone.tsx` |
-| 3.6 | 체크박스 선택 로직 | 카드 체크 시 selectedApis에 추가/제거 | builderStore 연동 |
-| 3.7 | DnD 선택 로직 | 카드 드래그 → 드롭 존 → selectedApis에 추가 | DndContext onDragEnd |
-| 3.8 | 선택 제한 로직 | 최대 5개, 최소 1개 검증 + UI 피드백 | toast 알림 |
-| 3.9 | 빌더 페이지 레이아웃 | 좌측(카탈로그) + 우측(선택 영역) 2컬럼 | `src/app/(main)/builder/page.tsx` |
-| 3.10 | 모바일 대응 | 모바일에서 체크박스만 사용 (DnD 비활성화), 단일 컬럼 | 반응형 CSS |
-| 3.11 | "다음 단계" 버튼 | 최소 1개 선택 시 활성화, 클릭 시 Step 2 전환 | 버튼 상태 관리 |
+### ★ 동적 스텝 시스템
 
-### 완료 기준
-- [x] 체크박스로 API 다중 선택/해제 동작
-- [x] 드래그 앤 드롭으로 API 선택 동작 (데스크톱)
-- [x] 선택된 API 영역에 미니 카드 표시 + 제거(X) 동작
-- [x] 최대 5개 제한 동작 (초과 시 안내 메시지)
-- [x] 모바일에서 체크박스만 사용 가능
-- [x] "다음 단계" 버튼 조건부 활성화
+```typescript
+// src/components/builder/steps/StepRegistry.ts
+export interface BuilderStep {
+  id: string;
+  label: string;
+  component: React.ComponentType<StepProps>;
+  canProceed: (state: BuilderState) => boolean;
+  order: number;
+}
 
-### 의존성
-- Sprint 2 완료 (카탈로그 API, ApiCard 컴포넌트)
+const defaultSteps: BuilderStep[] = [
+  { id: 'api-select', label: 'API 선택', component: ApiSelectStep, canProceed: (s) => s.selectedApis.length > 0, order: 1 },
+  { id: 'context', label: '서비스 설명', component: ContextStep, canProceed: (s) => s.context.length >= 50, order: 2 },
+  { id: 'generate', label: '생성', component: GenerateStep, canProceed: () => true, order: 3 },
+];
+
+// 향후 스텝 추가 예시 (코드 수정 없이 등록만)
+registerStep({
+  id: 'design-theme',
+  label: '디자인 선택',
+  component: DesignThemeStep,
+  canProceed: (s) => !!s.selectedTheme,
+  order: 2.5,  // context와 generate 사이
+});
+```
 
 ---
 
 ## Sprint 4: 빌더 Step 2 - 컨텍스트 입력
 
-### 목표
-> 서비스 설명 입력, 가이드 질문, 템플릿 선택 기능 구현
+### 추가 태스크 (★확장성)
 
-### 태스크
-
-| # | 태스크 | 상세 | 산출물 |
-|---|--------|------|--------|
-| 4.1 | ContextInput 컴포넌트 | 자동 높이 textarea, 글자 수 카운터 (50~2000) | `src/components/builder/ContextInput.tsx` |
-| 4.2 | GuideQuestions 컴포넌트 | 접기/펴기 가이드 질문 5개 | `src/components/builder/GuideQuestions.tsx` |
-| 4.3 | TemplateSelector 컴포넌트 | 6개 템플릿 버튼, 선택 시 컨텍스트 자동 채움 | `src/components/builder/TemplateSelector.tsx` |
-| 4.4 | 템플릿 데이터 정의 | 6개 템플릿의 기본 컨텍스트 텍스트 | `src/lib/templates.ts` |
-| 4.5 | 선택 API 요약 바 | Step 2 상단에 선택된 API 표시 (수정 링크) | 빌더 페이지 |
-| 4.6 | 컨텍스트 유효성 검증 | 50자 미만 경고, Zod 스키마 | 검증 로직 |
-| 4.7 | 로컬 스토리지 자동 저장 | 컨텍스트 입력 중 5초마다 저장, 새로고침 시 복원 | builderStore persist |
-| 4.8 | "생성하기" 버튼 | 50자 이상 시 활성화, 클릭 시 확인 모달 → Step 3 전환 | 버튼 + 모달 |
-| 4.9 | "이전" 버튼 | Step 1로 돌아가기 (선택 API 유지) | 스텝 이동 |
-| 4.10 | Step 2 레이아웃 조립 | 요약 바 + 입력 영역 + 가이드 + 템플릿 + 버튼 통합 | 빌더 페이지 |
-
-### 완료 기준
-- [x] 컨텍스트 텍스트 입력 및 글자 수 카운터 동작
-- [x] 50자 미만 시 "생성하기" 버튼 비활성화
-- [x] 가이드 질문 토글 동작
-- [x] 템플릿 선택 시 컨텍스트 자동 채움
-- [x] 이전/다음 스텝 이동 시 상태 유지
-- [x] 새로고침 시 입력 내용 복원
-
-### 의존성
-- Sprint 3 완료 (빌더 페이지, builderStore)
+| # | 태스크 | 산출물 | 구분 |
+|---|--------|--------|------|
+| 4.1~4.10 | (기존 태스크, contextStore 사용으로 수정) | | 수정 |
+| 4.11 | **★ 설정 기반 글자 수 제한** | features.ts의 contextMinLength/maxLength 사용 | ★신규 |
+| 4.12 | **★ i18n 적용 (한국어 텍스트)** | 가이드 질문, 템플릿 텍스트 → ko.json | ★신규 |
 
 ---
 
 ## Sprint 5: AI 코드 생성 엔진
 
-### 목표
-> AI 기반 코드 자동 생성 파이프라인 구현 (프롬프트 → 생성 → 파싱 → 검증)
+### 추가 태스크 (★확장성) - 가장 많은 확장성 개선
 
-### 태스크
+| # | 태스크 | 산출물 | 구분 |
+|---|--------|--------|------|
+| 5.1 | ★ **IAiProvider 인터페이스 정의** | `providers/ai/IAiProvider.ts` | ★신규 |
+| 5.2 | ★ **GrokProvider 구현** | `providers/ai/GrokProvider.ts` | ★수정 |
+| 5.3 | ★ **AiProviderFactory 구현** | `providers/ai/AiProviderFactory.ts` (환경변수 기반 선택) | ★신규 |
+| 5.4 | ★ **ICodeTemplate 인터페이스** | `templates/ICodeTemplate.ts` | ★신규 |
+| 5.5 | ★ **TemplateRegistry 구현** | `templates/TemplateRegistry.ts` | ★신규 |
+| 5.6 | ★ **기본 템플릿 3개 구현** | DashboardTemplate, CalculatorTemplate, GalleryTemplate | ★신규 |
+| 5.7 | 시스템 프롬프트 작성 | prompts.ts | 기존 |
+| 5.8 | 프롬프트 빌더 | promptBuilder.ts (템플릿 힌트 포함) | 수정 |
+| 5.9 | 코드 파서 | codeParser.ts | 기존 |
+| 5.10 | 코드 검증기 | codeValidator.ts | 기존 |
+| 5.11 | ★ **GenerationService 구현** | Service 레이어에서 Provider/Template 조합 | ★신규 |
+| 5.12 | POST /api/v1/generate (SSE) | generationService 호출 + 이벤트 발행 | 수정 |
+| 5.13 | 생성 결과 DB 저장 | ai_provider, ai_model, generation_ms, metadata 포함 | ★수정 |
+| 5.14 | 일일 생성 횟수 제한 | features.ts 설정값 사용 | ★수정 |
+| 5.15 | ★ **이벤트 발행** | CODE_GENERATED, CODE_GENERATION_FAILED 이벤트 | ★신규 |
+| 5.16 | 재생성 | regenerate 엔드포인트 | 기존 |
 
-| # | 태스크 | 상세 | 산출물 |
-|---|--------|------|--------|
-| 5.1 | Grok API 클라이언트 | openai (xAI Grok) 연동, 스트리밍 응답 | `src/lib/ai/GrokProvider.ts` |
-| 5.2 | 시스템 프롬프트 작성 | 코드 생성 규칙 정의 (HTML/CSS/JS 분리, 반응형, 보안 등) | `src/lib/ai/prompts.ts` |
-| 5.3 | 사용자 프롬프트 빌더 | 선택 API 정보 + 컨텍스트 → 프롬프트 조합 | `src/lib/ai/promptBuilder.ts` |
-| 5.4 | 코드 파서 | AI 응답에서 HTML/CSS/JS 블록 추출 | `src/lib/ai/codeParser.ts` |
-| 5.5 | 코드 검증기 | 보안 검사 (eval, innerHTML, API 키 노출) + 기능 검사 | `src/lib/ai/codeValidator.ts` |
-| 5.6 | HTML 조립기 | HTML + CSS + JS → 완성된 HTML 파일 조합 | `src/lib/ai/codeParser.ts` |
-| 5.7 | POST /api/v1/generate 구현 | SSE 스트리밍 엔드포인트 (진행률 전송) | `src/app/api/v1/generate/route.ts` |
-| 5.8 | 생성 결과 DB 저장 | generated_codes 테이블에 저장, projects 상태 업데이트 | DB 로직 |
-| 5.9 | 일일 생성 횟수 제한 | 사용자당 10회/일 제한 검사 | 제한 로직 |
-| 5.10 | 재생성 프롬프트 | 이전 코드 + 피드백 기반 수정 프롬프트 | `src/lib/ai/promptBuilder.ts` |
-| 5.11 | POST /api/v1/generate/regenerate 구현 | 수정 요청 기반 재생성 엔드포인트 | API Route |
-| 5.12 | 에러 핸들링 | AI API 실패 시 재시도 (2회), 타임아웃 (2분) | 에러 처리 |
+### ★ 코드 생성 흐름 (확장 설계)
 
-### 완료 기준
-- [x] API 선택 + 컨텍스트로 코드 생성 요청 시 HTML/CSS/JS 생성
-- [x] SSE로 진행률 실시간 전송
-- [x] 생성된 코드 DB 저장
-- [x] 보안 검증 통과 (eval, API 키 노출 없음)
-- [x] 일일 10회 생성 제한 동작
-- [x] 피드백 기반 재생성 동작
-
-### 의존성
-- Sprint 4 완료 (컨텍스트 입력, builderStore)
+```
+GenerationService.generate(projectId)
+    │
+    ├── 1. 프로젝트 + API 정보 조회 (Repository)
+    ├── 2. 한도 확인 (FeatureConfig)
+    │
+    ├── 3. 템플릿 매칭 시도 (TemplateRegistry)
+    │   ├── 매칭 성공 → 템플릿 기반 코드 생성 (AI 호출 절약)
+    │   │              + AI로 커스터마이징 요청
+    │   └── 매칭 실패 → 전체 AI 생성
+    │
+    ├── 4. AI Provider 선택 (AiProviderFactory)
+    │   ├── 가용성 확인 → Grok 사용
+    │   └── 불가 시     → 폴백 Provider
+    │
+    ├── 5. 프롬프트 구성 (promptBuilder)
+    ├── 6. AI 코드 생성 (IAiProvider.generateCodeStream)
+    ├── 7. 코드 파싱 (codeParser)
+    ├── 8. 보안 검증 (codeValidator)
+    ├── 9. DB 저장 (CodeRepository) + 메타데이터 포함
+    └── 10. 이벤트 발행 (EventBus)
+```
 
 ---
 
 ## Sprint 6: 빌더 Step 3 - 생성 UI & 미리보기
 
-### 목표
-> 코드 생성 진행 화면, 미리보기, 수정 요청 UI 구현
+### 추가 태스크 (★확장성)
 
-### 태스크
-
-| # | 태스크 | 상세 | 산출물 |
-|---|--------|------|--------|
-| 6.1 | useGeneration 훅 | SSE 연결, 진행률 상태 관리 | `src/hooks/useGeneration.ts` |
-| 6.2 | GenerationProgress 컴포넌트 | 5단계 진행 표시 (아이콘, 메시지, 프로그레스 바) | `src/components/builder/GenerationProgress.tsx` |
-| 6.3 | GET /api/v1/preview/[projectId] 구현 | 생성된 코드를 완성된 HTML로 반환 | `src/app/api/v1/preview/[projectId]/route.ts` |
-| 6.4 | PreviewFrame 컴포넌트 | iframe 미리보기, 디바이스 토글 (모바일/태블릿/데스크톱) | `src/components/builder/PreviewFrame.tsx` |
-| 6.5 | 수정 요청 UI | 피드백 텍스트 입력 + 재생성 버튼 | 수정 요청 모달/섹션 |
-| 6.6 | 재생성 버튼 | 같은 조건으로 다시 생성 (다른 결과) | 버튼 + useGeneration |
-| 6.7 | 배포 버튼 | "배포하기" → 확인 모달 → 배포 프로세스 시작 | 버튼 + 모달 |
-| 6.8 | 코드 뷰어 (선택사항) | 생성된 HTML/CSS/JS 코드 보기 (탭 전환) | CodeViewer 컴포넌트 |
-| 6.9 | Step 3 레이아웃 조립 | 진행 화면 → 완료 화면 (미리보기 + 액션) 전환 | 빌더 페이지 |
-| 6.10 | 생성 실패 UI | 에러 메시지 + "다시 시도" 버튼 | 에러 상태 화면 |
-
-### 완료 기준
-- [x] "생성하기" 클릭 시 진행률 실시간 표시
-- [x] 생성 완료 시 미리보기 iframe 정상 렌더링
-- [x] 디바이스 토글 (모바일/태블릿/데스크톱) 동작
-- [x] 수정 요청 → 재생성 → 미리보기 갱신 동작
-- [x] 생성 실패 시 에러 메시지 + 재시도 동작
-
-### 의존성
-- Sprint 5 완료 (코드 생성 API)
+| # | 태스크 | 산출물 | 구분 |
+|---|--------|--------|------|
+| 6.1~6.10 | (기존 태스크, generationStore 사용) | | 수정 |
+| 6.11 | **★ 피처 플래그 통합** | useFeatureFlag() 훅 → 코드 뷰어 토글 등 | ★신규 |
+| 6.12 | **★ 생성 메타데이터 표시** | 사용된 AI 모델, 소요 시간, 품질 점수 표시 | ★신규 |
 
 ---
 
 ## Sprint 7: 자동 배포 & 대시보드
 
-### 목표
-> 생성된 서비스 자동 배포, 관리 대시보드 구현
+### 추가 태스크 (★확장성) - 두 번째로 많은 확장성 개선
 
-### 태스크
-
-| # | 태스크 | 상세 | 산출물 |
-|---|--------|------|--------|
-| 7.1 | GitHub 서비스 모듈 | Octokit: 저장소 생성, 코드 Push, 시크릿 설정 | `src/lib/deploy/githubService.ts` |
-| 7.2 | Railway 서비스 모듈 | Railway API: 프로젝트 생성, 배포, 환경변수 설정 | `src/lib/deploy/railwayService.ts` |
-| 7.3 | GitHub Pages 서비스 모듈 | gh-pages 브랜치 Push 기반 배포 | `src/lib/deploy/githubPagesService.ts` |
-| 7.4 | POST /api/v1/deploy 구현 | SSE 스트리밍 배포 엔드포인트 | `src/app/api/v1/deploy/route.ts` |
-| 7.5 | useDeploy 훅 | SSE 연결, 배포 상태 관리 | `src/hooks/useDeploy.ts` |
-| 7.6 | 배포 진행 UI | 배포 단계 표시 (저장소 생성 → 코드 업로드 → 배포) | 빌더 Step 3 확장 |
-| 7.7 | 배포 완료 UI | URL 표시, 복사 버튼, QR 코드, 새 탭 열기 | 완료 화면 |
-| 7.8 | POST /api/v1/projects 구현 | 프로젝트 생성 API | `src/app/api/v1/projects/route.ts` |
-| 7.9 | GET /api/v1/projects 구현 | 프로젝트 목록 조회 (JOIN apis) | `src/app/api/v1/projects/route.ts` |
-| 7.10 | DELETE /api/v1/projects/[id] 구현 | 프로젝트 삭제 (GitHub 저장소 + Railway 배포 삭제 포함) | API Route |
-| 7.11 | useProjects 훅 | 프로젝트 CRUD 훅 | `src/hooks/useProjects.ts` |
-| 7.12 | ProjectCard 컴포넌트 | 서비스명, 상태, API, URL, 액션 드롭다운 | `src/components/dashboard/ProjectCard.tsx` |
-| 7.13 | ProjectGrid 컴포넌트 | 프로젝트 카드 그리드 + 빈 상태 | `src/components/dashboard/ProjectGrid.tsx` |
-| 7.14 | 대시보드 페이지 | 프로젝트 목록 + "새 서비스" 버튼 | `src/app/(main)/dashboard/page.tsx` |
-| 7.15 | 프로젝트 삭제 확인 모달 | "정말 삭제하시겠습니까?" 확인 | 모달 컴포넌트 |
-
-### 완료 기준
-- [x] "배포하기" 클릭 시 GitHub 저장소 생성 + 코드 Push 동작
-- [x] Railway 또는 GitHub Pages 자동 배포 동작
-- [x] 배포 완료 시 URL 표시 및 접근 가능
-- [x] 대시보드에서 생성된 서비스 목록 표시
-- [x] 서비스 삭제 동작
-
-### 의존성
-- Sprint 6 완료 (생성 UI, 미리보기)
+| # | 태스크 | 산출물 | 구분 |
+|---|--------|--------|------|
+| 7.1 | ★ **IDeployProvider 인터페이스 정의** | `providers/deploy/IDeployProvider.ts` | ★신규 |
+| 7.2 | ★ **RailwayDeployer 구현** | `providers/deploy/RailwayDeployer.ts` | ★수정 |
+| 7.3 | ★ **GithubPagesDeployer 구현** | `providers/deploy/GithubPagesDeployer.ts` | ★수정 |
+| 7.4 | ★ **DeployProviderFactory 구현** | `providers/deploy/DeployProviderFactory.ts` | ★신규 |
+| 7.5 | ★ **DeployService 구현** | Service 레이어 (Provider 사용) | ★신규 |
+| 7.6 | POST /api/v1/deploy (SSE) | deployService 호출 + 이벤트 발행 | 수정 |
+| 7.7 | ★ **롤백 기능** | POST /api/v1/projects/[id]/rollback | ★신규 |
+| 7.8 | 배포 완료 UI | URL, QR 코드 | 기존 |
+| 7.9 | ★ **ProjectService 구현** | CRUD + 소유권 검증 + 조직 접근 | ★신규 |
+| 7.10 | GET/POST /api/v1/projects | projectService 호출 | 수정 |
+| 7.11 | DELETE /api/v1/projects/[id] | 연쇄 삭제 (GitHub + Railway + DB) | 기존 |
+| 7.12 | useProjects 훅 | projectService API 호출 | 기존 |
+| 7.13 | ProjectCard 컴포넌트 | 서비스명, 상태, API, URL | 기존 |
+| 7.14 | 대시보드 페이지 | 프로젝트 그리드 | 기존 |
+| 7.15 | ★ **이벤트 발행** | DEPLOYMENT_COMPLETED, DEPLOYMENT_FAILED | ★신규 |
+| 7.16 | ★ **캐싱 전략 적용** | 카탈로그 10분, 프로젝트 5분 캐시 | ★신규 |
 
 ---
 
-## Sprint 8: 랜딩 페이지, 안정화, 출시 준비
+## Sprint 8: 랜딩, 안정화, 출시
 
-### 목표
-> 랜딩 페이지 구현, 전체 통합 테스트, 성능 최적화, 베타 출시
+### 추가 태스크 (★확장성)
 
-### 태스크
-
-| # | 태스크 | 상세 | 산출물 |
-|---|--------|------|--------|
-| 8.1 | 랜딩 페이지 히어로 섹션 | 핵심 메시지 + CTA 버튼 | `src/app/page.tsx` |
-| 8.2 | 3단계 안내 섹션 | 선택→설명→완성 프로세스 시각화 | 랜딩 페이지 |
-| 8.3 | 예시 갤러리 섹션 | 사전 생성된 서비스 3~5개 쇼케이스 | 랜딩 페이지 |
-| 8.4 | FAQ 섹션 | 자주 묻는 질문 아코디언 (5~7개) | 랜딩 페이지 |
-| 8.5 | 에러 페이지 | 404, 500 커스텀 에러 페이지 | `src/app/not-found.tsx`, `error.tsx` |
-| 8.6 | 온보딩 가이드 | 첫 방문 사용자를 위한 간단한 투어/안내 | 툴팁 또는 모달 |
-| 8.7 | 전체 흐름 E2E 테스트 | 가입 → API 선택 → 컨텍스트 → 생성 → 배포 전체 흐름 | 수동 테스트 체크리스트 |
-| 8.8 | 크로스 브라우저 테스트 | Chrome, Firefox, Safari, Edge 동작 확인 | 테스트 결과 |
-| 8.9 | 모바일 반응형 테스트 | 실제 모바일 기기에서 전체 흐름 테스트 | 테스트 결과 |
-| 8.10 | 성능 최적화 | Core Web Vitals (LCP, FID, CLS) 측정 및 개선 | Lighthouse 점수 |
-| 8.11 | SEO 기본 설정 | 메타 태그, OG 태그, sitemap, robots.txt | SEO 파일들 |
-| 8.12 | Sentry 연동 | 에러 추적 설정, 소스맵 업로드 | Sentry 프로젝트 |
-| 8.13 | UptimeRobot 설정 | 메인 사이트 + 주요 API 엔드포인트 모니터링 | 모니터 설정 |
-| 8.14 | 예시 서비스 사전 생성 | 쇼케이스용 서비스 3~5개 직접 생성 및 배포 | 예시 서비스 URL |
-| 8.15 | 최종 코드 정리 | 미사용 코드 제거, console.log 제거, 환경변수 정리 | 정리된 코드베이스 |
-| 8.16 | 베타 출시 | 프로덕션 배포 확인, 피드백 수집 채널 마련 | 라이브 서비스 |
-
-### 완료 기준
-- [x] 랜딩 페이지에서 서비스 가치 명확히 전달
-- [x] 전체 서비스 흐름 (가입~배포) 에러 없이 동작
-- [x] 모바일/데스크톱 모두 정상 동작
-- [x] Lighthouse 성능 점수 80+
-- [x] 에러 모니터링 정상 동작
-- [x] 프로덕션 URL 접근 가능
-
-### 의존성
-- Sprint 7 완료 (모든 기능)
+| # | 태스크 | 산출물 | 구분 |
+|---|--------|--------|------|
+| 8.1~8.7 | (기존: 랜딩, 에러페이지, 테스트) | | 기존 |
+| 8.17 | **★ /api/v1/health 엔드포인트** | DB, AI, Deploy 상태 + 한도 사용률 | ★신규 |
+| 8.18 | **★ 이벤트 구독자: 분석 로깅** | event_log 테이블에 이벤트 저장 | ★신규 |
+| 8.19 | **★ 이벤트 구독자: 한도 경고** | API_QUOTA_WARNING 이벤트 처리 | ★신규 |
+| 8.20 | **★ 피처 플래그 관리 확인** | 모든 플래그 정상 동작 테스트 | ★신규 |
+| 8.21 | **★ 확장성 문서화** | 새 Provider/Template 추가 가이드 | ★신규 |
 
 ---
 
-## 스프린트 간 의존성 다이어그램
+## 확장성 태스크 요약 (전체 스프린트)
 
-```
-Sprint 1 (기반 구축)
-    │
-    ▼
-Sprint 2 (API 카탈로그)
-    │
-    ▼
-Sprint 3 (빌더 Step 1: API 선택)
-    │
-    ▼
-Sprint 4 (빌더 Step 2: 컨텍스트)
-    │
-    ▼
-Sprint 5 (AI 코드 생성 엔진)
-    │
-    ▼
-Sprint 6 (빌더 Step 3: 생성 UI)
-    │
-    ▼
-Sprint 7 (자동 배포 & 대시보드)
-    │
-    ▼
-Sprint 8 (랜딩 페이지 & 출시)
-```
+| Sprint | 기존 태스크 | ★확장성 태스크 | 합계 |
+|--------|-----------|--------------|------|
+| 1 | 13 | **+7** | 20 |
+| 2 | 12 | **+5** | 17 |
+| 3 | 11 | **+2** | 13 |
+| 4 | 10 | **+2** | 12 |
+| 5 | 12 | **+8** | 20 |
+| 6 | 10 | **+2** | 12 |
+| 7 | 15 | **+7** | 22 |
+| 8 | 16 | **+5** | 21 |
+| **합계** | **99** | **+38** | **137** |
+
+> 약 38% 태스크 증가이나, 이후 기능 확장 시 개발 속도가 2~3배 빨라짐
 
 ---
 
-## 리스크 및 대응 계획
+## 확장성 투자 대비 효과 예측
 
-| 리스크 | 영향도 | 발생 확률 | 대응 | 해당 스프린트 |
-|--------|--------|-----------|------|--------------|
-| Grok API 한도 초과 | 높음 | 중간 | Ollama 로컬 LLM 폴백 구현 | Sprint 5 |
-| AI 생성 코드 품질 부족 | 높음 | 중간 | 프롬프트 튜닝 + 템플릿 시스템 강화 | Sprint 5 |
-| Railway 한도 초과 | 중간 | 낮음 | GitHub Pages 분산 | Sprint 7 |
-| Supabase 무료 한도 초과 | 중간 | 낮음 | 데이터 정리 정책 + 오래된 코드 삭제 | Sprint 7 |
-| DnD 모바일 호환성 | 낮음 | 중간 | 모바일은 체크박스만 사용 | Sprint 3 |
-| OAuth 설정 복잡성 | 낮음 | 낮음 | 이메일/비밀번호 로그인 대안 | Sprint 1 |
-| 생성된 서비스 보안 취약점 | 높음 | 중간 | 코드 검증 강화 + sandbox iframe | Sprint 5, 6 |
-
----
-
-## 스프린트별 산출물 요약
-
-| Sprint | 핵심 산출물 | 사용자 관점 변화 |
-|--------|-----------|-----------------|
-| 1 | 프로젝트 골격 + 인증 | 로그인 가능 |
-| 2 | API 카탈로그 | API 목록 탐색 가능 |
-| 3 | 빌더 Step 1 | API 드래그&드롭 선택 가능 |
-| 4 | 빌더 Step 2 | 서비스 설명 입력 가능 |
-| 5 | 코드 생성 엔진 | AI로 코드 생성 가능 (백엔드) |
-| 6 | 생성 UI + 미리보기 | 생성 결과 미리보기 가능 |
-| 7 | 자동 배포 + 대시보드 | 서비스 배포 및 관리 가능 |
-| 8 | 랜딩 + 안정화 | **서비스 정식 출시** |
+| 확장 시나리오 | v1 (확장성 없음) | v2 (확장성 적용) |
+|-------------|----------------|-----------------|
+| 새 AI 제공자 추가 | API Route + 프롬프트 + 파서 전체 수정 | Provider 클래스 1개 추가 |
+| 새 배포 플랫폼 추가 | deploy/route.ts 전면 수정 | Deployer 클래스 1개 추가 |
+| 유료 플랜 도입 | 비즈니스 규칙 코드 전체 검색/수정 | features.ts에 플랜 추가 |
+| 다국어 지원 | 모든 컴포넌트 텍스트 수정 | en.json 번역 파일 추가 |
+| 팀 협업 | DB 스키마 변경 + RLS 전면 수정 | memberships 활성화만 |
+| 새 빌더 스텝 | 빌더 컴포넌트 전체 수정 | StepRegistry에 등록만 |
+| A/B 테스트 | 불가능 | featureFlags 규칙 설정 |
+| 롤백 | 불가능 | rollback 엔드포인트 호출 |
