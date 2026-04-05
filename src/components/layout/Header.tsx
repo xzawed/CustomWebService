@@ -7,10 +7,11 @@ import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
 import { useAuth } from '@/hooks/useAuth';
 import { ThemeSelector } from '@/components/ui/ThemeSelector';
-import { Menu, X, LogOut, User as UserIcon, LayoutGrid, Hammer, BarChart3, Key } from 'lucide-react';
+import { Menu, X, LogOut, User as UserIcon, LayoutGrid, Hammer, BarChart3, Key, Globe } from 'lucide-react';
 
 const NAV_LINKS = [
   { href: '/catalog', label: '카탈로그', icon: LayoutGrid },
+  { href: '/gallery', label: '갤러리', icon: Globe },
   { href: '/builder', label: '빌더', icon: Hammer },
   { href: '/dashboard', label: '대시보드', icon: BarChart3 },
 ];
@@ -45,7 +46,8 @@ export function Header() {
         {/* Desktop Nav */}
         <nav className="hidden items-center gap-1 md:flex">
           {NAV_LINKS.map((link) => {
-            if (link.href !== '/catalog' && !isAuthenticated) return null;
+            const isPublic = link.href === '/catalog' || link.href === '/gallery';
+            if (!isPublic && !isAuthenticated) return null;
             const isActive = pathname.startsWith(link.href);
             const Icon = link.icon;
             return (
@@ -205,7 +207,8 @@ export function Header() {
           style={{ borderColor: 'var(--border)', background: 'var(--bg-surface)' }}
         >
           {NAV_LINKS.map((link) => {
-            if (link.href !== '/catalog' && !isAuthenticated) return null;
+            const isPublic = link.href === '/catalog' || link.href === '/gallery';
+            if (!isPublic && !isAuthenticated) return null;
             const isActive = pathname.startsWith(link.href);
             const Icon = link.icon;
             return (
