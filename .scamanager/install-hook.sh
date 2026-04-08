@@ -1,0 +1,95 @@
+#!/bin/bash
+# SCAManager Hook 설치 스크립트 — 한 번만 실행하면 됩니다
+set -e
+HOOK=".git/hooks/pre-push"
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
+
+cat > "$ROOT/$HOOK" << 'HOOK_SCRIPT'
+#!/bin/bash
+# SCAManager pre-push 코드리뷰 자동 실행
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
+CONFIG="$ROOT/.scamanager/config.json"
+
+[ -f "$CONFIG" ] || exit 0
+command -v claude &>/dev/null || exit 0
+command -v python3 &>/dev/null || exit 0
+
+SERVER=$(python3 -c "import json; d=json.load(open('$CONFIG')); print(d['server'])" 2>/dev/null)
+TOKEN=$(python3 -c "import json; d=json.load(open('$CONFIG')); print(d['token'])" 2>/dev/null)
+REPO=$(python3 -c "import json; d=json.load(open('$CONFIG')); print(d['repo'])" 2>/dev/null)
+
+[ -n "$SERVER" ] || exit 0
+
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SERVER/api/hook/verify?repo=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$REPO")&token=$TOKEN" 2>/dev/null)
+[ "$STATUS" = "200" ] || exit 0
+
+read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA < /dev/stdin 2>/dev/null || true
+[ -n "$LOCAL_SHA" ] || LOCAL_SHA="HEAD"
+[ -n "$REMOTE_SHA" ] || REMOTE_SHA="0000000000000000000000000000000000000000"
+
+if [ "$REMOTE_SHA" = "0000000000000000000000000000000000000000" ]; then
+    DIFF=$(git diff HEAD~1 2>/dev/null || git show HEAD 2>/dev/null)
+else
+    DIFF=$(git diff "$REMOTE_SHA" "$LOCAL_SHA" 2>/dev/null)
+fi
+[ -n "$DIFF" ] || exit 0
+
+COMMIT_MSG=$(git log --format="%B" -1 "$LOCAL_SHA" 2>/dev/null)
+echo "\n🔍 [SCAManager] 코드리뷰 실행 중..."
+
+TMPFILE=$(mktemp /tmp/scamanager_review.XXXXXX)
+cat > "$TMPFILE" << PROMPT
+다음 변경사항을 분석하고 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 포함하지 마세요.
+
+커밋 메시지: $COMMIT_MSG
+
+변경사항:
+$DIFF
+
+채점 유의사항:
+- 일반적으로 양호한 코드는 15~18점 범위입니다.
+- 명확한 문제가 없다면 최소 12점 이상을 부여하세요.
+
+다음 JSON만 응답:
+{"commit_message_score":<0-20>,"direction_score":<0-20>,"test_score":<0-10>,"summary":"요약","suggestions":["제안"],"commit_message_feedback":"피드백","code_quality_feedback":"피드백","security_feedback":"피드백","direction_feedback":"피드백","test_feedback":"피드백","file_feedbacks":[]}
+PROMPT
+
+RESULT=$(claude -p "$(cat "$TMPFILE")" 2>/dev/null)
+rm -f "$TMPFILE"
+
+if [ -n "$RESULT" ]; then
+    echo "$RESULT" | python3 -c "
+import json, sys
+try:
+    d = json.loads(sys.stdin.read())
+    print(f"\n📊 코드리뷰 결과:")
+    print(f"  요약: {d.get('summary','')}")
+    print(f"  커밋 메시지: {d.get('commit_message_feedback','')}")
+    print(f"  코드 품질: {d.get('code_quality_feedback','')}")
+    print(f"  보안: {d.get('security_feedback','')}")
+except Exception:
+    print(sys.stdin.read())
+" 2>/dev/null || echo "$RESULT"
+
+    curl -s -X POST "$SERVER/api/hook/result" \
+      -H "Content-Type: application/json" \
+      -d "$(python3 -c "
+import json, sys
+repo = '$REPO'
+token = '$TOKEN'
+sha = '$LOCAL_SHA'
+msg = '''$COMMIT_MSG'''
+result_str = open('/dev/stdin').read() if False else sys.argv[1]
+try:
+    ai = json.loads(result_str)
+    print(json.dumps({'repo': repo, 'token': token, 'commit_sha': sha, 'commit_message': msg, 'ai_result': ai}))
+except Exception as e:
+    print('{}')
+" "$RESULT" 2>/dev/null)" >/dev/null 2>&1 &
+fi
+
+exit 0
+HOOK_SCRIPT
+
+chmod +x "$ROOT/$HOOK"
+echo "✅ SCAManager pre-push 훅 설치 완료: $ROOT/$HOOK"
