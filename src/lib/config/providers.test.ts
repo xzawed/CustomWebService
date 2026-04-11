@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { getDbProvider, getAuthProvider } from '@/lib/config/providers';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { getDbProvider, getAuthProvider, _resetProviderCache } from '@/lib/config/providers';
 
 // 각 테스트 후 환경변수 원상 복구
 function withEnv(vars: Record<string, string | undefined>, fn: () => void): void {
@@ -25,11 +25,16 @@ function withEnv(vars: Record<string, string | undefined>, fn: () => void): void
   }
 }
 
+beforeEach(() => {
+  _resetProviderCache();
+});
+
 afterEach(() => {
   delete process.env.DB_PROVIDER;
   delete process.env.DATABASE_URL;
   delete process.env.AUTH_PROVIDER;
   delete process.env.AUTH_SECRET;
+  _resetProviderCache();
 });
 
 describe('getDbProvider()', () => {

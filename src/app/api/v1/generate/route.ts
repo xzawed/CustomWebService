@@ -49,8 +49,9 @@ export async function POST(request: Request): Promise<Response> {
     // race condition window that existed with the previous SELECT COUNT approach.
     // Call rateLimitService.decrementDailyLimit() in the failure path to compensate.
     const correlationId = getCorrelationId(request);
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-    const serviceSupabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
+    const provider = getDbProvider();
+    const supabase = provider === 'supabase' ? await createClient() : undefined;
+    const serviceSupabase = provider === 'supabase' ? await createServiceClient() : undefined;
     const eventRepo = createEventRepository(serviceSupabase);
 
     const rateLimitService = createRateLimitService(supabase);
