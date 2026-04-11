@@ -22,6 +22,9 @@ export const users = pgTable('users', {
   email: varchar('email', { length: 255 }).notNull().unique(),
   name: varchar('name', { length: 255 }),
   avatar_url: text('avatar_url'),
+  // Auth.js (next-auth v5) @auth/drizzle-adapter 필수 컬럼
+  emailVerified: timestamp('emailVerified', { mode: 'date' }),
+  image: text('image'),
   preferences: jsonb('preferences').default({}),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
@@ -232,3 +235,46 @@ export const featureFlags = pgTable('feature_flags', {
   rules: jsonb('rules').default({}),
   updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
+
+// ── 12. Auth.js (next-auth v5) 필수 테이블 ────────────────────────────────────
+// @auth/drizzle-adapter v1.x 가 요구하는 스키마 (pg-core 기준)
+
+export const accounts = pgTable(
+  'account',
+  {
+    userId: uuid('userId')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    provider: text('provider').notNull(),
+    providerAccountId: text('providerAccountId').notNull(),
+    refresh_token: text('refresh_token'),
+    access_token: text('access_token'),
+    expires_at: integer('expires_at'),
+    token_type: text('token_type'),
+    scope: text('scope'),
+    id_token: text('id_token'),
+    session_state: text('session_state'),
+  },
+  (account) => [
+    primaryKey({ columns: [account.provider, account.providerAccountId] }),
+  ],
+);
+
+export const sessions = pgTable('session', {
+  sessionToken: text('sessionToken').primaryKey(),
+  userId: uuid('userId')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  expires: timestamp('expires', { mode: 'date' }).notNull(),
+});
+
+export const verificationTokens = pgTable(
+  'verificationToken',
+  {
+    identifier: text('identifier').notNull(),
+    token: text('token').notNull(),
+    expires: timestamp('expires', { mode: 'date' }).notNull(),
+  },
+  (vt) => [primaryKey({ columns: [vt.identifier, vt.token] })],
+);
