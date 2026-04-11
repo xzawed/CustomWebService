@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { ProjectService } from '@/services/projectService';
 import { AuthService } from '@/services/authService';
+import { ProjectRepository } from '@/repositories/projectRepository';
+import { CatalogRepository } from '@/repositories/catalogRepository';
+import { UserRepository } from '@/repositories/userRepository';
 import { AuthRequiredError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { z } from 'zod/v4';
 
@@ -21,11 +24,11 @@ const createProjectSchema = z.object({
 export async function GET() {
   try {
     const supabase = await createClient();
-    const authService = new AuthService(supabase);
+    const authService = new AuthService(supabase, new UserRepository(supabase));
     const user = await authService.getCurrentUser();
     if (!user) throw new AuthRequiredError();
 
-    const service = new ProjectService(supabase);
+    const service = new ProjectService(new ProjectRepository(supabase), new CatalogRepository(supabase));
     const projects = await service.getByUserId(user.id);
 
     return jsonResponse({ success: true, data: projects });
@@ -37,14 +40,14 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const authService = new AuthService(supabase);
+    const authService = new AuthService(supabase, new UserRepository(supabase));
     const user = await authService.getCurrentUser();
     if (!user) throw new AuthRequiredError();
 
     const body = await request.json();
     const validated = createProjectSchema.parse(body);
 
-    const service = new ProjectService(supabase);
+    const service = new ProjectService(new ProjectRepository(supabase), new CatalogRepository(supabase));
     const project = await service.create(user.id, validated);
 
     return jsonResponse({ success: true, data: project }, { status: 201 });

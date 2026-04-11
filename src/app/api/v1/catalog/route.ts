@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { CatalogService } from '@/services/catalogService';
+import { CatalogRepository } from '@/repositories/catalogRepository';
 import { handleApiError, jsonResponse } from '@/lib/utils/errors';
 
 // 카탈로그는 자주 변하지 않으므로 CDN/브라우저에 1시간 캐싱
@@ -9,7 +10,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const supabase = await createClient();
-    const service = new CatalogService(supabase);
+    const service = new CatalogService(new CatalogRepository(supabase));
 
     const rawPage = searchParams.get('page');
     const rawLimit = searchParams.get('limit');

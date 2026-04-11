@@ -3,8 +3,14 @@ import { ProjectService } from '@/services/projectService';
 import { CatalogService } from '@/services/catalogService';
 import { AuthService } from '@/services/authService';
 import { RateLimitService } from '@/services/rateLimitService';
-import { CodeRepository } from '@/repositories/codeRepository';
-import { EventRepository } from '@/repositories/eventRepository';
+import {
+  createProjectRepository,
+  createCatalogRepository,
+  createCodeRepository,
+  createRateLimitRepository,
+  createUserRepository,
+  createEventRepository,
+} from '@/repositories/factory';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import type { DesignPreferences } from '@/types/project';
@@ -26,7 +32,7 @@ import { logger } from '@/lib/utils/logger';
 export async function POST(request: Request): Promise<Response> {
   try {
     const supabase = await createClient();
-    const authService = new AuthService(supabase);
+    const authService = new AuthService(supabase, createUserRepository(supabase));
     const user = await authService.getCurrentUser();
     if (!user) throw new AuthRequiredError();
 
@@ -51,13 +57,13 @@ export async function POST(request: Request): Promise<Response> {
     // Call rateLimitService.decrementDailyLimit() in the failure path to compensate.
     const correlationId = getCorrelationId(request);
     const serviceSupabase = await createServiceClient();
-    const eventRepo = new EventRepository(serviceSupabase);
+    const eventRepo = createEventRepository(serviceSupabase);
 
-    const rateLimitService = new RateLimitService(supabase);
+    const rateLimitService = new RateLimitService(createRateLimitRepository(supabase));
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
     // 병렬 DB 조회: 프로젝트 정보 + API ID를 동시에 가져옴
-    const projectService = new ProjectService(supabase);
+    const projectService = new ProjectService(createProjectRepository(supabase), createCatalogRepository(supabase));
     const [project, apiIds] = await Promise.all([
       projectService.getById(projectId, user.id),
       projectService.getProjectApiIds(projectId),
@@ -67,7 +73,7 @@ export async function POST(request: Request): Promise<Response> {
       throw new ValidationError('프로젝트에 연결된 API가 없습니다.');
     }
 
-    const catalogService = new CatalogService(supabase);
+    const catalogService = new CatalogService(createCatalogRepository(supabase));
     const apis = await catalogService.getByIds(apiIds);
     if (apis.length === 0) {
       throw new ValidationError('선택된 API 정보를 찾을 수 없습니다.');
@@ -213,7 +219,7 @@ export async function POST(request: Request): Promise<Response> {
           const categories = [...new Set(apis.map((a) => a.category).filter(Boolean))];
           const inference = inferDesignFromCategories(categories);
 
-          const codeRepo = new CodeRepository(supabase);
+          const codeRepo = createCodeRepository(supabase);
           const nextVersion = await codeRepo.getNextVersion(projectId);
 
           const savedCode = await codeRepo.create({

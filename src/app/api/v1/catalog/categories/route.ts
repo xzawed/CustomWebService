@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { CatalogService } from '@/services/catalogService';
+import { createCatalogRepository } from '@/repositories/factory';
 import { handleApiError, jsonResponse } from '@/lib/utils/errors';
 
 // 카테고리는 거의 변하지 않으므로 24시간 캐싱
@@ -8,7 +9,7 @@ export const revalidate = 86400;
 export async function GET() {
   try {
     const supabase = await createClient();
-    const service = new CatalogService(supabase);
+    const service = new CatalogService(createCatalogRepository(supabase));
     const categories = await service.getCategories();
 
     return jsonResponse(

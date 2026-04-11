@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { CatalogService } from '@/services/catalogService';
+import { createCatalogRepository } from '@/repositories/factory';
 import { handleApiError, NotFoundError, jsonResponse } from '@/lib/utils/errors';
 
 export async function GET(
@@ -9,7 +10,7 @@ export async function GET(
   try {
     const { id } = await params;
     const supabase = await createClient();
-    const service = new CatalogService(supabase);
+    const service = new CatalogService(createCatalogRepository(supabase));
 
     const item = await service.getById(id);
     if (!item) throw new NotFoundError('API', id);

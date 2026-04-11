@@ -1,6 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { ProjectRepository } from '@/repositories/projectRepository';
-import { CodeRepository } from '@/repositories/codeRepository';
+import type { IProjectRepository, ICodeRepository } from '@/repositories/interfaces';
 import {
   DeployProviderFactory,
   type DeployPlatform,
@@ -12,13 +10,10 @@ import { logger } from '@/lib/utils/logger';
 import type { FileEntry } from '@/providers/deploy/IDeployProvider';
 
 export class DeployService {
-  private projectRepo: ProjectRepository;
-  private codeRepo: CodeRepository;
-
-  constructor(private supabase: SupabaseClient) {
-    this.projectRepo = new ProjectRepository(supabase);
-    this.codeRepo = new CodeRepository(supabase);
-  }
+  constructor(
+    private projectRepo: IProjectRepository,
+    private codeRepo: ICodeRepository
+  ) {}
 
   async deploy(
     projectId: string,

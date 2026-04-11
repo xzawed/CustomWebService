@@ -1,13 +1,8 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { CatalogRepository } from '@/repositories/catalogRepository';
+import type { ICatalogRepository } from '@/repositories/interfaces';
 import type { ApiCatalogItem, Category, CatalogSearchParams, PaginatedResponse } from '@/types/api';
 
 export class CatalogService {
-  private repo: CatalogRepository;
-
-  constructor(supabase: SupabaseClient) {
-    this.repo = new CatalogRepository(supabase);
-  }
+  constructor(private repo: ICatalogRepository) {}
 
   async search(params: CatalogSearchParams): Promise<PaginatedResponse<ApiCatalogItem>> {
     const { page = 1, limit = 20 } = params;

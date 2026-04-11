@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { ProjectService } from '@/services/projectService';
+import { createProjectRepository, createCatalogRepository } from '@/repositories/factory';
 import { redirect } from 'next/navigation';
 import { ProjectGrid } from '@/components/dashboard/ProjectGrid';
 import type { Project } from '@/types/project';
@@ -23,7 +24,7 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  const projectService = new ProjectService(supabase);
+  const projectService = new ProjectService(createProjectRepository(supabase), createCatalogRepository(supabase));
   let projects: Project[] = [];
 
   try {

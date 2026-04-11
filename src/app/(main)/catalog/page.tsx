@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { CatalogService } from '@/services/catalogService';
+import { createCatalogRepository } from '@/repositories/factory';
 import { CatalogView } from '@/components/catalog/CatalogView';
 
 export const metadata: Metadata = {
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function CatalogPage() {
   const supabase = await createClient();
-  const catalogService = new CatalogService(supabase);
+  const catalogService = new CatalogService(createCatalogRepository(supabase));
 
   const [categoriesResult, apisResult] = await Promise.all([
     catalogService.getCategories(),

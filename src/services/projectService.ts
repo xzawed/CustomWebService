@@ -1,6 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { ProjectRepository } from '@/repositories/projectRepository';
-import { CatalogRepository } from '@/repositories/catalogRepository';
+import type { IProjectRepository, ICatalogRepository } from '@/repositories/interfaces';
 import { eventBus } from '@/lib/events/eventBus';
 import { getLimits } from '@/lib/config/features';
 import { NotFoundError, ForbiddenError, ValidationError } from '@/lib/utils/errors';
@@ -9,13 +7,10 @@ import type { Project, ProjectMetadata, CreateProjectInput } from '@/types/proje
 import type { ApiCatalogItem } from '@/types/api';
 
 export class ProjectService {
-  private projectRepo: ProjectRepository;
-  private catalogRepo: CatalogRepository;
-
-  constructor(supabase: SupabaseClient) {
-    this.projectRepo = new ProjectRepository(supabase);
-    this.catalogRepo = new CatalogRepository(supabase);
-  }
+  constructor(
+    private projectRepo: IProjectRepository,
+    private catalogRepo: ICatalogRepository
+  ) {}
 
   async create(userId: string, input: CreateProjectInput): Promise<Project> {
     const limits = getLimits();

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { CatalogService } from '@/services/catalogService';
+import { createCatalogRepository } from '@/repositories/factory';
 import { LIMITS } from '@/lib/config/features';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
@@ -31,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Fetch all active APIs from catalog
-    const catalogService = new CatalogService(supabase);
+    const catalogService = new CatalogService(createCatalogRepository(supabase));
     const { items: allApis } = await catalogService.search({ limit: 100 });
 
     const apiListForAi = allApis

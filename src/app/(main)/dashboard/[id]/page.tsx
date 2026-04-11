@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { ProjectService } from '@/services/projectService';
 import { CatalogService } from '@/services/catalogService';
-import { CodeRepository } from '@/repositories/codeRepository';
+import { createProjectRepository, createCatalogRepository, createCodeRepository } from '@/repositories/factory';
 import { redirect, notFound } from 'next/navigation';
 import type { ProjectStatus } from '@/types/project';
 import { ProjectPublishActions } from '@/components/dashboard/ProjectPublishActions';
@@ -29,7 +29,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   if (!user) redirect('/login');
 
-  const projectService = new ProjectService(supabase);
+  const projectService = new ProjectService(createProjectRepository(supabase), createCatalogRepository(supabase));
   let project;
   try {
     project = await projectService.getById(id, user.id);
@@ -39,9 +39,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   // Load APIs and latest code
   const apiIds = await projectService.getProjectApiIds(id);
-  const catalogService = new CatalogService(supabase);
+  const catalogService = new CatalogService(createCatalogRepository(supabase));
   const apis = await catalogService.getByIds(apiIds);
-  const codeRepo = new CodeRepository(supabase);
+  const codeRepo = createCodeRepository(supabase);
   const latestCode = await codeRepo.findByProject(id);
 
   const status = statusConfig[project.status];

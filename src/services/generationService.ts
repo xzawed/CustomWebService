@@ -1,7 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { ProjectRepository } from '@/repositories/projectRepository';
-import { CatalogRepository } from '@/repositories/catalogRepository';
-import { CodeRepository } from '@/repositories/codeRepository';
+import type { IProjectRepository, ICatalogRepository, ICodeRepository } from '@/repositories/interfaces';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { buildSystemPrompt, buildUserPrompt } from '@/lib/ai/promptBuilder';
 import { parseGeneratedCode } from '@/lib/ai/codeParser';
@@ -12,15 +9,11 @@ import { logger } from '@/lib/utils/logger';
 import type { GeneratedCode } from '@/types/project';
 
 export class GenerationService {
-  private projectRepo: ProjectRepository;
-  private catalogRepo: CatalogRepository;
-  private codeRepo: CodeRepository;
-
-  constructor(supabase: SupabaseClient) {
-    this.projectRepo = new ProjectRepository(supabase);
-    this.catalogRepo = new CatalogRepository(supabase);
-    this.codeRepo = new CodeRepository(supabase);
-  }
+  constructor(
+    private projectRepo: IProjectRepository,
+    private catalogRepo: ICatalogRepository,
+    private codeRepo: ICodeRepository
+  ) {}
 
   async generate(
     projectId: string,

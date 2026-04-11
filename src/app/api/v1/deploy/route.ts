@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { DeployService } from '@/services/deployService';
+import { createProjectRepository, createCodeRepository } from '@/repositories/factory';
 import { DeployProviderFactory } from '@/providers/deploy/DeployProviderFactory';
 import type { DeployPlatform } from '@/providers/deploy/DeployProviderFactory';
 import { eventBus } from '@/lib/events/eventBus';
@@ -55,7 +56,7 @@ export async function POST(request: Request): Promise<Response> {
         };
 
         try {
-          const deployService = new DeployService(supabase);
+          const deployService = new DeployService(createProjectRepository(supabase), createCodeRepository(supabase));
 
           const result = await deployService.deploy(
             projectId,

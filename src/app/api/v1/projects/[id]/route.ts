@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { ProjectService } from '@/services/projectService';
+import { ProjectRepository } from '@/repositories/projectRepository';
+import { CatalogRepository } from '@/repositories/catalogRepository';
 import { AuthRequiredError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 
 export async function GET(
@@ -14,7 +16,7 @@ export async function GET(
     } = await supabase.auth.getUser();
     if (!user) throw new AuthRequiredError();
 
-    const service = new ProjectService(supabase);
+    const service = new ProjectService(new ProjectRepository(supabase), new CatalogRepository(supabase));
     const project = await service.getById(id, user.id);
 
     return jsonResponse({ success: true, data: project });
@@ -35,7 +37,7 @@ export async function DELETE(
     } = await supabase.auth.getUser();
     if (!user) throw new AuthRequiredError();
 
-    const service = new ProjectService(supabase);
+    const service = new ProjectService(new ProjectRepository(supabase), new CatalogRepository(supabase));
     await service.delete(id, user.id);
 
     return jsonResponse({ success: true, message: '프로젝트가 삭제되었습니다.' });

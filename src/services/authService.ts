@@ -1,14 +1,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { UserRepository } from '@/repositories/userRepository';
+import type { IUserRepository } from '@/repositories/interfaces';
 import { eventBus } from '@/lib/events/eventBus';
 import type { User } from '@/types/organization';
 
 export class AuthService {
-  private userRepo: UserRepository;
-
-  constructor(private supabase: SupabaseClient) {
-    this.userRepo = new UserRepository(supabase);
-  }
+  constructor(
+    private supabase: SupabaseClient,
+    private userRepo: IUserRepository
+  ) {}
 
   async getCurrentUser(): Promise<User | null> {
     const {
