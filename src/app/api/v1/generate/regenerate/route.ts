@@ -1,14 +1,9 @@
+import { getDbProvider } from '@/lib/config/providers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { ProjectService } from '@/services/projectService';
-import { AuthService } from '@/services/authService';
-import { RateLimitService } from '@/services/rateLimitService';
-import { CatalogService } from '@/services/catalogService';
+import { getAuthUser } from '@/lib/auth/index';
+import { createProjectService, createCatalogService, createRateLimitService } from '@/services/factory';
 import {
-  createProjectRepository,
-  createCatalogRepository,
   createCodeRepository,
-  createRateLimitRepository,
-  createUserRepository,
   createEventRepository,
 } from '@/repositories/factory';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
@@ -32,9 +27,7 @@ import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const supabase = await createClient();
-    const authService = new AuthService(supabase, createUserRepository(supabase));
-    const user = await authService.getCurrentUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
     let projectId: string;
@@ -57,21 +50,22 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const correlationId = getCorrelationId(request);
-    const serviceSupabase = await createServiceClient();
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+    const serviceSupabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
     const eventRepo = createEventRepository(serviceSupabase);
 
     // Atomic check + increment — same approach as the initial generate route.
-    const rateLimitService = new RateLimitService(createRateLimitRepository(supabase));
+    const rateLimitService = createRateLimitService(supabase);
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
     // 병렬 DB 조회: 프로젝트 정보 + API ID를 동시에 가져옴
-    const projectService = new ProjectService(createProjectRepository(supabase), createCatalogRepository(supabase));
+    const projectService = createProjectService(supabase);
     const [project, apiIds] = await Promise.all([
       projectService.getById(projectId, user.id),
       projectService.getProjectApiIds(projectId),
     ]);
 
-    const catalogService = new CatalogService(createCatalogRepository(supabase));
+    const catalogService = createCatalogService(supabase);
     const projectApis = apiIds.length > 0 ? await catalogService.getByIds(apiIds) : [];
 
     // Check regeneration limit per project + get previous code (병렬)

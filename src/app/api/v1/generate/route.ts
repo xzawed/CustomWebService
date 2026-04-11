@@ -1,14 +1,9 @@
+import { getDbProvider } from '@/lib/config/providers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { ProjectService } from '@/services/projectService';
-import { CatalogService } from '@/services/catalogService';
-import { AuthService } from '@/services/authService';
-import { RateLimitService } from '@/services/rateLimitService';
+import { getAuthUser } from '@/lib/auth/index';
+import { createProjectService, createCatalogService, createRateLimitService } from '@/services/factory';
 import {
-  createProjectRepository,
-  createCatalogRepository,
   createCodeRepository,
-  createRateLimitRepository,
-  createUserRepository,
   createEventRepository,
 } from '@/repositories/factory';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
@@ -31,9 +26,7 @@ import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const supabase = await createClient();
-    const authService = new AuthService(supabase, createUserRepository(supabase));
-    const user = await authService.getCurrentUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
     // Validate request body
@@ -56,14 +49,15 @@ export async function POST(request: Request): Promise<Response> {
     // race condition window that existed with the previous SELECT COUNT approach.
     // Call rateLimitService.decrementDailyLimit() in the failure path to compensate.
     const correlationId = getCorrelationId(request);
-    const serviceSupabase = await createServiceClient();
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+    const serviceSupabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
     const eventRepo = createEventRepository(serviceSupabase);
 
-    const rateLimitService = new RateLimitService(createRateLimitRepository(supabase));
+    const rateLimitService = createRateLimitService(supabase);
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
     // 병렬 DB 조회: 프로젝트 정보 + API ID를 동시에 가져옴
-    const projectService = new ProjectService(createProjectRepository(supabase), createCatalogRepository(supabase));
+    const projectService = createProjectService(supabase);
     const [project, apiIds] = await Promise.all([
       projectService.getById(projectId, user.id),
       projectService.getProjectApiIds(projectId),
@@ -73,7 +67,7 @@ export async function POST(request: Request): Promise<Response> {
       throw new ValidationError('프로젝트에 연결된 API가 없습니다.');
     }
 
-    const catalogService = new CatalogService(createCatalogRepository(supabase));
+    const catalogService = createCatalogService(supabase);
     const apis = await catalogService.getByIds(apiIds);
     if (apis.length === 0) {
       throw new ValidationError('선택된 API 정보를 찾을 수 없습니다.');

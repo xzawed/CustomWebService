@@ -1,8 +1,9 @@
 import Link from 'next/link';
+import { getAuthUser } from '@/lib/auth/index';
+import { getDbProvider } from '@/lib/config/providers';
 import { createClient } from '@/lib/supabase/server';
-import { ProjectService } from '@/services/projectService';
-import { CatalogService } from '@/services/catalogService';
-import { createProjectRepository, createCatalogRepository, createCodeRepository } from '@/repositories/factory';
+import { createProjectService, createCatalogService } from '@/services/factory';
+import { createCodeRepository } from '@/repositories/factory';
 import { redirect, notFound } from 'next/navigation';
 import type { ProjectStatus } from '@/types/project';
 import { ProjectPublishActions } from '@/components/dashboard/ProjectPublishActions';
@@ -22,14 +23,11 @@ const statusConfig: Record<ProjectStatus, { label: string; className: string }> 
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getAuthUser();
   if (!user) redirect('/login');
 
-  const projectService = new ProjectService(createProjectRepository(supabase), createCatalogRepository(supabase));
+  const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+  const projectService = createProjectService(supabase);
   let project;
   try {
     project = await projectService.getById(id, user.id);
@@ -39,7 +37,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   // Load APIs and latest code
   const apiIds = await projectService.getProjectApiIds(id);
-  const catalogService = new CatalogService(createCatalogRepository(supabase));
+  const catalogService = createCatalogService(supabase);
   const apis = await catalogService.getByIds(apiIds);
   const codeRepo = createCodeRepository(supabase);
   const latestCode = await codeRepo.findByProject(id);

@@ -1,17 +1,15 @@
+import { getDbProvider } from '@/lib/config/providers';
 import { createClient } from '@/lib/supabase/server';
+import { getAuthUser } from '@/lib/auth/index';
+import { createCatalogService } from '@/services/factory';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
-import { CatalogService } from '@/services/catalogService';
-import { createCatalogRepository } from '@/repositories/factory';
 import { LIMITS } from '@/lib/config/features';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
     let context: string;
@@ -32,7 +30,8 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Fetch all active APIs from catalog
-    const catalogService = new CatalogService(createCatalogRepository(supabase));
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+    const catalogService = createCatalogService(supabase);
     const { items: allApis } = await catalogService.search({ limit: 100 });
 
     const apiListForAi = allApis

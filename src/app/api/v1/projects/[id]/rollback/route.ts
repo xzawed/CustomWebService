@@ -1,6 +1,7 @@
+import { getDbProvider } from '@/lib/config/providers';
 import { createClient } from '@/lib/supabase/server';
-import { ProjectRepository } from '@/repositories/projectRepository';
-import { CodeRepository } from '@/repositories/codeRepository';
+import { getAuthUser } from '@/lib/auth/index';
+import { createProjectRepository, createCodeRepository } from '@/repositories/factory';
 import { eventBus } from '@/lib/events/eventBus';
 import {
   AuthRequiredError,
@@ -12,18 +13,17 @@ import { logger } from '@/lib/utils/logger';
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
     const { id: projectId } = await params;
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+
     // Verify ownership
-    const projectRepo = new ProjectRepository(supabase);
+    const projectRepo = createProjectRepository(supabase);
     const project = await projectRepo.findById(projectId);
     if (!project || project.userId !== user.id) {
       throw new NotFoundError('프로젝트', projectId);
@@ -45,7 +45,7 @@ export async function POST(
     }
 
     // Verify the target version exists
-    const codeRepo = new CodeRepository(supabase);
+    const codeRepo = createCodeRepository(supabase);
     const targetCode = await codeRepo.findByProject(projectId, targetVersion);
     if (!targetCode) {
       throw new NotFoundError('코드 버전', `${targetVersion}`);
@@ -95,7 +95,7 @@ export async function POST(
       success: true,
       data: {
         projectId,
-        version: nextVersion,
+        version: rolledBackCode.version,
         rolledBackFrom: targetVersion,
       },
     });

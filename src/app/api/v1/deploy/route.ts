@@ -1,6 +1,7 @@
+import { getDbProvider } from '@/lib/config/providers';
 import { createClient } from '@/lib/supabase/server';
-import { DeployService } from '@/services/deployService';
-import { createProjectRepository, createCodeRepository } from '@/repositories/factory';
+import { getAuthUser } from '@/lib/auth/index';
+import { createDeployService } from '@/services/factory';
 import { DeployProviderFactory } from '@/providers/deploy/DeployProviderFactory';
 import type { DeployPlatform } from '@/providers/deploy/DeployProviderFactory';
 import { eventBus } from '@/lib/events/eventBus';
@@ -9,10 +10,7 @@ import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
     let projectId: string;
@@ -42,6 +40,8 @@ export async function POST(request: Request): Promise<Response> {
     const encoder = new TextEncoder();
     let isCancelled = false;
 
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+
     const stream = new ReadableStream({
       async start(controller) {
         const send = (event: string, data: unknown) => {
@@ -56,7 +56,7 @@ export async function POST(request: Request): Promise<Response> {
         };
 
         try {
-          const deployService = new DeployService(createProjectRepository(supabase), createCodeRepository(supabase));
+          const deployService = createDeployService(supabase);
 
           const result = await deployService.deploy(
             projectId,

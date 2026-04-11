@@ -6,46 +6,30 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(),
 }));
 
-vi.mock('@/services/authService', () => ({
-  AuthService: vi.fn().mockImplementation(() => ({
-    getCurrentUser: vi.fn(),
-  })),
+// Auth mock — routes now use getAuthUser() from @/lib/auth/index
+vi.mock('@/lib/auth/index', () => ({
+  getAuthUser: vi.fn(),
 }));
 
-vi.mock('@/services/rateLimitService', () => ({
-  RateLimitService: vi.fn().mockImplementation(() => ({
-    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
-    decrementDailyLimit: vi.fn().mockResolvedValue(undefined),
-  })),
+// Service factory mock — routes now use createXxxService() from @/services/factory
+vi.mock('@/services/factory', () => ({
+  createProjectService: vi.fn(),
+  createCatalogService: vi.fn(),
+  createRateLimitService: vi.fn(),
+  createDeployService: vi.fn(),
+  createGenerationService: vi.fn(),
+  createAuthService: vi.fn(),
 }));
 
-vi.mock('@/services/projectService', () => ({
-  ProjectService: vi.fn().mockImplementation(() => ({
-    getById: vi.fn(),
-    getProjectApiIds: vi.fn(),
-    updateStatus: vi.fn().mockResolvedValue(undefined),
-  })),
-}));
-
-vi.mock('@/services/catalogService', () => ({
-  CatalogService: vi.fn().mockImplementation(() => ({
-    getByIds: vi.fn(),
-  })),
-}));
-
-vi.mock('@/repositories/codeRepository', () => ({
-  CodeRepository: vi.fn().mockImplementation(() => ({
-    getNextVersion: vi.fn().mockResolvedValue(1),
-    create: vi.fn(),
-    delete: vi.fn().mockResolvedValue(undefined),
-    pruneOldVersions: vi.fn().mockResolvedValue(undefined),
-  })),
-}));
-
-vi.mock('@/repositories/eventRepository', () => ({
-  EventRepository: vi.fn().mockImplementation(() => ({
-    persistAsync: vi.fn(),
-  })),
+// Repository factory mock — generate route uses createCodeRepository/createEventRepository directly
+vi.mock('@/repositories/factory', () => ({
+  createCodeRepository: vi.fn(),
+  createEventRepository: vi.fn(),
+  createProjectRepository: vi.fn(),
+  createCatalogRepository: vi.fn(),
+  createRateLimitRepository: vi.fn(),
+  createUserRepository: vi.fn(),
+  createOrganizationRepository: vi.fn(),
 }));
 
 vi.mock('@/providers/ai/AiProviderFactory', () => ({
@@ -113,8 +97,9 @@ const mockProject = {
   userId: 'user-1',
   context: 'a'.repeat(100),
   status: 'draft',
+  metadata: {},
 };
-const mockApis = [{ id: 'api-1', name: 'Test API', description: 'desc' }];
+const mockApis = [{ id: 'api-1', name: 'Test API', description: 'desc', category: 'weather' }];
 const mockAiResponse = {
   content: '<html>...</html>',
   provider: 'claude',
@@ -123,10 +108,6 @@ const mockAiResponse = {
   tokensUsed: { input: 100, output: 200 },
 };
 const mockSavedCode = { id: 'code-1', projectId: 'proj-1', version: 1 };
-
-function makeSupabaseMock() {
-  return { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }) } };
-}
 
 function makeRequest(body: unknown) {
   return new Request('http://localhost/api/v1/generate', {
@@ -137,34 +118,33 @@ function makeRequest(body: unknown) {
 }
 
 async function setupHappyPath() {
-  const { createClient, createServiceClient } = await import('@/lib/supabase/server');
-  vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-  vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
+  const { getAuthUser } = await import('@/lib/auth/index');
+  vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
-  const { AuthService } = await import('@/services/authService');
-  (AuthService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-    getCurrentUser: vi.fn().mockResolvedValue(mockUser),
-  }));
-
-  const { ProjectService } = await import('@/services/projectService');
-  (ProjectService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+  const { createProjectService, createCatalogService, createRateLimitService } = await import('@/services/factory');
+  vi.mocked(createRateLimitService).mockReturnValue({
+    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+    decrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+  } as never);
+  vi.mocked(createProjectService).mockReturnValue({
     getById: vi.fn().mockResolvedValue(mockProject),
     getProjectApiIds: vi.fn().mockResolvedValue(['api-1']),
     updateStatus: vi.fn().mockResolvedValue(undefined),
-  }));
-
-  const { CatalogService } = await import('@/services/catalogService');
-  (CatalogService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+  } as never);
+  vi.mocked(createCatalogService).mockReturnValue({
     getByIds: vi.fn().mockResolvedValue(mockApis),
-  }));
+  } as never);
 
-  const { CodeRepository } = await import('@/repositories/codeRepository');
-  (CodeRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+  const { createCodeRepository, createEventRepository } = await import('@/repositories/factory');
+  vi.mocked(createCodeRepository).mockReturnValue({
     getNextVersion: vi.fn().mockResolvedValue(1),
     create: vi.fn().mockResolvedValue(mockSavedCode),
     delete: vi.fn().mockResolvedValue(undefined),
     pruneOldVersions: vi.fn().mockResolvedValue(undefined),
-  }));
+  } as never);
+  vi.mocked(createEventRepository).mockReturnValue({
+    persistAsync: vi.fn(),
+  } as never);
 
   const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
   (AiProviderFactory.createForTask as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -185,14 +165,8 @@ describe('POST /api/v1/generate', () => {
   });
 
   it('비로그인 시 401을 반환한다', async () => {
-    const { createClient, createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-    vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
-
-    const { AuthService } = await import('@/services/authService');
-    (AuthService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      getCurrentUser: vi.fn().mockResolvedValue(null),
-    }));
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(null);
 
     const { POST } = await import('@/app/api/v1/generate/route');
     const response = await POST(makeRequest({ projectId: 'proj-1' }));
@@ -200,14 +174,17 @@ describe('POST /api/v1/generate', () => {
   });
 
   it('projectId 없으면 400을 반환한다', async () => {
-    const { createClient, createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-    vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
-    const { AuthService } = await import('@/services/authService');
-    (AuthService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      getCurrentUser: vi.fn().mockResolvedValue(mockUser),
-    }));
+    const { createRateLimitService } = await import('@/services/factory');
+    vi.mocked(createRateLimitService).mockReturnValue({
+      checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+      decrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    const { createEventRepository } = await import('@/repositories/factory');
+    vi.mocked(createEventRepository).mockReturnValue({ persistAsync: vi.fn() } as never);
 
     const { POST } = await import('@/app/api/v1/generate/route');
     const response = await POST(makeRequest({}));
@@ -215,14 +192,17 @@ describe('POST /api/v1/generate', () => {
   });
 
   it('잘못된 JSON이면 400을 반환한다', async () => {
-    const { createClient, createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-    vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
-    const { AuthService } = await import('@/services/authService');
-    (AuthService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      getCurrentUser: vi.fn().mockResolvedValue(mockUser),
-    }));
+    const { createRateLimitService } = await import('@/services/factory');
+    vi.mocked(createRateLimitService).mockReturnValue({
+      checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+      decrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    const { createEventRepository } = await import('@/repositories/factory');
+    vi.mocked(createEventRepository).mockReturnValue({ persistAsync: vi.fn() } as never);
 
     const { POST } = await import('@/app/api/v1/generate/route');
     const request = new Request('http://localhost/api/v1/generate', {
@@ -258,21 +238,18 @@ describe('POST /api/v1/generate', () => {
   });
 
   it('레이트리밋 초과 시 429를 반환한다', async () => {
-    const { createClient, createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-    vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
-    const { AuthService } = await import('@/services/authService');
-    (AuthService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      getCurrentUser: vi.fn().mockResolvedValue(mockUser),
-    }));
-
-    const { RateLimitService } = await import('@/services/rateLimitService');
+    const { createRateLimitService } = await import('@/services/factory');
     const { RateLimitError } = await import('@/lib/utils/errors');
-    (RateLimitService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    vi.mocked(createRateLimitService).mockReturnValue({
       checkAndIncrementDailyLimit: vi.fn().mockRejectedValue(new RateLimitError('한도 초과')),
       decrementDailyLimit: vi.fn().mockResolvedValue(undefined),
-    }));
+    } as never);
+
+    const { createEventRepository } = await import('@/repositories/factory');
+    vi.mocked(createEventRepository).mockReturnValue({ persistAsync: vi.fn() } as never);
 
     const { POST } = await import('@/app/api/v1/generate/route');
     const response = await POST(makeRequest({ projectId: 'proj-1' }));
@@ -288,12 +265,12 @@ describe('POST /api/v1/generate', () => {
       generateCodeStream: vi.fn().mockRejectedValue(new Error('AI service unavailable')),
     });
 
-    const { RateLimitService } = await import('@/services/rateLimitService');
     const decrementMock = vi.fn().mockResolvedValue(undefined);
-    (RateLimitService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    const { createRateLimitService } = await import('@/services/factory');
+    vi.mocked(createRateLimitService).mockReturnValue({
       checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
       decrementDailyLimit: decrementMock,
-    }));
+    } as never);
 
     const { POST } = await import('@/app/api/v1/generate/route');
     const response = await POST(makeRequest({ projectId: 'proj-1' }));
