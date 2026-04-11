@@ -37,8 +37,12 @@ export class AuthService {
       return newUser;
     } catch (err) {
       // Duplicate key (23505): another request already created the record — fetch it
-      const pgErr = err as { code?: string };
-      if (pgErr?.code === '23505') {
+      if (
+        typeof err === 'object' &&
+        err !== null &&
+        'code' in err &&
+        (err as { code: unknown }).code === '23505'
+      ) {
         const existing = await this.userRepo.findById(authUser.id);
         if (existing) return existing;
       }

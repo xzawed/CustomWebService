@@ -64,6 +64,8 @@ export class RateLimitService {
     try {
       await this.rateLimitRepo.decrementDailyLimit(userId);
     } catch (err) {
+      // Best-effort compensation: a failed decrement is preferable to blocking
+      // the user's generation. Swallowing the error is intentional.
       logger.warn('Failed to decrement daily generation count (compensation)', {
         userId,
         error: err instanceof Error ? err.message : String(err),
