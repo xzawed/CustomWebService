@@ -143,13 +143,20 @@ pnpm test:coverage    # 커버리지 리포트
 
 ## 문서 참조
 
-- `.claude/docs/` — Claude Code 작업 가이드
-  - `architecture.md` — 아키텍처 개요, 파이프라인 흐름
-  - `ai-provider.md` — AI Provider 시스템 (Claude)
-  - `debugging-guide.md` — 자주 발생하는 문제와 해결
-  - `testing-guide.md` — 테스트 구조 및 패턴
-  - `deployment.md` — 배포 환경변수 및 체크리스트
-- `docs/` — 40+ 상세 설계 문서 (한국어): 아키텍처, DB, API, UI/UX, 스프린트 계획
+- **`docs/README.md`** — 전체 문서 인덱스 (탐색 시작점)
+- **`docs/architecture/`** — 시스템 설계 결정
+  - `01-system-overview.md` — 레이어드 아키텍처, Provider 패턴
+  - `02-database.md` — DB 스키마, ERD, 마이그레이션
+  - `03-api-design.md` — API 엔드포인트 명세
+  - `04-ai-generation.md` — AI 생성 파이프라인
+  - `05-scalability.md` — 확장성 분석 및 로드맵
+  - `06-provider-migration.md` — DB/Auth 이중화 아키텍처 (Drizzle/Auth.js)
+- **`docs/design/`** — 기능·UX 설계 명세
+- **`docs/development/`** — CI/CD, 스프린트, AI 프롬프트 테스트
+- **`docs/operations/`** — 배포, 운영, 도메인, 한도 관리
+- **`docs/reference/`** — API 카탈로그, 법적 문서, 디자인 에셋
+- **`docs/planning/`** — 기획서, 체크리스트, 마무리 가이드
+- **`docs/archive/`** — 구버전 보관 (v1 파일)
 - `README.md` — 프로젝트 전체 개요
 - `.github/PULL_REQUEST_TEMPLATE.md` — PR 템플릿
 

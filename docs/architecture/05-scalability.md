@@ -1,13 +1,58 @@
-# 확장성 분석 및 기능 확장 로드맵
+# 확장성 설계 및 로드맵
 
-> 작성일: 2026-03-26
-> 현재 코드베이스 기반 확장 가능 지점 분석 + 예상 확장 기능 정리
+> 최초 작성: 2026-03-23 (확장성 검토 보고서) / 2026-03-26 (확장성 분석 및 로드맵)
+> 통합 정리: 2026-04-11
 
 ---
 
-## 1. 현재 아키텍처의 확장성 평가
+## 1. 현황 요약 — 이슈 식별 및 해결 상태
 
-### 1.1 확장 용이도 총괄
+전체 코드베이스를 확장성/확장 용이성 관점에서 검토한 결과, **심각 7건, 보통 12건, 낮음 3건** 총 22건의 개선 필요 사항이 식별되었습니다.
+
+> **2026-03-23 기준**: 심각(HIGH) 7건 전부, 보통(MEDIUM) 10건이 구현 완료되었습니다.
+
+### 1.1 심각 (HIGH) — Sprint 1~2에서 반드시 반영
+
+| # | 영역 | 이슈 | 구현 상태 |
+|---|------|------|----------|
+| H1 | 아키텍처 | **추상화 레이어 부재** (Repository, Service 패턴 없음) | ✅ `repositories/`, `services/` 구현 완료 |
+| H2 | AI 엔진 | **AI Provider 추상화 없음** (Grok 하드코딩) | ✅ `IAiProvider`, `GrokProvider`, `AiProviderFactory` 구현 |
+| H3 | 배포 | **배포 대상 추상화 없음** (Railway/Netlify 하드코딩) | ✅ `IDeployProvider`, `RailwayDeployer`, `GithubPagesDeployer`, `DeployProviderFactory` 구현 |
+| H4 | API 설계 | **API 버저닝 없음** (`/api/catalog`에 버전 없음) | ✅ `/api/v1/` 경로 적용 |
+| H5 | DB 스키마 | **멀티 테넌시 미지원** (팀/조직 개념 없음) | ✅ `organizations`, `memberships` 테이블 구현 |
+| H6 | 상태 관리 | **God Store 문제** (builderStore에 모든 상태) | ✅ 5개 분리 스토어로 분해 |
+| H7 | 설정 | **비즈니스 규칙 하드코딩** (API 5개, 생성 10회 등) | ✅ `features.ts`, `featureFlags.ts` 적용 |
+
+### 1.2 보통 (MEDIUM) — 해당 스프린트에서 반영
+
+| # | 영역 | 이슈 | 구현 상태 |
+|---|------|------|----------|
+| M1 | DB | generated_codes 메타데이터 부재 | ✅ 구현 완료 |
+| M2 | DB | API 버전 관리 미지원 | ✅ 구현 완료 |
+| M3 | 빌더 | 3단계 위자드 하드코딩 (동적 스텝 불가) | ✅ `StepRegistry.ts` 구현 |
+| M4 | 컴포넌트 | UI-비즈니스 로직 강결합 | 미완료 |
+| M5 | 국제화 | i18n 인프라 없음 | ✅ `lib/i18n/` 구현 |
+| M6 | 템플릿 | 코드 생성 템플릿 시스템 없음 (문자열만) | ✅ 3개 템플릿 구현 |
+| M7 | AI | 요청별 모델 선택 불가 | 미완료 |
+| M8 | 이벤트 | 이벤트/훅 시스템 없음 | ✅ `eventBus.ts` 구현 |
+| M9 | 피처플래그 | 기능 토글 시스템 없음 | ✅ `featureFlags.ts` 구현 |
+| M10 | 배포 | 롤백 기능 없음 | ✅ `/api/v1/projects/[id]/rollback` 구현 |
+| M11 | 캐싱 | 캐싱 전략 없음 | 미완료 |
+| M12 | API | 커서 기반 페이지네이션 미지원 | 미완료 |
+
+### 1.3 낮음 (LOW)
+
+| # | 영역 | 이슈 | 구현 상태 |
+|---|------|------|----------|
+| L1 | 구조 | 모노레포 전환 준비 없음 | 미완료 |
+| L2 | 모니터링 | 구조적 로깅/추적 없음 | ✅ `logger.ts` 구현 |
+| L3 | 웹훅 | 사용자 웹훅 미지원 | 미완료 |
+
+---
+
+## 2. 확장성 평가 — 현재 아키텍처 분석
+
+### 2.1 확장 용이도 총괄
 
 | 계층 | 확장 패턴 | 확장 용이도 | 비고 |
 |------|-----------|------------|------|
@@ -22,7 +67,7 @@
 | Repository | BaseRepository 상속 | ★★★☆☆ | CRUD 자동화, Supabase 종속 |
 | 미들웨어 | Next.js Middleware | ★★☆☆☆ | 보호 경로 하드코딩, 서브도메인 로직 결합 |
 
-### 1.2 현재 확장 가능 인터페이스
+### 2.2 현재 확장 가능 인터페이스
 
 #### AI Provider (`src/providers/ai/IAiProvider.ts`)
 ```
@@ -75,15 +120,11 @@ DomainEvent (discriminated union)
 ```
 - 확장 방법: 유니온 타입에 새 이벤트 추가 → eventBus.on()으로 구독
 
----
+### 2.3 구조적 한계 및 개선 방향
 
-## 2. 확장 시 고려해야 할 구조적 한계
+#### 팩토리 패턴의 switch문 종속
+AiProviderFactory, DeployProviderFactory 모두 switch문으로 프로바이더를 생성하여 새 프로바이더 추가 시 팩토리 코드 수정이 필수.
 
-### 2.1 팩토리 패턴의 switch문 종속
-
-**현상**: AiProviderFactory, DeployProviderFactory 모두 switch문으로 프로바이더를 생성하여 새 프로바이더 추가 시 팩토리 코드 수정이 필수.
-
-**개선 방향**: 등록(registration) 기반 팩토리로 전환
 ```typescript
 // 현재: switch문 (코드 수정 필요)
 switch(type) {
@@ -95,45 +136,33 @@ switch(type) {
 factory.register('claude', () => new ClaudeProvider(...));
 ```
 
-### 2.2 배포 상태의 인메모리 관리
+#### 배포 상태의 인메모리 관리
+RailwayDeployer가 projectId ↔ railwayProjectId 매핑을 `Map`으로 관리. 서버 재시작 시 진행 중인 배포 추적 불가.
+- 개선 방향: `deployment_sessions` 테이블 신설 또는 `projects.metadata` JSONB에 배포 세션 정보 저장.
 
-**현상**: RailwayDeployer가 projectId ↔ railwayProjectId 매핑을 `Map`으로 관리. 서버 재시작 시 진행 중인 배포 추적 불가.
+#### 프롬프트 엔지니어링 고정
+`promptBuilder.ts`의 시스템 프롬프트가 한국어로 하드코딩. 디자인 규칙(CSS 변수, 시맨틱 HTML, 반응형 브레이크포인트)도 고정.
+- 개선 방향: 시스템 프롬프트를 언어별/플랜별로 분리, DB 또는 설정 파일에서 로드.
 
-**개선 방향**: `deployment_sessions` 테이블 신설 또는 `projects.metadata` JSONB에 배포 세션 정보 저장.
+#### 프레임워크 단일 지원
+`generationService.ts`에서 framework가 `'vanilla'`로 고정. `generated_codes.framework` 컬럼은 존재하나 활용되지 않음.
+- 개선 방향: React, Vue, Svelte 등 프레임워크별 프롬프트/파서/밸리데이터 분기.
 
-### 2.3 프롬프트 엔지니어링 고정
+#### 데이터베이스 종속
+BaseRepository가 Supabase SDK에 직접 의존. 다른 DB로 교체하려면 전체 Repository 계층 재작성 필요.
+- 개선 방향: IDatabase 인터페이스 추출 (장기적). 현재 Supabase 무료 티어로 충분하므로 우선순위 낮음.
 
-**현상**: `promptBuilder.ts`의 시스템 프롬프트가 한국어로 하드코딩. 디자인 규칙(CSS 변수, 시맨틱 HTML, 반응형 브레이크포인트)도 고정.
+#### 코드 파서의 정규식 의존
+`codeParser.ts`가 마크다운 코드블록에서 HTML/CSS/JS를 정규식으로 추출. AI 응답 형식이 바뀌면 파싱 실패.
+- 개선 방향: 파서 레지스트리 패턴으로 전환, 폴백 파서 체인 구성.
 
-**개선 방향**: 시스템 프롬프트를 언어별/플랜별로 분리, DB 또는 설정 파일에서 로드.
-
-### 2.4 프레임워크 단일 지원
-
-**현상**: `generationService.ts`에서 framework가 `'vanilla'`로 고정. `generated_codes.framework` 컬럼은 존재하나 활용되지 않음.
-
-**개선 방향**: React, Vue, Svelte 등 프레임워크별 프롬프트/파서/밸리데이터 분기.
-
-### 2.5 데이터베이스 종속
-
-**현상**: BaseRepository가 Supabase SDK에 직접 의존. 다른 DB로 교체하려면 전체 Repository 계층 재작성 필요.
-
-**개선 방향**: IDatabase 인터페이스 추출 (장기적). 현재 Supabase 무료 티어로 충분하므로 우선순위 낮음.
-
-### 2.6 코드 파서의 정규식 의존
-
-**현상**: `codeParser.ts`가 마크다운 코드블록에서 HTML/CSS/JS를 정규식으로 추출. AI 응답 형식이 바뀌면 파싱 실패.
-
-**개선 방향**: 파서 레지스트리 패턴으로 전환, 폴백 파서 체인 구성.
-
-### 2.7 카테고리 라벨/아이콘 하드코딩
-
-**현상**: `catalogRepository.ts`에서 카테고리별 라벨(날씨, 금융 등)과 아이콘이 코드에 하드코딩.
-
-**개선 방향**: DB 테이블(`api_categories`)로 외부화하거나 설정 파일로 분리.
+#### 카테고리 라벨/아이콘 하드코딩
+`catalogRepository.ts`에서 카테고리별 라벨(날씨, 금융 등)과 아이콘이 코드에 하드코딩.
+- 개선 방향: DB 테이블(`api_categories`)로 외부화하거나 설정 파일로 분리.
 
 ---
 
-## 3. 확장 가능 기능 로드맵
+## 3. 기능 확장 로드맵
 
 ### Phase 1: 단기 (1~2주, 기존 구조 활용)
 
@@ -196,7 +225,7 @@ factory.register('claude', () => new ClaudeProvider(...));
 #### F8. 사용자 피드백 루프
 - **근거**: `CodeMetadata.userFeedback` 필드 타입 정의에 존재
 - **구현**:
-  - 생성 결과에 👍/👎 평가 UI
+  - 생성 결과에 좋아요/싫어요 평가 UI
   - 텍스트 피드백 수집
   - 피드백 기반 재생성 (`buildRegenerationPrompt` 활용)
   - 피드백 통계 대시보드
@@ -300,7 +329,7 @@ factory.register('claude', () => new ClaudeProvider(...));
 #### F18. 사용자 정의 도메인
 - **근거**: IDeployProvider에 `custom_domain` 기능 플래그 존재
 - **구현**:
-  - `slug.customwebservice.app` 외 사용자 도메인 연결
+  - `slug.xzawed.xyz` 외 사용자 도메인 연결
   - DNS CNAME 설정 가이드
   - SSL 인증서 자동 발급 (Let's Encrypt)
   - 도메인 검증 플로우
@@ -309,9 +338,9 @@ factory.register('claude', () => new ClaudeProvider(...));
 
 ---
 
-## 4. 확장 우선순위 매트릭스
+## 4. 우선순위 매트릭스
 
-아래 기준으로 우선순위를 평가합니다:
+평가 기준:
 - **사용자 가치**: 사용자 경험에 미치는 영향
 - **구현 용이성**: 현재 아키텍처에서 구현 난이도
 - **기존 기반**: 이미 준비된 인터페이스/테이블/플래그 활용도
