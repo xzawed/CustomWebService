@@ -90,6 +90,16 @@ export interface CodeMetadata {
   hasFooter?: boolean;
   hasImgAlt?: boolean;
   details?: string[];
+  // Mobile quality fields
+  mobileScore?: number;
+  hasAdequateResponsive?: boolean;
+  noFixedOverflow?: boolean;
+  hasImageProtection?: boolean;
+  hasMobileNav?: boolean;
+  // Rendering QC fields
+  renderingQcScore?: number;
+  renderingQcPassed?: boolean;
+  renderingQcChecks?: Array<{ name: string; passed: boolean; score: number; details: string[] }>;
   // Phase 6 fields
   apiCategories?: string[];
   inferredTheme?: string;

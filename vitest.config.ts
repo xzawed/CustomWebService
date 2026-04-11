@@ -7,12 +7,18 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.ts'],
-    exclude: ['node_modules/**'],
+    exclude: ['node_modules/**', 'e2e/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       include: ['src/lib/**', 'src/services/**', 'src/providers/**'],
       exclude: ['src/test/**'],
+      thresholds: {
+        branches: 50,
+        functions: 60,
+        lines: 60,
+        statements: 60,
+      },
     },
   },
   resolve: {

@@ -16,6 +16,12 @@ vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock('@/services/rateLimitService', () => ({
+  RateLimitService: vi.fn().mockImplementation(() => ({
+    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
 // ---------- Test data ----------
 const mockUser = { id: 'user-1', email: 'test@test.com' };
 const mockApis = [

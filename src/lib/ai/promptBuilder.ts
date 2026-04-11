@@ -182,7 +182,7 @@ body: \`bg-white text-gray-900\`
 ### 풀 이미지 히어로 (여행, 음식, 부동산)
 \`\`\`html
 <section class="relative h-[60vh] overflow-hidden">
-  <img src="https://picsum.photos/seed/hero/1920/1080" alt="히어로 배경" class="absolute inset-0 w-full h-full object-cover">
+  <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1920&h=1080&fit=crop" alt="히어로 배경" class="absolute inset-0 w-full h-full object-cover">
   <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent"></div>
   <div class="relative z-10 max-w-7xl mx-auto px-4 h-full flex items-end pb-16">
     <div>
@@ -206,7 +206,7 @@ body: \`bg-white text-gray-900\`
       </div>
     </div>
     <div class="relative">
-      <img src="https://picsum.photos/seed/split/800/600" alt="히어로 이미지" class="rounded-2xl shadow-2xl w-full">
+      <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=600&fit=crop" alt="히어로 이미지" class="rounded-2xl shadow-2xl w-full">
     </div>
   </div>
 </section>
@@ -273,7 +273,7 @@ const mockData = [
     category: '맛집',
     author: '김서연',
     date: '2026-03-28',
-    image: 'https://picsum.photos/seed/cafe1/600/400',
+    image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=600&h=400&fit=crop',
     views: 12840,
     likes: 342,
     rating: 4.8,
@@ -284,7 +284,7 @@ const mockData = [
 \`\`\`
 
 필수 준수:
-- **이미지 URL**: \`https://picsum.photos/seed/{고유키}/{너비}/{높이}\` — seed를 항목마다 다르게
+- **이미지 URL**: \`https://images.unsplash.com/photo-{ID}?w={너비}&h={높이}&fit=crop\` 형식 사용. 콘텐츠와 관련된 실제 Unsplash 이미지 ID를 사용하라. 적절한 ID를 모르면 \`https://source.unsplash.com/{너비}x{높이}/?{콘텐츠키워드}\` 형식으로 키워드 기반 이미지를 사용하라. 예: 커피숍 → \`/?coffee,cafe\`, 날씨 → \`/?weather,sky\`, 여행 → \`/?travel,landscape\`. **picsum.photos는 사용 금지** (랜덤 이미지로 콘텐츠와 무관)
 - **날짜**: 최근 6개월 내 분산 (2025-10 ~ 2026-03)
 - **금액**: 한국 원화 (₩15,900 / ₩1,250,000)
 - **이름**: 한국 이름 (김서연, 박준혁, 이하은 등)
@@ -399,11 +399,33 @@ function showToast(message, type = 'success') {
 - 실시간 차트: setInterval로 마지막 데이터 포인트 업데이트
 - 시간 표시: "방금 전", "3분 전", "1시간 전" 형태의 상대 시간
 
-## 반응형 체크리스트
+## 반응형 디자인 (모바일 퍼스트) ★
 
-- 모바일 (< 768px): \`grid-cols-1\`, 헤더에 햄버거 메뉴, 모달은 전체화면
-- 태블릿 (768~1024px): \`sm:grid-cols-2\`
-- 데스크톱 (> 1024px): \`lg:grid-cols-3\` 이상, 사이드바 표시
+### 설계 순서
+1단계: 375px 모바일 기준으로 1열 레이아웃 설계
+2단계: sm: (640px) 2열 그리드 추가
+3단계: lg: (1024px) 3-4열, 사이드바 표시
+
+### 터치 UI 규칙
+- 모든 클릭 가능 요소: 최소 py-3 px-4 (44px 터치 영역 확보)
+- 버튼 간격: gap-3 이상
+- 모바일 모달: fixed inset-0 (전체화면) 또는 bottom sheet (inset-x-0 bottom-0 rounded-t-2xl)
+
+### 오버플로우 방지
+- 이미지: w-full max-w-full object-cover 필수
+- 텍스트 넘침: break-words 또는 truncate 적용
+- 테이블: overflow-x-auto로 감싸기
+- 고정 너비(w-[500px]) 금지 → max-w-lg 등 반응형 사용
+
+### 모바일 네비게이션
+- 메뉴 3개 이상: hidden md:flex로 데스크톱만 표시, 모바일은 햄버거 메뉴
+- 사이드바: hidden lg:block 필수
+
+### 금지 패턴
+- 가로 스크롤바가 보이는 레이아웃
+- 고정 px 너비 (w-[500px] 등) — 반드시 반응형 또는 max-w 사용
+- hover 전용 인터랙션 — 터치 대안 필수 제공 (예: 탭으로 토글)
+- 모바일에서 사이드바 상시 표시 — hidden lg:block 필수
 
 ## 접근성 (a11y) 필수 규칙
 
@@ -511,7 +533,10 @@ function showApiBanner() {
 □ 카드가 그리드로 보기 좋게 배치되는가? (데스크톱에서 2열 이상)
 □ 타이포그래피가 일관되는가? (H1 > H2 > H3 > 본문 > 캡션 크기 순서)
 □ 푸터가 포함되어 있는가? (서비스명 + 저작권 + 링크)
-□ 모바일에서도 레이아웃이 정상인가? (반응형 클래스 sm:/md:/lg: 사용)
+□ 모바일(375px)에서 가로 스크롤이 발생하지 않는가?
+□ 모든 버튼/링크의 터치 영역이 44px 이상인가? (py-3 px-4 이상)
+□ 모바일에서 사이드바가 숨겨지는가? (hidden lg:block)
+□ 모든 <img>에 w-full max-w-full이 적용되었는가?
 
 ### 인터랙션 & UX
 □ 탭 클릭, 검색 입력, 카드 클릭 등 인터랙션이 모두 동작하는가?
@@ -542,7 +567,13 @@ function showApiBanner() {
 - \`alt\` 속성 없는 \`<img>\` 태그
 - 푸터 없이 콘텐츠가 갑자기 끝나는 페이지
 - 불필요한 CDN 로드 (차트 없는 페이지에 Chart.js 등)
-- 일관성 없는 텍스트 크기 (체계 없이 제각각인 font-size)`;
+- 일관성 없는 텍스트 크기 (체계 없이 제각각인 font-size)
+- 선택된 API와 무관한 콘텐츠 섹션 (예: 날씨 API인데 쇼핑 카트)
+- hover 전용 인터랙션 (터치 디바이스에서 접근 불가)
+- 고정 px 너비로 인한 가로 스크롤 (w-[500px] 등)
+- 모바일에서 사이드바 상시 표시
+- picsum.photos 사용 (랜덤 이미지 — 콘텐츠와 무관한 이미지가 표시됨)
+- 콘텐츠와 무관한 이미지 (커피숍에 산 사진, 날씨에 인물 사진 등)`;
 }
 
 export function buildUserPrompt(
@@ -597,6 +628,7 @@ ${endpoints}`;
 - 추천 레이아웃: ${inference.layout}
 - 차트 필요: ${inference.useChart ? '예 (Chart.js CDN 포함)' : '아니오 (Chart.js 불필요)'}
 - 지도 필요: ${inference.useMap ? '예 (Leaflet CDN 포함)' : '아니오'}
+- 이미지 키워드: ${inference.imageKeywords.join(', ')} — 목 데이터의 이미지 URL에 이 키워드를 사용하라 (예: \`https://source.unsplash.com/600x400/?${inference.imageKeywords[0]}\`)
 ${hasUserPrefs ? `
 ### 사용자 선호도 (추천보다 우선)
 ${designPreferences.mood !== 'auto' ? `- 분위기: ${designPreferences.mood}` : ''}
@@ -612,6 +644,16 @@ ${apiDescriptions}
 ${context}
 ${designSection}
 
+## 콘텐츠 범위 (절대 규칙)
+
+이 서비스가 사용하는 API: ${apis.map((a) => a.name).join(', ')}
+허용되는 UI 섹션: ${inference.allowedSections.join(', ')}
+
+- 모든 섹션은 위 API의 데이터 도메인과 직접 관련되어야 합니다
+- 허용 섹션 목록 외의 무관한 섹션 생성 금지
+- 플레이스홀더("테스트", "샘플 데이터", "Lorem ipsum") 대신 API 도메인에 맞는 구체적 한국어 데이터 사용
+- 목 데이터 필드명은 API 응답 예시(responseExample)의 필드와 일치시킬 것
+
 ## 구현 지시
 
 ### 1단계: 서비스 컨셉
@@ -620,7 +662,7 @@ ${designSection}
 
 ### 2단계: 목 데이터 준비 (★ 최우선)
 - JavaScript 배열로 최소 20개의 현실적인 한국어 목 데이터 작성
-- 각 항목: id, title, description, image(picsum.photos), category, date, 수치 필드 등
+- 각 항목: id, title, description, image(Unsplash 키워드 기반), category, date, 수치 필드 등
 - Chart.js용 숫자 배열도 const로 선언 (절대 빈 배열 금지)
 - DOMContentLoaded에서 목 데이터로 즉시 렌더링 → 이후 API 비동기 호출
 

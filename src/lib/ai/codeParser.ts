@@ -66,7 +66,7 @@ function buildHeadInjections(html: string, safeCss: string): string {
     );
   }
 
-  // CSS custom properties + print stylesheet
+  // CSS custom properties + print stylesheet + mobile safety
   const cssInjection = [
     ':root {',
     '  --transition-fast: 150ms ease;',
@@ -79,6 +79,17 @@ function buildHeadInjections(html: string, safeCss: string): string {
     '@media print {',
     '  header, footer, .no-print { display: none; }',
     '  body { background: white !important; color: black !important; }',
+    '}',
+    '/* Mobile safety */',
+    '*, *::before, *::after { box-sizing: border-box; }',
+    'img, video, canvas, svg { max-width: 100%; height: auto; display: block; }',
+    'body { overflow-x: hidden; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }',
+    '@supports (padding: env(safe-area-inset-bottom)) {',
+    '  body {',
+    '    padding-left: env(safe-area-inset-left);',
+    '    padding-right: env(safe-area-inset-right);',
+    '    padding-bottom: env(safe-area-inset-bottom);',
+    '  }',
     '}',
   ].join('\n');
 
@@ -108,7 +119,7 @@ function optimizeImages(html: string): string {
       newAttrs += ' decoding="async"';
     }
 
-    // Extract width/height from picsum.photos URL pattern: /seed/x/{w}/{h} or /{w}/{h}
+    // Extract width/height from image URL patterns
     if (/picsum\.photos/i.test(newAttrs)) {
       const sizeMatch = newAttrs.match(/picsum\.photos\/(?:seed\/[^/]+\/)?(\d+)\/(\d+)/i);
       if (sizeMatch) {
@@ -117,6 +128,18 @@ function optimizeImages(html: string): string {
         }
         if (!/\bheight\s*=/i.test(newAttrs)) {
           newAttrs += ` height="${sizeMatch[2]}"`;
+        }
+      }
+    } else if (/images\.unsplash\.com/i.test(newAttrs) || /source\.unsplash\.com/i.test(newAttrs)) {
+      // Extract width/height from Unsplash URL: ?w=600&h=400 or /600x400/
+      const unsplashWH = newAttrs.match(/[?&]w=(\d+)&h=(\d+)/i) ||
+        newAttrs.match(/source\.unsplash\.com\/(\d+)x(\d+)/i);
+      if (unsplashWH) {
+        if (!/\bwidth\s*=/i.test(newAttrs)) {
+          newAttrs += ` width="${unsplashWH[1]}"`;
+        }
+        if (!/\bheight\s*=/i.test(newAttrs)) {
+          newAttrs += ` height="${unsplashWH[2]}"`;
         }
       }
     }
@@ -143,6 +166,27 @@ export function assembleHtml(parsed: ParsedCode): string {
           assembled.slice(0, headIdx + '<head>'.length) +
           '\n  <meta charset="UTF-8">' +
           assembled.slice(headIdx + '<head>'.length);
+      }
+    }
+
+    // Ensure viewport meta is present for responsive design
+    const hasViewport = /<meta[^>]*name\s*=\s*["']viewport["']/i.test(assembled);
+    if (!hasViewport) {
+      const charsetMatch = assembled.match(/<meta[^>]*charset[^>]*>/i);
+      if (charsetMatch) {
+        const insertIdx = assembled.indexOf(charsetMatch[0]) + charsetMatch[0].length;
+        assembled =
+          assembled.slice(0, insertIdx) +
+          '\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+          assembled.slice(insertIdx);
+      } else {
+        const headIdx = assembled.indexOf('<head>');
+        if (headIdx !== -1) {
+          assembled =
+            assembled.slice(0, headIdx + '<head>'.length) +
+            '\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+            assembled.slice(headIdx + '<head>'.length);
+        }
       }
     }
 

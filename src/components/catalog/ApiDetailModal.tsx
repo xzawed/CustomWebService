@@ -59,7 +59,7 @@ export function ApiDetailModal({
 
       {/* Modal */}
       <div
-        className="glass relative z-10 max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl"
+        className="glass relative z-10 max-h-[95dvh] sm:max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl"
         style={{ background: 'var(--bg-card)' }}
       >
         {/* Header */}

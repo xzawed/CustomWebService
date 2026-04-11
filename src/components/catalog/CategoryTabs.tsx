@@ -12,7 +12,7 @@ export function CategoryTabs({ categories, activeCategory, onCategoryChange }: C
   const totalCount = categories.reduce((sum, cat) => sum + cat.count, 0);
 
   return (
-    <div className="overflow-x-auto scrollbar-hide">
+    <div className="overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
       <div className="flex gap-2">
         <button
           type="button"

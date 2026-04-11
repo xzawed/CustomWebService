@@ -74,6 +74,37 @@ vi.mock('@/lib/ai/codeValidator', () => ({
     errors: [],
     warnings: [],
   }),
+  evaluateQuality: vi.fn().mockReturnValue({
+    structuralScore: 80,
+    mobileScore: 80,
+    hasSemanticHtml: true,
+    hasMockData: true,
+    hasInteraction: true,
+    hasResponsiveClasses: true,
+    hasAdequateResponsive: true,
+    noFixedOverflow: true,
+    hasImageProtection: true,
+    hasMobileNav: true,
+    hasFooter: true,
+    hasImgAlt: true,
+    details: [],
+  }),
+}));
+
+vi.mock('@/lib/ai/categoryDesignMap', () => ({
+  inferDesignFromCategories: vi.fn().mockReturnValue({
+    theme: 'clean-light',
+    layout: 'hero-tabs-grid',
+    useChart: false,
+    useMap: false,
+    description: 'test',
+    allowedSections: ['히어로 섹션', '카테고리 탭', '콘텐츠 카드 그리드'],
+  }),
+}));
+
+vi.mock('@/lib/ai/qualityLoop', () => ({
+  shouldRetryGeneration: vi.fn().mockReturnValue(false),
+  buildQualityImprovementPrompt: vi.fn().mockReturnValue('improvement prompt'),
 }));
 
 vi.mock('@/lib/events/eventBus', () => ({

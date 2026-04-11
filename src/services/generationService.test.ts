@@ -72,12 +72,9 @@ describe('RateLimitService.checkAndIncrementDailyLimit()', () => {
 
 describe('GenerationService.generate()', () => {
   let service: GenerationService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let projectRepo: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let catalogRepo: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let codeRepo: any;
+  let projectRepo: Record<string, ReturnType<typeof vi.fn>>;
+  let catalogRepo: Record<string, ReturnType<typeof vi.fn>>;
+  let codeRepo: Record<string, ReturnType<typeof vi.fn>>;
 
   const mockProject = {
     id: 'proj-1',

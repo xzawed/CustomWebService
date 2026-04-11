@@ -47,8 +47,8 @@ const validInput = {
 
 describe('ProjectService.create()', () => {
   let service: ProjectService;
-  let projectRepo: ReturnType<typeof makeProjectRepo>;
-  let catalogRepo: ReturnType<typeof makeCatalogRepo>;
+  let projectRepo: Record<string, ReturnType<typeof vi.fn>>;
+  let catalogRepo: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -116,7 +116,7 @@ describe('ProjectService.create()', () => {
 
 describe('ProjectService.getById()', () => {
   let service: ProjectService;
-  let projectRepo: ReturnType<typeof makeProjectRepo>;
+  let projectRepo: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -143,7 +143,7 @@ describe('ProjectService.getById()', () => {
 
 describe('ProjectService.delete()', () => {
   let service: ProjectService;
-  let projectRepo: ReturnType<typeof makeProjectRepo>;
+  let projectRepo: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(() => {
     vi.clearAllMocks();

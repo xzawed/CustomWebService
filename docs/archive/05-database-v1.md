@@ -1,394 +1,416 @@
-# 데이터베이스 설계 (Database Design)
+# 데이터베이스 설계 v2 (Database Design - Extensible)
+
+> v1 대비 변경사항: 멀티 테넌시, 메타데이터, API 버전 관리, 이벤트 로그, 피처 플래그 테이블 추가
 
 ## 사용 DB: Supabase (PostgreSQL)
-- 무료 티어: 500MB 저장소, 2GB 대역폭, 50K MAU
 
 ---
 
-## ERD (Entity Relationship Diagram)
+## 1. ERD (확장 설계)
 
 ```
-┌─────────────┐       ┌──────────────────┐       ┌─────────────────┐
-│   users     │       │  organizations   │       │  memberships    │
-├─────────────┤       ├──────────────────┤       ├─────────────────┤
-│ id (PK)     │──┐    │ id (PK)          │──┐    │ id (PK)         │
-│ email       │  │    │ name             │  │    │ user_id (FK)    │
-│ name        │  │    │ slug             │  │    │ organization_id │
-│ avatar_url  │  │    │ plan             │  │    │ role            │
-│ preferences │  │    │ settings         │  │    │ created_at      │
-│ created_at  │  │    │ created_at       │  │    └─────────────────┘
-│ updated_at  │  │    │ updated_at       │  │
-└─────────────┘  │    └──────────────────┘  │
-                 │                          │
-┌────────────────▼──────────────────────────▼────┐
-│   projects                                     │
-├────────────────────────────────────────────────┤
-│ id (PK)                                        │
-│ user_id (FK → users)                           │
-│ organization_id (FK → organizations, nullable) │
-│ name, context, status                          │
-│ deploy_url, deploy_platform, repo_url          │
-│ preview_url, metadata, current_version         │
-│ created_at, updated_at                         │
-└──────────┬─────────────────────────────────────┘
-           │
-    ┌──────┴──────┐     ┌───────────────────┐
-    │ project_apis│     │   api_catalog     │
-    ├─────────────┤     ├───────────────────┤
-    │ id (PK)     │     │ id (PK)           │
-    │ project_id  │────>│ name, description │
-    │ api_id (FK) │     │ category, base_url│
-    │ config      │     │ auth_type/config  │
-    │ created_at  │     │ rate_limit, tags  │
-    └─────────────┘     │ api_version       │
-                        │ cors_supported    │
-                        │ requires_proxy    │
-                        │ deprecated_at     │
-                        │ successor_id      │
-                        │ changelog         │
-                        │ credit_required   │
-                        │ icon_url, docs_url│
-                        │ endpoints         │
-                        │ is_active         │
-                        └───────────────────┘
-
-┌──────────────────┐  ┌──────────────────┐
-│ generated_codes  │  │ user_api_keys    │
-├──────────────────┤  ├──────────────────┤
-│ id (PK)          │  │ id (PK)          │
-│ project_id (FK)  │  │ user_id (FK)     │
-│ version          │  │ api_id (FK)      │
-│ code_html/css/js │  │ encrypted_key    │
-│ framework        │  │ created_at       │
-│ ai_provider      │  │ updated_at       │
-│ ai_model         │  └──────────────────┘
-│ ai_prompt_used   │
-│ generation_time  │  ┌──────────────────┐
-│ token_usage      │  │ event_log        │
-│ dependencies     │  ├──────────────────┤
-│ metadata         │  │ id (PK)          │
-│ created_at       │  │ event_type       │
-└──────────────────┘  │ payload          │
-                      │ user_id (FK)     │
-┌──────────────────┐  │ project_id (FK)  │
-│ feature_flags    │  │ created_at       │
-├──────────────────┤  └──────────────────┘
+┌──────────────┐
+│organizations │     ┌──────────────┐
+├──────────────┤     │ memberships  │     ┌─────────────┐
+│ id (PK)      │◄────┤──────────────│     │   users     │
+│ name         │     │ id (PK)      │     ├─────────────┤
+│ slug         │     │ org_id (FK)  │────►│ id (PK)     │
+│ plan         │     │ user_id (FK) │     │ email       │
+│ settings     │     │ role         │     │ name        │
+│ created_at   │     │ created_at   │     │ avatar_url  │
+└──────┬───────┘     └──────────────┘     │ preferences │
+       │                                   │ created_at  │
+       │ (선택적)                           │ updated_at  │
+       │                                   └──────┬──────┘
+       │                                          │
+       ▼                                          ▼
+┌──────────────────┐                    ┌────────────────────┐
+│    projects      │                    │   user_api_keys    │
+├──────────────────┤                    ├────────────────────┤
+│ id (PK)          │                    │ id (PK)            │
+│ user_id (FK)     │◄───────────────────│ user_id (FK)       │
+│ org_id (FK) NULL │                    │ api_id (FK)        │
+│ name             │                    │ encrypted_key      │
+│ context          │                    │ created_at         │
+│ status           │                    └────────────────────┘
+│ deploy_url       │
+│ deploy_platform  │     ┌──────────────────┐
+│ repo_url         │     │  project_apis    │
+│ preview_url      │     ├──────────────────┤
+│ metadata (JSONB) │◄────│ id (PK)          │
+│ created_at       │     │ project_id (FK)  │────┐
+│ updated_at       │     │ api_id (FK)      │    │
+└────────┬─────────┘     │ config (JSONB)   │    │
+         │               │ created_at       │    │
+         │               └──────────────────┘    │
+         ▼                                       ▼
+┌──────────────────┐                    ┌────────────────────┐
+│ generated_codes  │                    │   api_catalog      │
+├──────────────────┤                    ├────────────────────┤
+│ id (PK)          │                    │ id (PK)            │
+│ project_id (FK)  │                    │ name               │
+│ version          │                    │ description        │
+│ code_html        │                    │ category           │
+│ code_css         │                    │ base_url           │
+│ code_js          │                    │ auth_type          │
+│ framework        │                    │ auth_config (JSON) │
+│ ai_provider      │ ★                 │ rate_limit         │
+│ ai_model         │ ★                 │ is_active          │
+│ ai_prompt_used   │                    │ api_version        │ ★
+│ generation_ms    │ ★                 │ deprecated_at      │ ★
+│ token_usage(JSON)│ ★                 │ successor_id (FK)  │ ★
+│ metadata (JSONB) │ ★                 │ icon_url           │
+│ dependencies[]   │ ★                 │ docs_url           │
+│ created_at       │                    │ endpoints (JSONB)  │
+└──────────────────┘                    │ tags[]             │
+                                        │ changelog (JSONB)  │ ★
+┌──────────────────┐                    │ created_at         │
+│  event_log       │ ★                 │ updated_at         │
+├──────────────────┤                    └────────────────────┘
 │ id (PK)          │
-│ flag_name        │
-│ enabled          │
-│ description      │
-│ rules            │
-│ updated_at       │
-└──────────────────┘
+│ event_type       │                    ┌────────────────────┐
+│ payload (JSONB)  │                    │  feature_flags     │ ★
+│ user_id (FK)     │                    ├────────────────────┤
+│ project_id (FK)  │                    │ id (PK)            │
+│ created_at       │                    │ flag_name          │
+└──────────────────┘                    │ enabled            │
+                                        │ rules (JSONB)      │
+                                        │ updated_at         │
+                                        └────────────────────┘
+★ = v2에서 추가된 항목
 ```
 
 ---
 
-## 테이블 정의
+## 2. 테이블 정의
 
-### 1. users (사용자)
+### 2.1 users (사용자) - 수정
 ```sql
-CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email VARCHAR(255) NOT NULL UNIQUE,
-  name VARCHAR(255),
-  avatar_url TEXT,
-  preferences JSONB DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(100),
+    avatar_url TEXT,
+    preferences JSONB DEFAULT '{}',        -- ★ 사용자 설정 (언어, 테마 등)
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
-- Supabase Auth와 연동, 소셜 로그인 지원
-- `preferences`: 언어, 테마 등 사용자 설정 (JSONB)
-- 첫 로그인 시 `auth.uid()`를 ID로 사용하여 자동 생성
 
-### 2. organizations (조직)
-```sql
-CREATE TABLE IF NOT EXISTS organizations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  slug VARCHAR(255) NOT NULL UNIQUE,
-  plan VARCHAR(50) NOT NULL DEFAULT 'free',
-  settings JSONB DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
-- 멀티 테넌시 지원을 위한 조직 단위
-- `plan`: free, pro 등 요금제 구분
-- `settings`: 조직별 설정 (JSONB)
+> **중요**: `users.id`는 Supabase Auth의 `auth.uid()`와 동일해야 합니다.
+> OAuth 콜백(`callback/route.ts`)에서 `UserRepository.createWithAuthId(authId, ...)`를 통해
+> `auth.uid()`를 `id`로 명시 지정하여 생성합니다. 이는 `projects.user_id → users.id` FK 참조와
+> RLS 정책(`auth.uid() = id`)의 정합성을 보장합니다.
 
-### 3. memberships (조직-사용자 매핑)
-```sql
-CREATE TABLE IF NOT EXISTS memberships (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  role VARCHAR(50) NOT NULL DEFAULT 'member',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (user_id, organization_id)
-);
-```
-- `role`: owner, admin, member, viewer 중 하나
-
-### 4. api_catalog (API 카탈로그)
-```sql
-CREATE TABLE IF NOT EXISTS api_catalog (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  category VARCHAR(100),
-  base_url TEXT NOT NULL,
-  auth_type VARCHAR(50) NOT NULL DEFAULT 'none',
-  auth_config JSONB DEFAULT '{}'::jsonb,
-  rate_limit VARCHAR(100),
-  changelog JSONB DEFAULT '[]'::jsonb,
-  is_active BOOLEAN NOT NULL DEFAULT true,
-  icon_url TEXT,
-  docs_url TEXT,
-  endpoints JSONB DEFAULT '[]'::jsonb,
-  tags TEXT[],
-  api_version VARCHAR(50),
-  deprecated_at TIMESTAMPTZ,
-  successor_id UUID REFERENCES api_catalog(id) ON DELETE SET NULL,
-  cors_supported BOOLEAN NOT NULL DEFAULT true,
-  requires_proxy BOOLEAN NOT NULL DEFAULT false,
-  credit_required INT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
-- `changelog`: API 변경 이력 (JSONB 배열)
-- `api_version`: API 버전 관리
-- `deprecated_at`: 폐기 예정일, `successor_id`: 대체 API 참조
-- `cors_supported`: CORS 지원 여부
-- `requires_proxy`: 프록시 필요 여부
-- `credit_required`: 출처 표기 필요 여부
-
-#### endpoints JSONB 구조 예시
+**preferences 구조:**
 ```json
-[
-    {
-        "path": "/weather",
-        "method": "GET",
-        "description": "현재 날씨 조회",
-        "params": [
-            {"name": "q", "type": "string", "required": true, "description": "도시명"},
-            {"name": "units", "type": "string", "required": false, "description": "단위 (metric/imperial)"}
-        ],
-        "response_example": {"temp": 20, "description": "맑음"}
-    }
-]
+{
+  "language": "ko",
+  "theme": "light",
+  "defaultDeployPlatform": "railway",
+  "emailNotifications": true
+}
 ```
 
-### 5. projects (프로젝트 / 생성된 서비스)
+### 2.2 organizations (조직) - ★ 신규
 ```sql
-CREATE TABLE IF NOT EXISTS projects (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
-  name VARCHAR(255) NOT NULL,
-  context TEXT,
-  status VARCHAR(50) NOT NULL DEFAULT 'draft',
-  deploy_url TEXT,
-  deploy_platform VARCHAR(100),
-  repo_url TEXT,
-  preview_url TEXT,
-  metadata JSONB DEFAULT '{}'::jsonb,
-  current_version INT NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE organizations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(200) NOT NULL,
+    slug VARCHAR(100) UNIQUE NOT NULL,
+    plan VARCHAR(20) DEFAULT 'free',          -- free, pro, enterprise
+    settings JSONB DEFAULT '{}',              -- 조직별 설정
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-```
-- `status`: draft → generating → generated → deploying → deployed → failed
-- `organization_id`: 조직 프로젝트 지원 (nullable)
-- `metadata`: 프로젝트 추가 정보 (JSONB)
-- `current_version`: 현재 활성 버전 (롤백 지원)
 
-### 6. project_apis (프로젝트-API 매핑)
-```sql
-CREATE TABLE IF NOT EXISTS project_apis (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  api_id UUID NOT NULL REFERENCES api_catalog(id) ON DELETE CASCADE,
-  config JSONB DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (project_id, api_id)
-);
-```
-
-### 7. generated_codes (생성된 코드)
-```sql
-CREATE TABLE IF NOT EXISTS generated_codes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  version INT NOT NULL,
-  code_html TEXT,
-  code_css TEXT,
-  code_js TEXT,
-  framework VARCHAR(50) NOT NULL DEFAULT 'vanilla',
-  ai_provider VARCHAR(100),
-  ai_model VARCHAR(100),
-  ai_prompt_used TEXT,
-  generation_time_ms INT,
-  token_usage JSONB DEFAULT '{}'::jsonb,
-  dependencies TEXT[],
-  metadata JSONB DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (project_id, version)
-);
-```
-- `ai_provider`, `ai_model`: 사용된 AI 정보 추적
-- `generation_time_ms`: 생성 소요 시간 (밀리초)
-- `token_usage`: 토큰 사용량 (JSONB)
-- `dependencies`: 외부 라이브러리 의존성
-
-### 8. user_api_keys (사용자 API 키)
-```sql
-CREATE TABLE IF NOT EXISTS user_api_keys (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  api_id UUID NOT NULL REFERENCES api_catalog(id) ON DELETE CASCADE,
-  encrypted_key TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (user_id, api_id)
-);
-```
-- 사용자가 직접 발급받은 API 키를 암호화 저장
-
-### 9. event_log (이벤트 로그)
-```sql
-CREATE TABLE IF NOT EXISTS event_log (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  event_type VARCHAR(50) NOT NULL,
-  payload JSONB DEFAULT '{}'::jsonb,
-  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
-- 도메인 이벤트 감사 로그
-- `event_type`: CODE_GENERATED, DEPLOYMENT_COMPLETED 등 9종
-
-### 10. feature_flags (피처 플래그)
-```sql
-CREATE TABLE IF NOT EXISTS feature_flags (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  flag_name VARCHAR(100) NOT NULL UNIQUE,
-  enabled BOOLEAN NOT NULL DEFAULT false,
-  description TEXT,
-  rules JSONB DEFAULT '{}'::jsonb,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
-- 7개 기본 플래그: enable_dark_mode, enable_code_viewer, enable_ollama_fallback, enable_template_system, enable_multi_language, enable_team_features, enable_advanced_prompt
-- `rules`: 조건부 활성화 규칙 (JSONB)
-
----
-
-## 인덱스
-
-```sql
--- users
-CREATE INDEX idx_users_email ON users(email);
-
--- organizations
 CREATE INDEX idx_organizations_slug ON organizations(slug);
+```
 
--- memberships
-CREATE INDEX idx_memberships_user_id ON memberships(user_id);
-CREATE INDEX idx_memberships_organization_id ON memberships(organization_id);
+**settings 구조:**
+```json
+{
+  "maxProjects": 50,
+  "maxMembersCount": 5,
+  "allowedDeployPlatforms": ["railway", "github_pages"],
+  "defaultAiProvider": "grok"
+}
+```
 
--- api_catalog
+### 2.3 memberships (조직 멤버십) - ★ 신규
+```sql
+CREATE TABLE memberships (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    role VARCHAR(20) DEFAULT 'member',        -- owner, admin, member, viewer
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, organization_id)
+);
+
+CREATE INDEX idx_memberships_user ON memberships(user_id);
+CREATE INDEX idx_memberships_org ON memberships(organization_id);
+```
+
+### 2.4 api_catalog (API 카탈로그) - 수정
+```sql
+CREATE TABLE api_catalog (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    base_url VARCHAR(500) NOT NULL,
+    auth_type VARCHAR(20) NOT NULL DEFAULT 'none',
+    auth_config JSONB DEFAULT '{}',
+    rate_limit VARCHAR(100),
+    is_active BOOLEAN DEFAULT true,
+    icon_url VARCHAR(500),
+    docs_url VARCHAR(500),
+    endpoints JSONB NOT NULL DEFAULT '[]',
+    tags TEXT[] DEFAULT '{}',
+    -- ★ 확장성 컬럼
+    api_version VARCHAR(20),                  -- API 버전
+    deprecated_at TIMESTAMPTZ,                -- 폐기 일시
+    successor_id UUID REFERENCES api_catalog(id),  -- 후속 API
+    changelog JSONB DEFAULT '[]',             -- 변경 이력
+    cors_supported BOOLEAN DEFAULT true,      -- CORS 지원 여부
+    requires_proxy BOOLEAN DEFAULT false,     -- 프록시 필요 여부
+    credit_required TEXT,                     -- 필수 크레딧 표시 문구
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE INDEX idx_api_catalog_category ON api_catalog(category);
-CREATE INDEX idx_api_catalog_is_active ON api_catalog(is_active);
-CREATE INDEX idx_api_catalog_tags ON api_catalog USING GIN(tags);
-CREATE INDEX idx_api_catalog_auth_type ON api_catalog(auth_type);
-CREATE INDEX idx_api_catalog_successor_id ON api_catalog(successor_id);
+CREATE INDEX idx_api_catalog_active ON api_catalog(is_active);
+CREATE INDEX idx_api_catalog_deprecated ON api_catalog(deprecated_at);
+```
 
--- projects
-CREATE INDEX idx_projects_user_id ON projects(user_id);
-CREATE INDEX idx_projects_organization_id ON projects(organization_id);
+### 2.5 projects (프로젝트) - 수정
+```sql
+CREATE TABLE projects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    organization_id UUID REFERENCES organizations(id),  -- ★ 조직 소속 (선택)
+    name VARCHAR(200) NOT NULL,
+    context TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'draft',
+    deploy_url VARCHAR(500),
+    deploy_platform VARCHAR(20),
+    repo_url VARCHAR(500),
+    preview_url VARCHAR(500),
+    -- ★ 확장성 컬럼
+    metadata JSONB DEFAULT '{}',              -- 유연한 메타데이터
+    current_version INTEGER DEFAULT 0,        -- 현재 활성 코드 버전
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_projects_user ON projects(user_id);
+CREATE INDEX idx_projects_org ON projects(organization_id);
 CREATE INDEX idx_projects_status ON projects(status);
+```
 
--- project_apis
-CREATE INDEX idx_project_apis_project_id ON project_apis(project_id);
-CREATE INDEX idx_project_apis_api_id ON project_apis(api_id);
+**metadata 구조:**
+```json
+{
+  "tags": ["환율", "여행"],
+  "isPublic": false,
+  "viewCount": 142,
+  "lastDeployedAt": "2026-03-20T12:00:00Z",
+  "deployHistory": [
+    { "version": 1, "deployedAt": "...", "platform": "railway", "url": "..." }
+  ]
+}
+```
 
--- generated_codes
-CREATE INDEX idx_generated_codes_project_id ON generated_codes(project_id);
-CREATE INDEX idx_generated_codes_version ON generated_codes(project_id, version);
+### 2.6 generated_codes (생성 코드) - 수정
+```sql
+CREATE TABLE generated_codes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL DEFAULT 1,
+    code_html TEXT,
+    code_css TEXT,
+    code_js TEXT,
+    framework VARCHAR(20) DEFAULT 'vanilla',
+    ai_prompt_used TEXT,
+    -- ★ 확장성 컬럼
+    ai_provider VARCHAR(30),                  -- grok, openai, ollama
+    ai_model VARCHAR(50),                     -- grok-3-mini, gpt-4o-mini
+    generation_time_ms INTEGER,               -- 생성 소요 시간
+    token_usage JSONB DEFAULT '{}',           -- { input: N, output: N }
+    dependencies TEXT[] DEFAULT '{}',          -- ["chart.js@4.4", "leaflet@1.9"]
+    metadata JSONB DEFAULT '{}',              -- 품질 점수, 보안 검사 결과 등
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(project_id, version)
+);
 
--- user_api_keys
-CREATE INDEX idx_user_api_keys_user_id ON user_api_keys(user_id);
-CREATE INDEX idx_user_api_keys_api_id ON user_api_keys(api_id);
+CREATE INDEX idx_codes_project ON generated_codes(project_id);
+CREATE INDEX idx_codes_provider ON generated_codes(ai_provider);
+```
 
--- event_log
-CREATE INDEX idx_event_log_event_type ON event_log(event_type);
-CREATE INDEX idx_event_log_user_id ON event_log(user_id);
-CREATE INDEX idx_event_log_project_id ON event_log(project_id);
-CREATE INDEX idx_event_log_created_at ON event_log(created_at);
-CREATE INDEX idx_event_log_payload ON event_log USING GIN(payload);
+**metadata 구조:**
+```json
+{
+  "qualityScore": 4.2,
+  "securityCheckPassed": true,
+  "hasResponsive": true,
+  "hasDarkMode": false,
+  "externalLibs": ["chart.js"],
+  "userFeedback": null,
+  "validationErrors": []
+}
+```
 
--- feature_flags
-CREATE INDEX idx_feature_flags_flag_name ON feature_flags(flag_name);
-CREATE INDEX idx_feature_flags_enabled ON feature_flags(enabled);
+### 2.7 user_api_keys (사용자 API 키 저장) - ★ 신규
+```sql
+CREATE TABLE user_api_keys (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    api_id UUID NOT NULL REFERENCES api_catalog(id),
+    encrypted_key TEXT NOT NULL,               -- 암호화된 API 키
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, api_id)
+);
+
+CREATE INDEX idx_user_api_keys_user ON user_api_keys(user_id);
+```
+
+### 2.8 event_log (이벤트 로그) - ★ 신규
+```sql
+CREATE TABLE event_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_type VARCHAR(50) NOT NULL,           -- PROJECT_CREATED, CODE_GENERATED 등
+    payload JSONB NOT NULL DEFAULT '{}',
+    user_id UUID REFERENCES users(id),
+    project_id UUID REFERENCES projects(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_event_log_type ON event_log(event_type);
+CREATE INDEX idx_event_log_user ON event_log(user_id);
+CREATE INDEX idx_event_log_created ON event_log(created_at);
+
+-- 90일 이상 된 로그 자동 삭제 (용량 관리)
+-- Supabase Edge Function 또는 pg_cron으로 스케줄링
+```
+
+### 2.9 feature_flags (피처 플래그) - ★ 신규
+```sql
+CREATE TABLE feature_flags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    flag_name VARCHAR(100) UNIQUE NOT NULL,
+    enabled BOOLEAN DEFAULT false,
+    description TEXT,
+    rules JSONB DEFAULT '{}',                  -- 조건부 활성화 규칙
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**rules 구조:**
+```json
+{
+  "enabledForUsers": ["user-uuid-1", "user-uuid-2"],
+  "enabledForPlans": ["pro"],
+  "enabledPercentage": 10,
+  "enabledAfter": "2026-04-01T00:00:00Z"
+}
+```
+
+**초기 플래그 시드 데이터:**
+```sql
+INSERT INTO feature_flags (flag_name, enabled, description) VALUES
+('enable_dark_mode', false, '다크 모드 UI'),
+('enable_code_viewer', true, '생성 코드 보기 기능'),
+('enable_ollama_fallback', false, 'Ollama 로컬 LLM 폴백'),
+('enable_template_system', true, '코드 생성 템플릿'),
+('enable_multi_language', false, '다국어 지원'),
+('enable_team_features', false, '팀/조직 기능'),
+('enable_advanced_prompt', false, '고급 프롬프트 옵션');
 ```
 
 ---
 
-## RLS (Row Level Security) 정책
-
-전체 10개 테이블에 RLS 활성화, 테이블별 정책:
+## 3. RLS 정책 (확장)
 
 ```sql
--- users: 자신의 프로필만 조회/수정/생성
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can view their own profile" ON users FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users can update their own profile" ON users FOR UPDATE USING (auth.uid() = id);
-CREATE POLICY "Users can insert their own profile" ON users FOR INSERT WITH CHECK (auth.uid() = id);
+-- 기존 정책 유지 + 조직 기반 정책 추가
 
--- organizations: 멤버만 조회, admin/owner만 수정, 인증 사용자 생성 가능
+-- organizations: 멤버만 접근
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Members can read org" ON organizations
+    FOR SELECT USING (
+        id IN (SELECT organization_id FROM memberships WHERE user_id = auth.uid())
+    );
 
--- memberships: 자신의 멤버십 조회, 같은 조직 멤버 조회, admin/owner 관리
+-- memberships: 같은 조직 멤버만 조회
 ALTER TABLE memberships ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Members can read memberships" ON memberships
+    FOR SELECT USING (
+        organization_id IN (
+            SELECT organization_id FROM memberships WHERE user_id = auth.uid()
+        )
+    );
 
--- api_catalog: 활성 API는 누구나 조회, service_role만 관리
-ALTER TABLE api_catalog ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Anyone can view active APIs" ON api_catalog FOR SELECT USING (is_active = true);
-
--- projects: 자신의 프로젝트 CRUD + 조직 프로젝트 조회
+-- projects: 본인 OR 같은 조직 멤버
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can CRUD own or org projects" ON projects
+    FOR ALL USING (
+        user_id = auth.uid()
+        OR organization_id IN (
+            SELECT organization_id FROM memberships WHERE user_id = auth.uid()
+        )
+    );
 
--- project_apis: 자신의 프로젝트에 속한 매핑만 접근
-ALTER TABLE project_apis ENABLE ROW LEVEL SECURITY;
-
--- generated_codes: 자신의 프로젝트 코드만 조회/생성
-ALTER TABLE generated_codes ENABLE ROW LEVEL SECURITY;
-
--- user_api_keys: 자신의 API 키만 접근
+-- user_api_keys: 본인만
 ALTER TABLE user_api_keys ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users own api keys" ON user_api_keys
+    FOR ALL USING (user_id = auth.uid());
 
--- event_log: 자신의 이벤트 조회/생성, service_role 전체 관리
+-- event_log: 본인 이벤트만 조회
 ALTER TABLE event_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can read own events" ON event_log
+    FOR SELECT USING (user_id = auth.uid());
 
--- feature_flags: 누구나 조회, service_role만 관리
+-- feature_flags: 모든 인증 사용자 읽기
 ALTER TABLE feature_flags ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated read flags" ON feature_flags
+    FOR SELECT USING (auth.role() = 'authenticated');
 ```
 
 ---
 
-## 트리거
+## 4. 마이그레이션 전략
 
-```sql
--- updated_at 자동 갱신 (users, organizations, api_catalog, projects, user_api_keys, feature_flags)
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
 ```
+supabase/migrations/
+├── 001_initial_schema.sql       # users, api_catalog, projects, project_apis, generated_codes
+├── 002_add_organizations.sql    # organizations, memberships
+├── 003_add_extensibility.sql    # metadata 컬럼, api_version, event_log
+├── 004_add_feature_flags.sql    # feature_flags
+├── 005_add_user_api_keys.sql    # user_api_keys
+└── 006_add_indexes.sql          # 성능 인덱스 추가
+
+supabase/
+├── seed.sql                     # API 카탈로그 + 피처 플래그 초기 데이터
+└── seed_dev.sql                 # 개발용 테스트 데이터
+```
+
+---
+
+## 5. 스키마 확장 가이드
+
+### 새 기능 추가 시 DB 변경 원칙
+
+1. **기존 테이블 수정보다 JSONB 메타데이터 활용 우선**
+   - 자주 조회되지 않는 데이터 → metadata JSONB에 추가
+   - 자주 필터/정렬에 사용되는 데이터 → 정규 컬럼 추가
+
+2. **마이그레이션은 항상 추가만 (비파괴적)**
+   - ALTER TABLE ADD COLUMN (NULL 허용 또는 DEFAULT 값)
+   - DROP COLUMN은 최소 1 스프린트 유예 후 실행
+
+3. **RLS 정책은 기능 추가와 함께**
+   - 새 테이블 생성 시 RLS 정책 필수
+   - 조직 기반 접근 패턴 유지

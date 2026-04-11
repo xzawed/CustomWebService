@@ -103,4 +103,26 @@ describe('assembleHtml', () => {
     expect(result).toContain('width="600"');
     expect(result).toContain('height="400"');
   });
+
+  it('모바일 안전 CSS를 주입한다', () => {
+    const html = '<html><head></head><body></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    expect(result).toContain('box-sizing: border-box');
+    expect(result).toContain('overflow-x: hidden');
+    expect(result).toContain('safe-area-inset-bottom');
+  });
+
+  it('viewport meta가 없으면 자동 주입한다', () => {
+    const html = '<html><head><meta charset="UTF-8"></head><body></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    expect(result).toContain('name="viewport"');
+    expect(result).toContain('width=device-width');
+  });
+
+  it('viewport meta가 이미 있으면 중복 주입하지 않는다', () => {
+    const html = '<html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    const viewportCount = (result.match(/name="viewport"/g) ?? []).length;
+    expect(viewportCount).toBe(1);
+  });
 });

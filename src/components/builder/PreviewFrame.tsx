@@ -10,8 +10,8 @@ interface PreviewFrameProps {
 
 const DEVICES = [
   { key: 'desktop', label: '데스크톱', width: '100%', icon: Monitor },
-  { key: 'tablet', label: '태블릿', width: '768px', icon: Tablet },
-  { key: 'mobile', label: '모바일', width: '375px', icon: Smartphone },
+  { key: 'tablet', label: '태블릿', width: 'min(768px, 100%)', icon: Tablet },
+  { key: 'mobile', label: '모바일', width: 'min(375px, 100%)', icon: Smartphone },
 ] as const;
 
 export default function PreviewFrame({ projectId, version }: PreviewFrameProps) {

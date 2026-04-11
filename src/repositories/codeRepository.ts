@@ -76,6 +76,19 @@ export class CodeRepository extends BaseRepository<GeneratedCode> implements ICo
     return (data?.version ?? 0) + 1;
   }
 
+  async findMetadataByDateRange(from: Date): Promise<Array<{ metadata: CodeMetadata; createdAt: string }>> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select('metadata, created_at')
+      .gte('created_at', from.toISOString())
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+      metadata: (row.metadata as CodeMetadata) ?? {},
+      createdAt: row.created_at as string,
+    }));
+  }
+
   protected toDomain(row: Record<string, unknown>): GeneratedCode {
     return {
       id: row.id as string,

@@ -9,7 +9,9 @@ import {
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import { buildSystemPrompt, buildRegenerationPrompt } from '@/lib/ai/promptBuilder';
-import { parseGeneratedCode } from '@/lib/ai/codeParser';
+import { parseGeneratedCode, assembleHtml } from '@/lib/ai/codeParser';
+import { shouldRetryGeneration, buildQualityImprovementPrompt } from '@/lib/ai/qualityLoop';
+import { runFastQc, runDeepQc, isQcEnabled } from '@/lib/qc';
 import { validateAll, evaluateQuality } from '@/lib/ai/codeValidator';
 import { inferDesignFromCategories } from '@/lib/ai/categoryDesignMap';
 import { eventBus } from '@/lib/events/eventBus';
@@ -24,6 +26,15 @@ import {
 } from '@/lib/utils/errors';
 // RateLimitError is still used for the per-project regeneration limit check below
 import { logger } from '@/lib/utils/logger';
+
+// 2.2 — Safe wrapper: assembleHtml() can throw (e.g. malformed parsed output)
+function safeAssembleHtml(code: { html: string; css: string; js: string }): string | null {
+  try {
+    return assembleHtml(code);
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -168,7 +179,7 @@ export async function POST(request: Request): Promise<Response> {
 
           send('progress', { step: 'styling', progress: 85, message: '디자인 적용 중...' });
 
-          const parsed = parseGeneratedCode(response.content);
+          let parsed = parseGeneratedCode(response.content);
 
           send('progress', { step: 'validating', progress: 90, message: '코드 검증 중...' });
 
@@ -181,6 +192,113 @@ export async function POST(request: Request): Promise<Response> {
             });
             throw new Error(`생성된 코드에 보안 문제가 감지되었습니다: ${validation.errors.join(', ')}`);
           }
+
+          let quality = evaluateQuality(parsed.html, parsed.css, parsed.js);
+
+          // 렌더링 QC (Fast — 인라인, 3초 제한)
+          let qcReport: import('@/types/qc').QcReport | null = null;
+          if (isQcEnabled()) {
+            const assembledForFastQc = safeAssembleHtml(parsed);
+            if (!assembledForFastQc) {
+              logger.warn('safeAssembleHtml returned null for Regen Fast QC, skipping', { projectId });
+            }
+            try {
+              qcReport = assembledForFastQc ? await runFastQc(assembledForFastQc) : null;
+              if (qcReport) {
+                logger.info('Regen Fast QC completed', {
+                  projectId,
+                  qcScore: qcReport.overallScore,
+                  qcPassed: qcReport.passed,
+                });
+                eventBus.emit({
+                  type: 'QC_REPORT_COMPLETED',
+                  payload: {
+                    projectId,
+                    overallScore: qcReport.overallScore,
+                    passed: qcReport.passed,
+                    checks: qcReport.checks.map(c => ({ name: c.name, passed: c.passed, score: c.score })),
+                    isDeep: false,
+                  },
+                });
+              }
+            } catch (qcErr) {
+              logger.warn('Regen Fast QC failed, continuing without', { projectId, qcErr });
+              eventBus.emit({
+                type: 'QC_REPORT_FAILED',
+                payload: { projectId, stage: 'fast' as const, error: qcErr instanceof Error ? qcErr.message : String(qcErr) },
+              });
+            }
+          }
+
+          // 품질 자동 재생성 (최대 2회)
+
+          // 품질 자동 재생성
+          // 2.4 — 최선 버전 추적: 재시도 중 개선→악화 시 최선 버전 유지
+          let bestParsed = parsed;
+          let bestQuality = quality;
+          let bestQcReport = qcReport;
+          let qualityLoopUsed = false;
+
+          for (let retryAttempt = 0; retryAttempt < 2; retryAttempt++) {
+            if (!shouldRetryGeneration(bestQuality, bestQcReport)) break;
+
+            logger.info('Regen quality below threshold, attempting improvement', {
+              projectId,
+              score: bestQuality.structuralScore,
+              attempt: retryAttempt + 1,
+            });
+
+            send('progress', {
+              step: 'quality_improvement',
+              progress: 92,
+              message: '품질 개선 중...',
+            });
+
+            try {
+              const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport);
+              const retryResponse = await provider!.generateCode({ system: systemPrompt, user: improvementPrompt });
+              const retryParsed = parseGeneratedCode(retryResponse.content);
+
+              if (retryParsed.html) {
+                const retryQuality = evaluateQuality(retryParsed.html, retryParsed.css, retryParsed.js);
+
+                // 재생성 코드에 대해 Fast QC 재검증 (2.2: safeAssembleHtml 사용)
+                let retryQcReport: import('@/types/qc').QcReport | null = null;
+                if (isQcEnabled()) {
+                  try {
+                    const assembledForRetryQc = safeAssembleHtml(retryParsed);
+                    if (assembledForRetryQc) {
+                      retryQcReport = await runFastQc(assembledForRetryQc);
+                    }
+                  } catch {
+                    // QC 실패해도 코드 레벨 비교는 진행
+                  }
+                }
+
+                const codeImproved = retryQuality.structuralScore > bestQuality.structuralScore ||
+                    retryQuality.mobileScore > bestQuality.mobileScore;
+                const qcImproved = retryQcReport && bestQcReport
+                  ? retryQcReport.overallScore > bestQcReport.overallScore
+                  : false;
+
+                // 2.4 — 개선된 경우에만 bestParsed 갱신
+                if (codeImproved || qcImproved) {
+                  bestParsed = retryParsed;
+                  bestQuality = retryQuality;
+                  if (retryQcReport) bestQcReport = retryQcReport;
+                  qualityLoopUsed = true;
+                }
+              }
+            } catch (retryErr) {
+              logger.warn('Regen quality improvement retry failed', { projectId, retryErr });
+            }
+          }
+
+          // 2.4 — 루프 종료 후 최선 버전 적용
+          parsed = bestParsed;
+          quality = bestQuality;
+          qcReport = bestQcReport;
+
 
           const categories = [...new Set(projectApis.map((a) => a.category).filter(Boolean))];
           const inference = inferDesignFromCategories(categories);
@@ -204,17 +322,127 @@ export async function POST(request: Request): Promise<Response> {
               securityCheckPassed: validation.passed,
               validationErrors: [...validation.errors, ...validation.warnings],
               userFeedback: feedback,
-              ...evaluateQuality(parsed.html, parsed.css, parsed.js),
+              ...quality,
               apiCategories: categories,
               inferredTheme: inference.theme,
               inferredLayout: inference.layout,
+              qualityLoopUsed,
+
+              ...(qcReport && {
+                renderingQcScore: qcReport.overallScore,
+                renderingQcPassed: qcReport.passed,
+                renderingQcChecks: qcReport.checks.map(c => ({
+                  name: c.name,
+                  passed: c.passed,
+                  score: c.score,
+                  details: c.details,
+                })),
+              }),
             },
           } as Parameters<typeof codeRepo.create>[0]);
 
-          // 버전 정리를 비동기로 실행 — SSE 응답을 블로킹하지 않음
-          codeRepo.pruneOldVersions(projectId, limits.maxCodeVersionsPerProject).catch((pruneErr) => {
+          // 버전 정리 — 동기 실행으로 동시 생성 시 경합 방지 (Issue 6.2)
+          try {
+            await codeRepo.pruneOldVersions(projectId, limits.maxCodeVersionsPerProject);
+          } catch (pruneErr) {
             logger.warn('Failed to prune old code versions', { projectId, pruneErr });
-          });
+          }
+
+          // 렌더링 Deep QC — Fast QC 실패 시에만 실행 (비용 최적화)
+          if (isQcEnabled() && qcReport && !qcReport.passed) {
+            // 6.3 — savedCode.id를 클로저로 캡처하여 버전 불일치 방지
+            const codeId = savedCode.id;
+            const assembledForDeepQc = safeAssembleHtml(parsed);
+            if (assembledForDeepQc) {
+              runDeepQc(assembledForDeepQc).then(async (deepReport) => {
+                if (deepReport) {
+                  logger.info('Regen Deep QC completed', {
+                    projectId,
+                    qcScore: deepReport.overallScore,
+                    qcPassed: deepReport.passed,
+                    checks: deepReport.checks.map(c => ({ name: c.name, passed: c.passed, score: c.score })),
+                  });
+                  eventBus.emit({
+                    type: 'QC_REPORT_COMPLETED',
+                    payload: {
+                      projectId,
+                      overallScore: deepReport.overallScore,
+                      passed: deepReport.passed,
+                      checks: deepReport.checks.map(c => ({ name: c.name, passed: c.passed, score: c.score })),
+                      isDeep: true,
+                    },
+                  });
+                  // 6.1 — codeId(savedCode.id) 직접 사용으로 findByProject() 버전 불일치 제거
+                  try {
+                    const serviceClient = await createServiceClient();
+                    const { data: current } = await serviceClient
+                      .from('generated_codes')
+                      .select('metadata')
+                      .eq('id', codeId)
+                      .single();
+                    if (current) {
+                      await serviceClient
+                        .from('generated_codes')
+                        .update({
+                          metadata: {
+                            ...(current.metadata as Record<string, unknown> ?? {}),
+                            renderingQcScore: deepReport.overallScore,
+                            renderingQcPassed: deepReport.passed,
+                            renderingQcChecks: deepReport.checks.map(c => ({
+                              name: c.name,
+                              passed: c.passed,
+                              score: c.score,
+                              details: c.details,
+                            })),
+                          },
+                        })
+                        .eq('id', codeId);
+                    }
+                  } catch (updateErr) {
+                    logger.warn('Regen Deep QC metadata update failed', {
+                      projectId,
+                      codeId,
+                      error: updateErr instanceof Error ? updateErr.message : String(updateErr),
+                    });
+                  }
+                }
+              }).catch(async (qcErr) => {
+                // 2.1 — 상세 스택 트레이스 포함
+                logger.warn('Regen Deep QC failed', { projectId, codeId, error: qcErr instanceof Error ? qcErr.stack : String(qcErr) });
+                eventBus.emit({
+                  type: 'QC_REPORT_FAILED',
+                  payload: { projectId, stage: 'deep' as const, error: qcErr instanceof Error ? qcErr.message : String(qcErr) },
+                });
+                // 관리자가 qc-stats에서 실패를 인지할 수 있도록 메타데이터에 기록
+                try {
+                  const serviceClient = await createServiceClient();
+                  const { data: current } = await serviceClient
+                    .from('generated_codes')
+                    .select('metadata')
+                    .eq('id', codeId)
+                    .single();
+                  if (current) {
+                    await serviceClient
+                      .from('generated_codes')
+                      .update({
+                        metadata: {
+                          ...(current.metadata as Record<string, unknown> ?? {}),
+                          deepQcFailed: true,
+                        },
+                      })
+                      .eq('id', codeId);
+                  }
+                } catch (updateErr) {
+                  logger.warn('Regen Deep QC failure metadata update failed', {
+                    codeId,
+                    error: updateErr instanceof Error ? updateErr.message : String(updateErr),
+                  });
+                }
+              });
+            } else {
+              logger.warn('safeAssembleHtml returned null for Regen Deep QC, skipping', { projectId });
+            }
+          }
 
           // C2: Compensating rollback — delete orphaned code if status update fails
           try {
@@ -251,6 +479,15 @@ export async function POST(request: Request): Promise<Response> {
             projectId,
             version: nextVersion,
             previewUrl: `/api/v1/preview/${projectId}`,
+            ...(qcReport && {
+              qcResult: {
+                score: qcReport.overallScore,
+                passed: qcReport.passed,
+                issues: qcReport.checks
+                  .filter(c => !c.passed)
+                  .map(c => ({ name: c.name, details: c.details })),
+              },
+            }),
           });
         } catch (error) {
           logger.error('Code regeneration failed', {

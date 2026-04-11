@@ -7,10 +7,11 @@ import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/stores/authStore';
 import { useAuth } from '@/hooks/useAuth';
 import { ThemeSelector } from '@/components/ui/ThemeSelector';
-import { Menu, X, LogOut, User as UserIcon, LayoutGrid, Hammer, BarChart3, Key } from 'lucide-react';
+import { Menu, X, LogOut, User as UserIcon, LayoutGrid, Hammer, BarChart3, Key, Globe } from 'lucide-react';
 
 const NAV_LINKS = [
   { href: '/catalog', label: '카탈로그', icon: LayoutGrid },
+  { href: '/gallery', label: '갤러리', icon: Globe },
   { href: '/builder', label: '빌더', icon: Hammer },
   { href: '/dashboard', label: '대시보드', icon: BarChart3 },
 ];
@@ -34,7 +35,7 @@ export function Header() {
   }, []);
 
   return (
-    <header className="glass sticky top-0 z-50">
+    <header className="glass safe-top sticky top-0 z-50">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
         {/* Logo */}
         <Link href="/" className="text-lg font-bold tracking-tight">
@@ -45,7 +46,8 @@ export function Header() {
         {/* Desktop Nav */}
         <nav className="hidden items-center gap-1 md:flex">
           {NAV_LINKS.map((link) => {
-            if (link.href !== '/catalog' && !isAuthenticated) return null;
+            const isPublic = link.href === '/catalog' || link.href === '/gallery';
+            if (!isPublic && !isAuthenticated) return null;
             const isActive = pathname.startsWith(link.href);
             const Icon = link.icon;
             return (
@@ -88,7 +90,7 @@ export function Header() {
               <button
                 type="button"
                 onClick={() => setDropdownOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-full p-1 transition-all"
+                className="flex items-center gap-2 rounded-full p-2 transition-all"
                 style={{
                   outline: dropdownOpen ? '2px solid var(--border-accent)' : 'none',
                 }}
@@ -117,7 +119,7 @@ export function Header() {
 
               {dropdownOpen && (
                 <div
-                  className="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl py-1 animate-fade-in"
+                  className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-32px)] overflow-hidden rounded-xl py-1 animate-fade-in"
                   style={{
                     background: 'var(--bg-card)',
                     border: '1px solid var(--border)',
@@ -205,7 +207,8 @@ export function Header() {
           style={{ borderColor: 'var(--border)', background: 'var(--bg-surface)' }}
         >
           {NAV_LINKS.map((link) => {
-            if (link.href !== '/catalog' && !isAuthenticated) return null;
+            const isPublic = link.href === '/catalog' || link.href === '/gallery';
+            if (!isPublic && !isAuthenticated) return null;
             const isActive = pathname.startsWith(link.href);
             const Icon = link.icon;
             return (

@@ -90,10 +90,15 @@ export function validateFunctionality(html: string, _css: string, js: string): V
 
 export interface QualityMetrics {
   structuralScore: number;
+  mobileScore: number;
   hasSemanticHtml: boolean;
   hasMockData: boolean;
   hasInteraction: boolean;
   hasResponsiveClasses: boolean;
+  hasAdequateResponsive: boolean;
+  noFixedOverflow: boolean;
+  hasImageProtection: boolean;
+  hasMobileNav: boolean;
   hasFooter: boolean;
   hasImgAlt: boolean;
   details: string[];
@@ -108,7 +113,7 @@ export function evaluateQuality(html: string, _css: string, js: string): Quality
   const fullCode = `${html}\n${js}`;
   const details: string[] = [];
   let score = 0;
-  const maxScore = 10; // number of checks
+  const maxScore = 14; // number of checks
 
   // 1. Semantic HTML: <main>, <nav>, <article>, <section>, <footer>
   const semanticTags = ['<main', '<nav', '<footer', '<section', '<article'];
@@ -195,14 +200,58 @@ export function evaluateQuality(html: string, _css: string, js: string): Quality
     details.push('그리드/플렉스 레이아웃이 없습니다');
   }
 
+  // 11. Responsive prefix density (not just existence — need adequate usage)
+  const responsivePrefixCount = (fullCode.match(/\b(sm|md|lg|xl):/g) ?? []).length;
+  const hasAdequateResponsive = responsivePrefixCount >= 8;
+  if (hasAdequateResponsive) {
+    score++;
+  } else {
+    details.push(`반응형 클래스 밀도 부족 (${responsivePrefixCount}/8개)`);
+  }
+
+  // 12. No dangerous fixed widths that cause overflow
+  const hasDangerousWidth = /w-\[\d{4,}px\]|width:\s*[5-9]\d{2,}px|width:\s*1\d{3,}px/i.test(fullCode);
+  const noFixedOverflow = !hasDangerousWidth;
+  if (noFixedOverflow) {
+    score++;
+  } else {
+    details.push('위험한 고정 너비(500px+)가 감지되었습니다');
+  }
+
+  // 13. Image overflow protection
+  const allImgs = html.match(/<img\s[^>]*>/gi) ?? [];
+  const protectedImgs = allImgs.filter((tag) => /w-full|max-w-full|object-cover|object-contain/i.test(tag));
+  const hasImageProtection = allImgs.length === 0 || protectedImgs.length >= allImgs.length * 0.5;
+  if (hasImageProtection) {
+    score++;
+  } else {
+    details.push(`이미지 오버플로우 보호 부족 (${protectedImgs.length}/${allImgs.length}개)`);
+  }
+
+  // 14. Mobile navigation pattern (hamburger / responsive hide)
+  const hasMobileNav = /hidden\s+(?:[\w-]+\s+)*(?:md|lg):(?:flex|block|inline-flex)/i.test(fullCode) ||
+    /(?:md|lg):hidden/i.test(fullCode);
+  if (hasMobileNav) {
+    score++;
+  } else {
+    details.push('모바일 네비게이션 패턴(hidden md:flex)이 없습니다');
+  }
+
   const structuralScore = Math.round((score / maxScore) * 100);
+  const mobileChecks = [hasResponsiveClasses, hasAdequateResponsive, noFixedOverflow, hasImageProtection, hasMobileNav];
+  const mobileScore = Math.round((mobileChecks.filter(Boolean).length / mobileChecks.length) * 100);
 
   return {
     structuralScore,
+    mobileScore,
     hasSemanticHtml,
     hasMockData,
     hasInteraction,
     hasResponsiveClasses,
+    hasAdequateResponsive,
+    noFixedOverflow,
+    hasImageProtection,
+    hasMobileNav,
     hasFooter,
     hasImgAlt,
     details,

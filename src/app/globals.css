@@ -407,7 +407,7 @@ body {
   color: white;
   font-weight: 600;
   border-radius: var(--radius-md);
-  padding: 10px 24px;
+  padding: 12px 24px;
   font-size: 14px;
   transition: all 0.25s ease;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12), var(--shadow-glow);
@@ -435,7 +435,7 @@ body {
   font-weight: 500;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  padding: 10px 24px;
+  padding: 12px 24px;
   font-size: 14px;
   transition: all 0.2s ease;
   box-shadow: var(--shadow-sm);
@@ -450,7 +450,7 @@ body {
   color: var(--text-secondary);
   font-weight: 500;
   border-radius: var(--radius-md);
-  padding: 10px 20px;
+  padding: 12px 20px;
   font-size: 14px;
   transition: all 0.2s ease;
 }
@@ -654,4 +654,26 @@ body {
 ::selection {
   background: var(--selection-bg);
   color: var(--selection-color);
+}
+
+/* ── Mobile touch targets ─────────────────────── */
+
+@media (max-width: 640px) {
+  .btn-primary,
+  .btn-secondary,
+  .btn-ghost {
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+}
+
+/* ── iOS safe-area ────────────────────────────── */
+
+@supports (padding: env(safe-area-inset-top)) {
+  .safe-top { padding-top: env(safe-area-inset-top); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-x {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
 }

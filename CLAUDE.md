@@ -6,7 +6,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 
 - 서비스 URL: https://xzawed.xyz
 - 배포: Railway (단일 인스턴스, Dockerfile, standalone output)
-- Phase 1 완료 / Phase 2 예정 (Circuit Breaker, RBAC, 팀/조직)
+- Phase A-1 완료 (갤러리) / Phase A-2 예정 (공식 템플릿 라이브러리)
 
 ## 기술 스택
 
@@ -32,7 +32,7 @@ src/
 │   ├── (auth)/      # 인증 관련 페이지
 │   ├── (main)/      # 메인 페이지 그룹
 │   └── site/        # 서브도메인 서빙 ([slug])
-├── components/      # UI 컴포넌트 (builder/, catalog/, dashboard/, layout/, settings/, ui/)
+├── components/      # UI 컴포넌트 (builder/, catalog/, dashboard/, gallery/, layout/, settings/, ui/)
 ├── hooks/           # 커스텀 React hooks
 ├── lib/             # 유틸리티
 │   ├── ai/          # AI 프롬프트, 파이프라인
@@ -40,6 +40,7 @@ src/
 │   ├── deploy/      # 배포 관련
 │   ├── events/      # EventBus + EventRepository
 │   ├── i18n/        # 다국어 (t() 함수, 한국어 기본)
+│   ├── qc/          # QC 로직
 │   ├── supabase/    # Supabase 클라이언트
 │   └── utils/       # 공통 유틸리티, 에러 클래스
 ├── middleware.ts     # 서브도메인 라우팅, 보안 헤더 (CSP, HSTS)
@@ -94,23 +95,22 @@ pnpm test:coverage    # 커버리지 리포트
 
 ## 환경변수 (참고용 — 값 절대 포함 금지)
 
-- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - `NEXT_PUBLIC_ROOT_DOMAIN` (서브도메인 가상 호스팅)
-- `ANTHROPIC_API_KEY` (Claude, 기본), `XAI_API_KEY` (Grok, 롤백용)
-- `AI_PROVIDER` — `claude` (기본) | `grok`
+- `ANTHROPIC_API_KEY`
+- `ADMIN_API_KEY` — 관리자 API 인증 (QC 통계, 수동 QC 트리거)
+- `ENABLE_RENDERING_QC` — Playwright 렌더링 QC 활성화 (true/false)
+- `ENCRYPTION_KEY` — 사용자 API 키 암호화
+- `GITHUB_TOKEN`, `RAILWAY_TOKEN` — 배포용
 - `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
 
 ## 문서 참조
 
-- `.claude/docs/` — Claude Code 작업 가이드
-  - `architecture.md` — 아키텍처 개요, 파이프라인 흐름
-  - `ai-provider.md` — AI Provider 시스템 (Claude/Grok)
-  - `debugging-guide.md` — 자주 발생하는 문제와 해결
-  - `testing-guide.md` — 테스트 구조 및 패턴
-  - `deployment.md` — 배포 환경변수 및 체크리스트
+- `docs/20_QC_표준_프로세스.md` — **QC 표준 프로세스** (모든 생성/수정에 적용)
 - `docs/` — 40+ 상세 설계 문서 (한국어): 아키텍처, DB, API, UI/UX, 스프린트 계획
 - `README.md` — 프로젝트 전체 개요
 - `.github/PULL_REQUEST_TEMPLATE.md` — PR 템플릿
+- `.scamanager/` — pre-push 자동 코드리뷰 훅 (Claude CLI → SCAManager 서버, `install-hook.sh`로 설치)
 
 ## 배포 품질 원칙 (필수)
 
@@ -129,6 +129,11 @@ pnpm test:coverage    # 커버리지 리포트
 ### 코드 수정 후
 - 수정한 함수/파일을 호출하는 모든 경로를 나열하고 각각 검증
 - 단일 파일만 보고 끝내지 않고 cross-cutting concern(미들웨어, 공통 함수) 영향 확인
+
+### QC 프로세스 (생성/재생성 공통)
+- 모든 코드 생성/재생성은 `docs/20_QC_표준_프로세스.md`의 8단계를 동일하게 거침
+- 보안 검증 → 코드 품질 → Fast QC → 자동 재생성 → 재검증 → 저장 → Deep QC → 사용자 알림
+- QC 관련 파일 수정 시: generate/route.ts와 regenerate/route.ts 양쪽 모두 동일하게 반영
 
 ## 커밋 메시지 규칙
 
