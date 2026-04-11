@@ -90,7 +90,7 @@ vi.mock('@/lib/events/eventBus', () => ({
 }));
 
 // ---------- Test data ----------
-const mockUser = { id: 'user-1', email: 'test@test.com' };
+const mockUser = { id: 'user-1', email: 'test@test.com', name: null, avatarUrl: null };
 const mockProject = {
   id: 'proj-1',
   name: '테스트 프로젝트',
