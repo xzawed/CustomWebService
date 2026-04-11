@@ -23,7 +23,7 @@ export const users = pgTable('users', {
   name: varchar('name', { length: 255 }),
   avatar_url: text('avatar_url'),
   // Auth.js (next-auth v5) @auth/drizzle-adapter 필수 컬럼
-  emailVerified: timestamp('emailVerified', { mode: 'date' }),
+  emailVerified: timestamp('email_verified', { mode: 'date' }),
   image: text('image'),
   preferences: jsonb('preferences').default({}),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
