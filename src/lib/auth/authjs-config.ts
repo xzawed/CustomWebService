@@ -1,3 +1,6 @@
+// ⚠️  이 파일은 모듈 초기화 시 getDb()를 호출합니다 (DrizzleAdapter).
+// AUTH_PROVIDER=authjs 환경에서만 동적 import로 로드되어야 합니다.
+// 정적 import 시 Supabase 모드에서 예외가 발생합니다.
 import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
 import GitHub from 'next-auth/providers/github';

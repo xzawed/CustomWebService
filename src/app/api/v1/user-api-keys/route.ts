@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/auth/index';
 import { encryptApiKey, maskApiKey, decryptApiKey } from '@/lib/encryption';
 import { createUserApiKeyRepository, createCatalogRepository } from '@/repositories/factory';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
+import { getDbProvider } from '@/lib/config/providers';
 import { z } from 'zod/v4';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -18,7 +19,7 @@ export async function GET(): Promise<Response> {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const supabase = await createClient();
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
 
     const repo = createUserApiKeyRepository(supabase);
     const rows = await repo.findAllByUser(user.id);
@@ -52,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const supabase = await createClient();
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
 
     let body: unknown;
     try {
@@ -68,7 +69,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const { apiId, apiKey } = parsed.data;
 
-    const svcClient = await createServiceClient();
+    const svcClient = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
     const catalogRepo = createCatalogRepository(svcClient);
     const api = await catalogRepo.findById(apiId);
     if (!api || !api.isActive) {
@@ -100,7 +101,7 @@ export async function DELETE(request: Request): Promise<Response> {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const supabase = await createClient();
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
 
     const apiId = new URL(request.url).searchParams.get('apiId');
     if (!apiId) throw new ValidationError('apiId가 필요합니다.');
