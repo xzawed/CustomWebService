@@ -6,8 +6,15 @@ export interface PersistEventContext {
   correlationId?: string;
 }
 
+export interface EventRecord {
+  id: string;
+  type: string;
+  payload: unknown;
+  createdAt: string;
+}
+
 export interface IEventRepository {
   persist(event: DomainEvent, context: PersistEventContext): Promise<void>;
   persistAsync(event: DomainEvent, context: PersistEventContext): void;
-  findByUser(userId: string, limit?: number): Promise<Array<{ id: string; type: string; payload: unknown; createdAt: string }>>;
+  findByUser(userId: string, limit?: number): Promise<EventRecord[]>;
 }

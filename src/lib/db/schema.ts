@@ -184,7 +184,7 @@ export const userApiKeys = pgTable(
     api_id: uuid('api_id')
       .notNull()
       .references(() => apiCatalog.id),
-    encrypted_key: text('encrypted_key'),
+    encrypted_key: text('encrypted_key').notNull(),
     is_verified: boolean('is_verified').default(false),
     verified_at: timestamp('verified_at', { withTimezone: true }),
     created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),

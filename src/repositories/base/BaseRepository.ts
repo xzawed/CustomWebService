@@ -1,12 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { QueryOptions } from '@/repositories/interfaces/IBaseRepository';
 
-export interface QueryOptions {
-  page?: number;
-  limit?: number;
-  cursor?: string;
-  orderBy?: string;
-  orderDirection?: 'asc' | 'desc';
-}
+// Re-export for backwards compatibility
+export type { QueryOptions };
 
 export abstract class BaseRepository<T extends { id: string }> {
   constructor(

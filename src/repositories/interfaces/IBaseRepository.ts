@@ -1,4 +1,11 @@
-import type { QueryOptions } from '@/repositories/base/BaseRepository';
+/** 목록 조회 옵션 */
+export interface QueryOptions {
+  page?: number;
+  limit?: number;
+  cursor?: string;
+  orderBy?: string;
+  orderDirection?: 'asc' | 'desc';
+}
 
 export interface IBaseRepository<T extends { id: string }> {
   findById(id: string): Promise<T | null>;
