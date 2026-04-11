@@ -1,0 +1,15 @@
+// ⚠️  이 파일은 authjs-config를 정적 import합니다.
+// AUTH_PROVIDER=authjs 환경에서만 동적 import로 로드되어야 합니다.
+import type { AuthUser } from '@/lib/auth/types';
+import { auth } from '@/lib/auth/authjs-config';
+
+export async function getAuthJsUser(): Promise<AuthUser | null> {
+  const session = await auth();
+  if (!session?.user?.id || !session.user.email) return null;
+  return {
+    id: session.user.id,
+    email: session.user.email,
+    name: session.user.name ?? null,
+    avatarUrl: session.user.image ?? null,
+  };
+}

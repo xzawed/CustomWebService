@@ -1,7 +1,39 @@
-# 사전 작업 실행 순서 (Pre-Development Execution Order)
+# 사전 작업 체크리스트 & 실행 순서
 
-> 모든 사전 작업을 실행 순서대로 정리한 최종 가이드
-> Sprint 1 개발 시작 전 3일간 완료
+> Sprint 1 개발 시작 전 3일간 완료해야 하는 모든 사전 작업의 체크리스트와 실행 절차를 통합한 문서
+
+---
+
+## 전체 체크리스트 요약
+
+```
+Day 1 (계정 + 인프라)
+  ☐ GitHub 계정 + Org + PAT
+  ☐ Supabase 프로젝트 + 키
+  ☐ Railway 가입 + Token
+  ☐ Google OAuth → Supabase 등록
+  ☐ GitHub OAuth → Supabase 등록
+  ☐ Grok API Key + 테스트
+
+Day 2 (프로젝트 + 설정)
+  ☐ Git 저장소 + 브랜치 전략
+  ☐ Next.js 프로젝트 + 의존성
+  ☐ 환경변수 설정
+  ☐ 코드 품질 도구 (Husky, Prettier)
+  ☐ DB 스키마 생성 + RLS
+  ☐ 디자인 기초 에셋
+  ☐ CI/CD 파이프라인
+
+Day 3 (검증 + 테스트)
+  ☐ Supabase 연동 테스트
+  ☐ OAuth 로그인 테스트
+  ☐ Grok 코드 생성 테스트
+  ☐ Railway 배포 테스트
+  ☐ 무료 API 검증 (54개 등록)
+  ☐ 프롬프트 버전 선정
+
+─── Sprint 1 개발 시작 ───
+```
 
 ---
 
@@ -83,12 +115,20 @@ Step 8 ─ xAI Grok API 테스트
   └── 8.3 간단한 코드 생성 프롬프트 테스트 1~2건 실행
 ```
 
-### 확인: Day 1 완료 체크
+```bash
+# xAI Grok API 테스트 호출
+curl "https://api.x.ai/v1/chat/completions" \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer YOUR_API_KEY' \
+  -d '{"model":"grok-3-mini","messages":[{"role":"user","content":"Hello"}]}'
+```
+
+### Day 1 완료 체크
 
 | # | 항목 | 확인 |
 |---|------|------|
 | 1 | GitHub 계정 + Organization 생성 | ☐ |
-| 2 | GitHub PAT 발급 | ☐ |
+| 2 | GitHub PAT 발급 (스코프: repo, workflow, admin:org, delete_repo) | ☐ |
 | 3 | Supabase 프로젝트 생성 + API 키 확보 | ☐ |
 | 4 | Railway 가입 + 프로젝트 토큰 발급 | ☐ |
 | 5 | Google OAuth 설정 → Supabase 등록 | ☐ |
@@ -137,7 +177,31 @@ Step 11 ─ 환경변수 설정
   ├── 11.1 .env.example 생성 (값 없는 키 목록)
   ├── 11.2 .env.local 생성 (실제 키 값 입력)
   └── 11.3 .gitignore에 .env.local 포함 확인
+```
 
+`.env.local` 템플릿:
+
+```env
+# --- Supabase ---
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxxxxxxxxxxxxxx
+SUPABASE_SERVICE_ROLE_KEY=eyJxxxxxxxxxxxxxxx
+
+# --- AI (xAI Grok) ---
+XAI_API_KEY=xai-xxxxxxxxxxxxxxxxx
+
+# --- GitHub (생성 서비스 배포용) ---
+GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxx
+GITHUB_ORG=customwebservice-apps
+
+# --- Railway (생성 서비스 배포용) ---
+RAILWAY_TOKEN=xxxxxxxxxxxxxxxxx
+
+# --- App ---
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+```
 Step 12 ─ 코드 품질 도구
   ├── 12.1 Prettier 설정
   │       .prettierrc 파일 생성
@@ -147,7 +211,18 @@ Step 12 ─ 코드 품질 도구
   ├── 12.3 Husky + lint-staged 설치
   │       pnpm add -D husky lint-staged
   │       pnpm dlx husky init
-  └── 12.4 pre-commit 훅 설정
+  └── 12.4 pre-commit 훅 설정 (.husky/pre-commit: pnpm lint-staged)
+```
+
+`package.json`에 추가:
+
+```json
+{
+  "lint-staged": {
+    "*.{ts,tsx}": ["eslint --fix", "prettier --write"],
+    "*.{json,md,css}": ["prettier --write"]
+  }
+}
 ```
 
 ### 오후: DB 및 디자인 기반 (약 2시간)
@@ -169,16 +244,58 @@ Step 14 ─ 디자인 기초 에셋 준비
   └── 14.4 Pretendard 폰트 설정
 
 Step 15 ─ CI/CD 파이프라인
-  ├── 15.1 .github/workflows/ci.yml 생성
-  │       (14_사전작업_체크리스트.md의 YAML 참조)
+  ├── 15.1 .github/workflows/ci.yml 생성 (아래 YAML 참조)
   └── 15.2 커밋 + 푸시 → GitHub Actions 실행 확인
 ```
 
-### 확인: Day 2 완료 체크
+`.github/workflows/ci.yml`:
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  lint-and-type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm tsc --noEmit
+
+  build:
+    runs-on: ubuntu-latest
+    needs: lint-and-type-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+```
+
+### Day 2 완료 체크
 
 | # | 항목 | 확인 |
 |---|------|------|
-| 1 | GitHub 저장소 생성 + 브랜치 전략 설정 | ☐ |
+| 1 | GitHub 저장소 생성 + 브랜치 전략 설정 (main/develop/feature/*) | ☐ |
 | 2 | Next.js 프로젝트 실행 (localhost:3000) | ☐ |
 | 3 | 모든 의존성 설치 완료 | ☐ |
 | 4 | .env.local 키 값 전부 설정 | ☐ |
@@ -238,7 +355,7 @@ Step 20 ─ 무료 API 검증 (우선순위 높은 것부터)
   └── 20.5 검증 결과 문서 업데이트
 ```
 
-### 확인: Day 3 완료 체크 (= Sprint 1 시작 가능)
+### Day 3 완료 체크 (= Sprint 1 시작 가능)
 
 | # | 항목 | 확인 |
 |---|------|------|
@@ -253,33 +370,136 @@ Step 20 ─ 무료 API 검증 (우선순위 높은 것부터)
 
 ---
 
-## 전체 체크리스트 요약
+## Tier 2: 개발 품질 항목 (Sprint 1 중 완료)
+
+> 개발을 시작할 수는 있지만, 품질/효율을 위해 Sprint 1 중 완료해야 하는 항목
+
+### `.gitignore` 설정
+
+```gitignore
+# dependencies
+node_modules/
+.pnpm-store/
+
+# next.js
+.next/
+out/
+
+# env files
+.env
+.env.local
+.env.*.local
+
+# vercel
+.vercel
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# debug
+npm-debug.log*
+pnpm-debug.log*
+
+# typescript
+*.tsbuildinfo
+
+# test coverage
+coverage/
+```
+
+### 커밋 메시지 컨벤션
 
 ```
-Day 1 (계정 + 인프라)
-  ☐ GitHub 계정 + Org + PAT
-  ☐ Supabase 프로젝트 + 키
-  ☐ Railway 가입 + Token
-  ☐ Google OAuth → Supabase 등록
-  ☐ GitHub OAuth → Supabase 등록
-  ☐ Grok API Key + 테스트
-
-Day 2 (프로젝트 + 설정)
-  ☐ Git 저장소 + 브랜치 전략
-  ☐ Next.js 프로젝트 + 의존성
-  ☐ 환경변수 설정
-  ☐ 코드 품질 도구 (Husky, Prettier)
-  ☐ DB 스키마 생성 + RLS
-  ☐ 디자인 기초 에셋
-  ☐ CI/CD 파이프라인
-
-Day 3 (검증 + 테스트)
-  ☐ Supabase 연동 테스트
-  ☐ OAuth 로그인 테스트
-  ☐ Grok 코드 생성 테스트
-  ☐ Railway 배포 테스트
-  ☐ 무료 API 검증 (54개 등록)
-  ☐ 프롬프트 버전 선정
-
-─── Sprint 1 개발 시작 ───
+<type>(<scope>): <subject>
 ```
+
+| Type | 설명 | 예시 |
+|------|------|------|
+| `feat` | 새 기능 | `feat(catalog): API 카드 컴포넌트 구현` |
+| `fix` | 버그 수정 | `fix(auth): 로그아웃 시 세션 미삭제 수정` |
+| `docs` | 문서 변경 | `docs: 스프린트 계획 업데이트` |
+| `style` | 코드 포맷 | `style: Prettier 적용` |
+| `refactor` | 리팩토링 | `refactor(builder): 스토어 구조 개선` |
+| `test` | 테스트 | `test(generate): 코드 파서 단위 테스트` |
+| `chore` | 기타 | `chore: 의존성 업데이트` |
+
+### 브랜치 전략
+
+```
+main ──────────────────────────────────── 프로덕션
+  │
+  └── develop ────────────────────────── 개발 통합
+        │
+        ├── feature/sprint1-auth ──────── 기능 개발
+        ├── feature/sprint2-catalog ────
+        └── ...
+
+규칙:
+- feature/* → develop: PR + 리뷰 후 머지
+- develop → main: 스프린트 완료 시 머지 (배포)
+- main 직접 푸시 금지
+- 머지 전 CI 통과 필수
+```
+
+---
+
+## Tier 3: 출시 전 필수 항목 (Sprint 7~8에서 완료)
+
+> 개발 중에는 없어도 되지만, 출시 전 반드시 완료해야 하는 항목
+
+### 모니터링 서비스 계정
+
+| # | 서비스 | 절차 | 완료 시점 | 확인 |
+|---|--------|------|-----------|------|
+| 1 | **Sentry** | https://sentry.io → 가입 → 프로젝트 생성 (Next.js) → DSN 복사 | Sprint 8 | ☐ |
+| 2 | **UptimeRobot** | https://uptimerobot.com → 가입 → 모니터 추가 (메인 URL + API 엔드포인트) | Sprint 8 | ☐ |
+| 3 | **Railway Observability** | Railway Dashboard → 프로젝트 → Observability 탭 → Enable | Sprint 8 | ☐ |
+
+### 법적 문서 작성
+
+| # | 문서 | 내용 | 확인 |
+|---|------|------|------|
+| 1 | **이용약관 (ToS)** | 별도 문서 `15_법적문서.md` 참조 | ☐ |
+| 2 | **개인정보처리방침** | 별도 문서 `15_법적문서.md` 참조 | ☐ |
+| 3 | **면책 조항** | 생성된 서비스에 대한 책임 한계 | ☐ |
+
+### 디자인 에셋 준비
+
+| # | 에셋 | 규격 | 도구 | 확인 |
+|---|------|------|------|------|
+| 1 | **로고** | SVG + PNG (다크/라이트 버전) | Figma 또는 Canva (무료) | ☐ |
+| 2 | **파비콘** | 16x16, 32x32, 180x180 (apple-touch) | RealFaviconGenerator | ☐ |
+| 3 | **OG 이미지** | 1200x630px (소셜 미디어 공유) | Canva | ☐ |
+| 4 | **API 카테고리 아이콘** | 24x24 SVG (10개 카테고리) | Lucide Icons (무료) | ☐ |
+| 5 | **빈 상태 일러스트** | 검색 결과 없음, 서비스 없음 | unDraw (무료) | ☐ |
+
+### 콘텐츠 준비
+
+| # | 콘텐츠 | 위치 | 확인 |
+|---|--------|------|------|
+| 1 | 랜딩 페이지 카피 | 히어로 메시지, 섹션별 텍스트 | ☐ |
+| 2 | FAQ 답변 | 7~10개 Q&A | ☐ |
+| 3 | 에러 메시지 | 각 에러 코드별 사용자 친화 메시지 | ☐ |
+| 4 | 성공 메시지 | 생성 완료, 배포 완료 등 | ☐ |
+| 5 | 온보딩 가이드 | 첫 사용자 안내 텍스트 | ☐ |
+| 6 | 예시 서비스 | 쇼케이스용 3~5개 서비스 시나리오 | ☐ |
+
+### 보안 체크리스트
+
+| # | 항목 | 확인 |
+|---|------|------|
+| 1 | `.env.local`이 `.gitignore`에 포함 | ☐ |
+| 2 | Supabase `service_role` 키 서버사이드에서만 사용 | ☐ |
+| 3 | RLS 정책 정상 동작 (다른 사용자 데이터 접근 불가) | ☐ |
+| 4 | API Route에 인증 미들웨어 적용 (보호 엔드포인트) | ☐ |
+| 5 | 생성 코드 XSS 검증 로직 동작 | ☐ |
+| 6 | API 키 하드코딩 검출 로직 동작 | ☐ |
+| 7 | CORS 설정 (허용 도메인만) | ☐ |
+| 8 | Rate Limiting 적용 (생성 요청 10회/일) | ☐ |
+| 9 | iframe sandbox 속성 적용 (미리보기) | ☐ |
+| 10 | Dependabot 활성화 (취약 의존성 알림) | ☐ |

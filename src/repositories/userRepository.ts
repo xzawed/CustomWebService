@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BaseRepository } from './base/BaseRepository';
 import type { User, UserPreferences } from '@/types/organization';
+import type { IUserRepository } from '@/repositories/interfaces';
 
-export class UserRepository extends BaseRepository<User> {
+export class UserRepository extends BaseRepository<User> implements IUserRepository {
   constructor(supabase: SupabaseClient) {
     super(supabase, 'users');
   }

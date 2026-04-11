@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 import { getCorrelationId, CORRELATION_ID_HEADER } from '@/lib/utils/correlationId';
+import { getAuthProvider } from '@/lib/config/providers';
 
 export async function middleware(request: NextRequest) {
   const correlationId = getCorrelationId(request);
@@ -29,7 +30,33 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const response = await updateSession(request);
+  let response: NextResponse;
+
+  if (getAuthProvider() === 'authjs') {
+    // Auth.js manages sessions via its own route handlers (/api/auth/*)
+    // No session refresh needed in middleware
+    response = NextResponse.next({ request });
+
+    // Auth.js mode: protect routes that require authentication
+    const authPath = request.nextUrl.pathname;
+    const PROTECTED_ROUTES = ['/builder', '/dashboard', '/preview'];
+    const isProtected = PROTECTED_ROUTES.some((route) => authPath.startsWith(route));
+
+    if (isProtected) {
+      // Import auth lazily to avoid loading Drizzle in Supabase mode
+      const { getAuthJsUser } = await import('@/lib/auth/authjs-auth');
+      const user = await getAuthJsUser();
+      if (!user) {
+        const url = request.nextUrl.clone();
+        url.pathname = '/login';
+        url.searchParams.set('redirect', authPath);
+        return NextResponse.redirect(url);
+      }
+    }
+  } else {
+    response = await updateSession(request);
+  }
+
   response.headers.set(CORRELATION_ID_HEADER, correlationId);
 
   const path = request.nextUrl.pathname;

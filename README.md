@@ -38,8 +38,8 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 | UI | React 19, Tailwind CSS 4, Lucide React |
 | State | Zustand |
 | Validation | Zod |
-| Database | Supabase (PostgreSQL + Row Level Security) |
-| Auth | Supabase Auth (Google, GitHub OAuth) |
+| Database | Supabase (기본) / 온프레미스 PostgreSQL + Drizzle ORM (선택) |
+| Auth | Supabase Auth (기본) / Auth.js v5 + NextAuth (선택) |
 | AI | Claude API (Anthropic SDK) |
 | Testing | Vitest |
 | CI/CD | GitHub Actions |
@@ -52,10 +52,29 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 | 항목 | 구성 |
 |------|------|
 | 호스팅 | Railway (서브도메인 가상 호스팅) |
-| 데이터베이스 | Supabase (PostgreSQL + RLS) |
-| 인증 | Supabase Auth (OAuth 2.0 — Google, GitHub) |
+| 데이터베이스 | Supabase (기본, PostgreSQL + RLS) / 온프레미스 PostgreSQL (환경변수 전환) |
+| 인증 | Supabase Auth (기본, OAuth 2.0) / Auth.js v5 (환경변수 전환) |
 | AI | Claude API (서버사이드 전용) |
 | 도메인 | Railway 커스텀 도메인 |
+
+### DB / Auth Provider 전환
+
+환경변수 하나로 Supabase ↔ 온프레미스 PostgreSQL을 전환할 수 있습니다.
+
+```env
+# DB Provider: supabase(기본) | postgres
+DB_PROVIDER=supabase
+DATABASE_URL=postgresql://user:pass@host:5432/dbname   # postgres 모드 필수
+
+# Auth Provider: supabase(기본) | authjs
+AUTH_PROVIDER=supabase
+NEXT_PUBLIC_AUTH_PROVIDER=supabase
+AUTH_SECRET=                  # authjs 모드 필수
+AUTH_GOOGLE_ID=
+AUTH_GOOGLE_SECRET=
+AUTH_GITHUB_ID=
+AUTH_GITHUB_SECRET=
+```
 
 ---
 

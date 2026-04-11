@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BaseRepository } from './base/BaseRepository';
 import type { ApiCatalogItem, CatalogSearchParams, Category } from '@/types/api';
+import type { ICatalogRepository } from '@/repositories/interfaces';
 
-export class CatalogRepository extends BaseRepository<ApiCatalogItem> {
+export class CatalogRepository extends BaseRepository<ApiCatalogItem> implements ICatalogRepository {
   constructor(supabase: SupabaseClient) {
     super(supabase, 'api_catalog');
   }

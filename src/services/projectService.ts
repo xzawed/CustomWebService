@@ -1,21 +1,17 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { ProjectRepository } from '@/repositories/projectRepository';
-import { CatalogRepository } from '@/repositories/catalogRepository';
+import type { IProjectRepository, ICatalogRepository } from '@/repositories/interfaces';
 import { eventBus } from '@/lib/events/eventBus';
 import { getLimits } from '@/lib/config/features';
-import { NotFoundError, ForbiddenError, ValidationError } from '@/lib/utils/errors';
+import { NotFoundError, ValidationError } from '@/lib/utils/errors';
+import { assertOwner } from '@/lib/auth/authorize';
 import { generateSlug } from '@/lib/utils/slugify';
 import type { Project, ProjectMetadata, CreateProjectInput } from '@/types/project';
 import type { ApiCatalogItem } from '@/types/api';
 
 export class ProjectService {
-  private projectRepo: ProjectRepository;
-  private catalogRepo: CatalogRepository;
-
-  constructor(supabase: SupabaseClient) {
-    this.projectRepo = new ProjectRepository(supabase);
-    this.catalogRepo = new CatalogRepository(supabase);
-  }
+  constructor(
+    private projectRepo: IProjectRepository,
+    private catalogRepo: ICatalogRepository
+  ) {}
 
   async create(userId: string, input: CreateProjectInput): Promise<Project> {
     const limits = getLimits();
@@ -88,7 +84,7 @@ export class ProjectService {
   async getById(id: string, userId: string): Promise<Project> {
     const project = await this.projectRepo.findById(id);
     if (!project) throw new NotFoundError('프로젝트', id);
-    if (project.userId !== userId) throw new ForbiddenError();
+    assertOwner(project, userId);
     return project;
   }
 

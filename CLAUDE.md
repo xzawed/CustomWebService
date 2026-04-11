@@ -16,8 +16,8 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 | UI | React 19, Tailwind CSS 4, Lucide React |
 | State | Zustand (분리 스토어 + persist middleware) |
 | Form | React Hook Form + Zod |
-| Database | Supabase (PostgreSQL + Row Level Security) |
-| Auth | Supabase Auth (Google, GitHub OAuth) |
+| Database | Supabase (기본) / 온프레미스 PostgreSQL + Drizzle ORM 0.45.x (선택) |
+| Auth | Supabase Auth (기본) / Auth.js v5 beta + NextAuth (선택) |
 | AI | Claude API (Anthropic SDK) |
 | Testing | Vitest, happy-dom, MSW |
 | CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
@@ -36,21 +36,41 @@ src/
 ├── hooks/           # 커스텀 React hooks
 ├── lib/             # 유틸리티
 │   ├── ai/          # AI 프롬프트, 파이프라인
+│   ├── auth/        # Auth 추상화 레이어
+│   │   ├── index.ts          # getAuthUser() — provider 무관 통합 팩토리
+│   │   ├── types.ts          # AuthUser 인터페이스
+│   │   ├── authorize.ts      # assertOwner() — 소유권 검증
+│   │   ├── supabase-auth.ts  # Supabase Auth 어댑터
+│   │   ├── authjs-auth.ts    # Auth.js 어댑터 (동적 import 전용)
+│   │   └── authjs-config.ts  # NextAuth v5 설정 (동적 import 전용)
 │   ├── config/      # 환경변수 기반 설정
+│   │   └── providers.ts      # getDbProvider() / getAuthProvider() (메모이즈드)
+│   ├── db/          # 온프레미스 PostgreSQL (DB_PROVIDER=postgres)
+│   │   ├── schema.ts         # Drizzle ORM 스키마 (10개 테이블)
+│   │   └── connection.ts     # getDb() — pg.Pool + drizzle 싱글턴
 │   ├── deploy/      # 배포 관련
 │   ├── events/      # EventBus + EventRepository
 │   ├── i18n/        # 다국어 (t() 함수, 한국어 기본)
 │   ├── supabase/    # Supabase 클라이언트
 │   └── utils/       # 공통 유틸리티, 에러 클래스
-├── middleware.ts     # 서브도메인 라우팅, 보안 헤더 (CSP, HSTS)
+├── middleware.ts     # 서브도메인 라우팅, 보안 헤더 (CSP, HSTS), Auth 분기
 ├── providers/       # AI Provider (IAiProvider → ClaudeProvider)
-├── repositories/    # 데이터 접근 계층 (BaseRepository 패턴)
+├── repositories/    # 데이터 접근 계층
+│   ├── interfaces/  # Repository 인터페이스 (IProjectRepository 등 9개)
+│   ├── drizzle/     # Drizzle 구현체 (DrizzleProjectRepository 등 8개)
+│   ├── base/        # BaseRepository (Supabase)
+│   ├── factory.ts   # createProjectRepository() 등 — provider 분기 주입
+│   └── *.ts         # Supabase 구현체 (기존)
 ├── services/        # 비즈니스 로직 계층
+│   └── factory.ts   # createProjectService() 등 — Repository 조합 주입
 ├── stores/          # Zustand 스토어
 ├── templates/       # 코드 생성 템플릿
 ├── types/           # TypeScript 타입 정의
+│   └── next-auth.d.ts        # session.user.id 타입 보강
 ├── __tests__/       # 테스트 파일 (+ 소스 옆 co-located *.test.ts)
 └── test/            # 테스트 헬퍼, 설정
+drizzle.config.ts    # Drizzle Kit 설정 (schema push/migrate)
+supabase/migrations/postgres/  # 온프레미스 초기화 SQL
 ```
 
 ## 개발 명령어
@@ -74,7 +94,13 @@ pnpm test:coverage    # 커버리지 리포트
 - **TypeScript strict mode** — `any` 사용 금지, export 함수에 명시적 반환 타입
 - **Path alias**: `@/*` → `src/*`
 - **API 라우트**: `/api/v1/*` 패턴 — 인증 + 유효성 검증 → Service 호출
-- **아키텍처 레이어**: Route Handler → Service → Repository → Supabase
+- **아키텍처 레이어**: Route Handler → Service → Repository Interface → (Supabase 구현 | Drizzle 구현)
+- **인증**: `getAuthUser()` (`@/lib/auth`) — Supabase Auth / Auth.js 무관하게 `AuthUser` 반환
+- **인가**: `assertOwner(resource, userId)` (`@/lib/auth/authorize`) — 온프레미스 모드 RLS 대체
+- **Repository 패턴**: 인터페이스 의존, 팩토리(`repositories/factory.ts`)로 구현체 주입
+- **Service 팩토리**: `createXxxService(supabase?)` — `supabase`는 `DB_PROVIDER=supabase`일 때만 전달
+- **Provider 분기**: `getDbProvider()` / `getAuthProvider()` 메모이즈드 — 요청당 1회 호출 후 캐시
+- **동적 import 규칙**: `authjs-config.ts`, `authjs-auth.ts`는 `AUTH_PROVIDER=authjs`일 때만 동적 import
 - **AI Provider**: `IAiProvider` 인터페이스 — Provider 전용 로직은 Provider 내부에만
 - **이벤트 시스템**: `EventBus` + `EventRepository` (감사 로그)
 - **레이트리밋**: PostgreSQL 원자적 패턴 (`UPDATE WHERE count < limit RETURNING`)
@@ -91,23 +117,46 @@ pnpm test:coverage    # 커버리지 리포트
 - **보안 헤더**: middleware에서 CSP, HSTS, X-Frame-Options 설정
 - **코드 생성 결과물**: React가 아닌 순수 HTML/CSS/JS (사용자 서비스용)
 - **설정 기반 제한**: 환경변수로 생성 한도/버전 수 등 비즈니스 규칙 조절
+- **Dual-Provider 아키텍처**: `DB_PROVIDER` / `AUTH_PROVIDER` 환경변수로 런타임 전환
+  - Supabase 모드: 기존 Supabase 클라이언트 + RLS 보안 그대로 사용
+  - postgres 모드: Drizzle ORM + `assertOwner()` 애플리케이션 레벨 인가
+  - authjs 모드: Auth.js v5 + DrizzleAdapter (세션을 동일 PostgreSQL에 저장)
+- **동적 import 격리**: `authjs-config.ts`는 `getDb()` 모듈 레벨 호출 포함 → `AUTH_PROVIDER=authjs`일 때만 동적 import로 로드해야 함. 정적 import 절대 금지.
+- **온프레미스 마이그레이션**: `supabase/migrations/postgres/001_initial_schema.sql` — RLS 제거한 순수 PostgreSQL 스키마. `drizzle-kit push`로도 적용 가능.
 
 ## 환경변수 (참고용 — 값 절대 포함 금지)
 
+**공통**
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_ROOT_DOMAIN` (서브도메인 가상 호스팅)
 - `ANTHROPIC_API_KEY`
 - `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
 
+**Provider 전환 (신규)**
+- `DB_PROVIDER` — `supabase`(기본) | `postgres`
+- `AUTH_PROVIDER` — `supabase`(기본) | `authjs`
+- `NEXT_PUBLIC_AUTH_PROVIDER` — 클라이언트 컴포넌트용 (빌드 타임 상수)
+- `DATABASE_URL` — `DB_PROVIDER=postgres`일 때 필수 (PostgreSQL 연결 문자열)
+- `AUTH_SECRET` — `AUTH_PROVIDER=authjs`일 때 필수
+- `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` — Auth.js Google OAuth
+- `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET` — Auth.js GitHub OAuth
+
 ## 문서 참조
 
-- `.claude/docs/` — Claude Code 작업 가이드
-  - `architecture.md` — 아키텍처 개요, 파이프라인 흐름
-  - `ai-provider.md` — AI Provider 시스템 (Claude)
-  - `debugging-guide.md` — 자주 발생하는 문제와 해결
-  - `testing-guide.md` — 테스트 구조 및 패턴
-  - `deployment.md` — 배포 환경변수 및 체크리스트
-- `docs/` — 40+ 상세 설계 문서 (한국어): 아키텍처, DB, API, UI/UX, 스프린트 계획
+- **`docs/README.md`** — 전체 문서 인덱스 (탐색 시작점)
+- **`docs/architecture/`** — 시스템 설계 결정
+  - `01-system-overview.md` — 레이어드 아키텍처, Provider 패턴
+  - `02-database.md` — DB 스키마, ERD, 마이그레이션
+  - `03-api-design.md` — API 엔드포인트 명세
+  - `04-ai-generation.md` — AI 생성 파이프라인
+  - `05-scalability.md` — 확장성 분석 및 로드맵
+  - `06-provider-migration.md` — DB/Auth 이중화 아키텍처 (Drizzle/Auth.js)
+- **`docs/design/`** — 기능·UX 설계 명세
+- **`docs/development/`** — CI/CD, 스프린트, AI 프롬프트 테스트
+- **`docs/operations/`** — 배포, 운영, 도메인, 한도 관리
+- **`docs/reference/`** — API 카탈로그, 법적 문서, 디자인 에셋
+- **`docs/planning/`** — 기획서, 체크리스트, 마무리 가이드
+- **`docs/archive/`** — 구버전 보관 (v1 파일)
 - `README.md` — 프로젝트 전체 개요
 - `.github/PULL_REQUEST_TEMPLATE.md` — PR 템플릿
 

@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getAuthUser } from '@/lib/auth/index';
+import { getDbProvider } from '@/lib/config/providers';
 import { createClient } from '@/lib/supabase/server';
-import { ProjectService } from '@/services/projectService';
+import { createProjectService } from '@/services/factory';
 import { redirect } from 'next/navigation';
 import { ProjectGrid } from '@/components/dashboard/ProjectGrid';
 import type { Project } from '@/types/project';
@@ -14,16 +16,13 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getAuthUser();
   if (!user) {
     redirect('/login');
   }
 
-  const projectService = new ProjectService(supabase);
+  const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+  const projectService = createProjectService(supabase);
   let projects: Project[] = [];
 
   try {

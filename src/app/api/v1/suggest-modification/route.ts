@@ -1,16 +1,14 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { ProjectRepository } from '@/repositories/projectRepository';
-import { CatalogRepository } from '@/repositories/catalogRepository';
+import { getDbProvider } from '@/lib/config/providers';
+import { createServiceClient } from '@/lib/supabase/server';
+import { getAuthUser } from '@/lib/auth/index';
+import { createProjectRepository, createCatalogRepository } from '@/repositories/factory';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { AuthRequiredError, NotFoundError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
     let projectId: string;
@@ -29,9 +27,9 @@ export async function POST(request: Request): Promise<Response> {
       throw err;
     }
 
-    // Verify ownership via service client
-    const serviceSupabase = await createServiceClient();
-    const projectRepo = new ProjectRepository(serviceSupabase);
+    // Verify ownership via service client (RLS bypass for project lookup)
+    const serviceSupabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
+    const projectRepo = createProjectRepository(serviceSupabase);
     const project = await projectRepo.findById(projectId);
     if (!project || project.userId !== user.id) {
       throw new NotFoundError('프로젝트', projectId);
@@ -39,7 +37,7 @@ export async function POST(request: Request): Promise<Response> {
 
     // Fetch project's APIs
     const apiIds = await projectRepo.getProjectApiIds(projectId);
-    const catalogRepo = new CatalogRepository(serviceSupabase);
+    const catalogRepo = createCatalogRepository(serviceSupabase);
     const apis = apiIds.length > 0 ? await catalogRepo.findByIds(apiIds) : [];
 
     const apiList = apis.length > 0

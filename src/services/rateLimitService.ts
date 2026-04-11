@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { IRateLimitRepository } from '@/repositories/interfaces';
 import { getLimits } from '@/lib/config/features';
 import { RateLimitError } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
@@ -12,7 +12,7 @@ import { logger } from '@/lib/utils/logger';
  *   and both proceed, resulting in count=11.
  *
  * New approach (atomic test-and-set via DB function):
- *   try_increment_daily_generation() executes a single UPDATE WHERE count < limit.
+ *   IRateLimitRepository.checkAndIncrementDailyLimit() executes a single UPDATE WHERE count < limit.
  *   PostgreSQL row-level locking ensures only one concurrent UPDATE succeeds
  *   when the counter is at limit-1.
  *
@@ -21,7 +21,7 @@ import { logger } from '@/lib/utils/logger';
  *   decrementDailyLimit() is called to restore the slot.
  */
 export class RateLimitService {
-  constructor(private readonly supabase: SupabaseClient) {}
+  constructor(private readonly rateLimitRepo: IRateLimitRepository) {}
 
   /**
    * Atomically checks the daily limit AND increments the counter.
@@ -34,27 +34,23 @@ export class RateLimitService {
    */
   async checkAndIncrementDailyLimit(userId: string): Promise<void> {
     const limits = getLimits();
-
-    const { data, error } = await this.supabase.rpc('try_increment_daily_generation', {
-      p_user_id: userId,
-      p_limit: limits.maxDailyGenerations,
-    });
-
-    if (error) {
-      // Fail open: log the DB error but allow the request through.
-      // This prevents a DB hiccup from blocking all users.
+    try {
+      const allowed = await this.rateLimitRepo.checkAndIncrementDailyLimit(
+        userId,
+        limits.maxDailyGenerations
+      );
+      if (!allowed) {
+        throw new RateLimitError(
+          `일일 생성 한도(${limits.maxDailyGenerations}회)를 초과했습니다. 내일 다시 시도해주세요.`
+        );
+      }
+    } catch (err) {
+      if (err instanceof RateLimitError) throw err;
+      // Fail open: DB error — allow the request to proceed
       logger.error('Rate limit check failed — failing open', {
         userId,
-        error: error.message,
-        code: error.code,
+        error: err instanceof Error ? err.message : String(err),
       });
-      return;
-    }
-
-    if (data === false) {
-      throw new RateLimitError(
-        `일일 생성 한도(${limits.maxDailyGenerations}회)를 초과했습니다. 내일 다시 시도해주세요.`
-      );
     }
   }
 
@@ -65,13 +61,14 @@ export class RateLimitService {
    * Errors are swallowed — this is best-effort compensation.
    */
   async decrementDailyLimit(userId: string): Promise<void> {
-    const { error } = await this.supabase.rpc('decrement_daily_generation', {
-      p_user_id: userId,
-    });
-    if (error) {
+    try {
+      await this.rateLimitRepo.decrementDailyLimit(userId);
+    } catch (err) {
+      // Best-effort compensation: a failed decrement is preferable to blocking
+      // the user's generation. Swallowing the error is intentional.
       logger.warn('Failed to decrement daily generation count (compensation)', {
         userId,
-        error: error.message,
+        error: err instanceof Error ? err.message : String(err),
       });
     }
   }
@@ -81,13 +78,14 @@ export class RateLimitService {
    * Returns 0 on error to avoid breaking the UI.
    */
   async getCurrentUsage(userId: string): Promise<number> {
-    const { data, error } = await this.supabase.rpc('get_daily_generation_count', {
-      p_user_id: userId,
-    });
-    if (error) {
-      logger.warn('Failed to read daily generation count', { userId, error: error.message });
+    try {
+      return await this.rateLimitRepo.getCurrentUsage(userId);
+    } catch (err) {
+      logger.warn('Failed to read daily generation count', {
+        userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
       return 0;
     }
-    return (data as number) ?? 0;
   }
 }

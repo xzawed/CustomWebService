@@ -6,24 +6,22 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(),
 }));
 
-// AuthService mock — getCurrentUser uses UserRepository (needs supabase.from), so mock the whole service
-vi.mock('@/services/authService', () => ({
-  AuthService: vi.fn().mockImplementation(() => ({
-    getCurrentUser: vi.fn(),
-  })),
+// Auth mock — routes now use getAuthUser() from @/lib/auth/index
+vi.mock('@/lib/auth/index', () => ({
+  getAuthUser: vi.fn(),
 }));
 
-// ProjectService mock
-vi.mock('@/services/projectService', () => ({
-  ProjectService: vi.fn().mockImplementation(() => ({
-    getByUserId: vi.fn(),
-    create: vi.fn(),
-    getById: vi.fn(),
-    delete: vi.fn(),
-  })),
+// Service factory mock — routes now use createProjectService() from @/services/factory
+vi.mock('@/services/factory', () => ({
+  createProjectService: vi.fn(),
+  createCatalogService: vi.fn(),
+  createGenerationService: vi.fn(),
+  createDeployService: vi.fn(),
+  createRateLimitService: vi.fn(),
+  createAuthService: vi.fn(),
 }));
 
-const mockUser = { id: 'user-1', email: 'test@test.com' };
+const mockUser = { id: 'user-1', email: 'test@test.com', name: null, avatarUrl: null };
 const mockProject = {
   id: 'proj-1',
   name: '테스트 프로젝트',
@@ -32,14 +30,6 @@ const mockProject = {
   status: 'draft',
 };
 
-function makeSupabaseMock() {
-  return {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }),
-    },
-  };
-}
-
 describe('GET /api/v1/projects', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -47,13 +37,8 @@ describe('GET /api/v1/projects', () => {
   });
 
   it('비로그인 시 401을 반환한다', async () => {
-    const { createClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-
-    const { AuthService } = await import('@/services/authService');
-    (AuthService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      getCurrentUser: vi.fn().mockResolvedValue(null),
-    }));
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(null);
 
     const { GET } = await import('@/app/api/v1/projects/route');
     const response = await GET();
@@ -64,18 +49,13 @@ describe('GET /api/v1/projects', () => {
   });
 
   it('로그인 시 사용자 프로젝트 목록을 반환한다', async () => {
-    const { createClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
-    const { AuthService } = await import('@/services/authService');
-    (AuthService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      getCurrentUser: vi.fn().mockResolvedValue(mockUser),
-    }));
-
-    const { ProjectService } = await import('@/services/projectService');
-    (ProjectService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    const { createProjectService } = await import('@/services/factory');
+    vi.mocked(createProjectService).mockReturnValue({
       getByUserId: vi.fn().mockResolvedValue([mockProject]),
-    }));
+    } as never);
 
     const { GET } = await import('@/app/api/v1/projects/route');
     const response = await GET();
@@ -99,12 +79,8 @@ describe('POST /api/v1/projects', () => {
   };
 
   async function setupAuthMock(user: typeof mockUser | null) {
-    const { createClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-    const { AuthService } = await import('@/services/authService');
-    (AuthService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      getCurrentUser: vi.fn().mockResolvedValue(user),
-    }));
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(user);
   }
 
   it('비로그인 시 401을 반환한다', async () => {
@@ -166,10 +142,10 @@ describe('POST /api/v1/projects', () => {
   it('정상 요청 시 201과 프로젝트를 반환한다', async () => {
     await setupAuthMock(mockUser);
 
-    const { ProjectService } = await import('@/services/projectService');
-    (ProjectService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    const { createProjectService } = await import('@/services/factory');
+    vi.mocked(createProjectService).mockReturnValue({
       create: vi.fn().mockResolvedValue(mockProject),
-    }));
+    } as never);
 
     const { POST } = await import('@/app/api/v1/projects/route');
     const request = new Request('http://localhost/api/v1/projects', {

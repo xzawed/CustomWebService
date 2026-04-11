@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
+import { getAuthUser } from '@/lib/auth/index';
 import { AuthRequiredError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
+import { getDbProvider } from '@/lib/config/providers';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface PopularService {
   id: string;
@@ -64,11 +67,10 @@ const CURATED_SERVICES: Omit<PopularService, 'apiIds' | 'usageCount'>[] = [
 
 export async function GET(): Promise<Response> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
+
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
 
     // Try to get popular services from real usage data
     const popularFromDb = await getPopularFromDatabase(supabase);
@@ -96,7 +98,101 @@ export async function GET(): Promise<Response> {
   }
 }
 
-async function getPopularFromDatabase(supabase: Awaited<ReturnType<typeof createClient>>): Promise<PopularService[]> {
+async function getPopularFromDatabase(supabase: SupabaseClient | undefined): Promise<PopularService[]> {
+  if (getDbProvider() === 'postgres') {
+    return getPopularFromDrizzle();
+  }
+  if (!supabase) return [];
+  return getPopularFromSupabase(supabase);
+}
+
+async function getPopularFromDrizzle(): Promise<PopularService[]> {
+  try {
+    const { getDb } = await import('@/lib/db/connection');
+    const { projectApis, projects, apiCatalog } = await import('@/lib/db/schema');
+    const { eq, inArray } = await import('drizzle-orm');
+
+    const db = getDb();
+
+    // Query most frequently used API combinations from successfully generated projects
+    const topApis = await db
+      .select({
+        api_id: projectApis.api_id,
+        context: projects.context,
+      })
+      .from(projectApis)
+      .innerJoin(projects, eq(projectApis.project_id, projects.id))
+      .where(inArray(projects.status, ['generated', 'published']));
+
+    if (topApis.length === 0) return [];
+
+    // Count API usage frequency
+    const apiUsageCount = new Map<string, number>();
+    const apiProjectContexts = new Map<string, string[]>();
+
+    for (const row of topApis) {
+      const apiId = row.api_id;
+      const context = row.context ?? '';
+      apiUsageCount.set(apiId, (apiUsageCount.get(apiId) ?? 0) + 1);
+
+      if (!apiProjectContexts.has(apiId)) {
+        apiProjectContexts.set(apiId, []);
+      }
+      const contexts = apiProjectContexts.get(apiId)!;
+      if (contexts.length < 1) {
+        contexts.push(context);
+      }
+    }
+
+    // Get top 5 most-used APIs
+    const topApiIds = [...apiUsageCount.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([id]) => id);
+
+    if (topApiIds.length === 0) return [];
+
+    // Fetch API details
+    const apiDetails = await db
+      .select({
+        id: apiCatalog.id,
+        name: apiCatalog.name,
+        description: apiCatalog.description,
+        category: apiCatalog.category,
+      })
+      .from(apiCatalog)
+      .where(inArray(apiCatalog.id, topApiIds));
+
+    if (apiDetails.length === 0) return [];
+
+    const apiMap = new Map(apiDetails.map((a) => [a.id, a]));
+
+    return topApiIds
+      .filter((id) => apiMap.has(id))
+      .map((id) => {
+        const api = apiMap.get(id)!;
+        const exampleContext = apiProjectContexts.get(id)?.[0] ?? '';
+        const count = apiUsageCount.get(id) ?? 0;
+        return {
+          id: `popular-${id}`,
+          title: `${api.name} 활용 서비스`,
+          description: api.description ?? '',
+          context: exampleContext,
+          apiNames: [api.name],
+          apiIds: [id],
+          category: api.category ?? '',
+          usageCount: count,
+        };
+      });
+  } catch (err) {
+    logger.warn('Failed to query popular services from DB (Drizzle)', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
+}
+
+async function getPopularFromSupabase(supabase: SupabaseClient): Promise<PopularService[]> {
   try {
     // Query most frequently used API combinations from successfully generated projects
     const { data: topApis, error: topApisError } = await supabase
@@ -167,9 +263,48 @@ async function getPopularFromDatabase(supabase: Awaited<ReturnType<typeof create
   }
 }
 
-async function resolveCuratedApiIds(
-  supabase: Awaited<ReturnType<typeof createClient>>
-): Promise<PopularService[]> {
+async function resolveCuratedApiIds(supabase: SupabaseClient | undefined): Promise<PopularService[]> {
+  if (getDbProvider() === 'postgres') {
+    return resolveCuratedApiIdsFromDrizzle();
+  }
+  if (!supabase) return [];
+  return resolveCuratedApiIdsFromSupabase(supabase);
+}
+
+async function resolveCuratedApiIdsFromDrizzle(): Promise<PopularService[]> {
+  try {
+    const { getDb } = await import('@/lib/db/connection');
+    const { apiCatalog } = await import('@/lib/db/schema');
+    const { eq } = await import('drizzle-orm');
+
+    const db = getDb();
+    const allApis = await db
+      .select({ id: apiCatalog.id, name: apiCatalog.name, category: apiCatalog.category })
+      .from(apiCatalog)
+      .where(eq(apiCatalog.is_active, true));
+
+    const nameToId = new Map<string, string>();
+    for (const api of allApis) {
+      nameToId.set(api.name.toLowerCase(), api.id);
+    }
+
+    return CURATED_SERVICES.map((curated) => {
+      const resolvedIds = curated.apiNames
+        .map((name) => nameToId.get(name.toLowerCase()))
+        .filter((id): id is string => id != null);
+
+      return {
+        ...curated,
+        apiIds: resolvedIds,
+        usageCount: 0,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+async function resolveCuratedApiIdsFromSupabase(supabase: SupabaseClient): Promise<PopularService[]> {
   // Fetch all APIs to match curated names
   const { data: allApis, error } = await supabase
     .from('api_catalog')

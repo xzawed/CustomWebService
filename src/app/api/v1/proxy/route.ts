@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
-import { CatalogRepository } from '@/repositories/catalogRepository';
+import { getDbProvider } from '@/lib/config/providers';
+import { createCatalogRepository } from '@/repositories/factory';
 import { decryptApiKey } from '@/lib/encryption';
 
 // Hosts/patterns that must never be proxied (SSRF prevention)
@@ -61,8 +62,8 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
   }
 
   // Look up API using service role (bypasses RLS — read-only, catalog is semi-public)
-  const supabase = await createServiceClient();
-  const catalogRepo = new CatalogRepository(supabase);
+  const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
+  const catalogRepo = createCatalogRepository(supabase);
 
   let api;
   try {
@@ -113,9 +114,9 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
 
     let resolvedKey: string | undefined;
 
-    // 1) 프로젝트 오너의 개인 API 키 조회 (projectId가 있을 때)
+    // 1) 프로젝트 오너의 개인 API 키 조회 (projectId가 있을 때, Supabase 모드만)
     const projectId = searchParams.get('projectId');
-    if (projectId && UUID_RE.test(projectId)) {
+    if (supabase && projectId && UUID_RE.test(projectId)) {
       try {
         const { data: project } = await supabase
           .from('projects')

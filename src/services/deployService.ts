@@ -1,6 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { ProjectRepository } from '@/repositories/projectRepository';
-import { CodeRepository } from '@/repositories/codeRepository';
+import type { IProjectRepository, ICodeRepository } from '@/repositories/interfaces';
 import {
   DeployProviderFactory,
   type DeployPlatform,
@@ -8,17 +6,15 @@ import {
 import { assembleHtml } from '@/lib/ai/codeParser';
 import { eventBus } from '@/lib/events/eventBus';
 import { NotFoundError, ValidationError, DeployError } from '@/lib/utils/errors';
+import { assertOwner } from '@/lib/auth/authorize';
 import { logger } from '@/lib/utils/logger';
 import type { FileEntry } from '@/providers/deploy/IDeployProvider';
 
 export class DeployService {
-  private projectRepo: ProjectRepository;
-  private codeRepo: CodeRepository;
-
-  constructor(private supabase: SupabaseClient) {
-    this.projectRepo = new ProjectRepository(supabase);
-    this.codeRepo = new CodeRepository(supabase);
-  }
+  constructor(
+    private projectRepo: IProjectRepository,
+    private codeRepo: ICodeRepository
+  ) {}
 
   async deploy(
     projectId: string,
@@ -27,9 +23,8 @@ export class DeployService {
     onProgress?: (progress: number, message: string) => void
   ): Promise<{ deployUrl: string; repoUrl?: string }> {
     const project = await this.projectRepo.findById(projectId);
-    if (!project || project.userId !== userId) {
-      throw new NotFoundError('프로젝트', projectId);
-    }
+    if (!project) throw new NotFoundError('프로젝트', projectId);
+    assertOwner(project, userId);
 
     const code = await this.codeRepo.findByProject(projectId);
     if (!code) {

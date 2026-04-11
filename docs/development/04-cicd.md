@@ -1,15 +1,14 @@
-# CI/CD 자동화 설계 (CI/CD Automation Design)
+# CI/CD 자동화
 
-> 코드 커밋부터 프로덕션 배포, 모니터링, 롤백까지 전 과정을 자동화하는 설계 문서
-> 모든 도구는 무료 플랜 내에서 운영
+> 코드 커밋부터 프로덕션 배포, 모니터링, 롤백까지 전 과정을 자동화하는 설계 및 구현 문서
 >
 > **구현 상태** (2026-03-24 기준)
-> - ✅ **구현 완료**: CI 파이프라인 (lint → typecheck → test → build → deploy), 단위/통합 테스트 94개, Railway 배포, 스케줄 API 점검
+> - ✅ **구현 완료**: CI 파이프라인 (lint → typecheck → test → build → deploy), 단위/통합 테스트 94개, Railway 배포, 스케줄 API 점검, Dependabot, PR 템플릿
 > - 📋 **계획 중**: Husky, E2E(Playwright), Semantic Release, Lighthouse CI, DB 마이그레이션 자동화
 
 ---
 
-## 1. CI/CD 파이프라인 전체 흐름
+## 1. 설계 원칙 및 파이프라인 전체 흐름
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -38,7 +37,7 @@
 │   │     └── ⑦ PR에 결과 코멘트 자동 작성                                  │
 │   │                                                                      │
 │   ├── 5. Railway Preview 배포 (자동)                                      │
-│   │     ├── PR별 고유 URL 생성 (pr-123.up.railway.app)                       │
+│   │     ├── PR별 고유 URL 생성 (pr-123.up.railway.app)                    │
 │   │     └── PR에 Preview URL 코멘트                                      │
 │   │                                                                      │
 │   ├── 6. PR 머지 → develop                                               │
@@ -46,7 +45,7 @@
 │   │     ├── CI 전체 재실행 (위 ①~⑥)                                      │
 │   │     ├── ⑧ E2E 테스트 (Playwright, develop만)                         │
 │   │     ├── ⑨ Lighthouse CI 성능 체크                                    │
-│   │     └── Railway Preview 자동 배포 (develop 환경)                       │
+│   │     └── Railway Preview 자동 배포 (develop 환경)                      │
 │   │                                                                      │
 │   └── 7. develop → main 머지 (릴리스)                                    │
 │         ├── 트리거: push to main                                         │
@@ -62,8 +61,8 @@
 │   ├── Sentry 에러 모니터링 (실시간)                                       │
 │   ├── UptimeRobot 가동 확인 (5분 주기)                                    │
 │   ├── 스케줄 작업 (GitHub Actions Cron)                                   │
-│   │     ├── 무료 API 상태 점검 (매일 06:00)                               │
-│   │     ├── DB 용량/한도 체크 (매일 09:00)                                │
+│   │     ├── 무료 API 상태 점검 (매일 06:00 KST)                           │
+│   │     ├── DB 용량/한도 체크 (매일 09:00 KST)                            │
 │   │     ├── 비활성 프로젝트 정리 (매주 월요일)                              │
 │   │     └── 의존성 보안 스캔 (매주 월요일, Dependabot)                      │
 │   └── 이상 감지 시 알림 (Discord Webhook)                                 │
@@ -92,9 +91,81 @@
 
 ---
 
-## 3. GitHub Actions 워크플로우 상세
+## 3. 구현 파일 목록
 
-### 3.1 CI 파이프라인 (`ci.yml`)
+```
+CustomWebService/
+│
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml              ✅ CI 파이프라인 (lint → typecheck → test → build → deploy)
+│   │   └── scheduled.yml       ✅ 스케줄 작업 (매일 06:00 KST 무료 API 상태 점검)
+│   │   # release.yml           📋 릴리스 자동화 (semantic-release) - 미구현
+│   │   # migrate.yml           📋 DB 마이그레이션 자동화 - 미구현
+│   ├── dependabot.yml          ✅ 의존성 보안 자동 업데이트 (주간)
+│   └── PULL_REQUEST_TEMPLATE.md ✅ PR 템플릿
+│
+├── src/
+│   ├── test/                   ✅ 테스트 유틸리티
+│   │   ├── setup.ts            ✅ MSW 서버 초기화 (beforeAll/afterEach/afterAll)
+│   │   └── mocks/
+│   │       ├── server.ts       ✅ MSW Node 서버 인스턴스
+│   │       └── handlers.ts     ✅ xAI Grok API 모의 핸들러
+│   └── __tests__/              ✅ 통합 테스트
+│       └── api/
+│           ├── health.test.ts  ✅ /api/v1/health 통합 테스트 (3개)
+│           └── projects.test.ts ✅ /api/v1/projects GET/POST 통합 테스트 (7개)
+│
+├── vitest.config.ts            ✅ Vitest 단위 테스트 설정
+├── .npmrc                      ✅ pnpm 빌드 스크립트 허용 설정
+├── .env.example                ✅ 환경변수 템플릿 (커밋 대상)
+├── .env.local                  ✅ 실제 환경변수 (커밋 제외, .gitignore)
+├── Dockerfile                  ✅ 멀티스테이지 빌드 (deps → builder → runner)
+├── railway.json                ✅ Railway 배포 설정
+│
+# .husky/                       📋 Git 훅 (pre-commit, commit-msg) - 미구현
+# e2e/                          📋 Playwright E2E 테스트 - 미구현
+# .releaserc.json               📋 semantic-release 설정 - 미구현
+# .size-limit.json              📋 번들 사이즈 한도 - 미구현
+# lighthouserc.json             📋 Lighthouse CI - 미구현
+# playwright.config.ts          📋 Playwright 설정 - 미구현
+# commitlint.config.js          📋 커밋 메시지 린트 - 미구현
+```
+
+---
+
+## 4. GitHub Actions 워크플로우 상세
+
+### 4.1 CI 파이프라인 (`.github/workflows/ci.yml`) ✅
+
+현재 CI 파이프라인 흐름:
+
+```
+PR 생성/업데이트 or Push (develop, main)
+    │
+    ▼
+┌───────────────────────────────────────────────────┐
+│  ci.yml                                           │
+│                                                   │
+│  1. lint-and-typecheck (병렬)                      │
+│     └── ESLint + TypeScript noEmit                │
+│                                                   │
+│  2. test (needs: lint-and-typecheck)              │
+│     └── pnpm test (Vitest 94개)                   │
+│     └── 커버리지 artifact 업로드                   │
+│                                                   │
+│  3. build (needs: test)                           │
+│     └── pnpm build (Next.js)                      │
+│                                                   │
+│  4. deploy (needs: build)                         │
+│     └── main push + 실제 배포 시에만               │
+│     └── Railway CLI (`railway up --detach`)       │
+└───────────────────────────────────────────────────┘
+
+※ 테스트 실패 시 → 빌드 차단 → 배포 차단
+```
+
+전체 설계 기준 ci.yml:
 
 ```yaml
 # .github/workflows/ci.yml
@@ -124,21 +195,16 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-
       - run: pnpm install --frozen-lockfile
-
       - name: ESLint
         run: pnpm lint
-
       - name: TypeScript
         run: pnpm tsc --noEmit
 
@@ -152,24 +218,19 @@ jobs:
     needs: lint-and-typecheck
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-
       - run: pnpm install --frozen-lockfile
-
       - name: Run Tests
         run: pnpm test -- --coverage
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
       - name: Upload Coverage
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
@@ -187,24 +248,19 @@ jobs:
     needs: lint-and-typecheck
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-
       - run: pnpm install --frozen-lockfile
-
       - name: Build
         run: pnpm build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
       - name: Check Bundle Size
         uses: andresz1/size-limit-action@v1
         if: github.event_name == 'pull_request'
@@ -222,29 +278,24 @@ jobs:
     needs: lint-and-typecheck
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-
       - run: pnpm install --frozen-lockfile
-
       - name: Audit Dependencies
         run: pnpm audit --audit-level=high
         continue-on-error: true       # high 이상만 실패 처리
-
       - name: Check for Secrets in Code
         uses: trufflesecurity/trufflehog@main
         with:
           extra_args: --only-verified
 
   # ──────────────────────────────────────
-  # Job 5: E2E 테스트 (develop/main만)
+  # Job 5: E2E 테스트 (develop/main만) 📋
   # ──────────────────────────────────────
   e2e-test:
     name: E2E Tests
@@ -254,28 +305,22 @@ jobs:
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-
       - run: pnpm install --frozen-lockfile
-
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps chromium
-
       - name: Run E2E Tests
         run: pnpm test:e2e
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-
       - name: Upload E2E Results
         if: failure()
         uses: actions/upload-artifact@v4
@@ -284,7 +329,7 @@ jobs:
           path: playwright-report/
 
   # ──────────────────────────────────────
-  # Job 6: Lighthouse 성능 체크 (develop/main만)
+  # Job 6: Lighthouse 성능 체크 (develop/main만) 📋
   # ──────────────────────────────────────
   lighthouse:
     name: Lighthouse CI
@@ -294,24 +339,19 @@ jobs:
     if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
-
       - run: pnpm install --frozen-lockfile
-
       - name: Build
         run: pnpm build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v12
         with:
@@ -319,7 +359,7 @@ jobs:
           uploadArtifacts: true
 ```
 
-### 3.2 릴리스 파이프라인 (`release.yml`)
+### 4.2 릴리스 파이프라인 (`.github/workflows/release.yml`) 📋
 
 ```yaml
 # .github/workflows/release.yml
@@ -344,26 +384,19 @@ jobs:
         with:
           fetch-depth: 0                # 전체 히스토리 (릴리스 노트 생성용)
           persist-credentials: false
-
       - uses: pnpm/action-setup@v4
         with:
           version: 9
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'pnpm'
-
       - run: pnpm install --frozen-lockfile
-
       - name: Semantic Release
         run: pnpm exec semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ──────────────────────────────────────
-  # 배포 후 검증
-  # ──────────────────────────────────────
   post-deploy-check:
     name: Post-Deploy Verification
     runs-on: ubuntu-latest
@@ -371,8 +404,7 @@ jobs:
     needs: release
     steps:
       - name: Wait for Railway Deploy
-        run: sleep 60                    # Railway 빌드 대기
-
+        run: sleep 60
       - name: Health Check
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -382,13 +414,11 @@ jobs:
             exit 1
           fi
           echo "Health check passed: HTTP $STATUS"
-
       - name: Smoke Test - API Catalog
         run: |
           RESPONSE=$(curl -s "${{ vars.PRODUCTION_URL }}/api/v1/catalog?limit=1")
           echo "$RESPONSE" | jq -e '.success == true' || exit 1
           echo "Catalog API smoke test passed"
-
       - name: Smoke Test - Landing Page
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
@@ -398,14 +428,12 @@ jobs:
             exit 1
           fi
           echo "Landing page check passed"
-
       - name: Notify Success
         if: success()
         run: |
           curl -H "Content-Type: application/json" \
             -d "{\"content\": \"✅ **프로덕션 배포 성공**\n버전: ${{ github.sha }}\nURL: ${{ vars.PRODUCTION_URL }}\n시간: $(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
             "${{ secrets.DISCORD_WEBHOOK_URL }}"
-
       - name: Notify Failure
         if: failure()
         run: |
@@ -414,7 +442,7 @@ jobs:
             "${{ secrets.DISCORD_WEBHOOK_URL }}"
 ```
 
-### 3.3 DB 마이그레이션 자동화 (`migrate.yml`)
+### 4.3 DB 마이그레이션 자동화 (`.github/workflows/migrate.yml`) 📋
 
 ```yaml
 # .github/workflows/migrate.yml
@@ -433,26 +461,21 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
           version: latest
-
       - name: Run Migrations
         run: supabase db push --linked
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-
       - name: Verify Migration
-        run: |
-          supabase db lint --linked
+        run: supabase db lint --linked
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-
       - name: Notify
         if: failure()
         run: |
@@ -461,7 +484,7 @@ jobs:
             "${{ secrets.DISCORD_WEBHOOK_URL }}"
 ```
 
-### 3.4 스케줄 작업 (`scheduled.yml`)
+### 4.4 스케줄 작업 (`.github/workflows/scheduled.yml`) ✅
 
 ```yaml
 # .github/workflows/scheduled.yml
@@ -485,11 +508,9 @@ jobs:
     if: github.event.schedule == '0 21 * * *' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
-
       - name: Check Free APIs
         run: |
           FAILED=""
-
           check_api() {
             local name=$1 url=$2
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url")
@@ -500,7 +521,6 @@ jobs:
               FAILED="$FAILED\n❌ $name: HTTP $STATUS"
             fi
           }
-
           check_api "Open-Meteo" "https://api.open-meteo.com/v1/forecast?latitude=37.57&longitude=126.98&current_weather=true"
           check_api "Frankfurter" "https://api.frankfurter.app/latest"
           check_api "REST Countries" "https://restcountries.com/v3.1/name/korea"
@@ -509,7 +529,6 @@ jobs:
           check_api "DictionaryAPI" "https://api.dictionaryapi.dev/api/v2/entries/en/hello"
           check_api "Open Library" "https://openlibrary.org/search.json?q=test&limit=1"
           check_api "Hacker News" "https://hacker-news.firebaseio.com/v0/topstories.json?limitToFirst=1"
-
           if [ -n "$FAILED" ]; then
             curl -H "Content-Type: application/json" \
               -d "{\"content\": \"⚠️ **API 상태 점검 이상 감지**\n$(echo -e $FAILED)\"}" \
@@ -529,16 +548,12 @@ jobs:
         run: |
           RESPONSE=$(curl -s "${{ vars.PRODUCTION_URL }}/api/v1/health")
           echo "$RESPONSE" | jq .
-
-          # DB 사용률 80% 초과 경고
           DB_USAGE=$(echo "$RESPONSE" | jq -r '.limits.db_usage_mb // 0')
           if [ "$DB_USAGE" -gt 400 ]; then
             curl -H "Content-Type: application/json" \
               -d "{\"content\": \"⚠️ **DB 용량 경고**: ${DB_USAGE}MB / 500MB ($(( DB_USAGE * 100 / 500 ))%)\"}" \
               "${{ secrets.DISCORD_WEBHOOK_URL }}"
           fi
-
-          # 활성 프로젝트 수 80% 초과 경고
           PROJECTS=$(echo "$RESPONSE" | jq -r '.limits.active_projects // 0')
           if [ "$PROJECTS" -gt 160 ]; then
             curl -H "Content-Type: application/json" \
@@ -557,18 +572,14 @@ jobs:
     steps:
       - name: Cleanup via API
         run: |
-          # 비활성 프로젝트 정리 API 호출
           curl -X POST "${{ vars.PRODUCTION_URL }}/api/v1/admin/cleanup" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d '{"cleanupType": "inactive_projects", "daysInactive": 90}'
-
-          # 오래된 생성 코드 정리
           curl -X POST "${{ vars.PRODUCTION_URL }}/api/v1/admin/cleanup" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d '{"cleanupType": "old_generated_codes", "keepVersions": 3}'
-
       - name: Notify Cleanup Result
         run: |
           curl -H "Content-Type: application/json" \
@@ -576,10 +587,9 @@ jobs:
             "${{ secrets.DISCORD_WEBHOOK_URL }}"
 ```
 
-### 3.5 Dependabot 설정
+### 4.5 Dependabot 설정 (`.github/dependabot.yml`) ✅
 
 ```yaml
-# .github/dependabot.yml
 version: 2
 
 updates:
@@ -614,9 +624,47 @@ updates:
 
 ---
 
-## 4. 설정 파일 상세
+## 5. 설정 파일 상세
 
-### 4.1 Semantic Release (`.releaserc.json`)
+### 5.1 Vitest 설정 (`vitest.config.ts`) ✅
+
+```typescript
+import { defineConfig } from 'vitest/config'
+import path from 'path'
+
+export default defineConfig({
+  test: {
+    environment: 'node',       // 서버사이드 코드 중심 (React 컴포넌트 테스트 없음)
+    globals: true,
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.ts'],
+    exclude: ['node_modules/**'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      include: ['src/lib/**', 'src/services/**', 'src/providers/**'],
+      exclude: ['src/test/**'],
+    },
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+})
+```
+
+```typescript
+// src/test/setup.ts
+import { afterAll, afterEach, beforeAll } from 'vitest'
+import { server } from './mocks/server'
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }))
+afterEach(() => server.resetHandlers())
+afterAll(() => server.close())
+```
+
+### 5.2 Semantic Release (`.releaserc.json`) 📋
 
 ```json
 {
@@ -650,7 +698,7 @@ updates:
 }
 ```
 
-### 4.2 Lighthouse CI (`lighthouserc.json`)
+### 5.3 Lighthouse CI (`lighthouserc.json`) 📋
 
 ```json
 {
@@ -682,7 +730,7 @@ updates:
 }
 ```
 
-### 4.3 번들 사이즈 체크 (`.size-limit.json`)
+### 5.4 번들 사이즈 체크 (`.size-limit.json`) 📋
 
 ```json
 [
@@ -707,7 +755,7 @@ updates:
 ]
 ```
 
-### 4.4 Playwright 설정 (`playwright.config.ts`)
+### 5.5 Playwright 설정 (`playwright.config.ts`) 📋
 
 ```typescript
 import { defineConfig } from '@playwright/test';
@@ -732,39 +780,100 @@ export default defineConfig({
 });
 ```
 
+### 5.6 PR 템플릿 (`.github/PULL_REQUEST_TEMPLATE.md`) ✅
+
+```markdown
+## 변경 사항
+<!-- 이 PR에서 변경된 내용을 요약해주세요 -->
+
+## 변경 유형
+- [ ] 새 기능 (feat)
+- [ ] 버그 수정 (fix)
+- [ ] 리팩토링 (refactor)
+- [ ] 스타일/UI (style)
+- [ ] 문서 (docs)
+- [ ] 테스트 (test)
+- [ ] 기타 (chore)
+
+## 테스트
+- [ ] 단위 테스트 추가/수정
+- [ ] E2E 테스트 추가/수정
+- [ ] 수동 테스트 완료
+
+## 체크리스트
+- [ ] 타입 에러 없음 (`pnpm type-check`)
+- [ ] 린트 통과 (`pnpm lint`)
+- [ ] 테스트 통과 (`pnpm test`)
+- [ ] 빌드 성공 (`pnpm build`)
+- [ ] 환경변수 추가 시 `.env.example` 업데이트
+- [ ] DB 스키마 변경 시 마이그레이션 파일 추가
+```
+
 ---
 
-## 5. package.json 스크립트 정의
+## 6. 실행 방법
 
-```json
+### 개발 명령어
+
+```bash
+pnpm dev              # 개발 서버 (Turbopack)
+pnpm build            # 프로덕션 빌드
+pnpm lint             # ESLint 검사
+pnpm lint:fix         # ESLint 자동 수정
+pnpm format           # Prettier 포맷팅
+pnpm format:check     # 포맷 검사
+pnpm type-check       # TypeScript 타입 검사
+pnpm test             # 전체 테스트 (Vitest)
+pnpm test:watch       # 테스트 Watch 모드
+pnpm test:coverage    # 커버리지 리포트
+pnpm test:e2e         # E2E 테스트 (Playwright) 📋
+pnpm test:e2e:ui      # E2E UI 모드 📋
+pnpm size             # 번들 사이즈 체크 📋
+pnpm db:migrate       # DB 마이그레이션 실행
+pnpm db:seed          # DB 시드 데이터 삽입
+pnpm db:reset         # DB 리셋
+pnpm prepare          # Husky 훅 설치 📋
+```
+
+### devDependencies 설치 현황
+
+```bash
+# 테스트 (✅ 설치 완료)
+pnpm add -D vitest@^2 @vitejs/plugin-react@^4
+pnpm add -D @testing-library/react @testing-library/user-event
+pnpm add -D msw happy-dom
+
+# 미설치 (📋 계획)
+# pnpm add -D @playwright/test
+# pnpm add -D husky lint-staged
+# pnpm add -D @commitlint/cli @commitlint/config-conventional
+# pnpm add -D @size-limit/preset-app size-limit
+# pnpm add -D semantic-release @semantic-release/github
+# pnpm add -D @lhci/cli
+```
+
+### 관리 API 엔드포인트
+
+#### `GET /api/v1/health` ✅
+
+```typescript
+// 용도: UptimeRobot 모니터링, 배포 후 검증
+// 인증: 불필요 (공개)
+
+// Response:
 {
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "lint:fix": "next lint --fix",
-    "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,json,css}\"",
-    "type-check": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "size": "size-limit",
-    "size:why": "size-limit --why",
-    "db:migrate": "supabase db push --linked",
-    "db:seed": "supabase db seed --linked",
-    "db:reset": "supabase db reset --linked",
-    "prepare": "husky"
+  "status": "healthy",          // healthy | degraded | unhealthy
+  "timestamp": "2026-03-24T...",
+  "checks": {
+    "database": "ok",           // ok | error
+    "services": "ok"
   }
 }
 ```
 
 ---
 
-## 6. 환경별 배포 전략
+## 7. 환경별 배포 전략
 
 ```
                     ┌──────────────┐
@@ -796,7 +905,7 @@ export default defineConfig({
                        ▼
 ┌──────────────────────────────────────────────────────┐
 │  Production 환경 (main 브랜치)                         │
-│  URL: r4r002eg.up.railway.app     │
+│  URL: r4r002eg.up.railway.app                        │
 │  트리거: main 브랜치 push                              │
 │  CI: 전체 + Semantic Release + DB Migration            │
 │  Railway: 프로덕션 자동 배포                            │
@@ -804,64 +913,6 @@ export default defineConfig({
 │  검증: Health Check + Smoke Test + 알림                │
 │  용도: 실제 사용자 서비스                                │
 └──────────────────────────────────────────────────────┘
-```
-
----
-
-## 7. 생성된 사용자 서비스의 CI/CD
-
-사용자가 만든 웹서비스의 배포/관리도 자동화:
-
-```
-[사용자: "배포하기" 클릭]
-    │
-    ▼
-[DeployService.deploy()]
-    │
-    ├── 1. GitHub 저장소 자동 생성
-    │     Organization: customwebservice-apps
-    │     이름: svc-{projectId 앞 8자}
-    │     파일: index.html, styles.css, app.js
-    │
-    ├── 2. 코드 Push (Initial Commit)
-    │
-    ├── 3. Railway 프로젝트 연결
-    │     ├── Railway API → Import Git Repository
-    │     ├── 환경변수 설정 (API 키)
-    │     └── 자동 빌드 & 배포 트리거
-    │
-    ├── 4. 배포 상태 폴링
-    │     └── Railway Deployment API → status 확인 (10초 간격)
-    │
-    ├── 5. 완료 시
-    │     ├── DB 업데이트 (deploy_url, status)
-    │     ├── 이벤트 발행 (DEPLOYMENT_COMPLETED)
-    │     └── 사용자에게 URL 반환
-    │
-    └── [재배포 시]
-          ├── 코드 수정 → GitHub Push (새 커밋)
-          ├── Railway 자동 재배포 (GitHub 연동)
-          └── 롤백 시 → 이전 버전 코드로 Push → 자동 재배포
-```
-
-### 생성 서비스 배포 설정 템플릿
-
-```json
-{
-  "buildCommand": null,
-  "outputDirectory": ".",
-  "framework": null,
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-XSS-Protection", "value": "1; mode=block" }
-      ]
-    }
-  ]
-}
 ```
 
 ---
@@ -920,6 +971,7 @@ POST /api/v1/projects/{id}/rollback?version=2
 | E2E 테스트 실패 | 🧪 | `🧪 E2E 테스트 실패 - 빌더 플로우 / 로그: ...` |
 
 ### Discord Webhook 설정
+
 ```
 1. Discord 서버 → 채널 설정 → 연동 → 웹후크 → 새 웹후크
 2. 이름: "CustomWebService CI/CD"
@@ -974,7 +1026,30 @@ Repository → Settings → Secrets and variables → Actions
 
 ---
 
-## 12. 스프린트별 CI/CD 구현 순서
+## 12. 구현 현황 및 계획
+
+### 현황 요약
+
+| 항목 | 상태 | 비고 |
+|------|------|------|
+| CI 기본 (lint, typecheck, build) | ✅ 완료 | ci.yml |
+| 단위 테스트 (Vitest) | ✅ 완료 | 94개 테스트 통과 |
+| 통합 테스트 (API 라우트) | ✅ 완료 | health, projects |
+| MSW 모킹 설정 | ✅ 완료 | src/test/mocks/ |
+| CI 테스트 단계 | ✅ 완료 | test job, 커버리지 artifact |
+| Railway 배포 | ✅ 완료 | railway.json, Dockerfile |
+| 스케줄 API 점검 | ✅ 완료 | scheduled.yml |
+| Dependabot | ✅ 완료 | dependabot.yml |
+| PR 템플릿 | ✅ 완료 | PULL_REQUEST_TEMPLATE.md |
+| Git 훅 (Husky) | 📋 계획 | pre-commit, commit-msg |
+| E2E 테스트 (Playwright) | 📋 계획 | builder 전체 플로우 5개 |
+| 번들 사이즈 체크 | 📋 계획 | size-limit |
+| Lighthouse CI | 📋 계획 | 성능 지표 |
+| Semantic Release | 📋 계획 | 자동 버전 관리 |
+| DB 마이그레이션 자동화 | 📋 계획 | migrate.yml |
+| Discord 알림 | 📋 계획 | 배포 완료 알림 |
+
+### 스프린트별 구현 순서
 
 | Sprint | CI/CD 구현 항목 | 파일 |
 |--------|---------------|------|

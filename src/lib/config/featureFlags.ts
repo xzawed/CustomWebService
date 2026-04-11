@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
+import { getDbProvider } from '@/lib/config/providers';
+import { getDb } from '@/lib/db/connection';
 
 export interface FeatureFlags {
   enableDarkMode: boolean;
@@ -30,20 +32,41 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
   }
 
   try {
-    const supabase = await createClient();
-    const { data } = await supabase.from('feature_flags').select('flag_name, enabled');
+    if (getDbProvider() === 'postgres') {
+      const db = getDb();
+      const { featureFlags } = await import('@/lib/db/schema');
+      const rows = await db
+        .select({ flag_name: featureFlags.flag_name, enabled: featureFlags.enabled })
+        .from(featureFlags);
 
-    if (data && data.length > 0) {
-      const flags = { ...DEFAULT_FLAGS };
-      for (const row of data) {
-        const key = snakeToCamel(row.flag_name) as keyof FeatureFlags;
-        if (key in flags) {
-          (flags as Record<string, boolean>)[key] = row.enabled;
+      if (rows.length > 0) {
+        const flags = { ...DEFAULT_FLAGS };
+        for (const row of rows) {
+          const key = snakeToCamel(row.flag_name) as keyof FeatureFlags;
+          if (key in flags) {
+            (flags as Record<string, boolean>)[key] = row.enabled ?? false;
+          }
         }
+        cachedFlags = flags;
+        cacheExpiry = Date.now() + CACHE_TTL;
+        return flags;
       }
-      cachedFlags = flags;
-      cacheExpiry = Date.now() + CACHE_TTL;
-      return flags;
+    } else {
+      const supabase = await createClient();
+      const { data } = await supabase.from('feature_flags').select('flag_name, enabled');
+
+      if (data && data.length > 0) {
+        const flags = { ...DEFAULT_FLAGS };
+        for (const row of data) {
+          const key = snakeToCamel(row.flag_name) as keyof FeatureFlags;
+          if (key in flags) {
+            (flags as Record<string, boolean>)[key] = row.enabled;
+          }
+        }
+        cachedFlags = flags;
+        cacheExpiry = Date.now() + CACHE_TTL;
+        return flags;
+      }
     }
   } catch {
     // DB unavailable, use defaults

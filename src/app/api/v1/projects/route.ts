@@ -1,6 +1,7 @@
+import { getDbProvider } from '@/lib/config/providers';
 import { createClient } from '@/lib/supabase/server';
-import { ProjectService } from '@/services/projectService';
-import { AuthService } from '@/services/authService';
+import { getAuthUser } from '@/lib/auth/index';
+import { createProjectService } from '@/services/factory';
 import { AuthRequiredError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { z } from 'zod/v4';
 
@@ -20,12 +21,11 @@ const createProjectSchema = z.object({
 
 export async function GET() {
   try {
-    const supabase = await createClient();
-    const authService = new AuthService(supabase);
-    const user = await authService.getCurrentUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const service = new ProjectService(supabase);
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+    const service = createProjectService(supabase);
     const projects = await service.getByUserId(user.id);
 
     return jsonResponse({ success: true, data: projects });
@@ -36,15 +36,14 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const authService = new AuthService(supabase);
-    const user = await authService.getCurrentUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
     const body = await request.json();
     const validated = createProjectSchema.parse(body);
 
-    const service = new ProjectService(supabase);
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+    const service = createProjectService(supabase);
     const project = await service.create(user.id, validated);
 
     return jsonResponse({ success: true, data: project }, { status: 201 });

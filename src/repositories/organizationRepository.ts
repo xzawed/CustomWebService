@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BaseRepository } from './base/BaseRepository';
 import type { Organization, OrganizationSettings } from '@/types/organization';
+import type { IOrganizationRepository } from '@/repositories/interfaces';
 
-export class OrganizationRepository extends BaseRepository<Organization> {
+export class OrganizationRepository extends BaseRepository<Organization> implements IOrganizationRepository {
   constructor(supabase: SupabaseClient) {
     super(supabase, 'organizations');
   }
