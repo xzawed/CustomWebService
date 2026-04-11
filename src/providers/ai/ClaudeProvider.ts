@@ -14,19 +14,6 @@ function getErrorStatus(error: unknown): number | undefined {
   return undefined;
 }
 
-function getErrorDetail(error: unknown): string {
-  // Anthropic SDK: error.error?.message contains the API's reason
-  if (error !== null && typeof error === 'object') {
-    const e = error as Record<string, unknown>;
-    if (e.error && typeof e.error === 'object') {
-      const apiError = e.error as Record<string, unknown>;
-      if (typeof apiError.message === 'string') return apiError.message;
-    }
-  }
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
-
 function isRetryableError(error: unknown): boolean {
   const status = getErrorStatus(error);
   if (status !== undefined && RETRYABLE_STATUS_CODES.has(status)) {
@@ -93,12 +80,6 @@ export class ClaudeProvider implements IAiProvider {
         };
       } catch (error) {
         lastError = error;
-        logger.error('Claude generateCode failed', {
-          attempt,
-          model: this.model,
-          status: getErrorStatus(error),
-          detail: getErrorDetail(error),
-        });
         if (attempt < MAX_RETRIES && isRetryableError(error)) {
           continue;
         }
@@ -156,12 +137,6 @@ export class ClaudeProvider implements IAiProvider {
         };
       } catch (error) {
         lastError = error;
-        logger.error('Claude generateCodeStream failed', {
-          attempt,
-          model: this.model,
-          status: getErrorStatus(error),
-          message: error instanceof Error ? error.message : String(error),
-        });
         if (attempt < MAX_RETRIES && isRetryableError(error)) {
           continue;
         }

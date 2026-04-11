@@ -1,33 +1,53 @@
 import type { IAiProvider } from './IAiProvider';
+import { GrokProvider } from './GrokProvider';
 import { ClaudeProvider } from './ClaudeProvider';
 
-export type AiProviderType = 'claude';
+export type AiProviderType = 'grok' | 'openai' | 'ollama' | 'claude';
 export type AiTaskType = 'generation' | 'suggestion';
-
-const DEFAULT_MODEL = 'claude-sonnet-4-6';
 
 export class AiProviderFactory {
   private static providers = new Map<string, IAiProvider>();
 
   static create(type?: AiProviderType): IAiProvider {
-    // AI_PROVIDER 환경변수는 무시 — Claude 단일 체제
-    const providerType: AiProviderType = type ?? 'claude';
+    const providerType = type ?? (process.env.AI_PROVIDER as AiProviderType) ?? 'claude';
 
     if (this.providers.has(providerType)) {
       return this.providers.get(providerType)!;
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
+    let provider: IAiProvider;
 
-    const model = process.env.CLAUDE_GENERATION_MODEL || DEFAULT_MODEL;
-    const provider = new ClaudeProvider(apiKey, model);
+    switch (providerType) {
+      case 'claude': {
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
+        provider = new ClaudeProvider(apiKey);
+        break;
+      }
+      case 'grok': {
+        const apiKey = process.env.XAI_API_KEY;
+        if (!apiKey) throw new Error('XAI_API_KEY is not set');
+        provider = new GrokProvider(apiKey);
+        break;
+      }
+      // Future providers:
+      // case 'openai': provider = new OpenAiProvider(...); break;
+      // case 'ollama': provider = new OllamaProvider(...); break;
+      default:
+        throw new Error(`Unknown AI provider: ${providerType}`);
+    }
 
     this.providers.set(providerType, provider);
     return provider;
   }
 
   static createForTask(task: AiTaskType): IAiProvider {
+    const providerType = (process.env.AI_PROVIDER as AiProviderType) ?? 'claude';
+
+    if (providerType !== 'claude') {
+      return this.create(providerType);
+    }
+
     const cacheKey = `claude:${task}`;
     if (this.providers.has(cacheKey)) {
       return this.providers.get(cacheKey)!;
@@ -36,9 +56,7 @@ export class AiProviderFactory {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
 
-    const model = task === 'suggestion'
-      ? (process.env.CLAUDE_SUGGESTION_MODEL || DEFAULT_MODEL)
-      : (process.env.CLAUDE_GENERATION_MODEL || DEFAULT_MODEL);
+    const model = task === 'suggestion' ? 'claude-haiku-4-5' : 'claude-sonnet-4-6';
     const provider = new ClaudeProvider(apiKey, model);
 
     this.providers.set(cacheKey, provider);
@@ -46,12 +64,16 @@ export class AiProviderFactory {
   }
 
   static async getBestAvailable(): Promise<IAiProvider> {
-    try {
-      const provider = this.create('claude');
-      const { available } = await provider.checkAvailability();
-      if (available) return provider;
-    } catch {
-      // fall through
+    const priorities: AiProviderType[] = ['claude', 'grok'];
+
+    for (const type of priorities) {
+      try {
+        const provider = this.create(type);
+        const { available } = await provider.checkAvailability();
+        if (available) return provider;
+      } catch {
+        continue;
+      }
     }
 
     throw new Error('No AI provider available');

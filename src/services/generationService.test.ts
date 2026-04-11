@@ -1,13 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GenerationService } from './generationService';
 import { RateLimitService } from './rateLimitService';
-import { RateLimitError, NotFoundError, ForbiddenError } from '@/lib/utils/errors';
-import type {
-  IProjectRepository,
-  ICatalogRepository,
-  ICodeRepository,
-  IRateLimitRepository,
-} from '@/repositories/interfaces';
+import { RateLimitError, NotFoundError } from '@/lib/utils/errors';
+
+vi.mock('@/repositories/projectRepository', () => ({
+  ProjectRepository: vi.fn().mockImplementation(() => ({
+    findById: vi.fn(),
+    getProjectApiIds: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+  })),
+}));
+
+vi.mock('@/repositories/catalogRepository', () => ({
+  CatalogRepository: vi.fn().mockImplementation(() => ({
+    findByIds: vi.fn(),
+  })),
+}));
+
+vi.mock('@/repositories/codeRepository', () => ({
+  CodeRepository: vi.fn().mockImplementation(() => ({
+    getNextVersion: vi.fn(),
+    create: vi.fn(),
+  })),
+}));
 
 vi.mock('@/providers/ai/AiProviderFactory', () => {
   const provider = {
@@ -32,81 +48,36 @@ vi.mock('@/lib/events/eventBus', () => ({
   eventBus: { emit: vi.fn() },
 }));
 
-function makeProjectRepo(): IProjectRepository {
-  return {
-    findById: vi.fn(),
-    getProjectApiIds: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    create: vi.fn(),
-    findByUserId: vi.fn(),
-    findMany: vi.fn(),
-    count: vi.fn(),
-    insertProjectApis: vi.fn(),
-    countTodayGenerations: vi.fn(),
-    findBySlug: vi.fn(),
-    updateSlug: vi.fn(),
-  } as unknown as IProjectRepository;
-}
-
-function makeCatalogRepo(): ICatalogRepository {
-  return {
-    findByIds: vi.fn(),
-    search: vi.fn(),
-    getCategories: vi.fn(),
-    findById: vi.fn(),
-    findMany: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    count: vi.fn(),
-  } as unknown as ICatalogRepository;
-}
-
-function makeCodeRepo(): ICodeRepository {
-  return {
-    getNextVersion: vi.fn(),
-    create: vi.fn(),
-    findByProject: vi.fn(),
-    countByProject: vi.fn(),
-    pruneOldVersions: vi.fn(),
-    findById: vi.fn(),
-    findMany: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    count: vi.fn(),
-  } as unknown as ICodeRepository;
-}
-
-function makeRateLimitRepo(allowed: boolean): IRateLimitRepository {
-  return {
-    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(allowed),
-    decrementDailyLimit: vi.fn().mockResolvedValue(undefined),
-    getCurrentUsage: vi.fn().mockResolvedValue(0),
-  } as unknown as IRateLimitRepository;
-}
+const makeSupabase = () => ({}) as never;
 
 describe('RateLimitService.checkAndIncrementDailyLimit()', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
+  function makeRpcSupabase(data: boolean | null, error: unknown = null) {
+    return { rpc: vi.fn().mockResolvedValue({ data, error }) } as never;
+  }
+
   it('data=false이면 RateLimitError를 던진다', async () => {
-    const service = new RateLimitService(makeRateLimitRepo(false));
+    const service = new RateLimitService(makeRpcSupabase(false));
     await expect(service.checkAndIncrementDailyLimit('user-1')).rejects.toThrow(RateLimitError);
   });
 
   it('data=true이면 통과한다', async () => {
-    const service = new RateLimitService(makeRateLimitRepo(true));
+    const service = new RateLimitService(makeRpcSupabase(true));
     await expect(service.checkAndIncrementDailyLimit('user-1')).resolves.toBeUndefined();
   });
 });
 
 describe('GenerationService.generate()', () => {
   let service: GenerationService;
-  let projectRepo: ReturnType<typeof makeProjectRepo>;
-  let catalogRepo: ReturnType<typeof makeCatalogRepo>;
-  let codeRepo: ReturnType<typeof makeCodeRepo>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let projectRepo: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let catalogRepo: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let codeRepo: any;
 
   const mockProject = {
     id: 'proj-1',
@@ -114,17 +85,20 @@ describe('GenerationService.generate()', () => {
     context: '실시간 날씨를 보여주는 대시보드를 만들어주세요.',
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
-    projectRepo = makeProjectRepo();
-    catalogRepo = makeCatalogRepo();
-    codeRepo = makeCodeRepo();
-    service = new GenerationService(projectRepo, catalogRepo, codeRepo);
+    service = new GenerationService(makeSupabase());
+    const { ProjectRepository } = await import('@/repositories/projectRepository');
+    const { CatalogRepository } = await import('@/repositories/catalogRepository');
+    const { CodeRepository } = await import('@/repositories/codeRepository');
+    projectRepo = (ProjectRepository as ReturnType<typeof vi.fn>).mock.results[0].value;
+    catalogRepo = (CatalogRepository as ReturnType<typeof vi.fn>).mock.results[0].value;
+    codeRepo = (CodeRepository as ReturnType<typeof vi.fn>).mock.results[0].value;
 
-    (projectRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(mockProject);
-    (projectRepo.getProjectApiIds as ReturnType<typeof vi.fn>).mockResolvedValue(['api-1']);
-    (projectRepo.update as ReturnType<typeof vi.fn>).mockResolvedValue(mockProject);
-    (catalogRepo.findByIds as ReturnType<typeof vi.fn>).mockResolvedValue([
+    projectRepo.findById.mockResolvedValue(mockProject);
+    projectRepo.getProjectApiIds.mockResolvedValue(['api-1']);
+    projectRepo.update.mockResolvedValue(mockProject);
+    catalogRepo.findByIds.mockResolvedValue([
       {
         id: 'api-1',
         name: '날씨 API',
@@ -133,18 +107,18 @@ describe('GenerationService.generate()', () => {
         endpoints: [],
       },
     ]);
-    (codeRepo.getNextVersion as ReturnType<typeof vi.fn>).mockResolvedValue(1);
-    (codeRepo.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'code-1', version: 1, projectId: 'proj-1' });
+    codeRepo.getNextVersion.mockResolvedValue(1);
+    codeRepo.create.mockResolvedValue({ id: 'code-1', version: 1, projectId: 'proj-1' });
   });
 
   it('존재하지 않는 프로젝트면 NotFoundError를 던진다', async () => {
-    (projectRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    projectRepo.findById.mockResolvedValue(null);
     await expect(service.generate('missing', 'user-1')).rejects.toThrow(NotFoundError);
   });
 
-  it('타인의 프로젝트면 ForbiddenError를 던진다', async () => {
-    (projectRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockProject, userId: 'user-2' });
-    await expect(service.generate('proj-1', 'user-1')).rejects.toThrow(ForbiddenError);
+  it('타인의 프로젝트면 NotFoundError를 던진다', async () => {
+    projectRepo.findById.mockResolvedValue({ ...mockProject, userId: 'user-2' });
+    await expect(service.generate('proj-1', 'user-1')).rejects.toThrow(NotFoundError);
   });
 
   it('정상 생성 시 onProgress 콜백이 호출된다', async () => {

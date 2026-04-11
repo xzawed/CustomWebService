@@ -1,4 +1,4 @@
-import { getAuthUser } from '@/lib/auth/index';
+import { createClient } from '@/lib/supabase/server';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
@@ -11,7 +11,10 @@ interface SuggestApiItem {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const user = await getAuthUser();
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) throw new AuthRequiredError();
 
     let apis: SuggestApiItem[];
@@ -41,22 +44,9 @@ export async function POST(request: Request): Promise<Response> {
 
     const apiList = apis.map((a) => `- ${a.name}: ${a.description}`).join('\n');
 
-    let provider;
-    try {
-      provider = AiProviderFactory.createForTask('suggestion');
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : 'Unknown';
-      logger.error('Context suggestion: AI provider unavailable', { error: reason });
-      return jsonResponse(
-        { success: false, error: { code: 'AI_UNAVAILABLE', message: `AI 서비스를 초기화할 수 없습니다: ${reason}` } },
-        { status: 503 },
-      );
-    }
-
-    let aiResponse;
-    try {
-      aiResponse = await provider.generateCode({
-        system: `당신은 웹 서비스 아이디어를 제안하는 도우미입니다.
+    const provider = AiProviderFactory.createForTask('suggestion');
+    const aiResponse = await provider.generateCode({
+      system: `당신은 웹 서비스 아이디어를 제안하는 도우미입니다.
 사용자가 선택한 API들을 기반으로 만들 수 있는 웹 서비스 아이디어 3가지를 제안하세요.
 반드시 JSON 배열만 반환하세요: ["제안1", "제안2", "제안3"]
 규칙:
@@ -65,31 +55,15 @@ export async function POST(request: Request): Promise<Response> {
 - 선택된 API를 자연스럽게 활용하는 아이디어
 - 3가지는 서로 다른 방향의 아이디어 (대시보드형/계산기형/정보조회형 등)
 - 마크다운, 코드 블록, 추가 설명 없이 순수 JSON 배열만 반환`,
-        user: `선택된 API:\n${apiList}\n\n이 API들을 활용한 웹 서비스 아이디어 3가지를 JSON 배열로 제안해주세요.`,
-        temperature: 0.8,
-        maxTokens: 1024,
-      });
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      logger.error('Context suggestion: AI generation failed', {
-        error: reason,
-        apiCount: apis.length,
-        model: provider.model,
-      });
-      return jsonResponse(
-        { success: false, error: { code: 'AI_GENERATION_FAILED', message: `AI 추천 생성에 실패했습니다: ${reason}` } },
-        { status: 502 },
-      );
-    }
+      user: `선택된 API:\n${apiList}\n\n이 API들을 활용한 웹 서비스 아이디어 3가지를 JSON 배열로 제안해주세요.`,
+      temperature: 0.8,
+      maxTokens: 600,
+    });
 
     // Extract JSON array from response (tolerates surrounding text or code blocks)
-    // 비탐욕적 매칭으로 첫 번째 JSON 배열만 추출
     const match = aiResponse.content.match(/\[[\s\S]*?\]/);
     if (!match) {
-      logger.warn('Context suggestion: could not parse AI response', {
-        content: aiResponse.content.slice(0, 500),
-        model: provider.model,
-      });
+      logger.warn('Context suggestion: could not parse AI response', { content: aiResponse.content.slice(0, 200) });
       return jsonResponse({ success: true, data: { suggestions: [] } });
     }
 
@@ -102,7 +76,7 @@ export async function POST(request: Request): Promise<Response> {
         .map((s: unknown) => String(s).trim())
         .filter((s) => s.length > 0);
     } catch {
-      logger.warn('Context suggestion: JSON parse failed', { raw: match[0].slice(0, 500) });
+      logger.warn('Context suggestion: JSON parse failed', { raw: match[0].slice(0, 200) });
       return jsonResponse({ success: true, data: { suggestions: [] } });
     }
 
