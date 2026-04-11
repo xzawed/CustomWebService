@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { signIn } from 'next-auth/react';
 import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
@@ -11,6 +12,11 @@ export default function LoginPage() {
   const handleOAuthLogin = async (provider: 'google' | 'github') => {
     setOauthError(null);
     setIsLoading(provider);
+
+    if (process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'authjs') {
+      await signIn(provider, { callbackUrl: '/dashboard' });
+      return;
+    }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
     const { error } = await supabase.auth.signInWithOAuth({
