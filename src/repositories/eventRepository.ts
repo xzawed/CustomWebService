@@ -1,15 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DomainEvent } from '@/types/events';
 import { logger } from '@/lib/utils/logger';
+import type { IEventRepository, PersistEventContext, EventRecord } from '@/repositories/interfaces';
 
-export interface PersistEventContext {
-  /** Authenticated user who triggered this event */
-  userId?: string;
-  /** Primary project involved in this event */
-  projectId?: string;
-  /** Optional request correlation ID for cross-log tracing */
-  correlationId?: string;
-}
+// Re-export for backwards compatibility
+export type { PersistEventContext };
 
 /**
  * EventRepository persists domain events to the platform_events table.
@@ -22,7 +17,7 @@ export interface PersistEventContext {
  * - persistAsync() is the recommended call site — it never throws, so callers
  *   don't need try/catch boilerplate.
  */
-export class EventRepository {
+export class EventRepository implements IEventRepository {
   constructor(private readonly supabase: SupabaseClient) {}
 
   /**
@@ -73,7 +68,7 @@ export class EventRepository {
   async findByUser(
     userId: string,
     limit = 50
-  ): Promise<Array<{ id: string; type: string; payload: unknown; createdAt: string }>> {
+  ): Promise<EventRecord[]> {
     const { data, error } = await this.supabase
       .from('platform_events')
       .select('id, type, payload, created_at')

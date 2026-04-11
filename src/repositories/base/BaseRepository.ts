@@ -1,10 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { QueryOptions } from '@/repositories/interfaces/IBaseRepository';
+import type { IBaseRepository, QueryOptions } from '@/repositories/interfaces/IBaseRepository';
 
 // Re-export for backwards compatibility
 export type { QueryOptions };
 
-export abstract class BaseRepository<T extends { id: string }> {
+export abstract class BaseRepository<T extends { id: string }> implements IBaseRepository<T> {
   constructor(
     protected supabase: SupabaseClient,
     protected tableName: string

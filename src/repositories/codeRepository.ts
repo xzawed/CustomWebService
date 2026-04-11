@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BaseRepository } from './base/BaseRepository';
 import type { GeneratedCode, CodeMetadata } from '@/types/project';
+import type { ICodeRepository } from '@/repositories/interfaces';
 
-export class CodeRepository extends BaseRepository<GeneratedCode> {
+export class CodeRepository extends BaseRepository<GeneratedCode> implements ICodeRepository {
   constructor(supabase: SupabaseClient) {
     super(supabase, 'generated_codes');
   }

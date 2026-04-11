@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BaseRepository } from './base/BaseRepository';
 import type { Project, ProjectMetadata } from '@/types/project';
+import type { IProjectRepository } from '@/repositories/interfaces';
 
-export class ProjectRepository extends BaseRepository<Project> {
+export class ProjectRepository extends BaseRepository<Project> implements IProjectRepository {
   constructor(supabase: SupabaseClient) {
     super(supabase, 'projects');
   }
