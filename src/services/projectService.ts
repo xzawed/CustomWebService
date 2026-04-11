@@ -1,7 +1,8 @@
 import type { IProjectRepository, ICatalogRepository } from '@/repositories/interfaces';
 import { eventBus } from '@/lib/events/eventBus';
 import { getLimits } from '@/lib/config/features';
-import { NotFoundError, ForbiddenError, ValidationError } from '@/lib/utils/errors';
+import { NotFoundError, ValidationError } from '@/lib/utils/errors';
+import { assertOwner } from '@/lib/auth/authorize';
 import { generateSlug } from '@/lib/utils/slugify';
 import type { Project, ProjectMetadata, CreateProjectInput } from '@/types/project';
 import type { ApiCatalogItem } from '@/types/api';
@@ -83,7 +84,7 @@ export class ProjectService {
   async getById(id: string, userId: string): Promise<Project> {
     const project = await this.projectRepo.findById(id);
     if (!project) throw new NotFoundError('프로젝트', id);
-    if (project.userId !== userId) throw new ForbiddenError();
+    assertOwner(project, userId);
     return project;
   }
 

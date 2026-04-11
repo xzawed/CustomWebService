@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GenerationService } from './generationService';
 import { RateLimitService } from './rateLimitService';
-import { RateLimitError, NotFoundError } from '@/lib/utils/errors';
+import { RateLimitError, NotFoundError, ForbiddenError } from '@/lib/utils/errors';
 import type {
   IProjectRepository,
   ICatalogRepository,
@@ -142,9 +142,9 @@ describe('GenerationService.generate()', () => {
     await expect(service.generate('missing', 'user-1')).rejects.toThrow(NotFoundError);
   });
 
-  it('타인의 프로젝트면 NotFoundError를 던진다', async () => {
+  it('타인의 프로젝트면 ForbiddenError를 던진다', async () => {
     (projectRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ ...mockProject, userId: 'user-2' });
-    await expect(service.generate('proj-1', 'user-1')).rejects.toThrow(NotFoundError);
+    await expect(service.generate('proj-1', 'user-1')).rejects.toThrow(ForbiddenError);
   });
 
   it('정상 생성 시 onProgress 콜백이 호출된다', async () => {
