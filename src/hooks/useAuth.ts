@@ -117,8 +117,9 @@ function useAuthJsAuth() {
 // ── Unified export ────────────────────────────────────────────────────────────
 
 export function useAuth() {
-  if (process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'authjs') {
-    return useAuthJsAuth();
-  }
-  return useSupabaseAuth();
+  const supabaseResult = useSupabaseAuth();
+  const authJsResult = useAuthJsAuth();
+  return process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'authjs'
+    ? authJsResult
+    : supabaseResult;
 }

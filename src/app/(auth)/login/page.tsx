@@ -2,10 +2,8 @@
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
-  const supabase = createClient();
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<'google' | 'github' | null>(null);
 
@@ -18,6 +16,9 @@ export default function LoginPage() {
       return;
     }
 
+    // Supabase mode — only create the client here
+    const { createClient } = await import('@/lib/supabase/client');
+    const supabase = createClient();
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
