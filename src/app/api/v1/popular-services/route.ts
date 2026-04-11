@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getAuthUser } from '@/lib/auth/index';
 import { AuthRequiredError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 import { getDbProvider } from '@/lib/config/providers';
@@ -66,11 +67,10 @@ const CURATED_SERVICES: Omit<PopularService, 'apiIds' | 'usageCount'>[] = [
 
 export async function GET(): Promise<Response> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
+
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
 
     // Try to get popular services from real usage data
     const popularFromDb = await getPopularFromDatabase(supabase);
@@ -98,10 +98,11 @@ export async function GET(): Promise<Response> {
   }
 }
 
-async function getPopularFromDatabase(supabase: SupabaseClient): Promise<PopularService[]> {
+async function getPopularFromDatabase(supabase: SupabaseClient | undefined): Promise<PopularService[]> {
   if (getDbProvider() === 'postgres') {
     return getPopularFromDrizzle();
   }
+  if (!supabase) return [];
   return getPopularFromSupabase(supabase);
 }
 
@@ -262,10 +263,11 @@ async function getPopularFromSupabase(supabase: SupabaseClient): Promise<Popular
   }
 }
 
-async function resolveCuratedApiIds(supabase: SupabaseClient): Promise<PopularService[]> {
+async function resolveCuratedApiIds(supabase: SupabaseClient | undefined): Promise<PopularService[]> {
   if (getDbProvider() === 'postgres') {
     return resolveCuratedApiIdsFromDrizzle();
   }
+  if (!supabase) return [];
   return resolveCuratedApiIdsFromSupabase(supabase);
 }
 

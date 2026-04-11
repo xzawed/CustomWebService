@@ -1,4 +1,5 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { getAuthUser } from '@/lib/auth/index';
 import { encryptApiKey, maskApiKey, decryptApiKey } from '@/lib/encryption';
 import { createUserApiKeyRepository, createCatalogRepository } from '@/repositories/factory';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
@@ -14,9 +15,10 @@ const SaveKeySchema = z.object({
 /** GET /api/v1/user-api-keys — 내가 등록한 API 키 목록 (마스킹) */
 export async function GET(): Promise<Response> {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
+
+    const supabase = await createClient();
 
     const repo = createUserApiKeyRepository(supabase);
     const rows = await repo.findAllByUser(user.id);
@@ -47,9 +49,10 @@ export async function GET(): Promise<Response> {
 /** POST /api/v1/user-api-keys — API 키 저장 (신규 또는 업데이트) */
 export async function POST(request: Request): Promise<Response> {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
+
+    const supabase = await createClient();
 
     let body: unknown;
     try {
@@ -94,9 +97,10 @@ export async function POST(request: Request): Promise<Response> {
 /** DELETE /api/v1/user-api-keys?apiId=xxx — API 키 삭제 */
 export async function DELETE(request: Request): Promise<Response> {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
+
+    const supabase = await createClient();
 
     const apiId = new URL(request.url).searchParams.get('apiId');
     if (!apiId) throw new ValidationError('apiId가 필요합니다.');
