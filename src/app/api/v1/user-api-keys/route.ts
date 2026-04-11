@@ -1,6 +1,6 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { encryptApiKey, maskApiKey, decryptApiKey } from '@/lib/encryption';
-import { CatalogRepository } from '@/repositories/catalogRepository';
+import { createUserApiKeyRepository, createCatalogRepository } from '@/repositories/factory';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { z } from 'zod/v4';
 
@@ -18,27 +18,23 @@ export async function GET(): Promise<Response> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new AuthRequiredError();
 
-    const { data, error } = await supabase
-      .from('user_api_keys')
-      .select('id, api_id, encrypted_key, is_verified, verified_at, created_at')
-      .eq('user_id', user.id);
+    const repo = createUserApiKeyRepository(supabase);
+    const rows = await repo.findAllByUser(user.id);
 
-    if (error) throw error;
-
-    const items = (data ?? []).map((row) => {
+    const items = rows.map((row) => {
       let maskedKey = '****';
       try {
-        maskedKey = maskApiKey(decryptApiKey(row.encrypted_key));
+        maskedKey = maskApiKey(decryptApiKey(row.encryptedKey));
       } catch {
         // 복호화 실패 시 마스킹된 기본값 반환
       }
       return {
         id: row.id,
-        apiId: row.api_id,
+        apiId: row.apiId,
         maskedKey,
-        isVerified: row.is_verified,
-        verifiedAt: row.verified_at,
-        createdAt: row.created_at,
+        isVerified: row.isVerified,
+        verifiedAt: row.verifiedAt,
+        createdAt: row.createdAt,
       };
     });
 
@@ -70,7 +66,7 @@ export async function POST(request: Request): Promise<Response> {
     const { apiId, apiKey } = parsed.data;
 
     const svcClient = await createServiceClient();
-    const catalogRepo = new CatalogRepository(svcClient);
+    const catalogRepo = createCatalogRepository(svcClient);
     const api = await catalogRepo.findById(apiId);
     if (!api || !api.isActive) {
       return jsonResponse(
@@ -86,26 +82,8 @@ export async function POST(request: Request): Promise<Response> {
       throw new Error('키 암호화 중 오류가 발생했습니다.');
     }
 
-    const { data: userRow } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', user.id)
-      .single();
-    const userId = userRow?.id ?? user.id;
-
-    const { error } = await supabase.from('user_api_keys').upsert(
-      {
-        user_id: userId,
-        api_id: apiId,
-        encrypted_key: encryptedKey,
-        is_verified: false,
-        verified_at: null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,api_id' }
-    );
-
-    if (error) throw error;
+    const repo = createUserApiKeyRepository(supabase);
+    await repo.upsert(user.id, apiId, encryptedKey);
 
     return jsonResponse({ success: true, data: { message: 'API 키가 저장되었습니다.' } });
   } catch (error) {
@@ -124,13 +102,8 @@ export async function DELETE(request: Request): Promise<Response> {
     if (!apiId) throw new ValidationError('apiId가 필요합니다.');
     if (!UUID_RE.test(apiId)) throw new ValidationError('유효하지 않은 API ID 형식입니다.');
 
-    const { error } = await supabase
-      .from('user_api_keys')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('api_id', apiId);
-
-    if (error) throw error;
+    const repo = createUserApiKeyRepository(supabase);
+    await repo.delete(user.id, apiId);
 
     return jsonResponse({ success: true, data: { message: 'API 키가 삭제되었습니다.' } });
   } catch (error) {
