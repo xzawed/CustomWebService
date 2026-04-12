@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { GalleryService } from '@/services/galleryService';
+import { createGalleryService } from '@/services/factory';
 import { handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { z } from 'zod/v4';
 
@@ -39,7 +39,7 @@ export async function GET(request: Request): Promise<Response> {
       // Not authenticated — continue without user context
     }
 
-    const service = new GalleryService(supabase);
+    const service = createGalleryService(supabase);
     const galleryPage = await service.getGallery(
       { category: params.category, sortBy: params.sortBy, search: params.search },
       { page: params.page, pageSize: params.pageSize, currentUserId }

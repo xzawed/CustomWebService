@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { GalleryService } from '@/services/galleryService';
+import { createGalleryService } from '@/services/factory';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { z } from 'zod/v4';
 
@@ -21,7 +21,7 @@ export async function POST(
     } = await supabase.auth.getUser();
     if (!user) throw new AuthRequiredError();
 
-    const service = new GalleryService(supabase);
+    const service = createGalleryService(supabase);
     const result = await service.forkProject(id, user.id);
 
     return jsonResponse(

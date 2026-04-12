@@ -5,6 +5,7 @@ import {
   createCodeRepository,
   createRateLimitRepository,
   createUserRepository,
+  createGalleryRepository,
 } from '@/repositories/factory';
 import { ProjectService } from '@/services/projectService';
 import { CatalogService } from '@/services/catalogService';
@@ -12,6 +13,7 @@ import { GenerationService } from '@/services/generationService';
 import { DeployService } from '@/services/deployService';
 import { RateLimitService } from '@/services/rateLimitService';
 import { AuthService } from '@/services/authService';
+import { GalleryService } from '@/services/galleryService';
 
 // Each factory accepts optional SupabaseClient (required when DB_PROVIDER=supabase)
 
@@ -44,4 +46,8 @@ export function createRateLimitService(supabase?: SupabaseClient): RateLimitServ
 
 export function createAuthService(supabase: SupabaseClient): AuthService {
   return new AuthService(supabase, createUserRepository(supabase));
+}
+
+export function createGalleryService(supabase: SupabaseClient): GalleryService {
+  return new GalleryService(createGalleryRepository(supabase));
 }

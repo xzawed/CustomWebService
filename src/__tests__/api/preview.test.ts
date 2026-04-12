@@ -6,24 +6,25 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(),
 }));
 
-vi.mock('@/repositories/projectRepository', () => ({
-  ProjectRepository: vi.fn().mockImplementation(() => ({
-    findById: vi.fn(),
-  })),
+vi.mock('@/lib/auth/index', () => ({
+  getAuthUser: vi.fn(),
 }));
 
-vi.mock('@/repositories/codeRepository', () => ({
-  CodeRepository: vi.fn().mockImplementation(() => ({
-    findByProject: vi.fn(),
-  })),
+vi.mock('@/repositories/factory', () => ({
+  createProjectRepository: vi.fn(),
+  createCodeRepository: vi.fn(),
 }));
 
 vi.mock('@/lib/ai/codeParser', () => ({
   assembleHtml: vi.fn().mockReturnValue('<!DOCTYPE html><html><body>assembled</body></html>'),
 }));
 
+vi.mock('@/lib/config/providers', () => ({
+  getDbProvider: vi.fn().mockReturnValue('supabase'),
+}));
+
 // ---------- Test data ----------
-const mockUser = { id: 'user-1', email: 'test@test.com' };
+const mockUser = { id: 'user-1', email: 'test@test.com', name: null, avatarUrl: null };
 const mockProject = {
   id: 'proj-1',
   name: '테스트 프로젝트',
@@ -40,14 +41,6 @@ const mockCode = {
   codeJs: 'console.log("hi")',
 };
 
-function makeSupabaseMock() {
-  return { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: mockUser } }) } };
-}
-
-function makeNoUserSupabaseMock() {
-  return { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) } };
-}
-
 function makeRequest(projectId: string, version?: number): Request {
   const url = version !== undefined
     ? `http://localhost/api/v1/preview/${projectId}?version=${version}`
@@ -56,19 +49,16 @@ function makeRequest(projectId: string, version?: number): Request {
 }
 
 async function setupHappyPath() {
-  const { createClient, createServiceClient } = await import('@/lib/supabase/server');
-  vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-  vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
+  const { getAuthUser } = await import('@/lib/auth/index');
+  vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
-  const { ProjectRepository } = await import('@/repositories/projectRepository');
-  (ProjectRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+  const { createProjectRepository, createCodeRepository } = await import('@/repositories/factory');
+  vi.mocked(createProjectRepository).mockReturnValue({
     findById: vi.fn().mockResolvedValue(mockProject),
-  }));
-
-  const { CodeRepository } = await import('@/repositories/codeRepository');
-  (CodeRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+  } as never);
+  vi.mocked(createCodeRepository).mockReturnValue({
     findByProject: vi.fn().mockResolvedValue(mockCode),
-  }));
+  } as never);
 }
 
 // ---------- Tests ----------
@@ -79,9 +69,8 @@ describe('GET /api/v1/preview/[projectId]', () => {
   });
 
   it('비로그인 시 401을 반환한다', async () => {
-    const { createClient, createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeNoUserSupabaseMock() as never);
-    vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(null);
 
     const { GET } = await import('@/app/api/v1/preview/[projectId]/route');
     const response = await GET(makeRequest('proj-1'), { params: Promise.resolve({ projectId: 'proj-1' }) });
@@ -89,14 +78,13 @@ describe('GET /api/v1/preview/[projectId]', () => {
   });
 
   it('프로젝트 없음 시 404를 반환한다', async () => {
-    const { createClient, createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-    vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
-    const { ProjectRepository } = await import('@/repositories/projectRepository');
-    (ProjectRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    const { createProjectRepository } = await import('@/repositories/factory');
+    vi.mocked(createProjectRepository).mockReturnValue({
       findById: vi.fn().mockResolvedValue(null),
-    }));
+    } as never);
 
     const { GET } = await import('@/app/api/v1/preview/[projectId]/route');
     const response = await GET(makeRequest('proj-999'), { params: Promise.resolve({ projectId: 'proj-999' }) });
@@ -104,15 +92,13 @@ describe('GET /api/v1/preview/[projectId]', () => {
   });
 
   it('권한 없음 시 403을 반환한다', async () => {
-    const { createClient, createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-    vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
-    const otherUserProject = { ...mockProject, userId: 'other-user' };
-    const { ProjectRepository } = await import('@/repositories/projectRepository');
-    (ProjectRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      findById: vi.fn().mockResolvedValue(otherUserProject),
-    }));
+    const { createProjectRepository } = await import('@/repositories/factory');
+    vi.mocked(createProjectRepository).mockReturnValue({
+      findById: vi.fn().mockResolvedValue({ ...mockProject, userId: 'other-user' }),
+    } as never);
 
     const { GET } = await import('@/app/api/v1/preview/[projectId]/route');
     const response = await GET(makeRequest('proj-1'), { params: Promise.resolve({ projectId: 'proj-1' }) });
@@ -120,19 +106,16 @@ describe('GET /api/v1/preview/[projectId]', () => {
   });
 
   it('코드 없음 시 404를 반환한다', async () => {
-    const { createClient, createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-    vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
-    const { ProjectRepository } = await import('@/repositories/projectRepository');
-    (ProjectRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    const { createProjectRepository, createCodeRepository } = await import('@/repositories/factory');
+    vi.mocked(createProjectRepository).mockReturnValue({
       findById: vi.fn().mockResolvedValue(mockProject),
-    }));
-
-    const { CodeRepository } = await import('@/repositories/codeRepository');
-    (CodeRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    } as never);
+    vi.mocked(createCodeRepository).mockReturnValue({
       findByProject: vi.fn().mockResolvedValue(null),
-    }));
+    } as never);
 
     const { GET } = await import('@/app/api/v1/preview/[projectId]/route');
     const response = await GET(makeRequest('proj-1'), { params: Promise.resolve({ projectId: 'proj-1' }) });
@@ -162,34 +145,30 @@ describe('GET /api/v1/preview/[projectId]', () => {
   });
 
   it('잘못된 version 파라미터 시 400을 반환한다', async () => {
-    const { createClient, createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-    vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
-    const { ProjectRepository } = await import('@/repositories/projectRepository');
-    (ProjectRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    const { createProjectRepository } = await import('@/repositories/factory');
+    vi.mocked(createProjectRepository).mockReturnValue({
       findById: vi.fn().mockResolvedValue(mockProject),
-    }));
+    } as never);
 
     const { GET } = await import('@/app/api/v1/preview/[projectId]/route');
-
     // version=0 (must be >= 1)
-    const response1 = await GET(makeRequest('proj-1', 0), { params: Promise.resolve({ projectId: 'proj-1' }) });
-    expect(response1.status).toBe(400);
+    const response = await GET(makeRequest('proj-1', 0), { params: Promise.resolve({ projectId: 'proj-1' }) });
+    expect(response.status).toBe(400);
   });
 
   it('잘못된 version 문자열 시 400을 반환한다', async () => {
-    const { createClient, createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-    vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
-    const { ProjectRepository } = await import('@/repositories/projectRepository');
-    (ProjectRepository as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    const { createProjectRepository } = await import('@/repositories/factory');
+    vi.mocked(createProjectRepository).mockReturnValue({
       findById: vi.fn().mockResolvedValue(mockProject),
-    }));
+    } as never);
 
     const { GET } = await import('@/app/api/v1/preview/[projectId]/route');
-
     const request = new Request('http://localhost/api/v1/preview/proj-1?version=abc', { method: 'GET' });
     const response = await GET(request, { params: Promise.resolve({ projectId: 'proj-1' }) });
     expect(response.status).toBe(400);

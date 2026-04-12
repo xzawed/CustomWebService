@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
-import { GalleryService } from '@/services/galleryService';
+import { createGalleryService } from '@/services/factory';
 import type { GalleryPage } from '@/types/gallery';
 import { GalleryClient } from './GalleryClient';
 
@@ -25,7 +25,7 @@ export default async function GalleryPage(): Promise<React.ReactElement> {
     // Not authenticated — continue without user context
   }
 
-  const service = new GalleryService(supabase);
+  const service = createGalleryService(supabase);
   let initialData: GalleryPage = { items: [], total: 0, page: 1, pageSize: 12 };
 
   try {

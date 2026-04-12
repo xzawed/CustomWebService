@@ -5,6 +5,14 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }));
 
+vi.mock('@/lib/auth/index', () => ({
+  getAuthUser: vi.fn(),
+}));
+
+vi.mock('@/services/factory', () => ({
+  createRateLimitService: vi.fn(),
+}));
+
 vi.mock('@/providers/ai/AiProviderFactory', () => ({
   AiProviderFactory: {
     create: vi.fn(),
@@ -16,22 +24,16 @@ vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock('@/services/rateLimitService', () => ({
-  RateLimitService: vi.fn().mockImplementation(() => ({
-    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
-  })),
+vi.mock('@/lib/config/providers', () => ({
+  getDbProvider: vi.fn().mockReturnValue('supabase'),
 }));
 
 // ---------- Test data ----------
-const mockUser = { id: 'user-1', email: 'test@test.com' };
+const mockUser = { id: 'user-1', email: 'test@test.com', name: null, avatarUrl: null };
 const mockApis = [
   { name: 'Weather API', description: '날씨 정보 제공', category: 'weather' },
   { name: 'News API', description: '뉴스 기사 제공', category: 'news' },
 ];
-
-function makeSupabaseMock(user: typeof mockUser | null = mockUser) {
-  return { auth: { getUser: vi.fn().mockResolvedValue({ data: { user } }) } };
-}
 
 function makeRequest(body: unknown) {
   return new Request('http://localhost/api/v1/suggest-context', {
@@ -49,6 +51,17 @@ function makeRawRequest(rawBody: string) {
   });
 }
 
+async function setupAuth(user: typeof mockUser | null = mockUser) {
+  const { getAuthUser } = await import('@/lib/auth/index');
+  vi.mocked(getAuthUser).mockResolvedValue(user);
+
+  const { createRateLimitService } = await import('@/services/factory');
+  vi.mocked(createRateLimitService).mockReturnValue({
+    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+    decrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+  } as never);
+}
+
 // ---------- Tests ----------
 describe('POST /api/v1/suggest-context', () => {
   beforeEach(() => {
@@ -57,8 +70,8 @@ describe('POST /api/v1/suggest-context', () => {
   });
 
   it('비로그인 시 401을 반환한다', async () => {
-    const { createClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock(null) as never);
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(null);
 
     const { POST } = await import('@/app/api/v1/suggest-context/route');
     const response = await POST(makeRequest({ apis: mockApis }));
@@ -66,8 +79,7 @@ describe('POST /api/v1/suggest-context', () => {
   });
 
   it('apis 없으면 400을 반환한다', async () => {
-    const { createClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
+    await setupAuth();
 
     const { POST } = await import('@/app/api/v1/suggest-context/route');
     const response = await POST(makeRequest({}));
@@ -75,8 +87,7 @@ describe('POST /api/v1/suggest-context', () => {
   });
 
   it('apis 빈 배열이면 400을 반환한다', async () => {
-    const { createClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
+    await setupAuth();
 
     const { POST } = await import('@/app/api/v1/suggest-context/route');
     const response = await POST(makeRequest({ apis: [] }));
@@ -84,8 +95,7 @@ describe('POST /api/v1/suggest-context', () => {
   });
 
   it('apis 6개 초과 시 400을 반환한다', async () => {
-    const { createClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
+    await setupAuth();
 
     const sixApis = Array.from({ length: 6 }, (_, i) => ({
       name: `API ${i}`,
@@ -99,8 +109,7 @@ describe('POST /api/v1/suggest-context', () => {
   });
 
   it('잘못된 JSON이면 400을 반환한다', async () => {
-    const { createClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
+    await setupAuth();
 
     const { POST } = await import('@/app/api/v1/suggest-context/route');
     const response = await POST(makeRawRequest('not-json'));
@@ -108,8 +117,7 @@ describe('POST /api/v1/suggest-context', () => {
   });
 
   it('정상 요청 시 suggestions를 반환한다', async () => {
-    const { createClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
+    await setupAuth();
 
     const suggestions = [
       '날씨와 뉴스를 결합한 대시보드를 만들고 싶어요',
@@ -118,16 +126,16 @@ describe('POST /api/v1/suggest-context', () => {
     ];
 
     const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
-    (AiProviderFactory.createForTask as ReturnType<typeof vi.fn>).mockReturnValue({
-      name: 'xai',
+    vi.mocked(AiProviderFactory.createForTask).mockReturnValue({
+      name: 'claude',
       generateCode: vi.fn().mockResolvedValue({
         content: JSON.stringify(suggestions),
-        provider: 'xai',
-        model: 'grok-beta',
+        provider: 'claude',
+        model: 'claude-sonnet-4-6',
         durationMs: 800,
         tokensUsed: { input: 50, output: 100 },
       }),
-    });
+    } as never);
 
     const { POST } = await import('@/app/api/v1/suggest-context/route');
     const response = await POST(makeRequest({ apis: mockApis }));
@@ -139,20 +147,19 @@ describe('POST /api/v1/suggest-context', () => {
   });
 
   it('AI 응답 파싱 실패 시 빈 배열을 반환한다', async () => {
-    const { createClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
+    await setupAuth();
 
     const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
-    (AiProviderFactory.createForTask as ReturnType<typeof vi.fn>).mockReturnValue({
-      name: 'xai',
+    vi.mocked(AiProviderFactory.createForTask).mockReturnValue({
+      name: 'claude',
       generateCode: vi.fn().mockResolvedValue({
         content: '이것은 JSON이 아닌 일반 텍스트 응답입니다.',
-        provider: 'xai',
-        model: 'grok-beta',
+        provider: 'claude',
+        model: 'claude-sonnet-4-6',
         durationMs: 800,
         tokensUsed: { input: 50, output: 100 },
       }),
-    });
+    } as never);
 
     const { POST } = await import('@/app/api/v1/suggest-context/route');
     const response = await POST(makeRequest({ apis: mockApis }));

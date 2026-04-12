@@ -5,14 +5,9 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
 }));
 
-// GalleryService mock
-vi.mock('@/services/galleryService', () => ({
-  GalleryService: vi.fn().mockImplementation(() => ({
-    getGallery: vi.fn(),
-    likeProject: vi.fn(),
-    unlikeProject: vi.fn(),
-    forkProject: vi.fn(),
-  })),
+// Service factory mock — routes now use createGalleryService() from @/services/factory
+vi.mock('@/services/factory', () => ({
+  createGalleryService: vi.fn(),
 }));
 
 const mockUser = { id: 'user-1', email: 'test@test.com' };
@@ -56,10 +51,10 @@ describe('GET /api/v1/gallery', () => {
     const { createClient } = await import('@/lib/supabase/server');
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
 
-    const { GalleryService } = await import('@/services/galleryService');
-    (GalleryService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    const { createGalleryService } = await import('@/services/factory');
+    vi.mocked(createGalleryService).mockReturnValue({
       getGallery: vi.fn().mockResolvedValue(mockGalleryPage),
-    }));
+    } as never);
 
     const { GET } = await import('@/app/api/v1/gallery/route');
     const request = new Request('http://localhost/api/v1/gallery');
@@ -76,11 +71,11 @@ describe('GET /api/v1/gallery', () => {
     const { createClient } = await import('@/lib/supabase/server');
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock(null) as never);
 
-    const { GalleryService } = await import('@/services/galleryService');
+    const { createGalleryService } = await import('@/services/factory');
     const getGalleryMock = vi.fn().mockResolvedValue({ ...mockGalleryPage, items: [] });
-    (GalleryService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    vi.mocked(createGalleryService).mockReturnValue({
       getGallery: getGalleryMock,
-    }));
+    } as never);
 
     const { GET } = await import('@/app/api/v1/gallery/route');
     const request = new Request('http://localhost/api/v1/gallery');
@@ -120,11 +115,11 @@ describe('GET /api/v1/gallery', () => {
     const { createClient } = await import('@/lib/supabase/server');
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
 
-    const { GalleryService } = await import('@/services/galleryService');
+    const { createGalleryService } = await import('@/services/factory');
     const getGalleryMock = vi.fn().mockResolvedValue(mockGalleryPage);
-    (GalleryService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    vi.mocked(createGalleryService).mockReturnValue({
       getGallery: getGalleryMock,
-    }));
+    } as never);
 
     const { GET } = await import('@/app/api/v1/gallery/route');
     const request = new Request(
@@ -181,10 +176,10 @@ describe('POST /api/v1/gallery/[id]/like', () => {
     const { createClient } = await import('@/lib/supabase/server');
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
 
-    const { GalleryService } = await import('@/services/galleryService');
-    (GalleryService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    const { createGalleryService } = await import('@/services/factory');
+    vi.mocked(createGalleryService).mockReturnValue({
       likeProject: vi.fn().mockResolvedValue({ liked: true, likesCount: 6 }),
-    }));
+    } as never);
 
     const { POST } = await import('@/app/api/v1/gallery/[id]/like/route');
     const request = new Request(`http://localhost/api/v1/gallery/${validId}/like`, {
@@ -214,10 +209,10 @@ describe('DELETE /api/v1/gallery/[id]/like', () => {
     const { createClient } = await import('@/lib/supabase/server');
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
 
-    const { GalleryService } = await import('@/services/galleryService');
-    (GalleryService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+    const { createGalleryService } = await import('@/services/factory');
+    vi.mocked(createGalleryService).mockReturnValue({
       unlikeProject: vi.fn().mockResolvedValue({ liked: false, likesCount: 4 }),
-    }));
+    } as never);
 
     const { DELETE } = await import('@/app/api/v1/gallery/[id]/like/route');
     const request = new Request(`http://localhost/api/v1/gallery/${validId}/like`, {
@@ -286,12 +281,10 @@ describe('POST /api/v1/gallery/[id]/fork', () => {
     const { createClient } = await import('@/lib/supabase/server');
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
 
-    const { GalleryService } = await import('@/services/galleryService');
-    (GalleryService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      forkProject: vi
-        .fn()
-        .mockResolvedValue({ projectId: 'new-proj-1', slug: 'test-project-copy' }),
-    }));
+    const { createGalleryService } = await import('@/services/factory');
+    vi.mocked(createGalleryService).mockReturnValue({
+      forkProject: vi.fn().mockResolvedValue({ projectId: 'new-proj-1', slug: 'test-project-copy' }),
+    } as never);
 
     const { POST } = await import('@/app/api/v1/gallery/[id]/fork/route');
     const request = new Request(`http://localhost/api/v1/gallery/${validId}/fork`, {

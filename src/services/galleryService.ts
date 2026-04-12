@@ -1,13 +1,8 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { GalleryRepository } from '@/repositories/galleryRepository';
+import type { IGalleryRepository } from '@/repositories/interfaces';
 import type { GalleryFilter, GalleryPage } from '@/types/gallery';
 
 export class GalleryService {
-  private repo: GalleryRepository;
-
-  constructor(supabase: SupabaseClient) {
-    this.repo = new GalleryRepository(supabase);
-  }
+  constructor(private repo: IGalleryRepository) {}
 
   async getGallery(
     filter: GalleryFilter,
