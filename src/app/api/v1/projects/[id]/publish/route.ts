@@ -1,7 +1,8 @@
 import { getDbProvider } from '@/lib/config/providers';
 import { createClient } from '@/lib/supabase/server';
-import { ProjectService } from '@/services/projectService';
-import { CodeRepository } from '@/repositories/codeRepository';
+import { getAuthUser } from '@/lib/auth/index';
+import { createProjectService } from '@/services/factory';
+import { createCodeRepository } from '@/repositories/factory';
 import { AuthRequiredError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 
 export async function POST(
@@ -13,8 +14,10 @@ export async function POST(
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+
     // QC 경고 확인 — 게시는 차단하지 않지만 경고를 응답에 포함
-    const codeRepo = new CodeRepository(supabase);
+    const codeRepo = createCodeRepository(supabase);
     const latestCode = await codeRepo.findByProject(id);
     const metadata = latestCode?.metadata as Record<string, unknown> | null;
     const qcWarnings: string[] = [];
@@ -31,7 +34,7 @@ export async function POST(
       }
     }
 
-    const service = new ProjectService(supabase);
+    const service = createProjectService(supabase);
     const project = await service.publish(id, user.id);
 
     return jsonResponse({

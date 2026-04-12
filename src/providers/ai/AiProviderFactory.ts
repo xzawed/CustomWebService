@@ -1,8 +1,7 @@
 import type { IAiProvider } from './IAiProvider';
-import { GrokProvider } from './GrokProvider';
 import { ClaudeProvider } from './ClaudeProvider';
 
-export type AiProviderType = 'grok' | 'openai' | 'ollama' | 'claude';
+export type AiProviderType = 'openai' | 'ollama' | 'claude';
 export type AiTaskType = 'generation' | 'suggestion';
 
 export class AiProviderFactory {
@@ -22,12 +21,6 @@ export class AiProviderFactory {
         const apiKey = process.env.ANTHROPIC_API_KEY;
         if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not set');
         provider = new ClaudeProvider(apiKey);
-        break;
-      }
-      case 'grok': {
-        const apiKey = process.env.XAI_API_KEY;
-        if (!apiKey) throw new Error('XAI_API_KEY is not set');
-        provider = new GrokProvider(apiKey);
         break;
       }
       // Future providers:
@@ -64,7 +57,7 @@ export class AiProviderFactory {
   }
 
   static async getBestAvailable(): Promise<IAiProvider> {
-    const priorities: AiProviderType[] = ['claude', 'grok'];
+    const priorities: AiProviderType[] = ['claude'];
 
     for (const type of priorities) {
       try {

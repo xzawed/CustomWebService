@@ -6,10 +6,8 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(),
 }));
 
-vi.mock('@/services/authService', () => ({
-  AuthService: vi.fn().mockImplementation(() => ({
-    getCurrentUser: vi.fn(),
-  })),
+vi.mock('@/lib/auth/index', () => ({
+  getAuthUser: vi.fn(),
 }));
 
 vi.mock('@/services/rateLimitService', () => ({
@@ -147,10 +145,8 @@ async function setupHappyPath() {
   vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
   vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
 
-  const { AuthService } = await import('@/services/authService');
-  (AuthService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-    getCurrentUser: vi.fn().mockResolvedValue(mockUser),
-  }));
+  const { getAuthUser } = await import('@/lib/auth/index');
+  vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
   const { ProjectService } = await import('@/services/projectService');
   (ProjectService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
@@ -190,14 +186,8 @@ describe('POST /api/v1/generate', () => {
   });
 
   it('비로그인 시 401을 반환한다', async () => {
-    const { createClient, createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
-    vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
-
-    const { AuthService } = await import('@/services/authService');
-    (AuthService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      getCurrentUser: vi.fn().mockResolvedValue(null),
-    }));
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(null);
 
     const { POST } = await import('@/app/api/v1/generate/route');
     const response = await POST(makeRequest({ projectId: 'proj-1' }));
@@ -209,10 +199,8 @@ describe('POST /api/v1/generate', () => {
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
     vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
 
-    const { AuthService } = await import('@/services/authService');
-    (AuthService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      getCurrentUser: vi.fn().mockResolvedValue(mockUser),
-    }));
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
     const { POST } = await import('@/app/api/v1/generate/route');
     const response = await POST(makeRequest({}));
@@ -224,10 +212,8 @@ describe('POST /api/v1/generate', () => {
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
     vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
 
-    const { AuthService } = await import('@/services/authService');
-    (AuthService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      getCurrentUser: vi.fn().mockResolvedValue(mockUser),
-    }));
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
     const { POST } = await import('@/app/api/v1/generate/route');
     const request = new Request('http://localhost/api/v1/generate', {
@@ -267,10 +253,8 @@ describe('POST /api/v1/generate', () => {
     vi.mocked(createClient).mockResolvedValue(makeSupabaseMock() as never);
     vi.mocked(createServiceClient).mockResolvedValue(makeSupabaseMock() as never);
 
-    const { AuthService } = await import('@/services/authService');
-    (AuthService as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      getCurrentUser: vi.fn().mockResolvedValue(mockUser),
-    }));
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
     const { RateLimitService } = await import('@/services/rateLimitService');
     const { RateLimitError } = await import('@/lib/utils/errors');

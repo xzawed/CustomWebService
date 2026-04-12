@@ -1,6 +1,8 @@
+import { getDbProvider } from '@/lib/config/providers';
 import { createClient } from '@/lib/supabase/server';
+import { getAuthUser } from '@/lib/auth/index';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
-import { RateLimitService } from '@/services/rateLimitService';
+import { createRateLimitService } from '@/services/factory';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 
@@ -12,13 +14,12 @@ interface SuggestApiItem {
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const rateLimitService = new RateLimitService(supabase);
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+
+    const rateLimitService = createRateLimitService(supabase);
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
     let apis: SuggestApiItem[];

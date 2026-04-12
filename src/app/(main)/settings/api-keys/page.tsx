@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createCatalogRepository } from '@/repositories/factory';
 import { ApiKeyPageClient } from './ApiKeyPageClient';
 
+export const dynamic = 'force-dynamic';
 export const metadata = { title: '내 API 키 관리' };
 
 export default async function ApiKeysPage() {

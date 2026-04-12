@@ -1,20 +1,20 @@
+import { getDbProvider } from '@/lib/config/providers';
 import { createClient } from '@/lib/supabase/server';
+import { getAuthUser } from '@/lib/auth/index';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
-import { CatalogService } from '@/services/catalogService';
-import { RateLimitService } from '@/services/rateLimitService';
+import { createCatalogService, createRateLimitService } from '@/services/factory';
 import { LIMITS } from '@/lib/config/features';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const rateLimitService = new RateLimitService(supabase);
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+
+    const rateLimitService = createRateLimitService(supabase);
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
     let context: string;
@@ -35,7 +35,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Fetch all active APIs from catalog
-    const catalogService = new CatalogService(supabase);
+    const catalogService = createCatalogService(supabase);
     const { items: allApis } = await catalogService.search({ limit: 100 });
 
     const apiListForAi = allApis

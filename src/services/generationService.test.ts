@@ -1,29 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GenerationService } from './generationService';
 import { RateLimitService } from './rateLimitService';
-import { RateLimitError, NotFoundError } from '@/lib/utils/errors';
+import { RateLimitError, NotFoundError, ForbiddenError } from '@/lib/utils/errors';
 
-vi.mock('@/repositories/projectRepository', () => ({
-  ProjectRepository: vi.fn().mockImplementation(() => ({
-    findById: vi.fn(),
-    getProjectApiIds: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-  })),
-}));
-
-vi.mock('@/repositories/catalogRepository', () => ({
-  CatalogRepository: vi.fn().mockImplementation(() => ({
-    findByIds: vi.fn(),
-  })),
-}));
-
-vi.mock('@/repositories/codeRepository', () => ({
-  CodeRepository: vi.fn().mockImplementation(() => ({
-    getNextVersion: vi.fn(),
-    create: vi.fn(),
-  })),
-}));
 
 vi.mock('@/providers/ai/AiProviderFactory', () => {
   const provider = {
@@ -48,24 +27,26 @@ vi.mock('@/lib/events/eventBus', () => ({
   eventBus: { emit: vi.fn() },
 }));
 
-const makeSupabase = () => ({}) as never;
-
 describe('RateLimitService.checkAndIncrementDailyLimit()', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  function makeRpcSupabase(data: boolean | null, error: unknown = null) {
-    return { rpc: vi.fn().mockResolvedValue({ data, error }) } as never;
+  function makeRateLimitRepo(allowed: boolean) {
+    return {
+      checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(allowed),
+      decrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+      getCurrentUsage: vi.fn().mockResolvedValue(0),
+    } as never;
   }
 
-  it('data=false이면 RateLimitError를 던진다', async () => {
-    const service = new RateLimitService(makeRpcSupabase(false));
+  it('허용되지 않으면 RateLimitError를 던진다', async () => {
+    const service = new RateLimitService(makeRateLimitRepo(false));
     await expect(service.checkAndIncrementDailyLimit('user-1')).rejects.toThrow(RateLimitError);
   });
 
-  it('data=true이면 통과한다', async () => {
-    const service = new RateLimitService(makeRpcSupabase(true));
+  it('허용되면 통과한다', async () => {
+    const service = new RateLimitService(makeRateLimitRepo(true));
     await expect(service.checkAndIncrementDailyLimit('user-1')).resolves.toBeUndefined();
   });
 });
@@ -82,15 +63,24 @@ describe('GenerationService.generate()', () => {
     context: '실시간 날씨를 보여주는 대시보드를 만들어주세요.',
   };
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    service = new GenerationService(makeSupabase());
-    const { ProjectRepository } = await import('@/repositories/projectRepository');
-    const { CatalogRepository } = await import('@/repositories/catalogRepository');
-    const { CodeRepository } = await import('@/repositories/codeRepository');
-    projectRepo = (ProjectRepository as ReturnType<typeof vi.fn>).mock.results[0].value;
-    catalogRepo = (CatalogRepository as ReturnType<typeof vi.fn>).mock.results[0].value;
-    codeRepo = (CodeRepository as ReturnType<typeof vi.fn>).mock.results[0].value;
+    projectRepo = {
+      findById: vi.fn(),
+      getProjectApiIds: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    } as Record<string, ReturnType<typeof vi.fn>>;
+    catalogRepo = {
+      findByIds: vi.fn(),
+    } as Record<string, ReturnType<typeof vi.fn>>;
+    codeRepo = {
+      getNextVersion: vi.fn(),
+      create: vi.fn(),
+    } as Record<string, ReturnType<typeof vi.fn>>;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    service = new GenerationService(projectRepo as any, catalogRepo as any, codeRepo as any);
 
     projectRepo.findById.mockResolvedValue(mockProject);
     projectRepo.getProjectApiIds.mockResolvedValue(['api-1']);
@@ -113,9 +103,9 @@ describe('GenerationService.generate()', () => {
     await expect(service.generate('missing', 'user-1')).rejects.toThrow(NotFoundError);
   });
 
-  it('타인의 프로젝트면 NotFoundError를 던진다', async () => {
+  it('타인의 프로젝트면 ForbiddenError를 던진다', async () => {
     projectRepo.findById.mockResolvedValue({ ...mockProject, userId: 'user-2' });
-    await expect(service.generate('proj-1', 'user-1')).rejects.toThrow(NotFoundError);
+    await expect(service.generate('proj-1', 'user-1')).rejects.toThrow(ForbiddenError);
   });
 
   it('정상 생성 시 onProgress 콜백이 호출된다', async () => {
