@@ -188,58 +188,62 @@ export default function BuilderPage() {
       let done = false;
       let generationCompleted = false;
 
-      while (!done) {
-        const { value, done: streamDone } = await reader.read();
-        done = streamDone;
-        if (value) {
-          buffer += decoder.decode(value, { stream: true });
+      try {
+        while (!done) {
+          const { value, done: streamDone } = await reader.read();
+          done = streamDone;
+          if (value) {
+            buffer += decoder.decode(value, { stream: true });
 
-          const events = buffer.split('\n\n');
-          buffer = events.pop() ?? '';
+            const events = buffer.split('\n\n');
+            buffer = events.pop() ?? '';
 
-          for (const eventBlock of events) {
-            if (!eventBlock.trim()) continue;
+            for (const eventBlock of events) {
+              if (!eventBlock.trim()) continue;
 
-            let eventType = 'message';
-            let eventData = '';
+              let eventType = 'message';
+              let eventData = '';
 
-            for (const line of eventBlock.split('\n')) {
-              if (line.startsWith('event: ')) {
-                eventType = line.slice(7).trim();
-              } else if (line.startsWith('data: ')) {
-                eventData = line.slice(6);
+              for (const line of eventBlock.split('\n')) {
+                if (line.startsWith('event: ')) {
+                  eventType = line.slice(7).trim();
+                } else if (line.startsWith('data: ')) {
+                  eventData = line.slice(6);
+                }
               }
-            }
 
-            if (!eventData) continue;
+              if (!eventData) continue;
 
-            let parsed;
-            try {
-              parsed = JSON.parse(eventData);
-            } catch {
-              console.warn('[SSE] Failed to parse event data', { eventType, eventData });
-              continue;
-            }
+              let parsed: Record<string, unknown>;
+              try {
+                parsed = JSON.parse(eventData) as Record<string, unknown>;
+              } catch {
+                console.warn('[SSE] Failed to parse event data', { eventType, eventData });
+                continue;
+              }
 
-            if (eventType === 'progress') {
-              updateProgress(parsed.progress ?? 0, parsed.message ?? '');
-            } else if (eventType === 'complete') {
-              completeGeneration(parsed.projectId ?? project.id, parsed.version as number | undefined);
-              resetContext();
-              clearApis();
-              generationCompleted = true;
-              return;
-            } else if (eventType === 'error') {
-              throw new Error(parsed.message ?? '코드 생성에 실패했습니다.');
+              if (eventType === 'progress') {
+                updateProgress((parsed.progress as number) ?? 0, (parsed.message as string) ?? '');
+              } else if (eventType === 'complete') {
+                completeGeneration((parsed.projectId as string) ?? project.id, parsed.version as number | undefined);
+                resetContext();
+                clearApis();
+                generationCompleted = true;
+                return;
+              } else if (eventType === 'error') {
+                throw new Error((parsed.message as string) ?? '코드 생성에 실패했습니다.');
+              }
             }
           }
         }
-      }
 
-      if (!generationCompleted) {
-        completeGeneration(project.id);
-        resetContext();
-        clearApis();
+        if (!generationCompleted) {
+          completeGeneration(project.id);
+          resetContext();
+          clearApis();
+        }
+      } finally {
+        reader.cancel().catch(() => {});
       }
     } catch (err) {
       failGeneration(err instanceof Error ? err.message : '알 수 없는 오류');
