@@ -111,7 +111,8 @@ function focusPlace(id) {
 
 let searchTimer;
 document.getElementById('place-search').addEventListener('input', (e) => {
-  const target = e.target as HTMLInputElement;
+  const target = e.target instanceof HTMLInputElement ? e.target : null;
+  if (!target) return;
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
     const q = target.value.toLowerCase();
