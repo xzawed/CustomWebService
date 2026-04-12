@@ -141,7 +141,7 @@ pnpm test:coverage    # 커버리지 리포트
 - 단일 파일만 보고 끝내지 않고 cross-cutting concern(미들웨어, 공통 함수) 영향 확인
 
 ### QC 프로세스 (생성/재생성 공통)
-- 모든 코드 생성/재생성은 `docs/20_QC_표준_프로세스.md`의 8단계를 동일하게 거침
+- 모든 코드 생성/재생성은 `docs/guides/qc-process.md`의 8단계를 동일하게 거침
 - 보안 검증 → 코드 품질 → Fast QC → 자동 재생성 → 재검증 → 저장 → Deep QC → 사용자 알림
 - QC 관련 파일 수정 시: generate/route.ts와 regenerate/route.ts 양쪽 모두 동일하게 반영
 
