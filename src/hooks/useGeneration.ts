@@ -10,7 +10,7 @@ interface UseGenerationReturn {
   projectId: string | null;
   version: number | null;
   error: string | null;
-  startGeneration: (projectId: string) => Promise<void>;
+  startGeneration: (projectId: string, templateId?: string) => Promise<void>;
   cancel: () => void;
   reset: () => void;
 }
@@ -25,7 +25,7 @@ export function useGeneration(): UseGenerationReturn {
   }, []);
 
   const startGeneration = useCallback(
-    async (projectId: string) => {
+    async (projectId: string, templateId?: string) => {
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
@@ -36,7 +36,7 @@ export function useGeneration(): UseGenerationReturn {
         const res = await fetch('/api/v1/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectId }),
+          body: JSON.stringify({ projectId, templateId }),
           signal: controller.signal,
         });
 

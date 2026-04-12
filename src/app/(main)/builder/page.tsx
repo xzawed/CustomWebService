@@ -59,6 +59,7 @@ export default function BuilderPage() {
     context,
     setContext,
     setTemplate,
+    selectedTemplate,
     isValid: isContextValid,
     getDesignPreferences,
     reset: resetContext,
@@ -170,7 +171,7 @@ export default function BuilderPage() {
       const genRes = await fetch('/api/v1/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: project.id }),
+        body: JSON.stringify({ projectId: project.id, templateId: selectedTemplate ?? undefined }),
       });
 
       if (!genRes.ok) {
@@ -243,7 +244,7 @@ export default function BuilderPage() {
     } catch (err) {
       failGeneration(err instanceof Error ? err.message : '알 수 없는 오류');
     }
-  }, [selectedIds, context, startGeneration, updateProgress, completeGeneration, failGeneration, resetContext, clearApis]);
+  }, [selectedIds, context, selectedTemplate, startGeneration, updateProgress, completeGeneration, failGeneration, resetContext, clearApis]);
 
   // === API-first mode: fetch context suggestions ===
   const fetchSuggestions = useCallback(async () => {
