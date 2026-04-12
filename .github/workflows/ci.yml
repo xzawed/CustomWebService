@@ -43,7 +43,7 @@ jobs:
         run: pnpm lint
 
       - name: Run TypeScript type check
-        run: pnpm exec tsc --noEmit
+        run: pnpm type-check
 
   test:
     name: Unit & Integration Tests
