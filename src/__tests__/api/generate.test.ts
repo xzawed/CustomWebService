@@ -113,7 +113,29 @@ const mockProject = {
   status: 'draft',
   metadata: {},
 };
-const mockApis = [{ id: 'api-1', name: 'Test API', description: 'desc', category: 'test' }];
+const mockApis = [{
+  id: 'api-1',
+  name: 'Test API',
+  description: 'desc',
+  category: 'test',
+  baseUrl: 'https://api.example.com',
+  authType: 'none' as const,
+  authConfig: {},
+  rateLimit: null,
+  isActive: true,
+  iconUrl: null,
+  docsUrl: null,
+  endpoints: [{ path: '/data', method: 'GET' as const, description: 'Get data', params: [], responseExample: {} }],
+  tags: [],
+  apiVersion: null,
+  deprecatedAt: null,
+  successorId: null,
+  corsSupported: true,
+  requiresProxy: false,
+  creditRequired: null,
+  createdAt: '2024-01-01T00:00:00Z',
+  updatedAt: '2024-01-01T00:00:00Z',
+}];
 const mockAiResponse = {
   content: '<html>...</html>',
   provider: 'claude',
@@ -296,12 +318,17 @@ describe('POST /api/v1/generate', () => {
     expect(text).toContain('보안 문제');
   });
 
-  it.skip('templateId 전달 시 buildSystemPrompt가 hint와 함께 호출된다 (Task 2에서 완성)', async () => {
-    // TODO: Task 2에서 route.ts에 templateId → hint 연결 후 아래 단언 활성화
-    // await setupHappyPath();
-    // const { buildSystemPrompt } = await import('@/lib/ai/promptBuilder');
-    // const { POST } = await import('@/app/api/v1/generate/route');
-    // await POST(makeRequest({ projectId: 'proj-1', templateId: 'dashboard' }));
-    // expect(vi.mocked(buildSystemPrompt)).toHaveBeenCalledWith(expect.stringContaining('Layout:'));
+  it('templateId 전달 시 buildSystemPrompt가 템플릿 힌트와 함께 호출된다', async () => {
+    await setupHappyPath();
+
+    const { buildSystemPrompt } = await import('@/lib/ai/promptBuilder');
+
+    const { POST } = await import('@/app/api/v1/generate/route');
+    await POST(makeRequest({ projectId: 'proj-1', templateId: 'dashboard' }));
+
+    // 'dashboard' template은 TemplateRegistry에 등록되어 있으며 promptHint에 'Chart.js'를 포함함
+    expect(vi.mocked(buildSystemPrompt)).toHaveBeenCalledWith(
+      expect.stringContaining('Chart.js')
+    );
   });
 });

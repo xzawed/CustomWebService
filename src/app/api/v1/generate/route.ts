@@ -24,6 +24,7 @@ import {
   handleApiError,
 } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
+import { templateRegistry } from '@/templates/TemplateRegistry';
 
 // 2.2 — Safe wrapper: assembleHtml() can throw (e.g. malformed parsed output)
 function safeAssembleHtml(code: { html: string; css: string; js: string }): string | null {
@@ -41,12 +42,14 @@ export async function POST(request: Request): Promise<Response> {
 
     // Validate request body
     let projectId: string;
+    let templateId: string | undefined;
     try {
       const body = await request.json();
       if (typeof body.projectId !== 'string' || !body.projectId) {
         throw new ValidationError('projectId는 필수 항목입니다.');
       }
       projectId = body.projectId;
+      templateId = typeof body.templateId === 'string' ? body.templateId : undefined;
     } catch (err) {
       if (err instanceof SyntaxError) {
         return handleApiError(new ValidationError('잘못된 요청 형식입니다.'));
@@ -85,7 +88,22 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Build prompt (시스템 프롬프트는 모듈 레벨 캐시 사용)
-    const systemPrompt = buildSystemPrompt();
+    // 템플릿 힌트 조회 (templateId가 있고 Registry에 등록된 경우에만)
+    let templateHint: string | undefined;
+    if (templateId) {
+      try {
+        templateHint = templateRegistry.get(templateId)?.generate({
+          apis,
+          userContext: project.context,
+          templateId,
+        }).promptHint;
+      } catch {
+        // 템플릿 생성 실패 시 힌트 없이 진행
+        templateHint = undefined;
+      }
+    }
+
+    const systemPrompt = buildSystemPrompt(templateHint);
     const designPreferences = (project.metadata as Record<string, unknown>)?.designPreferences as DesignPreferences | undefined;
     const userPrompt = buildUserPrompt(apis, project.context, project.id, designPreferences);
     const limits = getLimits();
