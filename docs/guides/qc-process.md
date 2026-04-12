@@ -134,7 +134,7 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 | Deep QC 통과 | 50 | — | 8개 체크 평균 50점 이상 (Fast QC 실패 시에만 실행) |
 | Fast QC 타임아웃 | 3초 | — | 초과 시 null 반환, 진행 |
 | Deep QC 타임아웃 | 10초 | — | 초과 시 null 반환, 진행 |
-| 렌더링 QC 활성화 | false | `ENABLE_RENDERING_QC` | true로 설정 시 활성화 |
+| 렌더링 QC 활성화 | false | `ENABLE_RENDERING_QC` | true로 설정 시 활성화 — Railway 활성화 전 Dockerfile 수정 필요 |
 | 최대 재생성 횟수 | 2회 | — | 품질 루프 최대 2회 |
 
 ---
@@ -156,9 +156,38 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 
 ---
 
-## 5. 변경 이력
+## 5. Railway에서 렌더링 QC 활성화 방법
+
+현재 `ENABLE_RENDERING_QC=false` (기본값). Railway에서 활성화하려면:
+
+**1. Dockerfile 수정** — Playwright Chromium 의존성 설치:
+
+```dockerfile
+# Stage 3: Production runner — node:20-alpine → node:20-slim으로 변경 후 추가
+FROM node:20-slim AS runner
+RUN apt-get update && apt-get install -y \
+    libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+    libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \
+    libxfixes3 libxrandr2 libgbm1 libasound2 \
+    && rm -rf /var/lib/apt/lists/*
+# ... 이후 기존 Dockerfile 내용 동일
+```
+
+**2. Chromium 설치** — 빌더 스테이지에서 실행:
+```dockerfile
+RUN npx playwright install chromium --with-deps
+```
+
+**3. Railway 메모리 확인** — Chromium 실행 시 인스턴스당 ~300MB 추가 필요. 현재 Railway 무료 티어(512MB) 에서는 **메모리 부족 우려**. 유료 플랜($5/월 이상) 전환 후 활성화 권장.
+
+**4. 환경변수 설정**: Railway Dashboard → Variables → `ENABLE_RENDERING_QC=true`
+
+---
+
+## 6. 변경 이력
 
 | 날짜 | 변경 |
 |------|------|
 | 2026-04-04 | 초안 작성 — Phase 1(코드 레벨) + Phase 2(렌더링 QC) + 격차 해소 |
 | 2026-04-05 | 임계값 40→60, 재시도 최대 2회, Deep QC 조건부 실행, 푸터/레이아웃 체크 추가 |
+| 2026-04-12 | Railway 활성화 가이드 추가 (Dockerfile 수정 방법, 메모리 요구사항) |
