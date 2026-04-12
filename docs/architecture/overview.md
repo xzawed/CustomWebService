@@ -1,7 +1,7 @@
 # 시스템 아키텍처
 
 > **최종 업데이트:** 2026-04-12  
-> **구현 상태:** 운영 중 (286개 테스트 통과)
+> **구현 상태:** 운영 중 (287개 테스트 통과)
 
 ---
 
@@ -43,7 +43,8 @@
 │                   Service Layer (비즈니스 로직)                   │
 │                                                                │
 │   CatalogService   ProjectService   GenerationService          │
-│   DeployService    AuthService      MonitoringService           │
+│   DeployService    AuthService      GalleryService             │
+│   RateLimitService                                              │
 │                                                                │
 │   ┌─────────────────────────────────────────────────────────┐  │
 │   │ EventBus (도메인 이벤트 발행/구독)                         │  │
@@ -65,8 +66,8 @@
 │ ProjectRepo  │  │ │ IAiProvider  │ │  │ │IDeployProv.  │ │
 │ CatalogRepo  │  │ ├──────────────┤ │  │ ├──────────────┤ │
 │ CodeRepo     │  │ │ClaudeProvider│ │  │ │RailwayDeploy │ │
-│ OrgRepo      │  │ │(OpenAI 예정)│ │  │ │GHPagesDeploy │ │
-│              │  │ │(Ollama 예정)│ │  │ │(확장 가능)    │ │
+│ OrgRepo      │  │ │(확장 가능)   │ │  │ │GHPagesDeploy │ │
+│              │  │ │             │ │  │ │(확장 가능)    │ │
 │  ↓           │  │ └──────────────┘ │  │ └──────────────┘ │
 │ Supabase     │  │                  │  │                  │
 │ Client       │  │ + ProviderFactory│  │ + ProviderFactory│
@@ -124,8 +125,13 @@ src/
 │
 ├── __tests__/                    # 통합 테스트
 │   └── api/
-│       ├── health.test.ts        # GET /api/v1/health (3개)
-│       └── projects.test.ts      # GET/POST /api/v1/projects (7개)
+│       ├── health.test.ts
+│       ├── projects.test.ts
+│       ├── generate.test.ts
+│       ├── preview.test.ts
+│       ├── gallery.test.ts
+│       ├── suggest-apis.test.ts
+│       └── suggest-context.test.ts
 │
 ├── test/                         # 테스트 유틸리티
 │   ├── setup.ts                  # MSW 초기화
@@ -150,7 +156,7 @@ src/
 │   │   ├── SelectedApiZone.tsx   # ✅ 선택된 API 표시 영역
 │   │   ├── ContextInput.tsx      # ✅ 컨텍스트 텍스트 입력
 │   │   ├── GuideQuestions.tsx    # ✅ 가이드 질문 (접기/펴기)
-│   │   ├── TemplateSelector.tsx  # ✅ 6개 템플릿 버튼 그룹
+│   │   ├── TemplateSelector.tsx  # ✅ 11개 템플릿 버튼 그룹
 │   │   ├── GenerationProgress.tsx # ✅ 생성 진행 상황
 │   │   └── PreviewFrame.tsx      # ✅ iframe 미리보기 (디바이스 토글)
 │   └── dashboard/                # 대시보드 UI
@@ -171,23 +177,31 @@ src/
 │   ├── deployStore.ts            # 배포 상태
 │   └── authStore.ts              # 인증 상태
 │
-├── services/                     # Service Layer (비즈니스 로직) ★신규
+├── services/                     # Service Layer (비즈니스 로직)
+│   ├── factory.ts                # createProjectService, createCatalogService 등 팩토리 함수
 │   ├── catalogService.ts
 │   ├── projectService.ts
 │   ├── generationService.ts
 │   ├── deployService.ts
+│   ├── galleryService.ts
+│   ├── rateLimitService.ts
 │   └── authService.ts            # 인증/사용자 관리 (첫 로그인 시 users 레코드 생성)
 │
-├── repositories/                 # Repository Layer (데이터 접근) ★신규
+├── repositories/                 # Repository Layer (데이터 접근)
+│   ├── interfaces/               # 9개 Repository 인터페이스 (IProjectRepository 등)
 │   ├── base/
 │   │   └── BaseRepository.ts     # 공통 CRUD 추상 클래스
+│   ├── drizzle/                  # Drizzle ORM 구현체 (DB_PROVIDER=postgres 시 사용)
+│   ├── factory.ts                # createProjectRepository, createCodeRepository 등 팩토리 함수
 │   ├── userRepository.ts
 │   ├── projectRepository.ts
 │   ├── catalogRepository.ts
 │   ├── codeRepository.ts
+│   ├── eventRepository.ts
+│   ├── galleryRepository.ts
 │   └── organizationRepository.ts
 │
-├── providers/                    # Provider Layer (외부 서비스) ★신규
+├── providers/                    # Provider Layer (외부 서비스)
 │   ├── ai/
 │   │   ├── IAiProvider.ts         # AI Provider 인터페이스
 │   │   ├── ClaudeProvider.ts      # ✅ 구현 완료
@@ -211,14 +225,9 @@ src/
 │   │   ├── githubService.ts       # ✅ GitHub REST API 연동
 │   │   └── railwayService.ts      # ✅ Railway GraphQL API 연동
 │   ├── config/
-│   │   ├── features.ts           # 설정 기반 비즈니스 규칙 ★신규
-│   │   └── featureFlags.ts       # 피처 플래그 ★신규
-│   ├── events/
-│   │   ├── eventBus.ts           # 이벤트 버스 ★신규
-│   │   └── domainEvents.ts       # 이벤트 타입 정의 ★신규
-│   ├── i18n/
-│   │   ├── index.ts              # i18n 기반 ★신규
-│   │   └── locales/
+│   │   ├── features.ts           # 설정 기반 비즈니스 규칙│   │   └── featureFlags.ts       # 피처 플래그│   ├── events/
+│   │   ├── eventBus.ts           # 이벤트 버스│   │   └── domainEvents.ts       # 이벤트 타입 정의│   ├── i18n/
+│   │   ├── index.ts              # i18n 기반│   │   └── locales/
 │   │       ├── ko.json
 │   │       └── en.json
 │   └── utils/
@@ -229,15 +238,21 @@ src/
 │   ├── api.ts
 │   ├── project.ts
 │   ├── generation.ts
-│   ├── organization.ts           # ★신규
-│   └── events.ts                 # ★신규
-│
-└── templates/                    # 코드 생성 템플릿 ★신규
-    ├── ICodeTemplate.ts          # 템플릿 인터페이스
-    ├── DashboardTemplate.ts
-    ├── CalculatorTemplate.ts
-    ├── GalleryTemplate.ts
-    └── TemplateRegistry.ts       # 템플릿 등록/관리
+│   ├── organization.ts           #│   └── events.ts                 #│
+└── templates/                    # 코드 생성 템플릿 (11개)
+    ├── ICodeTemplate.ts          # 템플릿 인터페이스 (matchScore, generate, promptHint)
+    ├── TemplateRegistry.ts       # 템플릿 등록/조회/매칭 (singleton)
+    ├── DashboardTemplate.ts      # 대시보드 (data-dashboard)
+    ├── CalculatorTemplate.ts     # 계산기/변환기 (input-result-tool)
+    ├── GalleryTemplate.ts        # 갤러리 (masonry-gallery)
+    ├── InfoLookupTemplate.ts     # 정보 조회 (search-detail)
+    ├── MapServiceTemplate.ts     # 지도 서비스 (map-sidebar)
+    ├── ContentFeedTemplate.ts    # 콘텐츠 피드 (vertical-feed)
+    ├── ComparisonTemplate.ts     # 실시간 비교 (two-column-comparison)
+    ├── TimelineTemplate.ts       # 타임라인/이벤트 (vertical-timeline)
+    ├── NewsCuratorTemplate.ts    # 뉴스 큐레이터 (news-grid-curator)
+    ├── QuizTemplate.ts           # 퀴즈/인터랙티브 (quiz-flow)
+    └── ProfileTemplate.ts        # 프로필/포트폴리오 (profile-portfolio)
 ```
 
 ---

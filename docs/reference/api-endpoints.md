@@ -217,9 +217,17 @@ API 카탈로그 전체 조회
 **Request Body:**
 ```json
 {
-    "projectId": "project-uuid"
+    "projectId": "project-uuid",
+    "templateId": "dashboard"
 }
 ```
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `projectId` | string | Y | 생성 대상 프로젝트 UUID |
+| `templateId` | string | N | 템플릿 ID (없으면 기존 categoryDesignMap 동작 유지) |
+
+**templateId 값:** `dashboard` \| `calculator` \| `gallery` \| `info-lookup` \| `map-service` \| `content-feed` \| `comparison` \| `timeline` \| `news-curator` \| `quiz` \| `profile`
 
 **Response (SSE - Server-Sent Events):**
 ```

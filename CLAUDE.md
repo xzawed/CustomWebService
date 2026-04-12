@@ -6,7 +6,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 
 - 서비스 URL: https://xzawed.xyz
 - 배포: Railway (단일 인스턴스, Dockerfile, standalone output)
-- Phase A-1 완료 (갤러리) / Phase A-2 예정 (공식 템플릿 라이브러리)
+- Phase A-1 완료 (갤러리) / Phase A-2 완료 (공식 템플릿 라이브러리, 11개)
 
 ## 기술 스택
 

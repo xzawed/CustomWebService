@@ -25,22 +25,34 @@ API 상세 정보      →  2. 프롬프트 구성           →  CSS 파일
 ## 3. 프롬프트 엔지니어링
 
 ### 3.1 시스템 프롬프트
-```
-당신은 웹서비스 코드를 생성하는 전문 개발자 AI입니다.
-사용자가 선택한 API와 서비스 설명을 기반으로 완전히 동작하는
-단일 페이지 웹 애플리케이션을 생성합니다.
 
-규칙:
-1. HTML, CSS, JavaScript를 각각 분리하여 생성
-2. 외부 라이브러리 최소화 (CDN 사용 가능: Chart.js, Leaflet 등)
-3. 반응형 디자인 필수 적용
-4. API 호출은 fetch()를 사용
-5. 에러 핸들링 포함
-6. 한국어 UI 기본
-7. 모던하고 깔끔한 디자인
-8. 접근성(a11y) 고려
-9. API 키는 환경변수로 처리 ({{API_KEY_NAME}} 플레이스홀더)
-10. 로딩 상태와 에러 상태 UI 포함
+`src/lib/ai/promptBuilder.ts`의 `buildSystemPrompt(templateHint?)` 함수가 생성. 결과는 모듈 레벨에 캐싱된다.
+
+**주요 규칙 (실제 구현 기준):**
+1. Vercel, Linear, Spotify 수준의 완성도 — 비개발자가 보기에도 완성형 UI
+2. 페이지를 열면 즉시 목 데이터로 채워진 화면 표시 (빈 화면 절대 금지)
+3. 모든 목 데이터는 JavaScript 배열 하드코딩 + `DOMContentLoaded`에서 즉시 렌더링
+4. API 호출은 비동기로 시도, 성공 시 교체 / 실패 시 목 데이터 유지
+5. 레이아웃은 가로 방향 flex/grid 기본 (수직 스택 금지)
+6. 모든 텍스트 한국어 (UI, 목 데이터, placeholder 포함)
+
+**필수 CDN (항상 포함):**
+- Tailwind CSS CDN
+- Pretendard Variable 폰트
+- Font Awesome 6.5
+
+**조건부 CDN:**
+- Chart.js — 차트/시각화가 있을 때만
+- Leaflet — 지도가 있을 때만
+
+**서비스 유형별 자동 추론:** API 카테고리와 컨텍스트 키워드로 10가지 레이아웃 패턴 중 최적 선택 (뉴스/날씨/금융/쇼핑 등)
+
+**템플릿 가이던스 (templateHint 있을 때 추가):**
+```
+[템플릿 가이던스]
+{templateHint — 최대 2000자}
+위의 레이아웃 구조를 반드시 따르세요. 위에 명시된 섹션 구성과
+UI 패턴은 필수 사항입니다. 이 구조 안에서 콘텐츠와 API 통합 내용을 채워주세요.
 ```
 
 ### 3.2 사용자 프롬프트 구성
@@ -144,22 +156,17 @@ interface FunctionalCheck {
 
 ## 5. 생성 코드 구조
 
-### 단일 파일 (간단한 서비스)
+AI는 HTML·CSS·JS를 별도 블록으로 생성하고, `assembleHtml(html, css, js)` (`src/lib/ai/codeParser.ts`)가 **단일 index.html 파일**로 조립한다.
+
 ```
-output/
-├── index.html      # 메인 HTML (CSS/JS 인라인)
-└── config.json     # API 키, 설정
+DB 저장 구조 (code_versions 테이블):
+├── html      # CSS·JS가 인라인으로 합쳐진 완성형 index.html
+├── css       # AI 원본 CSS (별도 저장)
+├── js        # AI 원본 JS (별도 저장)
+└── metadata  # QC 점수, templateId, 생성 시각 등
 ```
 
-### 멀티 파일 (복잡한 서비스)
-```
-output/
-├── index.html      # 메인 HTML
-├── styles.css      # 스타일
-├── app.js          # 메인 로직
-├── api.js          # API 호출 모듈
-└── config.json     # 설정
-```
+서빙 시 `/site/[slug]/route.ts`가 DB에서 html 컬럼을 읽어 `text/html`로 직접 응답한다.
 
 ---
 
@@ -182,31 +189,50 @@ output/
 
 ---
 
-## 7. 템플릿 시스템
+## 7. 템플릿 시스템 (Phase A-2 완료)
 
-자주 요청되는 서비스 유형에 대한 기본 템플릿을 제공하여 AI 생성 품질 향상 및 속도 개선.
+자주 요청되는 서비스 유형에 대한 공식 템플릿 11개를 제공하여 AI 생성 품질 향상.  
+**하이브리드 방식**: 템플릿이 레이아웃/구조를 정의하고, AI가 그 구조 안에서 API 통합과 데이터 표시 방식을 채운다.
 
 ### 구현 구조
-- `src/templates/ICodeTemplate.ts` - 템플릿 인터페이스 (matchScore, generate)
-- `src/templates/TemplateRegistry.ts` - 템플릿 등록/조회/매칭
-- 각 템플릿은 HTML/CSS/JS 골격 + AI 프롬프트 힌트를 생성
+- `src/templates/ICodeTemplate.ts` — 인터페이스 (id, matchScore, generate → TemplateOutput)
+- `src/templates/TemplateRegistry.ts` — 등록/조회/매칭 (singleton, `get(id)`, `findBestMatch(apis)`)
+- 각 템플릿의 `generate()` 반환값 중 `promptHint`가 AI 시스템 프롬프트에 주입됨
 
-### 구현 완료 템플릿 ✅
-| 템플릿 | 파일 | 설명 | 적합한 API |
-|--------|------|------|-----------|
-| 대시보드 | `DashboardTemplate.ts` | 데이터 시각화 대시보드 | 날씨, 금융, 통계, 뉴스 |
-| 계산기 | `CalculatorTemplate.ts` | 입력 기반 계산/변환 | 환율, 단위변환 |
-| 갤러리 | `GalleryTemplate.ts` | 이미지/카드 그리드 | 이미지, 사진, 미디어 |
+### templateId → promptHint 주입 흐름
+```
+빌더 TemplateSelector 클릭
+  → setTemplate(id) → contextStore.selectedTemplate
+  → POST /api/v1/generate { projectId, templateId? }
+  → templateRegistry.get(templateId)?.generate(ctx).promptHint
+  → buildSystemPrompt(templateHint)
+      → 시스템 프롬프트 끝에 [템플릿 가이던스] 블록 추가 (max 2000자)
+  → AI 생성 (레이아웃 구조 강제 반영)
+```
 
-### 빌더 UI 템플릿 (TemplateSelector.tsx)
-| 템플릿 | 설명 |
-|--------|------|
-| 대시보드 | 데이터 시각화 대시보드 |
-| 계산기/변환기 | 실시간 계산/변환 도구 |
-| 정보 조회 | 검색/필터 기반 정보 표시 |
-| 갤러리 | 이미지/콘텐츠 그리드 |
-| 지도 서비스 | 위치 기반 정보 표시 |
-| 콘텐츠 피드 | 스크롤 기반 피드 |
+### promptHint 형식
+```
+Layout: [레이아웃 이름]
+Required sections (in order): [섹션1], [섹션2], ...
+UI patterns: [패턴 설명]
+Must include: [필수 요소]
+Avoid: [제외할 요소]
+```
+
+### 등록된 템플릿 11개
+| ID | 클래스 | 레이아웃 | 적합한 API 카테고리 |
+|----|--------|---------|-------------------|
+| `dashboard` | DashboardTemplate | data-dashboard | 날씨, 금융, 통계, 뉴스 |
+| `calculator` | CalculatorTemplate | input-result-tool | 환율, 단위, 계산 |
+| `gallery` | GalleryTemplate | masonry-gallery | 이미지, 사진, 미디어 |
+| `info-lookup` | InfoLookupTemplate | search-detail | 날씨, 인물, 장소, 사전 |
+| `map-service` | MapServiceTemplate | map-sidebar | 지도, 위치, 장소 |
+| `content-feed` | ContentFeedTemplate | vertical-feed | 뉴스, 블로그, 콘텐츠 |
+| `comparison` | ComparisonTemplate | two-column-comparison | 비교, 환율, 주식 |
+| `timeline` | TimelineTemplate | vertical-timeline | 이벤트, 일정, 역사 |
+| `news-curator` | NewsCuratorTemplate | news-grid-curator | 뉴스, 미디어, 기사 |
+| `quiz` | QuizTemplate | quiz-flow | 퀴즈, 교육, 학습 |
+| `profile` | ProfileTemplate | profile-portfolio | 프로필, 포트폴리오, GitHub |
 
 ---
 
