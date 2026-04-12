@@ -94,7 +94,11 @@ ${initCalls}
 refreshAll();
 setInterval(refreshAll, 60000);`,
       promptHint:
-        '이 대시보드 템플릿을 기반으로, 사용자의 요구사항에 맞게 카드 레이아웃, 차트, 실시간 업데이트를 커스터마이징해주세요. Chart.js CDN을 활용할 수 있습니다.',
+        `Layout: data-dashboard
+Required sections (in order): 제목/부제목 헤더, 지표 카드 행(4개), 메인 차트 영역, 보조 데이터 테이블
+UI patterns: 미묘한 그림자의 카드 기반 레이아웃, 실시간 업데이트 버튼, 스켈레톤 로딩 상태
+Must include: Chart.js CDN 차트 최소 1개, 새로고침 버튼, 마지막 업데이트 타임스탬프
+Avoid: 히어로 이미지, 마케팅 문구, 장식용 일러스트`,
     };
   }
 }

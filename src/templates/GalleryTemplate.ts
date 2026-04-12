@@ -152,7 +152,11 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal
 
 loadItems('');`,
       promptHint:
-        '이 갤러리 템플릿을 기반으로, 선택된 API에서 실제 이미지/콘텐츠 데이터를 가져오도록 수정하고, 무한 스크롤과 상세 모달을 개선해주세요.',
+        `Layout: masonry-gallery
+Required sections (in order): 검색바 + 카테고리 필터, 이미지 그리드, 라이트박스 모달
+UI patterns: auto-fill 그리드(minmax 250px), 호버 오버레이, 전체화면 모달
+Must include: 검색 디바운스(300ms), lazy loading, ESC 키 모달 닫기, 카테고리 필터 버튼
+Avoid: 목록 뷰, 사이드바 내비게이션, 페이지네이션 버튼`,
     };
   }
 }
