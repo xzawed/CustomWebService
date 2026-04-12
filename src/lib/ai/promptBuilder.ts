@@ -8,11 +8,13 @@ let cachedSystemPrompt: string | null = null;
 export function buildSystemPrompt(templateHint?: string): string {
   const base = cachedSystemPrompt ?? (cachedSystemPrompt = _buildSystemPrompt());
   if (!templateHint) return base;
+
+  const safeHint = templateHint.slice(0, 2000);
   return `${base}
 
-[Template Guidance]
-${templateHint}
-Strictly follow the above layout structure. The section arrangement and UI patterns described above are mandatory. Fill in content and API integrations within this structure.`;
+[템플릿 가이던스]
+${safeHint}
+위의 레이아웃 구조를 반드시 따르세요. 위에 명시된 섹션 구성과 UI 패턴은 필수 사항입니다. 이 구조 안에서 콘텐츠와 API 통합 내용을 채워주세요.`;
 }
 
 function _buildSystemPrompt(): string {
