@@ -18,7 +18,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 | Form | React Hook Form + Zod |
 | Database | Supabase (PostgreSQL + Row Level Security) |
 | Auth | Supabase Auth (Google, GitHub OAuth) |
-| AI | Claude API (Anthropic SDK) — 기본, Grok (롤백용) |
+| AI | Claude API (Anthropic SDK, claude-sonnet-4-6) |
 | Testing | Vitest, happy-dom, MSW |
 | CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
 | Package Manager | pnpm |
@@ -106,11 +106,21 @@ pnpm test:coverage    # 커버리지 리포트
 
 ## 문서 참조
 
-- `docs/20_QC_표준_프로세스.md` — **QC 표준 프로세스** (모든 생성/수정에 적용)
-- `docs/` — 40+ 상세 설계 문서 (한국어): 아키텍처, DB, API, UI/UX, 스프린트 계획
-- `README.md` — 프로젝트 전체 개요
-- `.github/PULL_REQUEST_TEMPLATE.md` — PR 템플릿
-- `.scamanager/` — pre-push 자동 코드리뷰 훅 (Claude CLI → SCAManager 서버, `install-hook.sh`로 설치)
+| 질문 | 참조 문서 |
+|------|-----------|
+| 시스템 전체 구조 | [docs/architecture/overview.md](docs/architecture/overview.md) |
+| AI 코드 생성 흐름 | [docs/architecture/ai-pipeline.md](docs/architecture/ai-pipeline.md) |
+| 코드 생성/재생성 작업 **(필수)** | [docs/guides/qc-process.md](docs/guides/qc-process.md) |
+| API 엔드포인트 목록 | [docs/reference/api-endpoints.md](docs/reference/api-endpoints.md) |
+| 환경변수 목록 | [docs/reference/env-vars.md](docs/reference/env-vars.md) |
+| 에러 클래스 참조 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
+| 배포/운영 작업 | [docs/guides/deployment.md](docs/guides/deployment.md) |
+| DB/Auth Provider 전환 | [docs/decisions/provider-migration.md](docs/decisions/provider-migration.md) |
+| 설계 결정 배경 | [docs/decisions/](docs/decisions/) |
+
+- [README.md](README.md) — 프로젝트 전체 개요
+- [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) — PR 템플릿
+- [.scamanager/](.scamanager/) — pre-push 자동 코드리뷰 훅 (`install-hook.sh`로 설치)
 
 ## 배포 품질 원칙 (필수)
 
