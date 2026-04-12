@@ -44,7 +44,7 @@ src/
 │   ├── supabase/    # Supabase 클라이언트
 │   └── utils/       # 공통 유틸리티, 에러 클래스
 ├── middleware.ts     # 서브도메인 라우팅, 보안 헤더 (CSP, HSTS)
-├── providers/       # AI Provider (IAiProvider → ClaudeProvider, GrokProvider)
+├── providers/       # AI Provider (IAiProvider → ClaudeProvider)
 ├── repositories/    # 데이터 접근 계층 (BaseRepository 패턴)
 ├── services/        # 비즈니스 로직 계층
 ├── stores/          # Zustand 스토어
