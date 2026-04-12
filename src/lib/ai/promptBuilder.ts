@@ -5,11 +5,14 @@ import { inferDesignFromCategories } from './categoryDesignMap';
 // 시스템 프롬프트 모듈 레벨 캐싱 — 매 요청마다 재생성하지 않음
 let cachedSystemPrompt: string | null = null;
 
-export function buildSystemPrompt(): string {
-  if (cachedSystemPrompt) return cachedSystemPrompt;
+export function buildSystemPrompt(templateHint?: string): string {
+  const base = cachedSystemPrompt ?? (cachedSystemPrompt = _buildSystemPrompt());
+  if (!templateHint) return base;
+  return `${base}
 
-  cachedSystemPrompt = _buildSystemPrompt();
-  return cachedSystemPrompt;
+[Template Guidance]
+${templateHint}
+Strictly follow the above layout structure. The section arrangement and UI patterns described above are mandatory. Fill in content and API integrations within this structure.`;
 }
 
 function _buildSystemPrompt(): string {
