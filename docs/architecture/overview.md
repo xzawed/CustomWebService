@@ -131,7 +131,7 @@ src/
 │   ├── setup.ts                  # MSW 초기화
 │   └── mocks/
 │       ├── server.ts
-│       └── handlers.ts           # xAI Grok API 모킹
+│       └── handlers.ts           # Claude API 모킹
 │
 ├── components/                   # UI 컴포넌트 (Presentation만)
 │   ├── ui/                       # (shadcn/ui 미사용 — Tailwind CSS 직접 구현)
@@ -190,7 +190,7 @@ src/
 ├── providers/                    # Provider Layer (외부 서비스) ★신규
 │   ├── ai/
 │   │   ├── IAiProvider.ts         # AI Provider 인터페이스
-│   │   ├── GrokProvider.ts        # ✅ 구현 완료
+│   │   ├── ClaudeProvider.ts      # ✅ 구현 완료
 │   │   └── AiProviderFactory.ts   # (OpenAI, Ollama 확장 가능)
 │   └── deploy/
 │       ├── IDeployProvider.ts     # Deploy Provider 인터페이스
@@ -501,7 +501,7 @@ export function getLimits(plan: string = 'free'): FeatureLimits {
 
 | 확장 시나리오 | 수정 필요한 레이어 | 수정 범위 |
 |-------------|------------------|----------|
-| 새 AI 제공자 추가 (Grok, OpenAI) | Provider만 | 새 클래스 1개 + Factory 등록 |
+| 새 AI 제공자 추가 (OpenAI, Ollama) | Provider만 | 새 클래스 1개 + Factory 등록 |
 | 새 배포 플랫폼 추가 (Vercel) | Provider만 | 새 클래스 1개 + Factory 등록 |
 | 새 API 카테고리 추가 | DB 시드 데이터만 | SQL INSERT |
 | 유료 플랜 도입 | Config + DB | features.ts 수정 + organizations 테이블 |
