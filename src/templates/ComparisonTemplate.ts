@@ -82,7 +82,8 @@ header p { color: #64748b; margin-top: 0.25rem; margin-bottom: 1.5rem; font-size
     const dataB = { name: b, stats: [{ label: '항목1', value: '150' }, { label: '항목2', value: '180' }] };
     renderComparison(dataA, dataB);
   } catch (err) {
-    alert('데이터를 불러오지 못했습니다.');
+    document.getElementById('empty-state').textContent = '데이터를 불러오지 못했습니다.';
+    document.getElementById('empty-state').style.display = 'block';
   }
 }
 

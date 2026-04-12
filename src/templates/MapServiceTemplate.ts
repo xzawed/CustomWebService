@@ -111,9 +111,10 @@ function focusPlace(id) {
 
 let searchTimer;
 document.getElementById('place-search').addEventListener('input', (e) => {
+  const target = e.target as HTMLInputElement;
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
-    const q = e.target.value.toLowerCase();
+    const q = target.value.toLowerCase();
     const filtered = q ? places.filter(p => p.name.toLowerCase().includes(q)) : places;
     renderList(filtered);
     addMarkers(filtered);

@@ -114,10 +114,11 @@ observer.observe(sentinel);
 
 // Category filter
 document.getElementById('filter-tabs').addEventListener('click', (e) => {
-  if (!e.target.classList.contains('tab')) return;
+  const target = e.target instanceof HTMLElement ? e.target : null;
+  if (!target?.classList.contains('tab')) return;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  e.target.classList.add('active');
-  currentCat = e.target.dataset.cat;
+  target.classList.add('active');
+  currentCat = target.dataset['cat'] ?? 'all';
   page = 1;
   hasMore = true;
   document.getElementById('card-list').innerHTML = '';
