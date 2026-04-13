@@ -228,7 +228,7 @@ async function runStage2(
   provider: string;
   model: string;
   durationMs: number;
-  tokensUsed: unknown;
+  tokensUsed: { input: number; output: number };
   userPromptUsed: string;
 }> {
   sse.send('progress', { step: 'stage1_complete', progress: 45, message: '구조 완성. 디자인 적용 준비 중...' });
@@ -280,24 +280,29 @@ export async function runGenerationPipeline(
   const limits = getLimits();
 
   // Backward-compat: if new 2-stage fields are not set, fall back to deprecated single-stage fields
+  const isLegacyCaller = !input.stage1SystemPrompt && !input.stage2SystemPrompt;
+  if (isLegacyCaller) {
+    logger.warn('runGenerationPipeline called with legacy PipelineInput — migrate to stage1/stage2 fields', { projectId });
+  }
   const stage1SystemPrompt = input.stage1SystemPrompt ?? input.systemPrompt ?? '';
   const stage1UserPrompt = input.stage1UserPrompt ?? input.userPrompt ?? '';
   const stage2SystemPrompt = input.stage2SystemPrompt ?? input.systemPrompt ?? '';
   const buildStage2UserPrompt =
     input.buildStage2UserPrompt ?? ((_code: { html: string; css: string; js: string }) => input.userPrompt ?? '');
 
-  let aiProvider: IAiProvider | undefined;
+  let aiProviderInit: IAiProvider | undefined;
 
   try {
     sse.send('progress', { step: 'analyzing', progress: 5, message: '분석 중...' });
 
     try {
-      aiProvider = AiProviderFactory.createForTask('generation');
+      aiProviderInit = AiProviderFactory.createForTask('generation');
     } catch (factoryErr) {
       throw new Error(
         `AI 서비스 초기화 실패: ${factoryErr instanceof Error ? factoryErr.message : 'Unknown'}`,
       );
     }
+    const aiProvider: IAiProvider = aiProviderInit;
 
     // Stage 1: 구조·기능 생성
     const stage1Code = await runStage1(
@@ -392,7 +397,7 @@ export async function runGenerationPipeline(
 
       try {
         const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport);
-        const retryResponse = await aiProvider!.generateCode({ system: stage2SystemPrompt, user: improvementPrompt });
+        const retryResponse = await aiProvider.generateCode({ system: stage2SystemPrompt, user: improvementPrompt });
         const retryParsed = parseGeneratedCode(retryResponse.content);
 
         if (retryParsed.html) {
@@ -542,7 +547,7 @@ export async function runGenerationPipeline(
       payload: {
         projectId,
         error: error instanceof Error ? error.message : 'Unknown error',
-        provider: aiProvider?.name ?? 'unknown',
+        provider: aiProviderInit?.name ?? 'unknown',
       },
     };
     eventBus.emit(failedEvent);

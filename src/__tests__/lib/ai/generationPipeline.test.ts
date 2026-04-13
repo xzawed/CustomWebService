@@ -46,14 +46,14 @@ const makeAiProvider = () => ({
     provider: 'claude',
     model: 'claude-sonnet-4-6',
     durationMs: 1000,
-    tokensUsed: { inputTokens: 100, outputTokens: 200 },
+    tokensUsed: { input: 100, output: 200 },
   }),
   generateCode: vi.fn().mockResolvedValue({
     content: '<div>improved</div>',
     provider: 'claude',
     model: 'claude-sonnet-4-6',
     durationMs: 500,
-    tokensUsed: { inputTokens: 50, outputTokens: 100 },
+    tokensUsed: { input: 50, output: 100 },
   }),
 });
 
