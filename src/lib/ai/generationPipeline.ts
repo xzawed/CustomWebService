@@ -43,25 +43,7 @@ export interface PipelineInput {
   buildStage2UserPrompt: (stage1Code: { html: string; css: string; js: string }) => string;
   /** 코드 메타데이터에 병합할 추가 필드 (예: { userFeedback }) */
   extraMetadata?: Record<string, unknown>;
-  /** @deprecated — use stage1SystemPrompt instead; removed in Tasks 3/4 */
-  systemPrompt?: string;
-  /** @deprecated — use stage1UserPrompt instead; removed in Tasks 3/4 */
-  userPrompt?: string;
-  /** @deprecated — no longer used; removed in Tasks 3/4 */
-  streamingLabel?: string;
 }
-
-/**
- * 레거시 라우트용 PipelineInput 타입 — stage1/stage2 필드가 없는 구형 호출을 허용.
- * Tasks 3/4에서 라우트가 마이그레이션되면 삭제.
- * @deprecated
- */
-export type LegacyPipelineInput = Omit<PipelineInput, 'stage1SystemPrompt' | 'stage1UserPrompt' | 'stage2SystemPrompt' | 'buildStage2UserPrompt'> & {
-  stage1SystemPrompt?: string;
-  stage1UserPrompt?: string;
-  stage2SystemPrompt?: string;
-  buildStage2UserPrompt?: (stage1Code: { html: string; css: string; js: string }) => string;
-};
 
 export interface PipelineServices {
   codeRepo: ICodeRepository;
@@ -271,7 +253,7 @@ async function runStage2(
  * SSE 스트림 내부에서 호출되며, 에러 처리(rate limit 복구, 이벤트 발행)도 포함합니다.
  */
 export async function runGenerationPipeline(
-  input: PipelineInput | LegacyPipelineInput,
+  input: PipelineInput,
   sse: SseWriter,
   services: PipelineServices,
 ): Promise<void> {
@@ -279,16 +261,10 @@ export async function runGenerationPipeline(
   const { codeRepo, eventRepo, projectService, rateLimitService } = services;
   const limits = getLimits();
 
-  // Backward-compat: if new 2-stage fields are not set, fall back to deprecated single-stage fields
-  const isLegacyCaller = !input.stage1SystemPrompt && !input.stage2SystemPrompt;
-  if (isLegacyCaller) {
-    logger.warn('runGenerationPipeline called with legacy PipelineInput — migrate to stage1/stage2 fields', { projectId });
-  }
-  const stage1SystemPrompt = input.stage1SystemPrompt ?? input.systemPrompt ?? '';
-  const stage1UserPrompt = input.stage1UserPrompt ?? input.userPrompt ?? '';
-  const stage2SystemPrompt = input.stage2SystemPrompt ?? input.systemPrompt ?? '';
-  const buildStage2UserPrompt =
-    input.buildStage2UserPrompt ?? ((_code: { html: string; css: string; js: string }) => input.userPrompt ?? '');
+  const stage1SystemPrompt = input.stage1SystemPrompt;
+  const stage1UserPrompt = input.stage1UserPrompt;
+  const stage2SystemPrompt = input.stage2SystemPrompt;
+  const buildStage2UserPrompt = input.buildStage2UserPrompt;
 
   let aiProviderInit: IAiProvider | undefined;
 

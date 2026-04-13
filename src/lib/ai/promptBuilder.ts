@@ -1014,8 +1014,3 @@ ${stage1Code.js}
 (기존 기능 그대로, 시각 폴리시 함수 추가)
 \`\`\``;
 }
-
-// Backward-compat aliases — removed when Tasks 3/4 update route imports
-export const buildSystemPrompt = buildStage1SystemPrompt;
-export const buildUserPrompt = buildStage1UserPrompt;
-export const buildRegenerationPrompt = buildStage1RegenerationUserPrompt;

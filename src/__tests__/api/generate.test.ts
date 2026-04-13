@@ -29,8 +29,10 @@ vi.mock('@/providers/ai/AiProviderFactory', () => ({
 }));
 
 vi.mock('@/lib/ai/promptBuilder', () => ({
-  buildSystemPrompt: vi.fn().mockReturnValue('system prompt'),
-  buildUserPrompt: vi.fn().mockReturnValue('user prompt'),
+  buildStage1SystemPrompt: vi.fn().mockReturnValue('system prompt'),
+  buildStage1UserPrompt: vi.fn().mockReturnValue('user prompt'),
+  buildStage2SystemPrompt: vi.fn().mockReturnValue('stage2 system prompt'),
+  buildStage2UserPrompt: vi.fn().mockReturnValue('stage2 user prompt'),
 }));
 
 vi.mock('@/lib/ai/codeParser', () => ({
@@ -318,16 +320,16 @@ describe('POST /api/v1/generate', () => {
     expect(text).toContain('보안 문제');
   });
 
-  it('templateId 전달 시 buildSystemPrompt가 템플릿 힌트와 함께 호출된다', async () => {
+  it('templateId 전달 시 buildStage1SystemPrompt가 템플릿 힌트와 함께 호출된다', async () => {
     await setupHappyPath();
 
-    const { buildSystemPrompt } = await import('@/lib/ai/promptBuilder');
+    const { buildStage1SystemPrompt } = await import('@/lib/ai/promptBuilder');
 
     const { POST } = await import('@/app/api/v1/generate/route');
     await POST(makeRequest({ projectId: 'proj-1', templateId: 'dashboard' }));
 
     // 'dashboard' template은 TemplateRegistry에 등록되어 있으며 promptHint에 'Chart.js'를 포함함
-    expect(vi.mocked(buildSystemPrompt)).toHaveBeenCalledWith(
+    expect(vi.mocked(buildStage1SystemPrompt)).toHaveBeenCalledWith(
       expect.stringContaining('Chart.js')
     );
   });

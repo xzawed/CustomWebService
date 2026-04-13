@@ -3,7 +3,12 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createProjectService, createCatalogService, createRateLimitService } from '@/services/factory';
 import { createCodeRepository, createEventRepository } from '@/repositories/factory';
-import { buildSystemPrompt, buildRegenerationPrompt } from '@/lib/ai/promptBuilder';
+import {
+  buildStage1SystemPrompt,
+  buildStage1RegenerationUserPrompt,
+  buildStage2SystemPrompt,
+  buildStage2RegenerationUserPrompt,
+} from '@/lib/ai/promptBuilder';
 import { getCorrelationId } from '@/lib/utils/correlationId';
 import {
   AuthRequiredError,
@@ -72,12 +77,13 @@ export async function POST(request: Request): Promise<Response> {
       throw new NotFoundError('재생성할 기존 코드가 없습니다. 먼저 코드를 생성해주세요.');
     }
 
-    const systemPrompt = buildSystemPrompt();
-    const userPrompt = buildRegenerationPrompt(
+    const stage1SystemPrompt = buildStage1SystemPrompt();
+    const stage1UserPrompt = buildStage1RegenerationUserPrompt(
       { html: previousCode.codeHtml, css: previousCode.codeCss, js: previousCode.codeJs },
       feedback,
       projectApis,
     );
+    const stage2SystemPrompt = buildStage2SystemPrompt();
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -89,10 +95,11 @@ export async function POST(request: Request): Promise<Response> {
             userId: user.id,
             correlationId,
             apis: projectApis,
-            systemPrompt,
-            userPrompt,
+            stage1SystemPrompt,
+            stage1UserPrompt,
+            stage2SystemPrompt,
+            buildStage2UserPrompt: (stage1Code) => buildStage2RegenerationUserPrompt(stage1Code, feedback),
             extraMetadata: { userFeedback: feedback },
-            streamingLabel: '코드 수정 중...',
           },
           writer,
           {
