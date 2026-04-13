@@ -643,11 +643,10 @@ export function buildStage1RegenerationUserPrompt(
   const apiSection = apis.length > 0
     ? `## 프로젝트에 연결된 API (반드시 활용)
 ${apis.map((api) => {
-  const projectParam = '';
   const callMethod =
     api.authType === 'none'
       ? `직접 fetch: ${api.baseUrl}`
-      : `서버 프록시: /api/v1/proxy?apiId=${api.id}${projectParam}&proxyPath=<경로>`;
+      : `서버 프록시: /api/v1/proxy?apiId=${api.id}&proxyPath=<경로>`;
   return `### ${api.name} (ID: ${api.id})
 - 호출 방법: ${callMethod}
 - 인증: ${api.authType}`;
