@@ -86,7 +86,7 @@ export async function POST(request: Request): Promise<Response> {
             stage1SystemPrompt,
             stage1UserPrompt,
             stage2SystemPrompt,
-            buildStage2UserPrompt: (stage1Code) => buildStage2UserPrompt(stage1Code),
+            buildStage2UserPrompt,
           },
           writer,
           {
