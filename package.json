@@ -17,7 +17,8 @@
     "test:integration": "vitest run src/app/api",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:prod": "pnpm build && node -e \"const s=require('child_process').spawn('node',['.next/standalone/server.js'],{stdio:'inherit'});setTimeout(()=>{const h=require('http');h.get('http://localhost:3000/api/v1/health',r=>{console.log('healthcheck:',r.statusCode);s.kill();process.exit(r.statusCode===200?0:1)}).on('error',e=>{console.error('FAIL',e.message);s.kill();process.exit(1)})},4000)\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",

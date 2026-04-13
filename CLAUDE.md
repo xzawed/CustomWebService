@@ -127,7 +127,7 @@ pnpm test:coverage    # 커버리지 리포트
 이 서비스는 다수 사용자가 이용 중입니다. 배포 품질 = 서비스 신뢰도.
 
 ### CSP / 보안 헤더 변경 시
-- `middleware.ts`, `site/[slug]/route.ts`, `preview/[projectId]/route.ts` 3개 파일을 반드시 동시에 확인
+- `middleware.ts`(Next.js 16에서 deprecated → TODO: `proxy.ts`로 마이그레이션 필요), `site/[slug]/route.ts`, `preview/[projectId]/route.ts` 3개 파일을 반드시 동시에 확인
 - CSP 헤더가 2중 적용되는 경로가 없는지 검증 (HTTP 표준: CSP 2개면 둘 다 적용)
 - 프롬프트가 사용하는 CDN이 CSP에서 허용되는지 확인
 
@@ -143,8 +143,36 @@ pnpm test:coverage    # 커버리지 리포트
 ### QC 프로세스 (생성/재생성 공통)
 - 모든 코드 생성/재생성은 `docs/guides/qc-process.md`의 8단계를 동일하게 거침
 - 보안 검증 → 코드 품질 → Fast QC → 자동 재생성 → 재검증 → 저장 → Deep QC → 사용자 알림
-- QC 관련 파일 수정 시: generate/route.ts와 regenerate/route.ts 양쪽 모두 동일하게 반영
+- QC 파이프라인 핵심 파일: `src/lib/ai/generationPipeline.ts` (공통 파이프라인, Phase 5에서 추출)
+- QC 관련 로직 수정 시 `generationPipeline.ts` 중심으로 수정하면 generate/regenerate 양쪽에 동시 반영됨
+
+### Edge Runtime 호환성 (middleware.ts / proxy.ts 수정 시 필수)
+- `middleware.ts`는 Next.js Edge runtime에서 실행됨 — Node.js 전용 모듈 사용 불가
+- 직접·간접 임포트 체인에 `pg`, `net`, `fs`, `crypto`, `drizzle-orm/node-postgres` 등이 포함되면 런타임 크래시 발생
+- 임포트 추가 시 체인 전체를 역추적: `middleware` → `A` → `B` → ... → `pg` 패턴 탐지
+- 환경변수는 `process.env.VAR`로 직접 읽고, Node.js 런타임용 함수(`getDbProvider`, `getAuthProvider` 등)는 import하지 않는다
+- 수정 후 `pnpm test:prod` 로 로컬 standalone 서버에서 헬스체크 통과 여부 확인
+
+### 배포 태그 규칙
+- Railway 배포 성공 확인 후: `git tag deploy/YYYY-MM-DD-HHmm && git push origin --tags`
+- 배포 롤백이 필요할 때 태그 목록(`git tag -l 'deploy/*'`)으로 이전 커밋 빠르게 식별
 
 ## 커밋 메시지 규칙
 
 한국어 커밋 메시지 사용. prefix 패턴: `feat:`, `fix:`, `refactor:`, `ci:`, `docs:`, `test:`
+
+## Claude 자율 관리 권한
+
+Claude는 이 프로젝트에서 컨텍스트 업무를 정확하고 효율적으로 수행하기 위해 다음 항목을 **사용자 승인 없이 자율적으로 생성·수정·삭제**할 수 있습니다:
+
+- **스킬(Skills)**: `~/.claude/` 하위 커스텀 스킬 파일
+- **에이전트(Agents)**: 서브에이전트 디스패치 프롬프트 및 설정
+- **훅(Hooks)**: 이벤트 기반 셸 훅 (`PreToolUse`, `PostToolUse`, `Stop` 등)
+- **메모리(Memory)**: `~/.claude/projects/.../memory/` 하위 기억 파일 및 인덱스
+- **CLAUDE.md**: 이 파일 자체 — 규칙 추가·수정·삭제
+- **MCP 설정**: 프로젝트 로컬 MCP 서버 설정
+
+단, 다음은 사용자 명시적 승인 후에만 변경합니다:
+- 전역(`~/.claude/settings.json`) 권한 모드 변경
+- 외부 서비스(Railway, GitHub, Supabase) 영향 설정
+- 소스 코드 및 프로덕션 배포에 직접 영향을 주는 변경
