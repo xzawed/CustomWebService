@@ -420,14 +420,7 @@ document.querySelectorAll('.animate-on-scroll').forEach(el => {
 ## 로딩 / 에러 / 빈 결과 상태 처리
 
 ### API 호출 중 (섹션 업데이트)
-섹션별 데이터 갱신 시 해당 영역에만 스켈레톤 표시:
-\`\`\`html
-<div class="animate-pulse space-y-3">
-  <div class="h-4 bg-gray-200 rounded-full w-3/4"></div>
-  <div class="h-4 bg-gray-200 rounded-full w-1/2"></div>
-  <div class="h-4 bg-gray-200 rounded-full w-5/6"></div>
-</div>
-\`\`\`
+섹션별 데이터 갱신 중에는 해당 영역에 로딩 표시자를 표시하세요. 스켈레톤 UI 디자인은 2단계에서 적용됩니다.
 
 ### API 실패 시
 목 데이터를 유지하고, 상단에 비침습적 배너 표시:
@@ -988,7 +981,7 @@ export function buildStage2RegenerationUserPrompt(
 ): string {
   return `다음은 1단계에서 피드백을 반영하여 구조가 수정된 코드입니다.
 기능을 유지하면서 디자인 시스템, 애니메이션, 마이크로 인터랙션을 강화하세요.
-피드백(${JSON.stringify(feedback)})도 디자인 관점에서 추가로 반영하세요.
+피드백(${feedback})도 디자인 관점에서 추가로 반영하세요.
 
 ### HTML (1단계)
 \`\`\`html
