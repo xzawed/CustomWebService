@@ -120,8 +120,4 @@ export abstract class BaseRepository<T extends { id: string }> implements IBaseR
       .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
       .toLowerCase();
   }
-
-  protected toCamel(str: string): string {
-    return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-  }
 }

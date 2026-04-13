@@ -3,7 +3,6 @@ import {
   isDbConnectionError,
   isInFailover,
   reportFailure,
-  reportSuccess,
   getFailoverStatus,
   _resetFailoverState,
 } from '@/lib/db/failover';
@@ -141,17 +140,6 @@ describe('circuit breaker 상태 머신', () => {
 
     expect(getFailoverStatus().consecutiveFailures).toBe(1);
     vi.useRealTimers();
-  });
-
-  it('reportSuccess → NORMAL 상태에서 카운터 리셋', () => {
-    const err = makeConnError('ECONNREFUSED');
-    reportFailure(err);
-    reportFailure(err);
-    expect(getFailoverStatus().consecutiveFailures).toBe(2);
-
-    reportSuccess();
-    expect(getFailoverStatus().consecutiveFailures).toBe(0);
-    expect(isInFailover()).toBe(false);
   });
 
   it('getFailoverStatus → 올바른 상태 반환', () => {

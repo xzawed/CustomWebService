@@ -69,7 +69,10 @@ export function isDbConnectionError(error: unknown): boolean {
   );
 }
 
-/** 실패 보고 — circuit breaker 로직 */
+/**
+ * 실패 보고 — circuit breaker 로직
+ * 성공 카운터 리셋은 `failureWindowMs` 경과로만 수행됨 (별도 reportSuccess 없음)
+ */
 export function reportFailure(error: unknown): void {
   const config = getConfig();
   if (!config.enabled || _state === 'tripped') return;
@@ -93,14 +96,6 @@ export function reportFailure(error: unknown): void {
 
   if (_consecutiveFailures >= config.failureThreshold) {
     void tripCircuit();
-  }
-}
-
-/** 성공 보고 — 카운터 리셋 */
-export function reportSuccess(): void {
-  if (_state === 'normal' && _consecutiveFailures > 0) {
-    _consecutiveFailures = 0;
-    _firstFailureTime = null;
   }
 }
 

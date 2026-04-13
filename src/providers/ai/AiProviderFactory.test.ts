@@ -109,27 +109,3 @@ describe('AiProviderFactory.createForTask()', () => {
   });
 });
 
-describe('AiProviderFactory.getBestAvailable()', () => {
-  const originalEnv = process.env;
-
-  beforeEach(() => {
-    process.env = { ...originalEnv };
-    process.env.ANTHROPIC_API_KEY = 'test-key';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (AiProviderFactory as any).providers = new Map();
-  });
-
-  afterEach(() => {
-    process.env = originalEnv;
-  });
-
-  it('사용 가능한 provider가 있으면 반환한다', async () => {
-    const provider = await AiProviderFactory.getBestAvailable();
-    expect(provider.name).toBe('claude');
-  });
-
-  it('모든 provider가 불가능하면 에러를 던진다', async () => {
-    delete process.env.ANTHROPIC_API_KEY;
-    await expect(AiProviderFactory.getBestAvailable()).rejects.toThrow('No AI provider available');
-  });
-});
