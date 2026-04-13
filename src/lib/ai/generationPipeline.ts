@@ -29,13 +29,39 @@ export interface PipelineInput {
   userId: string;
   correlationId: string | undefined;
   apis: ApiCatalogItem[];
-  systemPrompt: string;
-  userPrompt: string;
-  /** Extra fields merged into code metadata (e.g. { userFeedback }) */
+  /** Stage 1 (구조·기능) 시스템 프롬프트 */
+  stage1SystemPrompt: string;
+  /** Stage 1 (구조·기능) 유저 프롬프트 */
+  stage1UserPrompt: string;
+  /** Stage 2 (디자인·폴리시) 시스템 프롬프트 */
+  stage2SystemPrompt: string;
+  /**
+   * Stage 2 유저 프롬프트 빌더 — pipeline 내부에서 stage1 결과를 받아 호출된다.
+   * generate: buildStage2UserPrompt(stage1Code)
+   * regenerate: buildStage2RegenerationUserPrompt(stage1Code, feedback)
+   */
+  buildStage2UserPrompt: (stage1Code: { html: string; css: string; js: string }) => string;
+  /** 코드 메타데이터에 병합할 추가 필드 (예: { userFeedback }) */
   extraMetadata?: Record<string, unknown>;
-  /** Label shown while AI is streaming (e.g. "코드 생성 중..." or "코드 수정 중...") */
-  streamingLabel: string;
+  /** @deprecated — use stage1SystemPrompt instead; removed in Tasks 3/4 */
+  systemPrompt?: string;
+  /** @deprecated — use stage1UserPrompt instead; removed in Tasks 3/4 */
+  userPrompt?: string;
+  /** @deprecated — no longer used; removed in Tasks 3/4 */
+  streamingLabel?: string;
 }
+
+/**
+ * 레거시 라우트용 PipelineInput 타입 — stage1/stage2 필드가 없는 구형 호출을 허용.
+ * Tasks 3/4에서 라우트가 마이그레이션되면 삭제.
+ * @deprecated
+ */
+export type LegacyPipelineInput = Omit<PipelineInput, 'stage1SystemPrompt' | 'stage1UserPrompt' | 'stage2SystemPrompt' | 'buildStage2UserPrompt'> & {
+  stage1SystemPrompt?: string;
+  stage1UserPrompt?: string;
+  stage2SystemPrompt?: string;
+  buildStage2UserPrompt?: (stage1Code: { html: string; css: string; js: string }) => string;
+};
 
 export interface PipelineServices {
   codeRepo: ICodeRepository;
@@ -160,18 +186,105 @@ async function runDeepQcAndUpdate(
     });
 }
 
+async function runStage1(
+  systemPrompt: string,
+  userPrompt: string,
+  aiProvider: IAiProvider,
+  sse: SseWriter,
+): Promise<{ html: string; css: string; js: string }> {
+  let lastProgressUpdate = Date.now();
+  const streamStartTime = Date.now();
+
+  sse.send('progress', { step: 'stage1_generating', progress: 5, message: '1단계: 구조 및 기능 생성 중...' });
+
+  const response = await aiProvider.generateCodeStream(
+    { system: systemPrompt, user: userPrompt },
+    (_chunk: string, accumulated: string) => {
+      if (sse.isCancelled()) return;
+      const now = Date.now();
+      if (now - lastProgressUpdate < 500) return;
+      lastProgressUpdate = now;
+      const estimatedProgress = Math.min(40, 5 + Math.floor((accumulated.length / 15000) * 35));
+      const elapsed = Math.floor((now - streamStartTime) / 1000);
+      sse.send('progress', {
+        step: 'stage1_generating',
+        progress: estimatedProgress,
+        message: `1단계: 구조 및 기능 생성 중... (${elapsed}초 경과, ${(accumulated.length / 1024).toFixed(1)}KB)`,
+      });
+    },
+  );
+
+  return parseGeneratedCode(response.content);
+}
+
+async function runStage2(
+  stage1Code: { html: string; css: string; js: string },
+  systemPrompt: string,
+  buildUserPrompt: (code: { html: string; css: string; js: string }) => string,
+  aiProvider: IAiProvider,
+  sse: SseWriter,
+): Promise<{
+  parsed: { html: string; css: string; js: string };
+  provider: string;
+  model: string;
+  durationMs: number;
+  tokensUsed: unknown;
+  userPromptUsed: string;
+}> {
+  sse.send('progress', { step: 'stage1_complete', progress: 45, message: '구조 완성. 디자인 적용 준비 중...' });
+  sse.send('progress', { step: 'stage2_generating', progress: 50, message: '2단계: 디자인 및 인터랙션 적용 중...' });
+
+  const userPrompt = buildUserPrompt(stage1Code);
+
+  let lastProgressUpdate = Date.now();
+  const streamStartTime = Date.now();
+
+  const response = await aiProvider.generateCodeStream(
+    { system: systemPrompt, user: userPrompt },
+    (_chunk: string, accumulated: string) => {
+      if (sse.isCancelled()) return;
+      const now = Date.now();
+      if (now - lastProgressUpdate < 500) return;
+      lastProgressUpdate = now;
+      const estimatedProgress = Math.min(82, 50 + Math.floor((accumulated.length / 15000) * 32));
+      const elapsed = Math.floor((now - streamStartTime) / 1000);
+      sse.send('progress', {
+        step: 'stage2_generating',
+        progress: estimatedProgress,
+        message: `2단계: 디자인 및 인터랙션 적용 중... (${elapsed}초 경과, ${(accumulated.length / 1024).toFixed(1)}KB)`,
+      });
+    },
+  );
+
+  return {
+    parsed: parseGeneratedCode(response.content),
+    provider: response.provider,
+    model: response.model,
+    durationMs: response.durationMs,
+    tokensUsed: response.tokensUsed,
+    userPromptUsed: userPrompt,
+  };
+}
+
 /**
  * 공통 코드 생성/재생성 파이프라인.
  * SSE 스트림 내부에서 호출되며, 에러 처리(rate limit 복구, 이벤트 발행)도 포함합니다.
  */
 export async function runGenerationPipeline(
-  input: PipelineInput,
+  input: PipelineInput | LegacyPipelineInput,
   sse: SseWriter,
   services: PipelineServices,
 ): Promise<void> {
-  const { projectId, userId, correlationId, apis, systemPrompt, userPrompt, extraMetadata, streamingLabel } = input;
+  const { projectId, userId, correlationId, apis, extraMetadata } = input;
   const { codeRepo, eventRepo, projectService, rateLimitService } = services;
   const limits = getLimits();
+
+  // Backward-compat: if new 2-stage fields are not set, fall back to deprecated single-stage fields
+  const stage1SystemPrompt = input.stage1SystemPrompt ?? input.systemPrompt ?? '';
+  const stage1UserPrompt = input.stage1UserPrompt ?? input.userPrompt ?? '';
+  const stage2SystemPrompt = input.stage2SystemPrompt ?? input.systemPrompt ?? '';
+  const buildStage2UserPrompt =
+    input.buildStage2UserPrompt ?? ((_code: { html: string; css: string; js: string }) => input.userPrompt ?? '');
 
   let aiProvider: IAiProvider | undefined;
 
@@ -186,38 +299,36 @@ export async function runGenerationPipeline(
       );
     }
 
-    sse.send('progress', { step: 'generating_code', progress: 10, message: '코드 생성 시작...' });
-
-    let lastProgressUpdate = Date.now();
-    const streamStartTime = Date.now();
-
-    const response = await aiProvider.generateCodeStream(
-      { system: systemPrompt, user: userPrompt },
-      (_chunk: string, accumulated: string) => {
-        if (sse.isCancelled()) return;
-
-        const now = Date.now();
-        if (now - lastProgressUpdate < 500) return;
-        lastProgressUpdate = now;
-
-        const estimatedProgress = Math.min(80, 10 + Math.floor((accumulated.length / 15000) * 70));
-        const elapsed = Math.floor((now - streamStartTime) / 1000);
-
-        sse.send('progress', {
-          step: 'generating_code',
-          progress: estimatedProgress,
-          message: `${streamingLabel} (${elapsed}초 경과, ${(accumulated.length / 1024).toFixed(1)}KB)`,
-        });
-      },
+    // Stage 1: 구조·기능 생성
+    const stage1Code = await runStage1(
+      stage1SystemPrompt,
+      stage1UserPrompt,
+      aiProvider,
+      sse,
     );
 
     if (sse.isCancelled()) return;
 
-    sse.send('progress', { step: 'styling', progress: 85, message: '디자인 적용 중...' });
+    // Stage 2: 디자인·폴리시 적용
+    const stage2Result = await runStage2(
+      stage1Code,
+      stage2SystemPrompt,
+      buildStage2UserPrompt,
+      aiProvider,
+      sse,
+    );
 
-    let parsed = parseGeneratedCode(response.content);
+    if (sse.isCancelled()) return;
 
-    sse.send('progress', { step: 'validating', progress: 90, message: '코드 검증 중...' });
+    sse.send('progress', { step: 'validating', progress: 85, message: '코드 검증 중...' });
+
+    let parsed = stage2Result.parsed;
+    const stage2Response = {
+      provider: stage2Result.provider,
+      model: stage2Result.model,
+      durationMs: stage2Result.durationMs,
+      tokensUsed: stage2Result.tokensUsed,
+    };
 
     const validation = validateAll(parsed.html, parsed.css, parsed.js);
     if (validation.errors.length > 0) {
@@ -281,7 +392,7 @@ export async function runGenerationPipeline(
 
       try {
         const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport);
-        const retryResponse = await aiProvider!.generateCode({ system: systemPrompt, user: improvementPrompt });
+        const retryResponse = await aiProvider!.generateCode({ system: stage2SystemPrompt, user: improvementPrompt });
         const retryParsed = parseGeneratedCode(retryResponse.content);
 
         if (retryParsed.html) {
@@ -325,6 +436,8 @@ export async function runGenerationPipeline(
     const inference = inferDesignFromCategories(categories);
     const nextVersion = await codeRepo.getNextVersion(projectId);
 
+    sse.send('progress', { step: 'saving', progress: 95, message: '저장 중...' });
+
     const savedCode = await codeRepo.create({
       projectId,
       version: nextVersion,
@@ -332,11 +445,11 @@ export async function runGenerationPipeline(
       codeCss: parsed.css,
       codeJs: parsed.js,
       framework: 'vanilla',
-      aiProvider: response.provider,
-      aiModel: response.model,
-      aiPromptUsed: userPrompt,
-      generationTimeMs: response.durationMs,
-      tokenUsage: response.tokensUsed,
+      aiProvider: stage2Response.provider,
+      aiModel: stage2Response.model,
+      aiPromptUsed: stage2Result.userPromptUsed,
+      generationTimeMs: stage2Response.durationMs,
+      tokenUsage: stage2Response.tokensUsed,
       dependencies: [],
       metadata: {
         securityCheckPassed: validation.passed,
@@ -395,8 +508,8 @@ export async function runGenerationPipeline(
       payload: {
         projectId,
         version: nextVersion,
-        provider: response.provider,
-        durationMs: response.durationMs,
+        provider: stage2Response.provider,
+        durationMs: stage2Response.durationMs,
       },
     };
     eventBus.emit(generatedEvent);
