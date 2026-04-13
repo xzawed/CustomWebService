@@ -4,7 +4,12 @@ import { getAuthUser } from '@/lib/auth/index';
 import { createProjectService, createCatalogService, createRateLimitService } from '@/services/factory';
 import { createCodeRepository, createEventRepository } from '@/repositories/factory';
 import type { DesignPreferences } from '@/types/project';
-import { buildSystemPrompt, buildUserPrompt } from '@/lib/ai/promptBuilder';
+import {
+  buildStage1SystemPrompt,
+  buildStage1UserPrompt,
+  buildStage2SystemPrompt,
+  buildStage2UserPrompt,
+} from '@/lib/ai/promptBuilder';
 import { getCorrelationId } from '@/lib/utils/correlationId';
 import { AuthRequiredError, ValidationError, handleApiError } from '@/lib/utils/errors';
 import { templateRegistry } from '@/templates/TemplateRegistry';
@@ -63,9 +68,10 @@ export async function POST(request: Request): Promise<Response> {
       }
     }
 
-    const systemPrompt = buildSystemPrompt(templateHint);
     const designPreferences = (project.metadata as Record<string, unknown>)?.designPreferences as DesignPreferences | undefined;
-    const userPrompt = buildUserPrompt(apis, project.context, project.id, designPreferences);
+    const stage1SystemPrompt = buildStage1SystemPrompt(templateHint);
+    const stage1UserPrompt = buildStage1UserPrompt(apis, project.context, project.id, designPreferences);
+    const stage2SystemPrompt = buildStage2SystemPrompt();
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -77,9 +83,10 @@ export async function POST(request: Request): Promise<Response> {
             userId: user.id,
             correlationId,
             apis,
-            systemPrompt,
-            userPrompt,
-            streamingLabel: '코드 생성 중...',
+            stage1SystemPrompt,
+            stage1UserPrompt,
+            stage2SystemPrompt,
+            buildStage2UserPrompt: (stage1Code) => buildStage2UserPrompt(stage1Code),
           },
           writer,
           {
