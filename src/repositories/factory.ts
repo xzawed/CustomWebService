@@ -6,7 +6,6 @@ import type {
   IUserRepository,
   ICodeRepository,
   ICatalogRepository,
-  IOrganizationRepository,
   IEventRepository,
   IRateLimitRepository,
   IUserApiKeyRepository,
@@ -19,7 +18,6 @@ import { ProjectRepository } from '@/repositories/projectRepository';
 import { UserRepository } from '@/repositories/userRepository';
 import { CodeRepository } from '@/repositories/codeRepository';
 import { CatalogRepository } from '@/repositories/catalogRepository';
-import { OrganizationRepository } from '@/repositories/organizationRepository';
 import { EventRepository } from '@/repositories/eventRepository';
 import { GalleryRepository } from '@/repositories/galleryRepository';
 
@@ -29,7 +27,6 @@ import {
   DrizzleUserRepository,
   DrizzleCodeRepository,
   DrizzleCatalogRepository,
-  DrizzleOrganizationRepository,
   DrizzleEventRepository,
   DrizzleRateLimitRepository,
   DrizzleUserApiKeyRepository,
@@ -183,14 +180,6 @@ export function createCatalogRepository(supabase?: SupabaseClient): ICatalogRepo
   }
   if (!supabase) throw new Error('Supabase 모드에서는 SupabaseClient가 필요합니다.');
   return new CatalogRepository(supabase);
-}
-
-export function createOrganizationRepository(supabase?: SupabaseClient): IOrganizationRepository {
-  if (getDbProvider() === 'postgres') {
-    return new DrizzleOrganizationRepository(getDb());
-  }
-  if (!supabase) throw new Error('Supabase 모드에서는 SupabaseClient가 필요합니다.');
-  return new OrganizationRepository(supabase);
 }
 
 export function createEventRepository(supabase?: SupabaseClient): IEventRepository {

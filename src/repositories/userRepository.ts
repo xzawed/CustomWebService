@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BaseRepository } from './base/BaseRepository';
-import type { User, UserPreferences } from '@/types/organization';
+import type { User, UserPreferences } from '@/types/user';
 import type { IUserRepository } from '@/repositories/interfaces';
 
 export class UserRepository extends BaseRepository<User> implements IUserRepository {

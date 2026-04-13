@@ -1,7 +1,7 @@
 import { eq, sql, desc, count as drizzleCount } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/lib/db/schema';
-import type { User, UserPreferences } from '@/types/organization';
+import type { User, UserPreferences } from '@/types/user';
 import type { IUserRepository } from '@/repositories/interfaces';
 import type { QueryOptions } from '@/repositories/interfaces/IBaseRepository';
 

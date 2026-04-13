@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { IUserRepository } from '@/repositories/interfaces';
 import { eventBus } from '@/lib/events/eventBus';
-import type { User } from '@/types/organization';
+import type { User } from '@/types/user';
 
 export class AuthService {
   constructor(

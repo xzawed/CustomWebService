@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSession, signOut as authJsSignOut } from 'next-auth/react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
-import type { User } from '@/types/organization';
+import type { User } from '@/types/user';
 
 // ── Supabase path ────────────────────────────────────────────────────────────
 

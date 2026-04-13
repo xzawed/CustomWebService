@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuthService } from './authService';
 import type { IUserRepository } from '@/repositories/interfaces';
-import type { User } from '@/types/organization';
+import type { User } from '@/types/user';
 
 vi.mock('@/lib/events/eventBus', () => ({
   eventBus: { emit: vi.fn() },
