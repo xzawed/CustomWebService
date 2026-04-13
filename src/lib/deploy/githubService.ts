@@ -160,21 +160,17 @@ export async function setSecrets(
   }
   const keyData = await keyRes.json();
 
-  // GitHub Actions secrets MUST be encrypted with libsodium (X25519-XSalsa20-Poly1305)
-  // using the repository's public key before sending to the API.
-  // btoa() is base64 encoding only — not encryption — and will produce invalid secrets.
-  //
-  // To implement properly, install 'tweetnacl' + 'tweetnacl-util':
+  // TODO(secrets): libsodium(tweetnacl)으로 Actions secret 암호화 후 주입 필요.
+  // 현재 이 함수는 no-op로 동작하며, 배포 시 secret은 수동 설정을 전제로 함.
+  // 구현 방법:
   //   npm install tweetnacl tweetnacl-util
-  // Then replace the loop body with:
   //   import nacl from 'tweetnacl';
   //   import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
   //   const keyBytes = decodeBase64(keyData.key);
   //   const valueBytes = new TextEncoder().encode(value);
-  //   const encrypted = nacl.box.seal(valueBytes, keyBytes); // ← correct encryption
+  //   const encrypted = nacl.box.seal(valueBytes, keyBytes);
   //   const encrypted_value = encodeBase64(encrypted);
-  //
-  // Until libsodium is wired up, skip secret injection and log clearly.
+  //   PUT /repos/{owner}/{repo}/actions/secrets/{secret_name} with { encrypted_value, key_id }
   if (Object.keys(secrets).length > 0) {
     logger.warn(
       'GitHub Actions secret injection skipped: libsodium encryption not yet implemented. ' +
