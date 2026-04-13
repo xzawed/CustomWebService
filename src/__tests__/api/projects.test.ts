@@ -15,10 +15,8 @@ vi.mock('@/lib/auth/index', () => ({
 vi.mock('@/services/factory', () => ({
   createProjectService: vi.fn(),
   createCatalogService: vi.fn(),
-  createGenerationService: vi.fn(),
   createDeployService: vi.fn(),
   createRateLimitService: vi.fn(),
-  createAuthService: vi.fn(),
 }));
 
 const mockUser = { id: 'user-1', email: 'test@test.com', name: null, avatarUrl: null };
