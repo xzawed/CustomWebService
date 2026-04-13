@@ -384,17 +384,27 @@ document.querySelectorAll('.animate-on-scroll').forEach(el => {
 });
 \`\`\`
 
-### 토스트 알림
+### 토스트 알림 (★ 필수 — 모든 API 호출에 반드시 사용)
+
+모든 API 호출 성공/실패에 반드시 토스트를 표시하라. 사용자가 액션 결과를 즉시 알 수 있어야 한다.
+
 \`\`\`javascript
 function showToast(message, type = 'success') {
+  const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle', warning: 'fa-exclamation-triangle' };
+  const colors = { success: 'bg-emerald-500', error: 'bg-red-500', info: 'bg-blue-500', warning: 'bg-amber-500' };
   const toast = document.createElement('div');
-  const colors = { success: 'bg-emerald-500', error: 'bg-red-500', info: 'bg-blue-500' };
-  toast.className = \\\`fixed bottom-6 right-6 \\\${colors[type]} text-white px-6 py-3 rounded-xl shadow-2xl z-[100] transform translate-y-4 opacity-0 transition-all duration-300\\\`;
-  toast.textContent = message;
+  toast.className = \\\`fixed bottom-6 right-6 \\\${colors[type]} text-white px-5 py-3 rounded-xl shadow-2xl z-[100] flex items-center gap-3 transform translate-y-4 opacity-0 transition-all duration-300 max-w-sm\\\`;
+  toast.innerHTML = \\\`<i class="fas \\\${icons[type]} text-lg shrink-0"></i><span class="text-sm font-medium">\\\${message}</span>\\\`;
   document.body.appendChild(toast);
   requestAnimationFrame(() => { toast.classList.remove('translate-y-4', 'opacity-0'); });
-  setTimeout(() => { toast.classList.add('translate-y-4', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 3000);
+  setTimeout(() => { toast.classList.add('translate-y-4', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 3500);
 }
+
+// ★ 반드시 이렇게 API 호출과 연결하라:
+// 성공 시: showToast('데이터를 불러왔습니다.', 'success')
+// 실패 시: showToast('데이터 로딩에 실패했습니다.', 'error')
+// 좋아요: showToast('관심 목록에 추가되었습니다.', 'success')
+// 복사: showToast('클립보드에 복사되었습니다.', 'info')
 \`\`\`
 
 ## 라이브 시뮬레이션 (화면이 살아있도록)
@@ -473,6 +483,40 @@ function showToast(message, type = 'success') {
 \`\`\`
 다크 테마일 경우 \`border-gray-800\`, \`text-gray-400\`, \`hover:text-gray-100\`으로 조정.
 
+## 페이지 진입 애니메이션 (★ 필수 — 모든 페이지에 적용)
+
+페이지를 열면 콘텐츠가 아래에서 위로 부드럽게 나타나야 한다. CSS에 반드시 포함하라:
+
+\`\`\`css
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-fade-in-up { animation: fadeInUp 0.5s ease-out both; }
+.animate-fade-in    { animation: fadeIn 0.4s ease-out both; }
+.animate-slide-in   { animation: slideInRight 0.4s ease-out both; }
+/* 순차 딜레이 — 카드/항목에 적용 */
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.4s; }
+.delay-500 { animation-delay: 0.5s; }
+\`\`\`
+
+적용 방법:
+- 헤더: \`class="... animate-fade-in"\`
+- 통계 카드: \`class="... animate-fade-in-up delay-100"\`, \`delay-200\`, \`delay-300\`, \`delay-400\`
+- 메인 콘텐츠 섹션: \`class="... animate-fade-in-up delay-200"\`
+- 사이드바: \`class="... animate-slide-in delay-300"\`
+
 ## 마이크로 인터랙션 (필수 적용)
 
 모든 인터랙티브 요소에 세밀한 피드백을 적용하라:
@@ -485,35 +529,150 @@ function showToast(message, type = 'success') {
 - 드롭다운/메뉴 열기: \`opacity-0 scale-95\` → \`opacity-100 scale-100\` 트랜지션
 - 삭제 버튼: \`hover:bg-red-50 hover:text-red-600\` 경고 색상
 
+### 버튼 로딩 상태 (비동기 액션 필수)
+\`\`\`javascript
+function setButtonLoading(btn, loading) {
+  if (loading) {
+    btn.disabled = true;
+    btn.dataset.originalText = btn.innerHTML;
+    btn.innerHTML = \\\`<svg class="animate-spin -ml-1 mr-2 h-4 w-4 inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>처리 중...\\\`;
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = btn.dataset.originalText;
+  }
+}
+// 사용법: setButtonLoading(btn, true) → await fetch(...) → setButtonLoading(btn, false)
+\`\`\`
+
+### 리플 효과 (중요 버튼에 적용)
+\`\`\`css
+.ripple-btn { position: relative; overflow: hidden; }
+.ripple-btn .ripple {
+  position: absolute; border-radius: 50%;
+  background: rgba(255,255,255,0.35);
+  transform: scale(0);
+  animation: ripple-anim 0.5s linear;
+  pointer-events: none;
+}
+@keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
+\`\`\`
+\`\`\`javascript
+document.querySelectorAll('.ripple-btn').forEach(btn => {
+  btn.addEventListener('click', function(e) {
+    const r = document.createElement('span');
+    r.className = 'ripple';
+    const rect = this.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    r.style.cssText = \\\`width:\\\${size}px;height:\\\${size}px;left:\\\${e.clientX-rect.left-size/2}px;top:\\\${e.clientY-rect.top-size/2}px\\\`;
+    this.appendChild(r);
+    setTimeout(() => r.remove(), 500);
+  });
+});
+\`\`\`
+
 ## 로딩 / 에러 / 빈 결과 상태 처리
 
-### API 호출 중 (로딩)
-목 데이터가 이미 렌더링된 상태에서 API 호출. 별도 로딩 스피너 불필요.
-만약 섹션별 업데이트가 필요하면 스켈레톤 UI 사용:
+### 페이지 초기 로딩 — 스켈레톤 UI (★ 필수)
+
+DOMContentLoaded 직후 목 데이터 렌더링 전 약 300ms 동안 스켈레톤을 표시하라. 사용자가 즉각적인 응답을 느끼게 한다.
+
+\`\`\`html
+<!-- 카드 스켈레톤 (그리드에 4-8개 배치) -->
+<div class="skeleton-card bg-white rounded-2xl overflow-hidden shadow-sm animate-pulse">
+  <div class="aspect-video bg-gray-200"></div>
+  <div class="p-5 space-y-3">
+    <div class="h-4 bg-gray-200 rounded-full w-3/4"></div>
+    <div class="h-3 bg-gray-200 rounded-full w-full"></div>
+    <div class="h-3 bg-gray-200 rounded-full w-2/3"></div>
+    <div class="flex items-center gap-3 mt-4">
+      <div class="h-6 bg-gray-200 rounded-full w-16"></div>
+      <div class="h-6 bg-gray-200 rounded-full w-20"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 통계 카드 스켈레톤 -->
+<div class="bg-white rounded-2xl p-6 shadow-sm animate-pulse">
+  <div class="flex items-center justify-between mb-4">
+    <div class="w-10 h-10 bg-gray-200 rounded-xl"></div>
+    <div class="h-4 bg-gray-200 rounded-full w-12"></div>
+  </div>
+  <div class="h-8 bg-gray-200 rounded-full w-24 mb-2"></div>
+  <div class="h-3 bg-gray-200 rounded-full w-20"></div>
+</div>
+\`\`\`
+
+\`\`\`javascript
+// 스켈레톤 → 실제 데이터 교체 패턴
+document.addEventListener('DOMContentLoaded', () => {
+  renderSkeletons(8); // 스켈레톤 먼저 표시
+  setTimeout(() => {
+    renderCards(mockData); // 목 데이터로 교체 (300ms 딜레이로 자연스러운 로딩감)
+    fetchApiData(); // 이후 실제 API 호출
+  }, 300);
+});
+\`\`\`
+
+### API 호출 중 (섹션 업데이트)
+섹션별 데이터 갱신 시 해당 영역에만 스켈레톤 표시:
 \`\`\`html
 <div class="animate-pulse space-y-3">
-  <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-  <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+  <div class="h-4 bg-gray-200 rounded-full w-3/4"></div>
+  <div class="h-4 bg-gray-200 rounded-full w-1/2"></div>
+  <div class="h-4 bg-gray-200 rounded-full w-5/6"></div>
 </div>
 \`\`\`
 
 ### API 실패 시
-목 데이터를 유지하고, 상단에 비침습적 배너 표시:
+목 데이터를 유지하고, 상단에 비침습적 배너 표시 + 토스트:
 \`\`\`javascript
 function showApiBanner() {
   const banner = document.createElement('div');
   banner.className = 'bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-sm text-amber-700';
   banner.innerHTML = '<i class="fas fa-info-circle mr-2"></i>실시간 데이터를 불러오지 못했습니다. 샘플 데이터를 표시합니다.';
   document.body.prepend(banner);
+  showToast('실시간 데이터 로딩에 실패했습니다. 샘플 데이터를 표시합니다.', 'warning');
 }
 \`\`\`
 
-### 검색 결과 0건
+### 빈 상태 UI (Empty State) — 상황별 필수 패턴
+
+검색 결과 0건:
 \`\`\`html
-<div class="text-center py-16">
-  <i class="fas fa-search text-4xl text-gray-300 mb-4"></i>
-  <p class="text-gray-500 text-lg">"검색어"에 대한 결과가 없습니다</p>
-  <p class="text-gray-400 text-sm mt-2">다른 키워드로 검색해 보세요</p>
+<div class="flex flex-col items-center justify-center py-20 text-center">
+  <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+    <i class="fas fa-search text-3xl text-gray-400"></i>
+  </div>
+  <h3 class="text-lg font-semibold text-gray-700 mb-2">"검색어"에 대한 결과가 없습니다</h3>
+  <p class="text-sm text-gray-400 mb-6">다른 키워드로 검색하거나 필터를 변경해보세요</p>
+  <button onclick="clearSearch()" class="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm hover:bg-blue-700 transition-colors">
+    검색 초기화
+  </button>
+</div>
+\`\`\`
+
+즐겨찾기/저장 항목 없음:
+\`\`\`html
+<div class="flex flex-col items-center justify-center py-20 text-center">
+  <div class="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mb-6">
+    <i class="fas fa-bookmark text-3xl text-amber-400"></i>
+  </div>
+  <h3 class="text-lg font-semibold text-gray-700 mb-2">저장된 항목이 없습니다</h3>
+  <p class="text-sm text-gray-400 mb-6">마음에 드는 항목을 북마크해 보세요</p>
+</div>
+\`\`\`
+
+에러 상태 (API 완전 실패):
+\`\`\`html
+<div class="flex flex-col items-center justify-center py-20 text-center">
+  <div class="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6">
+    <i class="fas fa-exclamation-triangle text-3xl text-red-400"></i>
+  </div>
+  <h3 class="text-lg font-semibold text-gray-700 mb-2">데이터를 불러오지 못했습니다</h3>
+  <p class="text-sm text-gray-400 mb-6">잠시 후 다시 시도해주세요</p>
+  <button onclick="location.reload()" class="px-5 py-2 bg-red-500 text-white rounded-xl text-sm hover:bg-red-600 transition-colors">
+    <i class="fas fa-redo mr-2"></i>새로고침
+  </button>
 </div>
 \`\`\`
 
@@ -549,6 +708,11 @@ function showApiBanner() {
 □ 호버 효과, 트랜지션, 애니메이션이 적용되어 있는가?
 □ 버튼 클릭 피드백(active:scale-95), 카드 호버 효과가 있는가?
 □ 화면에 움직이는 요소가 1개 이상 있는가? (카운터, 차트, 피드 등)
+□ 페이지 진입 시 fadeInUp 애니메이션이 적용되어 있는가? (animate-fade-in-up)
+□ 스켈레톤 UI가 초기 로딩에 표시되는가? (DOMContentLoaded → 300ms → 실제 데이터)
+□ API 성공/실패 시 반드시 showToast()가 호출되는가?
+□ 빈 결과/에러 상태에 아이콘+메시지+액션버튼이 있는 Empty State UI가 있는가?
+□ 비동기 버튼 클릭 시 로딩 스피너(setButtonLoading)가 표시되는가?
 
 ### 접근성 & 품질
 □ 시맨틱 HTML을 사용하는가? (<main>, <nav>, <article>, <footer>)
@@ -578,7 +742,13 @@ function showApiBanner() {
 - 고정 px 너비로 인한 가로 스크롤 (w-[500px] 등)
 - 모바일에서 사이드바 상시 표시
 - picsum.photos 사용 (랜덤 이미지 — 콘텐츠와 무관한 이미지가 표시됨)
-- 콘텐츠와 무관한 이미지 (커피숍에 산 사진, 날씨에 인물 사진 등)`;
+- 콘텐츠와 무관한 이미지 (커피숍에 산 사진, 날씨에 인물 사진 등)
+- 페이지 진입 애니메이션 없음 (모든 요소가 한 번에 확 나타남)
+- 스켈레톤 없이 빈 컨테이너가 바로 채워짐 (DOMContentLoaded 즉시 데이터 노출)
+- API 호출 결과(성공/실패)에 아무 피드백 없음 (토스트, 배너 등 사용자 알림 필수)
+- 빈 결과/에러 상태에 단순 텍스트만 — 아이콘과 액션 버튼 없는 Empty State
+- 비동기 액션 버튼에 로딩 표시 없음 (클릭 후 응답 없는 버튼처럼 보임)
+- CSS에 @keyframes 없음 (transition만으로는 진입 애니메이션 불가)`;
 }
 
 export function buildUserPrompt(
