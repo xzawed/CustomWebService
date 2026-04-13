@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 import { getCorrelationId, CORRELATION_ID_HEADER } from '@/lib/utils/correlationId';
-import { getAuthProvider } from '@/lib/config/providers';
+// NOTE: Do NOT import getAuthProvider() from @/lib/config/providers here.
+// providers.ts → failover.ts → pg → Node.js 'crypto' — incompatible with Edge runtime.
+// Read AUTH_PROVIDER directly from env in the middleware.
 
 export async function middleware(request: NextRequest) {
   const correlationId = getCorrelationId(request);
@@ -32,7 +34,8 @@ export async function middleware(request: NextRequest) {
 
   let response: NextResponse;
 
-  if (getAuthProvider() === 'authjs') {
+  const authProvider = process.env.AUTH_PROVIDER ?? 'supabase';
+  if (authProvider === 'authjs') {
     // Auth.js manages sessions via its own route handlers (/api/auth/*)
     // No session refresh needed in middleware
     response = NextResponse.next({ request });
