@@ -2,6 +2,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { getLimits } from '@/lib/config/features';
 import { getDbProvider } from '@/lib/config/providers';
 import { getDb } from '@/lib/db/connection';
+import { getFailoverStatus } from '@/lib/db/failover';
 
 export const dynamic = 'force-dynamic';
 
@@ -119,5 +120,6 @@ export async function GET(): Promise<Response> {
     timestamp: new Date().toISOString(),
     checks,
     usage,
+    failover: getFailoverStatus(),
   });
 }

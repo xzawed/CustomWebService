@@ -1,4 +1,6 @@
 // Provider configuration: Supabase vs On-Premise PostgreSQL
+import { isInFailover } from '@/lib/db/failover';
+
 export type DbProvider = 'supabase' | 'postgres';
 export type AuthProvider = 'supabase' | 'authjs';
 
@@ -8,6 +10,7 @@ let _cachedAuthProvider: AuthProvider | undefined;
 /**
  * 환경변수 `DB_PROVIDER`를 읽어 사용할 데이터베이스 프로바이더를 반환합니다.
  * 최초 호출 시 환경변수를 검증하고 결과를 메모이제이션합니다.
+ * postgres 모드에서 failover가 활성화된 경우 'supabase'를 반환합니다.
  *
  * - 미설정 또는 `"supabase"` → `'supabase'` (기본값)
  * - `"postgres"` → `'postgres'` (이 경우 `DATABASE_URL`이 반드시 설정되어야 합니다)
@@ -16,6 +19,10 @@ let _cachedAuthProvider: AuthProvider | undefined;
  * @throws {Error} DB_PROVIDER가 알 수 없는 값이거나 postgres 선택 시 DATABASE_URL이 없을 때
  */
 export function getDbProvider(): DbProvider {
+  // failover 활성 시 supabase 반환 (캐시값이 postgres인 경우에만 적용)
+  if (_cachedDbProvider === 'postgres' && isInFailover()) {
+    return 'supabase';
+  }
   if (_cachedDbProvider) return _cachedDbProvider;
   const provider = process.env.DB_PROVIDER;
   let result: DbProvider;
@@ -36,6 +43,7 @@ export function getDbProvider(): DbProvider {
 /**
  * 환경변수 `AUTH_PROVIDER`를 읽어 사용할 인증 프로바이더를 반환합니다.
  * 최초 호출 시 환경변수를 검증하고 결과를 메모이제이션합니다.
+ * authjs 모드에서 failover가 활성화된 경우 'supabase'를 반환합니다.
  *
  * - 미설정 또는 `"supabase"` → `'supabase'` (기본값)
  * - `"authjs"` → `'authjs'` (이 경우 `AUTH_SECRET`이 반드시 설정되어야 합니다)
@@ -44,6 +52,10 @@ export function getDbProvider(): DbProvider {
  * @throws {Error} AUTH_PROVIDER가 알 수 없는 값이거나 authjs 선택 시 AUTH_SECRET이 없을 때
  */
 export function getAuthProvider(): AuthProvider {
+  // failover 활성 시 supabase 반환 (캐시값이 authjs인 경우에만 적용)
+  if (_cachedAuthProvider === 'authjs' && isInFailover()) {
+    return 'supabase';
+  }
   if (_cachedAuthProvider) return _cachedAuthProvider;
   const provider = process.env.AUTH_PROVIDER;
   let result: AuthProvider;

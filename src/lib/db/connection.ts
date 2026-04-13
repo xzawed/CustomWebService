@@ -5,6 +5,7 @@ import * as schema from './schema';
 type DrizzleDb = ReturnType<typeof drizzle<typeof schema>>;
 
 let _db: DrizzleDb | null = null;
+let _pool: Pool | null = null;
 
 export function getDb(): DrizzleDb {
   if (_db) return _db;
@@ -18,13 +19,25 @@ export function getDb(): DrizzleDb {
     throw new Error('DATABASE_URL 환경변수가 설정되지 않았습니다.');
   }
 
-  const pool = new Pool({
+  _pool = new Pool({
     connectionString,
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
   });
 
-  _db = drizzle(pool, { schema });
+  _db = drizzle(_pool, { schema });
   return _db;
+}
+
+/**
+ * Drizzle 연결과 pg.Pool을 정리하고 초기화합니다.
+ * failover 시 호출되어 stale 연결을 제거합니다.
+ */
+export async function resetDbConnection(): Promise<void> {
+  if (_pool) {
+    await _pool.end().catch(() => {});
+    _pool = null;
+  }
+  _db = null;
 }

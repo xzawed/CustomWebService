@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { isDbConnectionError, reportFailure } from '@/lib/db/failover';
 
 export class AppError extends Error {
   constructor(
@@ -71,6 +72,11 @@ export function jsonResponse(body: unknown, init?: ResponseInit): Response {
 }
 
 export function handleApiError(error: unknown): Response {
+  // DB 연결 에러 감지 → failover 시스템에 보고
+  if (isDbConnectionError(error)) {
+    reportFailure(error);
+  }
+
   if (error instanceof AppError) {
     return jsonResponse(
       { success: false, error: { code: error.code, message: error.message } },
