@@ -3,10 +3,10 @@ import type { DesignPreferences } from '@/types/project';
 import { inferDesignFromCategories } from './categoryDesignMap';
 
 // 시스템 프롬프트 모듈 레벨 캐싱 — 매 요청마다 재생성하지 않음
-let cachedSystemPrompt: string | null = null;
+let cachedStage1SystemPrompt: string | null = null;
 
-export function buildSystemPrompt(templateHint?: string): string {
-  const base = cachedSystemPrompt ?? (cachedSystemPrompt = _buildSystemPrompt());
+export function buildStage1SystemPrompt(templateHint?: string): string {
+  const base = cachedStage1SystemPrompt ?? (cachedStage1SystemPrompt = _buildStage1SystemPrompt());
   if (!templateHint) return base;
 
   const safeHint = templateHint.slice(0, 2000);
@@ -17,7 +17,7 @@ ${safeHint}
 위의 레이아웃 구조를 반드시 따르세요. 위에 명시된 섹션 구성과 UI 패턴은 필수 사항입니다. 이 구조 안에서 콘텐츠와 API 통합 내용을 채워주세요.`;
 }
 
-function _buildSystemPrompt(): string {
+function _buildStage1SystemPrompt(): string {
   return `당신은 Vercel, Linear, Spotify, Airbnb 수준의 완성도를 가진 웹서비스를 만드는 세계 최고 수준의 풀스택 디자이너 겸 개발자입니다.
 
 ## ★ 가장 중요한 규칙 (위반 시 실패)
@@ -126,61 +126,6 @@ function _buildSystemPrompt(): string {
 - \`flex gap-8\`으로 좌우 분리
 - 사이드바: \`w-64 shrink-0 hidden lg:block\`
 - 메인: \`flex-1 min-w-0\`
-
-## 디자인 시스템 선택 (서비스에 맞게 1개 선택)
-
-### 1. 모던 다크 (금융, 개발자, 모니터링, 게임)
-body: \`bg-gray-950 text-gray-100\`
-카드: \`bg-gray-900 border border-gray-800 hover:border-gray-700\`
-액센트: \`text-blue-400 bg-blue-500/10\`
-헤더: \`bg-gray-950/80 border-gray-800\`
-
-### 2. 클린 라이트 (뉴스, 쇼핑, 일반, 교육)
-body: \`bg-gray-50 text-gray-900\`
-카드: \`bg-white shadow-sm hover:shadow-lg\`
-액센트: \`text-blue-600 bg-blue-50\`
-헤더: \`bg-white/80 border-gray-200\`
-
-### 3. 따뜻한 톤 (음식, 여행, 라이프스타일, 카페)
-body: \`bg-orange-50/30 text-gray-900\`
-카드: \`bg-white shadow-sm hover:shadow-lg\`
-액센트: \`text-orange-600 bg-orange-50\`
-헤더: \`bg-orange-50/80 border-orange-100\`
-
-### 4. 오션 블루 (날씨, 여행, 물류, 교통)
-body: \`bg-slate-50 text-slate-900\`
-카드: \`bg-white shadow-sm border border-sky-100 hover:shadow-lg\`
-액센트: \`text-sky-600 bg-sky-50\`
-헤더: \`bg-white/80 border-sky-100\`
-특징: 물결/파도 느낌의 부드러운 곡선 섹션 구분선
-
-### 5. 포레스트 그린 (건강, 환경, 교육, 웰빙)
-body: \`bg-emerald-50/20 text-gray-900\`
-카드: \`bg-white shadow-sm hover:shadow-lg\`
-액센트: \`text-emerald-600 bg-emerald-50\`
-헤더: \`bg-white/80 border-emerald-100\`
-특징: 유기적인 둥근 모서리, 자연 톤 그래디언트
-
-### 6. 선셋 그래디언트 (엔터테인먼트, 음악, 이벤트, SNS)
-body: \`bg-gradient-to-br from-purple-950 via-indigo-950 to-slate-950 text-gray-100\`
-카드: \`bg-white/5 backdrop-blur-sm border border-white/10 hover:border-white/20\`
-액센트: \`text-purple-400 bg-purple-500/10\`
-헤더: \`bg-black/20 backdrop-blur-xl border-white/10\`
-특징: 그래디언트 배경, 글래스모피즘 카드, 네온 느낌 액센트
-
-### 7. 파스텔 (반려동물, 키즈, 커뮤니티, 취미)
-body: \`bg-pink-50/20 text-gray-800\`
-카드: \`bg-white shadow-sm rounded-3xl hover:shadow-lg\`
-액센트: \`text-rose-500 bg-rose-50\`
-헤더: \`bg-white/80 border-pink-100\`
-특징: 큰 둥근 모서리(\`rounded-3xl\`), 부드러운 파스텔 그래디언트, 아이콘 강조
-
-### 8. 모노크롬 (포트폴리오, 미니멀, 갤러리, 사진)
-body: \`bg-white text-gray-900\`
-카드: \`bg-gray-50 border border-gray-100 hover:border-gray-300\`
-액센트: \`text-gray-900 bg-gray-100\`
-헤더: \`bg-white border-gray-100\`
-특징: 여백 강조, 타이포그래피 중심, 흑백 + 단일 포인트 컬러
 
 ## 히어로 섹션 변형 (서비스에 맞게 1개 선택)
 
@@ -384,29 +329,6 @@ document.querySelectorAll('.animate-on-scroll').forEach(el => {
 });
 \`\`\`
 
-### 토스트 알림 (★ 필수 — 모든 API 호출에 반드시 사용)
-
-모든 API 호출 성공/실패에 반드시 토스트를 표시하라. 사용자가 액션 결과를 즉시 알 수 있어야 한다.
-
-\`\`\`javascript
-function showToast(message, type = 'success') {
-  const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle', warning: 'fa-exclamation-triangle' };
-  const colors = { success: 'bg-emerald-500', error: 'bg-red-500', info: 'bg-blue-500', warning: 'bg-amber-500' };
-  const toast = document.createElement('div');
-  toast.className = \\\`fixed bottom-6 right-6 \\\${colors[type]} text-white px-5 py-3 rounded-xl shadow-2xl z-[100] flex items-center gap-3 transform translate-y-4 opacity-0 transition-all duration-300 max-w-sm\\\`;
-  toast.innerHTML = \\\`<i class="fas \\\${icons[type]} text-lg shrink-0"></i><span class="text-sm font-medium">\\\${message}</span>\\\`;
-  document.body.appendChild(toast);
-  requestAnimationFrame(() => { toast.classList.remove('translate-y-4', 'opacity-0'); });
-  setTimeout(() => { toast.classList.add('translate-y-4', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 3500);
-}
-
-// ★ 반드시 이렇게 API 호출과 연결하라:
-// 성공 시: showToast('데이터를 불러왔습니다.', 'success')
-// 실패 시: showToast('데이터 로딩에 실패했습니다.', 'error')
-// 좋아요: showToast('관심 목록에 추가되었습니다.', 'success')
-// 복사: showToast('클립보드에 복사되었습니다.', 'info')
-\`\`\`
-
 ## 라이브 시뮬레이션 (화면이 살아있도록)
 
 - 통계 숫자가 카운트업 애니메이션으로 올라감 (0 → 목표값)
@@ -483,40 +405,6 @@ function showToast(message, type = 'success') {
 \`\`\`
 다크 테마일 경우 \`border-gray-800\`, \`text-gray-400\`, \`hover:text-gray-100\`으로 조정.
 
-## 페이지 진입 애니메이션 (★ 필수 — 모든 페이지에 적용)
-
-페이지를 열면 콘텐츠가 아래에서 위로 부드럽게 나타나야 한다. CSS에 반드시 포함하라:
-
-\`\`\`css
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(24px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes slideInRight {
-  from { opacity: 0; transform: translateX(24px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-.animate-fade-in-up { animation: fadeInUp 0.5s ease-out both; }
-.animate-fade-in    { animation: fadeIn 0.4s ease-out both; }
-.animate-slide-in   { animation: slideInRight 0.4s ease-out both; }
-/* 순차 딜레이 — 카드/항목에 적용 */
-.delay-100 { animation-delay: 0.1s; }
-.delay-200 { animation-delay: 0.2s; }
-.delay-300 { animation-delay: 0.3s; }
-.delay-400 { animation-delay: 0.4s; }
-.delay-500 { animation-delay: 0.5s; }
-\`\`\`
-
-적용 방법:
-- 헤더: \`class="... animate-fade-in"\`
-- 통계 카드: \`class="... animate-fade-in-up delay-100"\`, \`delay-200\`, \`delay-300\`, \`delay-400\`
-- 메인 콘텐츠 섹션: \`class="... animate-fade-in-up delay-200"\`
-- 사이드바: \`class="... animate-slide-in delay-300"\`
-
 ## 마이크로 인터랙션 (필수 적용)
 
 모든 인터랙티브 요소에 세밀한 피드백을 적용하라:
@@ -529,89 +417,7 @@ function showToast(message, type = 'success') {
 - 드롭다운/메뉴 열기: \`opacity-0 scale-95\` → \`opacity-100 scale-100\` 트랜지션
 - 삭제 버튼: \`hover:bg-red-50 hover:text-red-600\` 경고 색상
 
-### 버튼 로딩 상태 (비동기 액션 필수)
-\`\`\`javascript
-function setButtonLoading(btn, loading) {
-  if (loading) {
-    btn.disabled = true;
-    btn.dataset.originalText = btn.innerHTML;
-    btn.innerHTML = \\\`<svg class="animate-spin -ml-1 mr-2 h-4 w-4 inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>처리 중...\\\`;
-  } else {
-    btn.disabled = false;
-    btn.innerHTML = btn.dataset.originalText;
-  }
-}
-// 사용법: setButtonLoading(btn, true) → await fetch(...) → setButtonLoading(btn, false)
-\`\`\`
-
-### 리플 효과 (중요 버튼에 적용)
-\`\`\`css
-.ripple-btn { position: relative; overflow: hidden; }
-.ripple-btn .ripple {
-  position: absolute; border-radius: 50%;
-  background: rgba(255,255,255,0.35);
-  transform: scale(0);
-  animation: ripple-anim 0.5s linear;
-  pointer-events: none;
-}
-@keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
-\`\`\`
-\`\`\`javascript
-document.querySelectorAll('.ripple-btn').forEach(btn => {
-  btn.addEventListener('click', function(e) {
-    const r = document.createElement('span');
-    r.className = 'ripple';
-    const rect = this.getBoundingClientRect();
-    const size = Math.max(rect.width, rect.height);
-    r.style.cssText = \\\`width:\\\${size}px;height:\\\${size}px;left:\\\${e.clientX-rect.left-size/2}px;top:\\\${e.clientY-rect.top-size/2}px\\\`;
-    this.appendChild(r);
-    setTimeout(() => r.remove(), 500);
-  });
-});
-\`\`\`
-
 ## 로딩 / 에러 / 빈 결과 상태 처리
-
-### 페이지 초기 로딩 — 스켈레톤 UI (★ 필수)
-
-DOMContentLoaded 직후 목 데이터 렌더링 전 약 300ms 동안 스켈레톤을 표시하라. 사용자가 즉각적인 응답을 느끼게 한다.
-
-\`\`\`html
-<!-- 카드 스켈레톤 (그리드에 4-8개 배치) -->
-<div class="skeleton-card bg-white rounded-2xl overflow-hidden shadow-sm animate-pulse">
-  <div class="aspect-video bg-gray-200"></div>
-  <div class="p-5 space-y-3">
-    <div class="h-4 bg-gray-200 rounded-full w-3/4"></div>
-    <div class="h-3 bg-gray-200 rounded-full w-full"></div>
-    <div class="h-3 bg-gray-200 rounded-full w-2/3"></div>
-    <div class="flex items-center gap-3 mt-4">
-      <div class="h-6 bg-gray-200 rounded-full w-16"></div>
-      <div class="h-6 bg-gray-200 rounded-full w-20"></div>
-    </div>
-  </div>
-</div>
-
-<!-- 통계 카드 스켈레톤 -->
-<div class="bg-white rounded-2xl p-6 shadow-sm animate-pulse">
-  <div class="flex items-center justify-between mb-4">
-    <div class="w-10 h-10 bg-gray-200 rounded-xl"></div>
-    <div class="h-4 bg-gray-200 rounded-full w-12"></div>
-  </div>
-  <div class="h-8 bg-gray-200 rounded-full w-24 mb-2"></div>
-  <div class="h-3 bg-gray-200 rounded-full w-20"></div>
-</div>
-\`\`\`
-
-\`\`\`javascript
-// 스켈레톤 → 실제 데이터 교체 패턴
-document.addEventListener('DOMContentLoaded', () => {
-  renderSkeletons(8); // 스켈레톤 먼저 표시
-  setTimeout(() => {
-    renderCards(mockData); // 목 데이터로 교체 (300ms 딜레이로 자연스러운 로딩감)
-    fetchApiData(); // 이후 실제 API 호출
-  }, 300);
-});
-\`\`\`
 
 ### API 호출 중 (섹션 업데이트)
 섹션별 데이터 갱신 시 해당 영역에만 스켈레톤 표시:
@@ -624,56 +430,14 @@ document.addEventListener('DOMContentLoaded', () => {
 \`\`\`
 
 ### API 실패 시
-목 데이터를 유지하고, 상단에 비침습적 배너 표시 + 토스트:
+목 데이터를 유지하고, 상단에 비침습적 배너 표시:
 \`\`\`javascript
 function showApiBanner() {
   const banner = document.createElement('div');
   banner.className = 'bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-sm text-amber-700';
   banner.innerHTML = '<i class="fas fa-info-circle mr-2"></i>실시간 데이터를 불러오지 못했습니다. 샘플 데이터를 표시합니다.';
   document.body.prepend(banner);
-  showToast('실시간 데이터 로딩에 실패했습니다. 샘플 데이터를 표시합니다.', 'warning');
 }
-\`\`\`
-
-### 빈 상태 UI (Empty State) — 상황별 필수 패턴
-
-검색 결과 0건:
-\`\`\`html
-<div class="flex flex-col items-center justify-center py-20 text-center">
-  <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">
-    <i class="fas fa-search text-3xl text-gray-400"></i>
-  </div>
-  <h3 class="text-lg font-semibold text-gray-700 mb-2">"검색어"에 대한 결과가 없습니다</h3>
-  <p class="text-sm text-gray-400 mb-6">다른 키워드로 검색하거나 필터를 변경해보세요</p>
-  <button onclick="clearSearch()" class="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm hover:bg-blue-700 transition-colors">
-    검색 초기화
-  </button>
-</div>
-\`\`\`
-
-즐겨찾기/저장 항목 없음:
-\`\`\`html
-<div class="flex flex-col items-center justify-center py-20 text-center">
-  <div class="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mb-6">
-    <i class="fas fa-bookmark text-3xl text-amber-400"></i>
-  </div>
-  <h3 class="text-lg font-semibold text-gray-700 mb-2">저장된 항목이 없습니다</h3>
-  <p class="text-sm text-gray-400 mb-6">마음에 드는 항목을 북마크해 보세요</p>
-</div>
-\`\`\`
-
-에러 상태 (API 완전 실패):
-\`\`\`html
-<div class="flex flex-col items-center justify-center py-20 text-center">
-  <div class="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6">
-    <i class="fas fa-exclamation-triangle text-3xl text-red-400"></i>
-  </div>
-  <h3 class="text-lg font-semibold text-gray-700 mb-2">데이터를 불러오지 못했습니다</h3>
-  <p class="text-sm text-gray-400 mb-6">잠시 후 다시 시도해주세요</p>
-  <button onclick="location.reload()" class="px-5 py-2 bg-red-500 text-white rounded-xl text-sm hover:bg-red-600 transition-colors">
-    <i class="fas fa-redo mr-2"></i>새로고침
-  </button>
-</div>
 \`\`\`
 
 ## API 호출 규칙
@@ -708,11 +472,6 @@ function showApiBanner() {
 □ 호버 효과, 트랜지션, 애니메이션이 적용되어 있는가?
 □ 버튼 클릭 피드백(active:scale-95), 카드 호버 효과가 있는가?
 □ 화면에 움직이는 요소가 1개 이상 있는가? (카운터, 차트, 피드 등)
-□ 페이지 진입 시 fadeInUp 애니메이션이 적용되어 있는가? (animate-fade-in-up)
-□ 스켈레톤 UI가 초기 로딩에 표시되는가? (DOMContentLoaded → 300ms → 실제 데이터)
-□ API 성공/실패 시 반드시 showToast()가 호출되는가?
-□ 빈 결과/에러 상태에 아이콘+메시지+액션버튼이 있는 Empty State UI가 있는가?
-□ 비동기 버튼 클릭 시 로딩 스피너(setButtonLoading)가 표시되는가?
 
 ### 접근성 & 품질
 □ 시맨틱 HTML을 사용하는가? (<main>, <nav>, <article>, <footer>)
@@ -743,15 +502,21 @@ function showApiBanner() {
 - 모바일에서 사이드바 상시 표시
 - picsum.photos 사용 (랜덤 이미지 — 콘텐츠와 무관한 이미지가 표시됨)
 - 콘텐츠와 무관한 이미지 (커피숍에 산 사진, 날씨에 인물 사진 등)
-- 페이지 진입 애니메이션 없음 (모든 요소가 한 번에 확 나타남)
-- 스켈레톤 없이 빈 컨테이너가 바로 채워짐 (DOMContentLoaded 즉시 데이터 노출)
-- API 호출 결과(성공/실패)에 아무 피드백 없음 (토스트, 배너 등 사용자 알림 필수)
-- 빈 결과/에러 상태에 단순 텍스트만 — 아이콘과 액션 버튼 없는 Empty State
-- 비동기 액션 버튼에 로딩 표시 없음 (클릭 후 응답 없는 버튼처럼 보임)
-- CSS에 @keyframes 없음 (transition만으로는 진입 애니메이션 불가)`;
+
+## [1단계 범위 안내]
+이 단계는 구조·레이아웃·기능·목 데이터에만 집중합니다.
+다음 항목은 2단계(디자인 강화)에서 자동 적용됩니다:
+- 디자인 시스템 (색상 테마, 글래스모피즘)
+- 페이지 진입 애니메이션 (@keyframes)
+- 스켈레톤 UI 로딩 패턴
+- 토스트 알림
+- 버튼 로딩 상태·리플 효과
+- Empty State UI (아이콘·액션 버튼 포함)
+
+지금은 기본 Tailwind 유틸리티(bg-white, text-gray-900 등)로 구조만 완성하세요.`;
 }
 
-export function buildUserPrompt(
+export function buildStage1UserPrompt(
   apis: ApiCatalogItem[],
   context: string,
   projectId?: string,
@@ -877,7 +642,7 @@ ${designSection}
 \`\`\``;
 }
 
-export function buildRegenerationPrompt(
+export function buildStage1RegenerationUserPrompt(
   previousCode: { html: string; css: string; js: string },
   feedback: string,
   apis: ApiCatalogItem[] = []
@@ -941,3 +706,324 @@ ${feedback}
 (JavaScript 코드)
 \`\`\``;
 }
+
+// ─── Stage 2 시스템 프롬프트 ─────────────────────────────────────────────────
+
+let cachedStage2SystemPrompt: string | null = null;
+
+export function buildStage2SystemPrompt(): string {
+  return cachedStage2SystemPrompt ?? (cachedStage2SystemPrompt = _buildStage2SystemPrompt());
+}
+
+function _buildStage2SystemPrompt(): string {
+  return `당신은 완성된 웹서비스 구조 코드에 시각적 완성도를 입히는 UI/UX 전문가입니다.
+
+## 핵심 규칙 (위반 시 실패)
+
+1. **기능과 목 데이터는 절대 변경하지 말 것.** JavaScript 로직, API 호출, 목 데이터 배열, 이벤트 핸들러는 그대로 유지.
+2. **HTML 시맨틱 구조는 유지.** 섹션 재설계 금지 — CSS 클래스 추가·변경만 허용.
+3. **전체 코드를 HTML / CSS / JavaScript 형식으로 반환.**
+4. **모든 텍스트는 한국어 유지.**
+
+## 디자인 시스템 선택 (서비스에 맞게 1개 선택, 전면 적용)
+
+### 1. 모던 다크 (금융, 개발자, 모니터링, 게임)
+body: \`bg-gray-950 text-gray-100\`
+카드: \`bg-gray-900 border border-gray-800 hover:border-gray-700\`
+액센트: \`text-blue-400 bg-blue-500/10\`
+헤더: \`bg-gray-950/80 border-gray-800\`
+
+### 2. 클린 라이트 (뉴스, 쇼핑, 일반, 교육)
+body: \`bg-gray-50 text-gray-900\`
+카드: \`bg-white shadow-sm hover:shadow-lg\`
+액센트: \`text-blue-600 bg-blue-50\`
+헤더: \`bg-white/80 border-gray-200\`
+
+### 3. 따뜻한 톤 (음식, 여행, 라이프스타일, 카페)
+body: \`bg-orange-50/30 text-gray-900\`
+카드: \`bg-white shadow-sm hover:shadow-lg\`
+액센트: \`text-orange-600 bg-orange-50\`
+헤더: \`bg-orange-50/80 border-orange-100\`
+
+### 4. 오션 블루 (날씨, 여행, 물류, 교통)
+body: \`bg-slate-50 text-slate-900\`
+카드: \`bg-white shadow-sm border border-sky-100 hover:shadow-lg\`
+액센트: \`text-sky-600 bg-sky-50\`
+헤더: \`bg-white/80 border-sky-100\`
+
+### 5. 포레스트 그린 (건강, 환경, 교육, 웰빙)
+body: \`bg-emerald-50/20 text-gray-900\`
+카드: \`bg-white shadow-sm hover:shadow-lg\`
+액센트: \`text-emerald-600 bg-emerald-50\`
+헤더: \`bg-white/80 border-emerald-100\`
+
+### 6. 선셋 그래디언트 (엔터테인먼트, 음악, 이벤트, SNS)
+body: \`bg-gradient-to-br from-purple-950 via-indigo-950 to-slate-950 text-gray-100\`
+카드: \`bg-white/5 backdrop-blur-sm border border-white/10 hover:border-white/20\`
+액센트: \`text-purple-400 bg-purple-500/10\`
+헤더: \`bg-black/20 backdrop-blur-xl border-white/10\`
+
+### 7. 파스텔 (반려동물, 키즈, 커뮤니티, 취미)
+body: \`bg-pink-50/20 text-gray-800\`
+카드: \`bg-white shadow-sm rounded-3xl hover:shadow-lg\`
+액센트: \`text-rose-500 bg-rose-50\`
+헤더: \`bg-white/80 border-pink-100\`
+
+### 8. 모노크롬 (포트폴리오, 미니멀, 갤러리, 사진)
+body: \`bg-white text-gray-900\`
+카드: \`bg-gray-50 border border-gray-100 hover:border-gray-300\`
+액센트: \`text-gray-900 bg-gray-100\`
+헤더: \`bg-white border-gray-100\`
+
+## 페이지 진입 애니메이션 (★ 필수 — CSS에 반드시 포함)
+
+\`\`\`css
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-fade-in-up { animation: fadeInUp 0.5s ease-out both; }
+.animate-fade-in    { animation: fadeIn 0.4s ease-out both; }
+.animate-slide-in   { animation: slideInRight 0.4s ease-out both; }
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.4s; }
+.delay-500 { animation-delay: 0.5s; }
+\`\`\`
+
+적용: 헤더 \`animate-fade-in\`, 통계 카드 \`animate-fade-in-up delay-100~400\`, 메인 섹션 \`animate-fade-in-up delay-200\`.
+
+## 마이크로 인터랙션 강화 (★ 필수)
+
+기존 hover/transition은 유지하고 다음을 추가하라:
+
+### 버튼 로딩 상태
+\`\`\`javascript
+function setButtonLoading(btn, loading) {
+  if (loading) {
+    btn.disabled = true;
+    btn.dataset.originalText = btn.innerHTML;
+    btn.innerHTML = \\\`<svg class="animate-spin -ml-1 mr-2 h-4 w-4 inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>처리 중...\\\`;
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = btn.dataset.originalText;
+  }
+}
+\`\`\`
+
+### 리플 효과
+\`\`\`css
+.ripple-btn { position: relative; overflow: hidden; }
+.ripple-btn .ripple {
+  position: absolute; border-radius: 50%;
+  background: rgba(255,255,255,0.35);
+  transform: scale(0);
+  animation: ripple-anim 0.5s linear;
+  pointer-events: none;
+}
+@keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
+\`\`\`
+\`\`\`javascript
+document.querySelectorAll('.ripple-btn').forEach(btn => {
+  btn.addEventListener('click', function(e) {
+    const r = document.createElement('span');
+    r.className = 'ripple';
+    const rect = this.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    r.style.cssText = \\\`width:\\\${size}px;height:\\\${size}px;left:\\\${e.clientX-rect.left-size/2}px;top:\\\${e.clientY-rect.top-size/2}px\\\`;
+    this.appendChild(r);
+    setTimeout(() => r.remove(), 500);
+  });
+});
+\`\`\`
+
+## 스켈레톤 UI (★ 필수 — 초기 로딩에 적용)
+
+DOMContentLoaded 직후 300ms 동안 스켈레톤을 먼저 표시하라:
+
+\`\`\`javascript
+document.addEventListener('DOMContentLoaded', () => {
+  renderSkeletons(8);
+  setTimeout(() => {
+    renderCards(mockData);
+    fetchApiData();
+  }, 300);
+});
+\`\`\`
+
+카드 스켈레톤 HTML:
+\`\`\`html
+<div class="bg-white rounded-2xl overflow-hidden shadow-sm animate-pulse">
+  <div class="aspect-video bg-gray-200"></div>
+  <div class="p-5 space-y-3">
+    <div class="h-4 bg-gray-200 rounded-full w-3/4"></div>
+    <div class="h-3 bg-gray-200 rounded-full w-full"></div>
+    <div class="h-3 bg-gray-200 rounded-full w-2/3"></div>
+  </div>
+</div>
+\`\`\`
+
+## 토스트 알림 (★ 필수 — 모든 API 호출에 반드시 사용)
+
+\`\`\`javascript
+function showToast(message, type = 'success') {
+  const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle', warning: 'fa-exclamation-triangle' };
+  const colors = { success: 'bg-emerald-500', error: 'bg-red-500', info: 'bg-blue-500', warning: 'bg-amber-500' };
+  const toast = document.createElement('div');
+  toast.className = \\\`fixed bottom-6 right-6 \\\${colors[type]} text-white px-5 py-3 rounded-xl shadow-2xl z-[100] flex items-center gap-3 transform translate-y-4 opacity-0 transition-all duration-300 max-w-sm\\\`;
+  toast.innerHTML = \\\`<i class="fas \\\${icons[type]} text-lg shrink-0"></i><span class="text-sm font-medium">\\\${message}</span>\\\`;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => { toast.classList.remove('translate-y-4', 'opacity-0'); });
+  setTimeout(() => { toast.classList.add('translate-y-4', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 3500);
+}
+// API 성공: showToast('데이터를 불러왔습니다.', 'success')
+// API 실패: showToast('데이터 로딩에 실패했습니다.', 'error')
+\`\`\`
+
+## Empty State UI (★ 필수 — 빈 결과/에러 시 반드시 표시)
+
+검색 0건:
+\`\`\`html
+<div class="flex flex-col items-center justify-center py-20 text-center">
+  <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+    <i class="fas fa-search text-3xl text-gray-400"></i>
+  </div>
+  <h3 class="text-lg font-semibold text-gray-700 mb-2">결과가 없습니다</h3>
+  <p class="text-sm text-gray-400 mb-6">다른 키워드로 검색해보세요</p>
+  <button onclick="clearSearch()" class="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm hover:bg-blue-700 transition-colors">검색 초기화</button>
+</div>
+\`\`\`
+
+에러 상태:
+\`\`\`html
+<div class="flex flex-col items-center justify-center py-20 text-center">
+  <div class="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6">
+    <i class="fas fa-exclamation-triangle text-3xl text-red-400"></i>
+  </div>
+  <h3 class="text-lg font-semibold text-gray-700 mb-2">데이터를 불러오지 못했습니다</h3>
+  <p class="text-sm text-gray-400 mb-6">잠시 후 다시 시도해주세요</p>
+  <button onclick="location.reload()" class="px-5 py-2 bg-red-500 text-white rounded-xl text-sm hover:bg-red-600 transition-colors"><i class="fas fa-redo mr-2"></i>새로고침</button>
+</div>
+\`\`\`
+
+## 2단계 품질 체크리스트
+
+반환 전 확인:
+□ 선택한 디자인 시스템이 전체에 일관되게 적용되었는가?
+□ CSS에 @keyframes fadeInUp / fadeIn 이 포함되어 있는가?
+□ 헤더·카드·섹션에 animate-fade-in-up 클래스가 적용되어 있는가?
+□ DOMContentLoaded 시 스켈레톤이 먼저 표시되는가?
+□ API 성공/실패에 showToast()가 호출되는가?
+□ 빈 결과·에러 상태에 아이콘+버튼이 있는 Empty State가 있는가?
+□ 중요 버튼에 ripple-btn 클래스가 적용되어 있는가?
+□ 비동기 버튼에 setButtonLoading()이 사용되는가?
+
+## 절대 금지
+
+- JavaScript 로직·이벤트 핸들러 변경
+- 목 데이터 배열 수정
+- 기존 기능 제거
+- HTML 섹션 재설계
+- @keyframes 없는 CSS 반환
+- API 호출 후 showToast() 미호출
+- Empty State 없는 빈 결과 화면`;
+}
+
+// ─── Stage 2 유저 프롬프트 ────────────────────────────────────────────────────
+
+export function buildStage2UserPrompt(stage1Code: {
+  html: string;
+  css: string;
+  js: string;
+}): string {
+  return `다음은 1단계에서 생성된 구조 코드입니다.
+기능과 목 데이터는 완성되어 있으므로 수정하지 마세요.
+디자인 시스템, 애니메이션, 마이크로 인터랙션을 강화하여 전체 코드를 반환하세요.
+
+### HTML (1단계)
+\`\`\`html
+${stage1Code.html}
+\`\`\`
+
+### CSS (1단계)
+\`\`\`css
+${stage1Code.css}
+\`\`\`
+
+### JavaScript (1단계)
+\`\`\`javascript
+${stage1Code.js}
+\`\`\`
+
+다음 형식으로 전체 코드를 반환하세요:
+
+### HTML
+\`\`\`html
+(완전한 HTML 코드)
+\`\`\`
+
+### CSS
+\`\`\`css
+(디자인 강화된 CSS — @keyframes, 스켈레톤, 리플 포함)
+\`\`\`
+
+### JavaScript
+\`\`\`javascript
+(기존 기능 그대로, showToast/setButtonLoading/ripple 핸들러 추가)
+\`\`\``;
+}
+
+export function buildStage2RegenerationUserPrompt(
+  stage1Code: { html: string; css: string; js: string },
+  feedback: string,
+): string {
+  return `다음은 1단계에서 피드백을 반영하여 구조가 수정된 코드입니다.
+기능을 유지하면서 디자인 시스템, 애니메이션, 마이크로 인터랙션을 강화하세요.
+피드백(${JSON.stringify(feedback)})도 디자인 관점에서 추가로 반영하세요.
+
+### HTML (1단계)
+\`\`\`html
+${stage1Code.html}
+\`\`\`
+
+### CSS (1단계)
+\`\`\`css
+${stage1Code.css}
+\`\`\`
+
+### JavaScript (1단계)
+\`\`\`javascript
+${stage1Code.js}
+\`\`\`
+
+다음 형식으로 전체 코드를 반환하세요:
+
+### HTML
+\`\`\`html
+(완전한 HTML 코드)
+\`\`\`
+
+### CSS
+\`\`\`css
+(디자인 강화된 CSS)
+\`\`\`
+
+### JavaScript
+\`\`\`javascript
+(기존 기능 그대로, 시각 폴리시 함수 추가)
+\`\`\``;
+}
+
+// Backward-compat aliases — removed when Tasks 3/4 update route imports
+export const buildSystemPrompt = buildStage1SystemPrompt;
+export const buildUserPrompt = buildStage1UserPrompt;
+export const buildRegenerationPrompt = buildStage1RegenerationUserPrompt;
