@@ -11,6 +11,10 @@ import {
   checkTouchTargets,
   checkResponsiveBreakpoints,
   checkAccessibility,
+  checkNoRuntimePlaceholder,
+  checkInteractiveBehavior,
+  checkNetworkActivity,
+  checkLoadingStateDisappears,
 } from './qcChecks';
 import type { Page } from 'playwright-core';
 
@@ -97,18 +101,19 @@ async function runFastQcInternal(html: string): Promise<QcReport> {
     page.setDefaultTimeout(QC_TIMEOUTS.PAGE_DEFAULT_MS);
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: QC_TIMEOUTS.FAST_CONTENT_MS });
 
-    const [scrollResult, footerResult, overlapResult] = settledResults(
+    const [scrollResult, footerResult, overlapResult, placeholderResult] = settledResults(
       await Promise.allSettled([
         withCheckTimeout(() => checkHorizontalScroll(page, 375), 'horizontalScroll'),
         withCheckTimeout(() => checkFooterVisible(page), 'footerVisible'),
         withCheckTimeout(() => checkNoLayoutOverlap(page), 'noLayoutOverlap'),
+        withCheckTimeout(() => checkNoRuntimePlaceholder(page), 'noRuntimePlaceholder'),
       ]),
-      ['horizontalScroll', 'footerVisible', 'noLayoutOverlap']
+      ['horizontalScroll', 'footerVisible', 'noLayoutOverlap', 'noRuntimePlaceholder']
     );
 
     const consoleResult = checkConsoleErrors(errors);
 
-    const checks = [consoleResult, scrollResult, footerResult, overlapResult];
+    const checks = [consoleResult, scrollResult, footerResult, overlapResult, placeholderResult];
     return buildReport(checks, QC_VIEWPORTS.FAST, startTime, QC_THRESHOLDS.FAST_PASS);
   } finally {
     await releasePage(page);
@@ -142,10 +147,12 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
 
   try {
     const errors: string[] = [];
+    const networkRequests: string[] = [];
     page.on('pageerror', (err) => errors.push(err.message));
     page.on('console', (msg) => {
       if (msg.type() === 'error') errors.push(msg.text());
     });
+    page.on('request', (req) => networkRequests.push(req.url()));
 
     await page.setViewportSize({ width: 375, height: 812 });
     page.setDefaultTimeout(QC_TIMEOUTS.PAGE_DEFAULT_MS);
@@ -181,6 +188,15 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
     );
 
     const consoleResult = checkConsoleErrors(errors);
+    const networkResult = checkNetworkActivity(networkRequests);
+
+    const [interactResult, loadingResult] = settledResults(
+      await Promise.allSettled([
+        withCheckTimeout(() => checkInteractiveBehavior(page), 'interactiveBehavior'),
+        withCheckTimeout(() => checkLoadingStateDisappears(page), 'loadingStateDisappears'),
+      ]),
+      ['interactiveBehavior', 'loadingStateDisappears']
+    );
 
     const checks = [
       consoleResult,
@@ -191,6 +207,9 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
       touchResult,
       breakpointResult,
       a11yResult,
+      networkResult,
+      interactResult,
+      loadingResult,
     ];
     return buildReport(checks, QC_VIEWPORTS.DEEP, startTime, QC_THRESHOLDS.DEEP_PASS);
   } finally {

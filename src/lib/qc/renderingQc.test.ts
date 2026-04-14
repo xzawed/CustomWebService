@@ -28,7 +28,7 @@ function makeHighQualityMetrics(overrides: Partial<QualityMetrics> = {}): Qualit
     structuralScore: 80,
     mobileScore: 80,
     hasSemanticHtml: true,
-    hasMockData: true,
+    hasMockData: false,
     hasInteraction: true,
     hasResponsiveClasses: true,
     hasAdequateResponsive: true,
@@ -37,6 +37,10 @@ function makeHighQualityMetrics(overrides: Partial<QualityMetrics> = {}): Qualit
     hasMobileNav: true,
     hasFooter: true,
     hasImgAlt: true,
+    fetchCallCount: 1,
+    hasProxyCall: false,
+    hasJsonParse: true,
+    placeholderCount: 0,
     details: [],
     ...overrides,
   };
@@ -361,5 +365,16 @@ describe('shouldRetryGeneration — QcReport 통합', () => {
       ],
     };
     expect(shouldRetryGeneration(metrics, qcReport)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. checkNoRuntimePlaceholder — export check
+// ---------------------------------------------------------------------------
+
+describe('checkNoRuntimePlaceholder — export check', () => {
+  it('is exported from qcChecks', async () => {
+    const { checkNoRuntimePlaceholder } = await import('./qcChecks');
+    expect(typeof checkNoRuntimePlaceholder).toBe('function');
   });
 });

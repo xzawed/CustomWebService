@@ -289,6 +289,175 @@ export async function checkResponsiveBreakpoints(page: Page): Promise<QcCheckRes
   }
 }
 
+// ---------------------------------------------------------------------------
+// New checks: real data binding quality
+// ---------------------------------------------------------------------------
+
+/**
+ * Fast check: Scans rendered DOM text for placeholder strings.
+ */
+export async function checkNoRuntimePlaceholder(page: Page): Promise<QcCheckResult> {
+  const start = Date.now();
+  const PLACEHOLDERS = ['홍길동', '김철수', '이영희', 'test@example.com', 'Loading...', '준비 중', '구현 예정', 'Sample Data', 'Lorem ipsum'];
+
+  try {
+    const bodyText = await page.evaluate(() => document.body.innerText);
+    const found = PLACEHOLDERS.filter(p => bodyText.includes(p));
+    const passed = found.length === 0;
+    return {
+      name: 'noRuntimePlaceholder',
+      passed,
+      score: passed ? 100 : Math.max(0, 100 - found.length * 25),
+      details: found.map(p => `Placeholder 감지: "${p}"`),
+      durationMs: Date.now() - start,
+    };
+  } catch (err) {
+    return {
+      name: 'noRuntimePlaceholder',
+      passed: false,
+      score: 0,
+      details: [`Evaluation error: ${err instanceof Error ? err.message : String(err)}`],
+      durationMs: Date.now() - start,
+    };
+  }
+}
+
+/**
+ * Deep check: Clicks the first interactive button and checks if DOM changes.
+ */
+export async function checkInteractiveBehavior(page: Page): Promise<QcCheckResult> {
+  const start = Date.now();
+  try {
+    const before = await page.evaluate(() => document.body.innerHTML.length);
+
+    const buttons = await page.$$('button, [role="tab"]');
+    let clicked = false;
+    for (const btn of buttons.slice(0, 5)) {
+      try {
+        const visible = await btn.isVisible();
+        if (visible) {
+          await btn.click({ timeout: 2000 });
+          clicked = true;
+          break;
+        }
+      } catch {
+        // try next
+      }
+    }
+
+    if (!clicked) {
+      return {
+        name: 'interactiveBehavior',
+        passed: true,
+        score: 100,
+        details: ['No clickable buttons found — skipping'],
+        durationMs: Date.now() - start,
+      };
+    }
+
+    await page.waitForTimeout(500);
+    const after = await page.evaluate(() => document.body.innerHTML.length);
+    const changed = Math.abs(after - before) > 10;
+
+    return {
+      name: 'interactiveBehavior',
+      passed: changed,
+      score: changed ? 100 : 30,
+      details: changed ? [] : ['버튼 클릭 후 DOM 변화 없음 — 인터랙션이 동작하지 않을 수 있음'],
+      durationMs: Date.now() - start,
+    };
+  } catch (err) {
+    return {
+      name: 'interactiveBehavior',
+      passed: false,
+      score: 0,
+      details: [`Evaluation error: ${err instanceof Error ? err.message : String(err)}`],
+      durationMs: Date.now() - start,
+    };
+  }
+}
+
+/**
+ * Deep check: Checks whether any non-CDN network requests were made.
+ * Call with request URLs collected via page.on('request').
+ */
+export function checkNetworkActivity(requests: string[]): QcCheckResult {
+  const start = Date.now();
+  const apiRequests = requests.filter(url =>
+    !url.startsWith('data:') &&
+    !url.includes('cdn.tailwindcss.com') &&
+    !url.includes('cdn.jsdelivr.net') &&
+    !url.includes('unpkg.com') &&
+    !url.includes('cdnjs.cloudflare.com')
+  );
+
+  const passed = apiRequests.length > 0;
+  return {
+    name: 'networkActivity',
+    passed,
+    score: passed ? 100 : 20,
+    details: passed
+      ? apiRequests.slice(0, 3).map(u => `Request: ${u.slice(0, 80)}`)
+      : ['페이지 로드 후 API 요청이 없습니다 — 실제 데이터 로딩이 없을 수 있음'],
+    durationMs: Date.now() - start,
+  };
+}
+
+/**
+ * Deep check: Waits 3s after page load and checks if loading skeletons disappear.
+ */
+export async function checkLoadingStateDisappears(page: Page): Promise<QcCheckResult> {
+  const start = Date.now();
+  try {
+    const LOADING_SELECTORS = ['.animate-pulse', '.skeleton', '[class*="loading"]', '[class*="skeleton"]'];
+    let hadLoadingElements = false;
+
+    for (const sel of LOADING_SELECTORS) {
+      const count = await page.$$eval(sel, els => els.length);
+      if (count > 0) { hadLoadingElements = true; break; }
+    }
+
+    if (!hadLoadingElements) {
+      return {
+        name: 'loadingStateDisappears',
+        passed: true,
+        score: 100,
+        details: ['No loading skeleton elements found'],
+        durationMs: Date.now() - start,
+      };
+    }
+
+    await page.waitForTimeout(3000);
+
+    let stillLoading = false;
+    for (const sel of LOADING_SELECTORS) {
+      const count = await page.$$eval(sel, els => els.length);
+      if (count > 0) { stillLoading = true; break; }
+    }
+
+    const passed = !stillLoading;
+    return {
+      name: 'loadingStateDisappears',
+      passed,
+      score: passed ? 100 : 40,
+      details: passed ? [] : ['3초 후에도 로딩 스켈레톤이 남아있습니다 — API 호출이 완료되지 않을 수 있음'],
+      durationMs: Date.now() - start,
+    };
+  } catch (err) {
+    return {
+      name: 'loadingStateDisappears',
+      passed: false,
+      score: 0,
+      details: [`Evaluation error: ${err instanceof Error ? err.message : String(err)}`],
+      durationMs: Date.now() - start,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Deep checks (original)
+// ---------------------------------------------------------------------------
+
 export async function checkAccessibility(page: Page): Promise<QcCheckResult> {
   const start = Date.now();
   try {
