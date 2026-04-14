@@ -67,20 +67,26 @@ async function loadMore() {
   document.getElementById('feed-spinner').style.display = 'block';
 
   try {
-    // 실제 API 호출로 교체 (page, currentCat 파라미터 활용)
-    const items = Array.from({ length: 10 }, (_, i) => ({
-      id: (page - 1) * 10 + i,
-      title: '콘텐츠 제목 ' + ((page - 1) * 10 + i + 1),
-      category: ['tech', 'world', 'business'][(i) % 3],
-      source: '출처',
-      time: new Date(Date.now() - i * 3600000).toLocaleString('ko-KR'),
-      thumb: 'https://picsum.photos/80/80?random=' + ((page - 1) * 10 + i),
+    const _apiUrl = "${context.apis[0]?.authType !== 'none'
+      ? '/api/v1/proxy?apiId=' + (context.apis[0]?.id ?? '') + '&proxyPath=' + encodeURIComponent(context.apis[0]?.endpoints[0]?.path ?? '/data')
+      : (context.apis[0]?.baseUrl ?? 'https://api.example.com') + (context.apis[0]?.endpoints[0]?.path ?? '/data')}";
+    const _params = new URLSearchParams({ page: String(page), category: currentCat !== 'all' ? currentCat : '' });
+    const _res = await fetch(_apiUrl + '&' + _params.toString());
+    if (!_res.ok) throw new Error('HTTP ' + _res.status);
+    const _json = await _res.json();
+    const _raw = _json${context.apis[0]?.endpoints[0]?.responseDataPath ? '.' + context.apis[0].endpoints[0].responseDataPath : ''} ?? _json.results ?? _json.data ?? _json.articles ?? _json;
+    const items = (Array.isArray(_raw) ? _raw : []).map(item => ({
+      id: item.id ?? item.url ?? Math.random(),
+      title: item.title ?? item.headline ?? item.name ?? '제목 없음',
+      category: item.category ?? item.section ?? item.source ?? 'general',
+      source: item.source ?? item.author ?? item.provider ?? '',
+      time: item.publishedAt ?? item.date ?? item.time ?? '',
+      thumb: item.urlToImage ?? item.thumbnail ?? item.image ?? '',
     }));
-
     const filtered = currentCat === 'all' ? items : items.filter(it => it.category === currentCat);
     appendCards(filtered);
     page++;
-    if (page > 5) { hasMore = false; document.getElementById('end-message').style.display = 'block'; }
+    if (items.length < 10) { hasMore = false; document.getElementById('end-message').style.display = 'block'; }
   } catch (err) {
     console.error(err);
   } finally {
@@ -130,7 +136,7 @@ loadMore();`,
       promptHint: `Layout: vertical-feed
 Required sections (in order): 제목/설명 헤더, 카테고리 필터 탭, 카드 리스트, 무한 스크롤 센티넬
 UI patterns: 세로 단일 컬럼(최대 720px), 가로형 카드(썸네일 좌측 + 텍스트 우측), 상단 고정 탭
-Must include: IntersectionObserver 무한 스크롤, 카테고리 필터, 카드당 카테고리 배지 + 출처 + 시간
+Must include: IntersectionObserver 무한 스크롤, 카테고리 필터, 카드당 카테고리 배지 + 출처 + 시간, DOMContentLoaded API fetch(), no hardcoded data arrays, no picsum.photos
 Avoid: 마소닉 그리드, 지도, 차트`,
     };
   }

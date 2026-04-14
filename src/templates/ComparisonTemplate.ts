@@ -77,9 +77,20 @@ header p { color: #64748b; margin-top: 0.25rem; margin-bottom: 1.5rem; font-size
   document.getElementById('empty-state').style.display = 'none';
 
   try {
-    // 실제 API 호출로 교체
-    const dataA = { name: a, stats: [{ label: '항목1', value: '100' }, { label: '항목2', value: '200' }] };
-    const dataB = { name: b, stats: [{ label: '항목1', value: '150' }, { label: '항목2', value: '180' }] };
+    const _apiUrl = "${context.apis[0]?.authType !== 'none'
+      ? '/api/v1/proxy?apiId=' + (context.apis[0]?.id ?? '') + '&proxyPath=' + encodeURIComponent(context.apis[0]?.endpoints[0]?.path ?? '/data')
+      : (context.apis[0]?.baseUrl ?? 'https://api.example.com') + (context.apis[0]?.endpoints[0]?.path ?? '/data')}";
+    const _resA = await fetch(_apiUrl + '&q=' + encodeURIComponent(a));
+    const _resB = await fetch(_apiUrl + '&q=' + encodeURIComponent(b));
+    if (!_resA.ok || !_resB.ok) throw new Error('HTTP ' + (_resA.ok ? _resB.status : _resA.status));
+    const _jsonA = await _resA.json();
+    const _jsonB = await _resB.json();
+    const _rawA = _jsonA${context.apis[0]?.endpoints[0]?.responseDataPath ? '.' + context.apis[0].endpoints[0].responseDataPath : ''} ?? _jsonA.results ?? _jsonA.data ?? _jsonA;
+    const _rawB = _jsonB${context.apis[0]?.endpoints[0]?.responseDataPath ? '.' + context.apis[0].endpoints[0].responseDataPath : ''} ?? _jsonB.results ?? _jsonB.data ?? _jsonB;
+    const itemA = Array.isArray(_rawA) ? _rawA[0] : _rawA;
+    const itemB = Array.isArray(_rawB) ? _rawB[0] : _rawB;
+    const dataA = { name: itemA?.name ?? itemA?.title ?? a, stats: Object.entries(itemA ?? {}).filter(([,v]) => typeof v === 'string' || typeof v === 'number').slice(0, 5).map(([k, v]) => ({ label: k, value: String(v) })) };
+    const dataB = { name: itemB?.name ?? itemB?.title ?? b, stats: Object.entries(itemB ?? {}).filter(([,v]) => typeof v === 'string' || typeof v === 'number').slice(0, 5).map(([k, v]) => ({ label: k, value: String(v) })) };
     renderComparison(dataA, dataB);
   } catch (err) {
     document.getElementById('empty-state').textContent = '데이터를 불러오지 못했습니다.';
@@ -118,7 +129,7 @@ document.querySelectorAll('.comparison-controls input').forEach(el => {
       promptHint: `Layout: two-column-comparison
 Required sections (in order): 제목/설명 헤더, 입력 컨트롤(A vs B 입력 + 비교 버튼), 2열 비교 카드 + 중앙 차이 배지
 UI patterns: 3열 그리드(카드A + 배지컬럼 + 카드B), 수치 차이 색상 강조(양수=초록, 음수=빨강)
-Must include: 두 항목 동시 입력, 차이 배지(퍼센트), 항목별 stat-row
+Must include: 두 항목 동시 입력, 차이 배지(퍼센트), 항목별 stat-row, DOMContentLoaded API fetch(), no hardcoded data arrays
 Avoid: 단일 컬럼, 지도, 무한 스크롤`,
     };
   }

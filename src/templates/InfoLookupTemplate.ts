@@ -74,26 +74,46 @@ header p { color: #64748b; margin-top: 0.25rem; margin-bottom: 1.5rem; font-size
   const query = document.getElementById('search-input').value.trim();
   if (!query) return;
 
-  showLoading(true);
+  const btn = document.getElementById('search-btn');
+  btn.disabled = true;
+  btn.textContent = '검색 중...';
   document.getElementById('result-section').style.display = 'none';
   document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
 
   try {
-    // 실제 API 호출로 교체
-    const data = { title: query + ' 정보', body: '검색 결과입니다. API를 연동하면 실제 데이터가 표시됩니다.', related: ['관련1', '관련2', '관련3'] };
-    renderResult(data);
+    const _apiUrl = '${context.apis[0]?.authType !== 'none'
+      ? '/api/v1/proxy?apiId=' + (context.apis[0]?.id ?? '') + '&proxyPath=' + encodeURIComponent(context.apis[0]?.endpoints[0]?.path ?? '/search')
+      : (context.apis[0]?.baseUrl ?? 'https://api.example.com') + (context.apis[0]?.endpoints[0]?.path ?? '/search')}';
+    const res = await fetch(_apiUrl + '&q=' + encodeURIComponent(query));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const _raw = data${context.apis[0]?.endpoints[0]?.responseDataPath ? '.' + context.apis[0].endpoints[0].responseDataPath : ''} ?? data.results ?? data.data ?? data;
+    const item = Array.isArray(_raw) ? _raw[0] : _raw;
+    renderResult(item, query);
   } catch (err) {
-    document.getElementById('detail-card').innerHTML = '<p style="color:#ef4444">데이터를 불러오지 못했습니다.</p>';
+    document.getElementById('detail-card').innerHTML = '<p style="color:#ef4444;padding:1rem">데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.</p>';
     document.getElementById('result-section').style.display = 'block';
+    console.error(err);
   } finally {
-    showLoading(false);
+    document.getElementById('loading').style.display = 'none';
+    btn.disabled = false;
+    btn.textContent = '검색';
   }
 }
 
-function renderResult(data) {
-  document.getElementById('detail-header').textContent = data.title;
-  document.getElementById('detail-body').textContent = data.body;
-  document.getElementById('related-list').innerHTML = (data.related || []).map(r =>
+function renderResult(data, query) {
+  if (!data) {
+    document.getElementById('empty-state').style.display = 'block';
+    document.getElementById('empty-state').innerHTML = '<p style="color:#64748b;padding:2rem;text-align:center">검색 결과가 없습니다: ' + query + '</p>';
+    return;
+  }
+  const title = data.title ?? data.name ?? data.word ?? query;
+  const body = data.description ?? data.body ?? data.definition ?? data.summary ?? JSON.stringify(data, null, 2).slice(0, 300);
+  const related = data.related ?? data.tags ?? data.synonyms ?? [];
+  document.getElementById('detail-header').textContent = title;
+  document.getElementById('detail-body').textContent = body;
+  document.getElementById('related-list').innerHTML = related.map(r =>
     '<li onclick="document.getElementById(\'search-input\').value=\'' + r + '\';search()">' + r + '</li>'
   ).join('');
   document.getElementById('result-section').style.display = 'block';
@@ -107,10 +127,10 @@ document.getElementById('search-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') search();
 });`,
       promptHint: `Layout: search-detail
-Required sections (in order): 검색바 + 검색 버튼, 상세 카드(제목+본문), 관련 항목 리스트
-UI patterns: 단일 컬럼 레이아웃, 큰 검색 입력창, 상세 카드 그림자
-Must include: Enter 키 검색, 로딩 상태, 빈 상태 메시지
-Avoid: 그리드 레이아웃, 차트, 지도`,
+Required sections: 검색바+버튼, 결과 상세카드(제목+본문), 관련 항목 리스트
+Must include: DOMContentLoaded에서 검색 API fetch() 구현, Enter 키 검색, 로딩 상태, 에러 Empty State
+API call pattern: fetch() → data.responseDataPath → renderResult()
+Avoid: 하드코딩 데이터, 가데이터 배열, picsum.photos`,
     };
   }
 }

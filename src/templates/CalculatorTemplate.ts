@@ -79,9 +79,16 @@ async function convert() {
   const outputUnit = document.getElementById('output-unit').value;
 
   try {
-    // ${apiName} API 호출
-    const result = parseFloat(inputVal); // placeholder: 실제 API 응답으로 교체
-    document.getElementById('output-value').value = result;
+    const _apiUrl = "${context.apis[0]?.authType !== 'none'
+      ? '/api/v1/proxy?apiId=' + (context.apis[0]?.id ?? '') + '&proxyPath=' + encodeURIComponent(context.apis[0]?.endpoints[0]?.path ?? '/convert')
+      : (context.apis[0]?.baseUrl ?? 'https://api.example.com') + (context.apis[0]?.endpoints[0]?.path ?? '/convert')}";
+    const _params = new URLSearchParams({ amount: inputVal, from: inputUnit, to: outputUnit });
+    const _res = await fetch(_apiUrl + '&' + _params.toString());
+    if (!_res.ok) throw new Error('HTTP ' + _res.status);
+    const _json = await _res.json();
+    const _raw = _json${context.apis[0]?.endpoints[0]?.responseDataPath ? '.' + context.apis[0].endpoints[0].responseDataPath : ''} ?? _json;
+    const result = typeof _raw === 'number' ? _raw : (_raw.result ?? _raw.value ?? _raw.converted ?? _raw.rate ?? parseFloat(String(_raw)));
+    document.getElementById('output-value').value = isNaN(result) ? JSON.stringify(_raw).slice(0, 80) : result;
 
     history.unshift({ input: inputVal + ' ' + inputUnit, output: result + ' ' + outputUnit, time: new Date().toLocaleTimeString('ko-KR') });
     renderHistory();
@@ -104,7 +111,7 @@ document.getElementById('input-value').addEventListener('keydown', (e) => {
         `Layout: input-result-tool
 Required sections (in order): 제목/설명 헤더, 입력폼(숫자 입력 + 단위 선택), 화살표/결과 영역, 변환 히스토리 목록
 UI patterns: 중앙 정렬 단일 카드, 큰 입력 필드, 명확한 변환 방향 표시
-Must include: Enter 키 변환 지원, 히스토리 항목 최소 5개, API 로딩 상태 표시
+Must include: Enter 키 변환 지원, 히스토리 항목 최소 5개, API 로딩 상태 표시, DOMContentLoaded API fetch(), no hardcoded conversion values
 Avoid: 복수 탭, 지도/차트, 마케팅 섹션`,
     };
   }

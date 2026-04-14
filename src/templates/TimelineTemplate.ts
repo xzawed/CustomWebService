@@ -58,12 +58,18 @@ header p { color: #64748b; margin-top: 0.25rem; font-size: 0.875rem; }
 
 async function loadEvents() {
   try {
-    // 실제 API 호출로 교체
-    events = [
-      { id: 1, date: '2024-01', title: '이벤트 1', desc: '설명 1', icon: '🚀', year: 2024 },
-      { id: 2, date: '2024-06', title: '이벤트 2', desc: '설명 2', icon: '✨', year: 2024 },
-      { id: 3, date: '2023-03', title: '이벤트 3', desc: '설명 3', icon: '📌', year: 2023 },
-    ];
+    const _apiUrl = "${context.apis[0]?.authType !== 'none'
+      ? '/api/v1/proxy?apiId=' + (context.apis[0]?.id ?? '') + '&proxyPath=' + encodeURIComponent(context.apis[0]?.endpoints[0]?.path ?? '/events')
+      : (context.apis[0]?.baseUrl ?? 'https://api.example.com') + (context.apis[0]?.endpoints[0]?.path ?? '/events')}";
+    const _res = await fetch(_apiUrl);
+    if (!_res.ok) throw new Error('HTTP ' + _res.status);
+    const _json = await _res.json();
+    const _raw = _json${context.apis[0]?.endpoints[0]?.responseDataPath ? '.' + context.apis[0].endpoints[0].responseDataPath : ''} ?? _json.events ?? _json.results ?? _json.data ?? _json;
+    events = (Array.isArray(_raw) ? _raw : []).map((item, idx) => {
+      const dateStr = item.date ?? item.published_at ?? item.created_at ?? item.start_date ?? '';
+      const year = parseInt(dateStr.slice(0, 4)) || new Date().getFullYear();
+      return { id: item.id ?? idx, date: dateStr.slice(0, 7) || String(year), title: item.title ?? item.name ?? item.summary ?? '이벤트', desc: item.description ?? item.body ?? item.content ?? '', icon: item.icon ?? '📌', year };
+    });
     populateYearFilter();
     renderTimeline(events);
   } catch (err) {
@@ -121,7 +127,7 @@ loadEvents();`,
       promptHint: `Layout: vertical-timeline
 Required sections (in order): 제목/설명 헤더, 검색바 + 연도 필터, 세로 타임라인(날짜 마커 + 이벤트 카드)
 UI patterns: 좌측 수직선 + 원형 마커, 카드형 이벤트 항목, 날짜 상단 표시
-Must include: 연도별 필터 셀렉트, 검색 디바운스(300ms), 이벤트 아이콘
+Must include: 연도별 필터 셀렉트, 검색 디바운스(300ms), 이벤트 아이콘, DOMContentLoaded API fetch(), no hardcoded events
 Avoid: 수평 타임라인, 차트, 지도`,
     };
   }

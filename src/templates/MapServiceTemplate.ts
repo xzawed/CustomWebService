@@ -67,12 +67,20 @@ function initMap() {
 
 async function loadPlaces() {
   try {
-    // 실제 API 호출로 교체
-    places = [
-      { id: 1, name: '장소 1', desc: '설명 1', lat: 37.5665, lng: 126.9780 },
-      { id: 2, name: '장소 2', desc: '설명 2', lat: 37.5700, lng: 126.9820 },
-      { id: 3, name: '장소 3', desc: '설명 3', lat: 37.5630, lng: 126.9740 },
-    ];
+    const _apiUrl = "${context.apis[0]?.authType !== 'none'
+      ? '/api/v1/proxy?apiId=' + (context.apis[0]?.id ?? '') + '&proxyPath=' + encodeURIComponent(context.apis[0]?.endpoints[0]?.path ?? '/data')
+      : (context.apis[0]?.baseUrl ?? 'https://api.example.com') + (context.apis[0]?.endpoints[0]?.path ?? '/data')}";
+    const _res = await fetch(_apiUrl);
+    if (!_res.ok) throw new Error('HTTP ' + _res.status);
+    const _json = await _res.json();
+    const _raw = _json${context.apis[0]?.endpoints[0]?.responseDataPath ? '.' + context.apis[0].endpoints[0].responseDataPath : ''} ?? _json.results ?? _json.data ?? _json.places ?? _json;
+    places = (Array.isArray(_raw) ? _raw : []).map((item, idx) => ({
+      id: item.id ?? item.place_id ?? idx,
+      name: item.name ?? item.title ?? item.place_name ?? ('장소 ' + (idx + 1)),
+      desc: item.description ?? item.address ?? item.vicinity ?? '',
+      lat: parseFloat(item.lat ?? item.latitude ?? item.geometry?.location?.lat ?? 37.5665),
+      lng: parseFloat(item.lng ?? item.longitude ?? item.geometry?.location?.lng ?? 126.9780),
+    }));
     renderList(places);
     addMarkers(places);
   } catch (err) {
@@ -127,7 +135,7 @@ else console.warn('Leaflet이 로드되지 않았습니다. CDN 링크를 추가
       promptHint: `Layout: map-sidebar
 Required sections (in order): 사이드바(검색바 + 항목 리스트), Leaflet 지도(우측 메인)
 UI patterns: 좌우 분할 레이아웃(사이드바 320px + 지도 flex:1), 마커 클릭 시 팝업
-Must include: Leaflet.js CDN, OpenStreetMap 타일, 검색 필터링(300ms 디바운스), 마커 + 팝업
+Must include: Leaflet.js CDN, OpenStreetMap 타일, 검색 필터링(300ms 디바운스), 마커 + 팝업, DOMContentLoaded API fetch(), no hardcoded data arrays
 Avoid: 전체 페이지 스크롤, 테이블 레이아웃, 차트`,
     };
   }

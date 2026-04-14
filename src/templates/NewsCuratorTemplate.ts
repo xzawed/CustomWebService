@@ -66,14 +66,20 @@ let activeTag = null;
 async function loadNews() {
   document.getElementById('news-loading').style.display = 'block';
   try {
-    // 실제 API 호출로 교체
-    allNews = Array.from({ length: 12 }, (_, i) => ({
-      id: i,
-      title: '뉴스 헤드라인 ' + (i + 1) + ': 최신 소식입니다.',
-      source: ['tech', 'business', 'world'][i % 3],
-      time: new Date(Date.now() - i * 3600000).toLocaleString('ko-KR'),
-      img: 'https://picsum.photos/300/160?random=' + i,
-      tags: [['AI', '기술', '트렌드'], ['경제', '시장', '글로벌'], ['국제', '정치', '사회']][i % 3],
+    const _apiUrl = "${context.apis[0]?.authType !== 'none'
+      ? '/api/v1/proxy?apiId=' + (context.apis[0]?.id ?? '') + '&proxyPath=' + encodeURIComponent(context.apis[0]?.endpoints[0]?.path ?? '/data')
+      : (context.apis[0]?.baseUrl ?? 'https://api.example.com') + (context.apis[0]?.endpoints[0]?.path ?? '/data')}";
+    const _res = await fetch(_apiUrl);
+    if (!_res.ok) throw new Error('HTTP ' + _res.status);
+    const _json = await _res.json();
+    const _raw = _json${context.apis[0]?.endpoints[0]?.responseDataPath ? '.' + context.apis[0].endpoints[0].responseDataPath : ''} ?? _json.articles ?? _json.results ?? _json.data ?? _json;
+    allNews = (Array.isArray(_raw) ? _raw : []).map(item => ({
+      id: item.id ?? item.url ?? Math.random(),
+      title: item.title ?? item.headline ?? '제목 없음',
+      source: item.source?.name ?? item.source ?? item.category ?? 'general',
+      time: item.publishedAt ?? item.date ?? '',
+      img: item.urlToImage ?? item.image ?? item.thumbnail ?? '',
+      tags: item.tags ?? (item.category ? [item.category] : []),
     }));
     buildTagCloud();
     renderNews();
@@ -133,7 +139,7 @@ loadNews();`,
       promptHint: `Layout: news-grid-curator
 Required sections (in order): 제목/설명 헤더, 소스 필터 버튼, 태그 클라우드, 뉴스 카드 그리드
 UI patterns: auto-fill 그리드(minmax 300px), 카드(이미지 상단+텍스트 하단), 태그 토글
-Must include: 소스별 필터, 태그 클라우드 토글, 카드당 소스+제목+시간
+Must include: 소스별 필터, 태그 클라우드 토글, 카드당 소스+제목+시간, DOMContentLoaded API fetch(), no hardcoded data arrays, no picsum.photos
 Avoid: 단일 컬럼, 무한 스크롤, 지도`,
     };
   }

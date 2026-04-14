@@ -42,7 +42,7 @@ export class DashboardTemplate implements ICodeTemplate {
         (api, i) =>
           `  async function fetchData${i}() {
     try {
-      const res = await fetch('${api.baseUrl}${api.endpoints[0]?.path ?? ''}');
+      const res = await fetch('${api.authType !== 'none' ? '/api/v1/proxy?apiId=' + api.id + '&proxyPath=' + (api.endpoints[0]?.path ?? '/data') : api.baseUrl + (api.endpoints[0]?.path ?? '/data')}');
       const data = await res.json();
       document.getElementById('value-${i}').textContent = JSON.stringify(data).slice(0, 100);
     } catch (err) {
@@ -97,7 +97,7 @@ setInterval(refreshAll, 60000);`,
         `Layout: data-dashboard
 Required sections (in order): 제목/부제목 헤더, 지표 카드 행(4개), 메인 차트 영역, 보조 데이터 테이블
 UI patterns: 미묘한 그림자의 카드 기반 레이아웃, 실시간 업데이트 버튼, 스켈레톤 로딩 상태
-Must include: Chart.js CDN 차트 최소 1개, 새로고침 버튼, 마지막 업데이트 타임스탬프
+Must include: Chart.js CDN 차트 최소 1개, 새로고침 버튼, 마지막 업데이트 타임스탬프, DOMContentLoaded API fetch(), no hardcoded data arrays
 Avoid: 히어로 이미지, 마케팅 문구, 장식용 일러스트`,
     };
   }

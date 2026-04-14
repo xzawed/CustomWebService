@@ -70,22 +70,28 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; min-
 .skill-list { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .skill-tag { padding: 0.375rem 0.875rem; background: #eff6ff; color: #1d4ed8; border-radius: 20px; font-size: 0.8rem; font-weight: 500; }`,
       js: `const tabData = {
-  activity: [
-    { icon: '⭐', text: '저장소 스타 획득', time: '1시간 전' },
-    { icon: '💻', text: '코드 커밋', time: '3시간 전' },
-    { icon: '🔀', text: 'PR 머지', time: '1일 전' },
-  ],
-  projects: [
-    { name: '프로젝트 A', desc: '설명을 입력하세요.' },
-    { name: '프로젝트 B', desc: '설명을 입력하세요.' },
-  ],
-  skills: ['JavaScript', 'TypeScript', 'React', 'Node.js', 'Python'],
+  activity: [],
+  projects: [],
+  skills: [],
 };
 
 async function loadProfile() {
   try {
-    // 실제 API 호출로 교체
-    const profile = { name: '사용자', bio: '개발자', avatar: null, stats: [{ label: '저장소', value: '42' }, { label: '팔로워', value: '128' }, { label: '커밋', value: '1.2K' }] };
+    const _apiUrl = "${context.apis[0]?.authType !== 'none'
+      ? '/api/v1/proxy?apiId=' + (context.apis[0]?.id ?? '') + '&proxyPath=' + encodeURIComponent(context.apis[0]?.endpoints[0]?.path ?? '/user')
+      : (context.apis[0]?.baseUrl ?? 'https://api.example.com') + (context.apis[0]?.endpoints[0]?.path ?? '/user')}";
+    const _res = await fetch(_apiUrl);
+    if (!_res.ok) throw new Error('HTTP ' + _res.status);
+    const _json = await _res.json();
+    const _raw = _json${context.apis[0]?.endpoints[0]?.responseDataPath ? '.' + context.apis[0].endpoints[0].responseDataPath : ''} ?? _json.user ?? _json.data ?? _json;
+    const _item = Array.isArray(_raw) ? _raw[0] : _raw;
+    const _statsEntries = Object.entries(_item ?? {}).filter(([,v]) => typeof v === 'number' || (typeof v === 'string' && /^[0-9.]+[KkMmBb]?$/.test(String(v)))).slice(0, 4);
+    const profile = {
+      name: _item?.name ?? _item?.login ?? _item?.username ?? '사용자',
+      bio: _item?.bio ?? _item?.description ?? _item?.summary ?? '',
+      avatar: _item?.avatar_url ?? _item?.avatar ?? _item?.profile_image ?? null,
+      stats: _statsEntries.length > 0 ? _statsEntries.map(([k, v]) => ({ label: k, value: String(v) })) : [{ label: '데이터', value: String(Object.keys(_item ?? {}).length) }],
+    };
     if (profile.avatar) {
       document.getElementById('avatar').innerHTML = '<img src="' + profile.avatar + '" alt="avatar"/>';
     } else {
@@ -96,6 +102,18 @@ async function loadProfile() {
     document.getElementById('stats-row').innerHTML = profile.stats.map(s =>
       '<div class="stat-card"><div class="stat-value">' + s.value + '</div><div class="stat-label">' + s.label + '</div></div>'
     ).join('');
+    if (_item?.events ?? _item?.activity) {
+      const _acts = _item.events ?? _item.activity ?? [];
+      tabData.activity = (Array.isArray(_acts) ? _acts : []).map(a => ({ icon: '📌', text: a.title ?? a.type ?? a.message ?? JSON.stringify(a).slice(0,60), time: a.created_at ?? a.date ?? '' }));
+    }
+    if (_item?.repos ?? _item?.projects) {
+      const _projs = _item.repos ?? _item.projects ?? [];
+      tabData.projects = (Array.isArray(_projs) ? _projs : []).map(p => ({ name: p.name ?? p.title ?? '프로젝트', desc: p.description ?? p.desc ?? '' }));
+    }
+    if (_item?.skills ?? _item?.languages) {
+      const _skills = _item.skills ?? _item.languages ?? [];
+      tabData.skills = Array.isArray(_skills) ? _skills.map(s => typeof s === 'string' ? s : (s.name ?? String(s))) : Object.keys(_skills);
+    }
   } catch (err) {
     console.error(err);
   }
@@ -131,7 +149,7 @@ loadProfile();`,
       promptHint: `Layout: profile-portfolio
 Required sections (in order): 헤더 배너(그라디언트 + 아바타 + 이름/바이오), 스탯 카드 행, 탭(활동/프로젝트/스킬), 탭 컨텐츠
 UI patterns: 배너 그라디언트(남색→파랑), 원형 아바타, 그리드 스탯 카드, 언더라인 탭
-Must include: 아바타(이미지 또는 이니셜 폴백), 스탯 카드 최소 3개, 탭 전환, 활동 피드
+Must include: 아바타(이미지 또는 이니셜 폴백), 스탯 카드 최소 3개, 탭 전환, 활동 피드, DOMContentLoaded API fetch(), no hardcoded data
 Avoid: 전체 페이지 스크롤 없는 단일 카드, 차트, 지도`,
     };
   }

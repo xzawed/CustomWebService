@@ -76,17 +76,26 @@ let answers = [];
 
 async function startQuiz() {
   try {
-    // 실제 API 호출로 교체
-    questions = [
-      { q: '대한민국의 수도는?', options: ['서울', '부산', '인천', '대구'], answer: 0 },
-      { q: '1 + 1 = ?', options: ['1', '2', '3', '4'], answer: 1 },
-      { q: 'HTML 태그가 아닌 것은?', options: ['<div>', '<span>', '<foo>', '<p>'], answer: 2 },
-    ];
+    const _apiUrl = "${context.apis[0]?.authType !== 'none'
+      ? '/api/v1/proxy?apiId=' + (context.apis[0]?.id ?? '') + '&proxyPath=' + encodeURIComponent(context.apis[0]?.endpoints[0]?.path ?? '/questions')
+      : (context.apis[0]?.baseUrl ?? 'https://api.example.com') + (context.apis[0]?.endpoints[0]?.path ?? '/questions')}";
+    const _res = await fetch(_apiUrl);
+    if (!_res.ok) throw new Error('HTTP ' + _res.status);
+    const _json = await _res.json();
+    const _raw = _json${context.apis[0]?.endpoints[0]?.responseDataPath ? '.' + context.apis[0].endpoints[0].responseDataPath : ''} ?? _json.results ?? _json.questions ?? _json.data ?? _json;
+    questions = (Array.isArray(_raw) ? _raw : []).map(item => {
+      const opts = item.options ?? item.answers ?? item.choices ?? (item.incorrect_answers ? [...(item.incorrect_answers ?? []), item.correct_answer].sort(() => Math.random() - 0.5) : ['A', 'B', 'C', 'D']);
+      const correctOpt = item.correct_answer ?? item.answer ?? opts[0];
+      const answerIdx = opts.findIndex(o => o === correctOpt);
+      return { q: item.question ?? item.q ?? item.text ?? '문제', options: opts, answer: answerIdx >= 0 ? answerIdx : 0 };
+    });
+    if (questions.length === 0) throw new Error('퀴즈 데이터 없음');
     document.getElementById('quiz-start').style.display = 'none';
     document.getElementById('quiz-main').style.display = 'block';
     showQuestion();
   } catch (err) {
     document.getElementById('quiz-start').querySelector('p').textContent = '퀴즈를 불러오지 못했습니다.';
+    console.error(err);
   }
 }
 
@@ -145,7 +154,7 @@ function resetQuiz() {
       promptHint: `Layout: quiz-flow
 Required sections (in order): 시작 화면(제목+시작버튼), 퀴즈 화면(진행바 + 카운터 + 질문 카드 + 선택지 버튼), 결과 화면(점수 + 오답 요약)
 UI patterns: 단일 화면 전환(시작→진행→결과), 선택 시 정답/오답 색상 피드백, 진행바 애니메이션
-Must include: 진행바, 정답/오답 즉시 표시, 결과 요약(문제별 정오), 다시 풀기 버튼
+Must include: 진행바, 정답/오답 즉시 표시, 결과 요약(문제별 정오), 다시 풀기 버튼, DOMContentLoaded API fetch(), no hardcoded questions
 Avoid: 그리드 레이아웃, 사이드바, 차트`,
     };
   }
