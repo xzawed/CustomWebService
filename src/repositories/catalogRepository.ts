@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BaseRepository } from './base/BaseRepository';
-import type { ApiCatalogItem, CatalogSearchParams, Category } from '@/types/api';
+import type { ApiCatalogItem, ApiVerificationStatus, CatalogSearchParams, Category } from '@/types/api';
 import type { ICatalogRepository } from '@/repositories/interfaces';
 
 export class CatalogRepository extends BaseRepository<ApiCatalogItem> implements ICatalogRepository {
@@ -107,6 +107,9 @@ export class CatalogRepository extends BaseRepository<ApiCatalogItem> implements
       creditRequired: row.credit_required != null ? Number(row.credit_required) : null,
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string,
+      verificationStatus: (row.verification_status ?? 'unverified') as ApiVerificationStatus | null,
+      verifiedAt: (row.verified_at as string) ?? null,
+      lastVerificationNote: (row.last_verification_note as string) ?? null,
     };
   }
 
