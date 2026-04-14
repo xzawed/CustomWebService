@@ -59,6 +59,7 @@
     "msw": "^2.13.2",
     "postcss": "^8.5.9",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"
   }
