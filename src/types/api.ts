@@ -1,4 +1,5 @@
 export type ApiAuthType = 'none' | 'api_key' | 'oauth';
+export type ApiVerificationStatus = 'verified' | 'unverified' | 'broken';
 
 export interface ApiEndpoint {
   path: string;
@@ -6,6 +7,9 @@ export interface ApiEndpoint {
   description: string;
   params: ApiParam[];
   responseExample: Record<string, unknown>;
+  exampleCall?: string;          // ready-to-paste fetch() call, may include proxy path
+  responseDataPath?: string;     // dot-path into response JSON to find the list, e.g. "data.items"
+  requestHeaders?: Record<string, string>;  // extra request headers
 }
 
 export interface ApiParam {
@@ -38,6 +42,9 @@ export interface ApiCatalogItem {
   creditRequired: number | null;
   createdAt: string;
   updatedAt: string;
+  verificationStatus?: ApiVerificationStatus;
+  verifiedAt?: string | null;
+  lastVerificationNote?: string | null;
 }
 
 export interface Category {

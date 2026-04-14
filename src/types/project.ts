@@ -105,6 +105,11 @@ export interface CodeMetadata {
   inferredTheme?: string;
   inferredLayout?: string;
   qualityLoopUsed?: boolean;
+  // Real API binding quality fields
+  fetchCallCount?: number;
+  hasProxyCall?: boolean;
+  hasJsonParse?: boolean;
+  placeholderCount?: number;
 }
 
 export interface CreateProjectInput {
