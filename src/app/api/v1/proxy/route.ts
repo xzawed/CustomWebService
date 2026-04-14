@@ -155,11 +155,14 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
 
   // Forward the request
   let upstream: globalThis.Response;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30_000);
   try {
     upstream = await fetch(targetUrl.toString(), {
       method,
       headers,
       redirect: 'error', // Prevent SSRF via open redirects
+      signal: controller.signal,
       ...(method === 'POST'
         ? {
             body: await request.text(),
@@ -167,8 +170,13 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
           }
         : {}),
     });
-  } catch {
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') {
+      return error502('외부 API 응답 시간이 초과되었습니다 (30초).');
+    }
     return error502('외부 API 서버에 연결할 수 없습니다.');
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const rawContentType = upstream.headers.get('content-type') ?? 'application/json';
