@@ -355,11 +355,11 @@ export async function runGenerationPipeline(
     const staticQcIssues: string[] = [
       ...stage1Validation.warnings,
       ...stage1Quality.details,
-      ...(((stage1Quality as { fetchCallCount?: number }).fetchCallCount ?? 1) === 0
+      ...(stage1Quality.fetchCallCount === 0
         ? ['fetch() 호출이 없습니다 — 반드시 API 호출 추가']
         : []),
-      ...(((stage1Quality as { placeholderCount?: number }).placeholderCount ?? 0) > 0
-        ? [`Placeholder 감지 (${(stage1Quality as { placeholderCount?: number }).placeholderCount}개): 홍길동, 준비 중 등 제거 필요`]
+      ...(stage1Quality.placeholderCount > 0
+        ? [`Placeholder 감지 (${stage1Quality.placeholderCount}개): 홍길동, 준비 중 등 제거 필요`]
         : []),
     ];
 
@@ -463,7 +463,7 @@ export async function runGenerationPipeline(
     let bestQcReport = qcReport;
     let qualityLoopUsed = false;
 
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       if (!shouldRetryGeneration(bestQuality, bestQcReport)) break;
 
       logger.info('Quality below threshold, attempting improvement', {

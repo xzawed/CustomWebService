@@ -18,6 +18,9 @@ export function shouldRetryGeneration(
     if (footerCheck && !footerCheck.passed) return true;
     if (overlapCheck && !overlapCheck.passed) return true;
   }
+  // New: retry if no fetch calls or placeholder strings present
+  if (metrics.fetchCallCount === 0) return true;
+  if (metrics.placeholderCount > 0) return true;
   return false;
 }
 
@@ -71,7 +74,8 @@ ${qcIssues ? `\n브라우저 렌더링 검증에서 발견된 추가 문제:\n${
 - 기존 기능과 디자인은 최대한 유지하면서 위 문제만 정확히 수정
 - 시맨틱 HTML 태그(<main>, <nav>, <footer>, <article>) 사용
 - 모든 <img>에 한국어 alt 속성 추가
-- 목 데이터가 없다면 const 배열로 최소 15개 추가
+- fetch() 호출이 없다면 반드시 추가하라
+- placeholder 문자열을 제거하라: 홍길동, test@example.com, Loading..., 준비 중, 구현 예정
 - <footer> 태그로 서비스명 + 저작권 + 링크 포함
 - 반응형 클래스(sm:/md:/lg:)를 최소 8곳 이상 사용
 - 고정 너비(w-[500px] 등) 제거 → max-w-lg, w-full 등으로 교체
