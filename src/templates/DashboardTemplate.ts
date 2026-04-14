@@ -41,8 +41,10 @@ export class DashboardTemplate implements ICodeTemplate {
       .map(
         (api, i) =>
           `  async function fetchData${i}() {
+    const path = ${JSON.stringify(api.endpoints[0]?.path ?? '/data')};
+    const fetchUrl = ${api.authType !== 'none' ? `\`/api/v1/proxy?apiId=${api.id}&proxyPath=\${encodeURIComponent(path)}\`` : `\`${api.baseUrl}\${path}\``};
     try {
-      const res = await fetch('${api.authType !== 'none' ? '/api/v1/proxy?apiId=' + api.id + '&proxyPath=' + (api.endpoints[0]?.path ?? '/data') : api.baseUrl + (api.endpoints[0]?.path ?? '/data')}');
+      const res = await fetch(fetchUrl);
       const data = await res.json();
       document.getElementById('value-${i}').textContent = JSON.stringify(data).slice(0, 100);
     } catch (err) {
