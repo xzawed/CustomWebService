@@ -1,6 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { buildStage1SystemPrompt, buildStage1UserPrompt, buildStage1RegenerationUserPrompt } from './promptBuilder';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { buildStage1SystemPrompt, buildStage1UserPrompt, buildStage1RegenerationUserPrompt, clearPromptCache } from './promptBuilder';
 import type { ApiCatalogItem } from '@/types/api';
+
+beforeEach(() => {
+  clearPromptCache();
+});
 
 const mockApi: ApiCatalogItem = {
   id: 'api-1',
@@ -109,5 +113,70 @@ describe('buildStage1RegenerationUserPrompt', () => {
     const prompt = buildStage1RegenerationUserPrompt(prev, '색상을 파란색으로 바꿔주세요');
     expect(prompt).toContain('<p>old</p>');
     expect(prompt).toContain('색상을 파란색으로 바꿔주세요');
+  });
+});
+
+describe('buildStage1SystemPrompt — no mock data mandate', () => {
+  it('does NOT instruct "목 데이터로 즉시 렌더링"', () => {
+    const prompt = buildStage1SystemPrompt();
+    expect(prompt).not.toContain('목 데이터로 즉시 렌더링');
+    expect(prompt).not.toContain('목 데이터로 채워진');
+  });
+
+  it('DOES instruct real API call as top priority', () => {
+    const prompt = buildStage1SystemPrompt();
+    expect(prompt).toContain('실제 API 호출');
+  });
+
+  it('DOES include placeholder blocklist', () => {
+    const prompt = buildStage1SystemPrompt();
+    expect(prompt).toContain('홍길동');
+    expect(prompt).toContain('test@example.com');
+    expect(prompt).toContain('준비 중');
+  });
+
+  it('checklist does NOT ask for mock data count', () => {
+    const prompt = buildStage1SystemPrompt();
+    expect(prompt).not.toContain('목 데이터가 최소 15개');
+  });
+});
+
+describe('buildStage1UserPrompt — exampleCall injection', () => {
+  const exampleCallApi: ApiCatalogItem = {
+    id: 'test-api-1',
+    name: '날씨 API',
+    description: '현재 날씨',
+    category: 'weather',
+    baseUrl: 'https://api.weather.com',
+    authType: 'api_key',
+    authConfig: {},
+    rateLimit: null,
+    isActive: true,
+    iconUrl: null,
+    docsUrl: null,
+    tags: [],
+    apiVersion: null,
+    deprecatedAt: null,
+    successorId: null,
+    corsSupported: false,
+    requiresProxy: true,
+    creditRequired: null,
+    createdAt: '',
+    updatedAt: '',
+    endpoints: [{
+      path: '/current.json',
+      method: 'GET',
+      description: '현재 날씨',
+      params: [],
+      responseExample: { current: { temp_c: 15 } },
+      exampleCall: "const res = await fetch('/api/v1/proxy?apiId=test-api-1&proxyPath=/current.json&q=Seoul');\nconst data = await res.json();",
+      responseDataPath: 'current',
+    }],
+  };
+
+  it('injects exampleCall into the user prompt when available', () => {
+    const prompt = buildStage1UserPrompt([exampleCallApi], '날씨 서비스', 'proj-1');
+    expect(prompt).toContain("fetch('/api/v1/proxy?apiId=test-api-1");
+    expect(prompt).toContain('responseDataPath: current');
   });
 });

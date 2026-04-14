@@ -5,6 +5,11 @@ import { inferDesignFromCategories } from './categoryDesignMap';
 // 시스템 프롬프트 모듈 레벨 캐싱 — 매 요청마다 재생성하지 않음
 let cachedStage1SystemPrompt: string | null = null;
 
+export function clearPromptCache(): void {
+  cachedStage1SystemPrompt = null;
+  cachedStage2SystemPrompt = null; // declared further below; accessible via closure at call time
+}
+
 export function buildStage1SystemPrompt(templateHint?: string): string {
   const base = cachedStage1SystemPrompt ?? (cachedStage1SystemPrompt = _buildStage1SystemPrompt());
   if (!templateHint) return base;
@@ -22,11 +27,11 @@ function _buildStage1SystemPrompt(): string {
 
 ## ★ 가장 중요한 규칙 (위반 시 실패)
 
-1. **"데이터가 없습니다" 화면은 절대 허용하지 않는다.** 페이지를 열면 즉시 목 데이터로 채워진 풍성한 화면이 보여야 한다.
-2. **모든 목 데이터는 JavaScript 배열로 하드코딩하고, DOMContentLoaded에서 즉시 렌더링한다.** API 호출은 그 뒤에 비동기로 시도하며, 성공하면 교체, 실패하면 목 데이터를 유지한다.
-3. **Chart.js 차트는 반드시 의미 있는 숫자 배열을 가진 상태로 렌더링한다.** 빈 차트는 절대 금지.
+1. **실제 API 호출을 최우선으로 구현하라.** 서비스가 시작되면 DOMContentLoaded에서 즉시 fetch()를 호출하여 실제 데이터를 화면에 표시한다.
+2. **하드코딩된 가데이터(mock data) 배열은 절대 금지.** \`const mockData = [...]\`, \`const items = [...]\` 같은 하드코딩 배열을 만들지 마라. API 호출 결과만 렌더링한다.
+3. **Placeholder 문자열 절대 금지 — blocklist:** 홍길동, 김철수, test@example.com, user@test.com, Loading..., 준비 중, 구현 예정, Sample Data, Lorem ipsum, 여기에 입력, TODO, 추후 업데이트. 이 문자열들이 최종 코드에 있으면 실패다.
 4. **레이아웃은 가로 방향 flex/grid를 기본으로 한다.** 서비스 타이틀이 세로로 깨지거나 요소가 한 줄에 하나씩 쌓이는 것은 심각한 결함이다.
-5. **모든 텍스트는 한국어로 작성한다.** UI, 목 데이터, placeholder, 토스트, 에러 메시지 전부 한국어.
+5. **모든 텍스트는 한국어로 작성한다.** UI, placeholder, 토스트, 에러 메시지 전부 한국어.
 
 ## 필수 CDN (항상 포함)
 
@@ -210,36 +215,66 @@ function _buildStage1SystemPrompt(): string {
 </div>
 \`\`\`
 
-## 목 데이터 작성 규칙 (★ 매우 중요)
+## API 호출 구현 규칙 (★ 가장 중요)
 
-JavaScript에서 배열로 최소 20개 이상 선언한다. 예시:
+모든 서비스는 반드시 실제 API를 호출하여 데이터를 가져와야 한다.
 
+### 인증 없는 공개 API (authType: 'none')
 \`\`\`javascript
-const mockData = [
-  {
-    id: 1,
-    title: '서울 강남구 인기 브런치 카페 TOP 10',
-    description: '주말 브런치를 즐기기 좋은 강남 카페를 소개합니다.',
-    category: '맛집',
-    author: '김서연',
-    date: '2026-03-28',
-    image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=600&h=400&fit=crop',
-    views: 12840,
-    likes: 342,
-    rating: 4.8,
-    tags: ['브런치', '카페', '강남'],
-  },
-  // ... 19개 더 (모두 현실적인 한국어 데이터)
-];
+document.addEventListener('DOMContentLoaded', async () => {
+  renderSkeletons(6); // 로딩 중 스켈레톤
+
+  try {
+    const res = await fetch('https://api.example.com/data?param=value');
+    if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
+    const data = await res.json();
+    const items = data.list ?? data.results ?? data.data ?? [];
+    renderCards(items);
+  } catch (err) {
+    showError('데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+    console.error(err);
+  }
+});
 \`\`\`
 
-필수 준수:
-- **이미지 URL**: \`https://images.unsplash.com/photo-{ID}?w={너비}&h={높이}&fit=crop\` 형식 사용. 콘텐츠와 관련된 실제 Unsplash 이미지 ID를 사용하라. 적절한 ID를 모르면 \`https://source.unsplash.com/{너비}x{높이}/?{콘텐츠키워드}\` 형식으로 키워드 기반 이미지를 사용하라. 예: 커피숍 → \`/?coffee,cafe\`, 날씨 → \`/?weather,sky\`, 여행 → \`/?travel,landscape\`. **picsum.photos는 사용 금지** (랜덤 이미지로 콘텐츠와 무관)
-- **날짜**: 최근 6개월 내 분산 (2025-10 ~ 2026-03)
-- **금액**: 한국 원화 (₩15,900 / ₩1,250,000)
-- **이름**: 한국 이름 (김서연, 박준혁, 이하은 등)
-- **내용**: 실제로 읽힐 만한 자연스러운 한국어 문장
-- Chart.js에 넣을 숫자 배열도 반드시 const로 선언 (빈 배열 금지)
+### 인증 필요 API (authType: 'api_key') — 서버 프록시 필수
+\`\`\`javascript
+document.addEventListener('DOMContentLoaded', async () => {
+  renderSkeletons(6);
+
+  try {
+    // apiId와 proxyPath는 아래 API 목록에서 확인
+    const res = await fetch('/api/v1/proxy?apiId=API_ID_HERE&proxyPath=/endpoint&param=value');
+    if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
+    const data = await res.json();
+    const items = data.articles ?? data.results ?? data.data ?? [];
+    renderCards(items);
+  } catch (err) {
+    showError('데이터를 불러오지 못했습니다.');
+  }
+});
+\`\`\`
+
+### 에러 상태 표시 (가데이터로 대체하지 말 것)
+\`\`\`javascript
+function showError(message) {
+  const container = document.getElementById('content');
+  container.innerHTML = \`
+    <div class="flex flex-col items-center justify-center py-20 text-center">
+      <div class="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6">
+        <i class="fas fa-exclamation-triangle text-3xl text-red-400"></i>
+      </div>
+      <h3 class="text-lg font-semibold text-gray-700 mb-2">데이터를 불러오지 못했습니다</h3>
+      <p class="text-sm text-gray-400 mb-6">\${message}</p>
+      <button onclick="location.reload()" class="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm">다시 시도</button>
+    </div>
+  \`;
+}
+\`\`\`
+
+### 이미지 URL
+API 응답에 이미지 URL이 없을 때만: \`https://source.unsplash.com/600x400/?{콘텐츠키워드}\`
+API 응답의 이미지 필드가 있으면 반드시 그것을 사용하라.
 
 ## 동적 화면 구현 패턴
 
@@ -248,7 +283,7 @@ const mockData = [
 // 탭 클릭 시 콘텐츠 교체 + 활성 탭 스타일 변경
 tabs.forEach(tab => tab.addEventListener('click', () => {
   const category = tab.dataset.category;
-  const filtered = category === 'all' ? mockData : mockData.filter(d => d.category === category);
+  const filtered = category === 'all' ? allItems : allItems.filter(d => d.category === category);
   renderCards(filtered);
   tabs.forEach(t => t.classList.remove('bg-blue-600', 'text-white'));
   tab.classList.add('bg-blue-600', 'text-white');
@@ -263,7 +298,7 @@ searchInput.addEventListener('input', (e) => {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     const query = e.target.value.toLowerCase();
-    const results = mockData.filter(d =>
+    const results = allItems.filter(d =>
       d.title.toLowerCase().includes(query) || d.description.toLowerCase().includes(query)
     );
     renderCards(results);
@@ -444,10 +479,13 @@ function showApiBanner() {
 반환 전에 아래 항목을 하나씩 확인하세요. 하나라도 실패하면 수정 후 반환:
 
 ### 콘텐츠 & 데이터
-□ 페이지를 열면 목 데이터가 즉시 보이는가? (빈 화면, "데이터가 없습니다" 없는가?)
-□ 목 데이터가 최소 15개 이상이고 현실적인 한국어인가?
-□ Chart.js에 실제 숫자가 들어있는가? (Chart.js가 불필요하면 포함하지 않았는가?)
-□ 모든 텍스트가 한국어인가? (UI, 목 데이터, placeholder 전부)
+□ DOMContentLoaded에서 즉시 fetch() 호출이 있는가?
+□ 하드코딩된 배열(const mockData = [...])이 없는가?
+□ API 응답 데이터를 파싱하여 DOM에 바인딩하는가?
+□ Placeholder blocklist 문자열이 없는가? (홍길동, test@example.com, Loading..., 준비 중 등)
+□ Chart.js 차트에 API 응답 숫자가 바인딩되어 있는가?
+□ 모든 텍스트가 한국어인가?
+□ API 실패 시 에러 Empty State가 표시되는가?
 
 ### 레이아웃 & 디자인
 □ 헤더/타이틀이 가로로 정상 배치되는가? (세로 깨짐 없는가?)
@@ -470,7 +508,7 @@ function showApiBanner() {
 □ 시맨틱 HTML을 사용하는가? (<main>, <nav>, <article>, <footer>)
 □ 모든 <img>에 한국어 alt 속성이 있는가?
 □ 아이콘만 있는 버튼에 aria-label이 있는가?
-□ API 호출 실패 시 목 데이터가 유지되는가?
+□ API 호출 실패 시 에러 Empty State가 표시되는가?
 
 ## 절대 금지
 
@@ -497,7 +535,7 @@ function showApiBanner() {
 - 콘텐츠와 무관한 이미지 (커피숍에 산 사진, 날씨에 인물 사진 등)
 
 ## [1단계 범위 안내]
-이 단계는 구조·레이아웃·기능·목 데이터에만 집중합니다.
+이 단계는 구조·레이아웃·실제 API 호출 구현에만 집중합니다.
 다음 항목은 2단계(디자인 강화)에서 자동 적용됩니다:
 - 디자인 시스템 (색상 테마, 글래스모피즘)
 - 페이지 진입 애니메이션 (@keyframes)
@@ -518,10 +556,14 @@ export function buildStage1UserPrompt(
   const apiDescriptions = apis
     .map((api, i) => {
       const endpoints = api.endpoints
-        .map(
-          (ep) =>
-            `  - ${ep.method} ${ep.path}: ${ep.description}\n    파라미터: ${JSON.stringify(ep.params)}\n    응답 예시: ${JSON.stringify(ep.responseExample)}`
-        )
+        .map((ep) => {
+          const paramStr = JSON.stringify(ep.params);
+          const responseStr = JSON.stringify(ep.responseExample).slice(0, 300);
+          const exampleBlock = ep.exampleCall
+            ? `\n    ★ exampleCall (그대로 사용하라):\n    \`\`\`javascript\n    ${ep.exampleCall.replace(/\n/g, '\n    ')}\n    \`\`\`\n    responseDataPath: ${ep.responseDataPath ?? '직접 탐색'}`
+            : '';
+          return `  - ${ep.method} ${ep.path}: ${ep.description}\n    파라미터: ${paramStr}\n    응답 예시: ${responseStr}${exampleBlock}`;
+        })
         .join('\n');
 
       const projectParam = projectId ? `&projectId=${projectId}` : '';
@@ -561,7 +603,7 @@ ${endpoints}`;
 - 추천 레이아웃: ${inference.layout}
 - 차트 필요: ${inference.useChart ? '예 (Chart.js CDN 포함)' : '아니오 (Chart.js 불필요)'}
 - 지도 필요: ${inference.useMap ? '예 (Leaflet CDN 포함)' : '아니오'}
-- 이미지 키워드: ${inference.imageKeywords.join(', ')} — 목 데이터의 이미지 URL에 이 키워드를 사용하라 (예: \`https://source.unsplash.com/600x400/?${inference.imageKeywords[0]}\`)
+- 이미지 키워드: ${inference.imageKeywords.join(', ')} — API 응답에 이미지가 없을 때 이 키워드로 Unsplash 이미지를 사용하라 (예: \`https://source.unsplash.com/600x400/?${inference.imageKeywords[0]}\`)
 ${hasUserPrefs ? `
 ### 사용자 선호도 (추천보다 우선)
 ${designPreferences.mood !== 'auto' ? `- 분위기: ${designPreferences.mood}` : ''}
@@ -584,8 +626,8 @@ ${designSection}
 
 - 모든 섹션은 위 API의 데이터 도메인과 직접 관련되어야 합니다
 - 허용 섹션 목록 외의 무관한 섹션 생성 금지
-- 플레이스홀더("테스트", "샘플 데이터", "Lorem ipsum") 대신 API 도메인에 맞는 구체적 한국어 데이터 사용
-- 목 데이터 필드명은 API 응답 예시(responseExample)의 필드와 일치시킬 것
+- 플레이스홀더("테스트", "샘플 데이터", "Lorem ipsum") 절대 사용 금지
+- API 응답 필드명은 responseExample에 표시된 필드와 일치시켜 파싱할 것
 
 ## 구현 지시
 
@@ -593,11 +635,11 @@ ${designSection}
 - 이 서비스의 핵심 가치와 타겟 사용자를 결정
 - 어울리는 디자인 테마(다크/라이트/따뜻한 톤) 선택
 
-### 2단계: 목 데이터 준비 (★ 최우선)
-- JavaScript 배열로 최소 20개의 현실적인 한국어 목 데이터 작성
-- 각 항목: id, title, description, image(Unsplash 키워드 기반), category, date, 수치 필드 등
-- Chart.js용 숫자 배열도 const로 선언 (절대 빈 배열 금지)
-- DOMContentLoaded에서 목 데이터로 즉시 렌더링 → 이후 API 비동기 호출
+### 2단계: API 호출 구현 (★ 최우선)
+- DOMContentLoaded에서 즉시 fetch()로 실제 API를 호출
+- 로딩 중 스켈레톤 UI 표시, 응답 도착 시 실제 데이터로 DOM 갱신
+- 응답 필드명은 위 API 목록의 responseExample 참고
+- API 실패 시 에러 Empty State 표시 (가데이터로 대체 절대 금지)
 
 ### 3단계: 레이아웃 구현
 - 고정 헤더 (backdrop-blur, 가로 flex)
@@ -631,7 +673,7 @@ ${designSection}
 
 ### JavaScript
 \`\`\`javascript
-(목 데이터 배열 + 렌더링 함수 + 이벤트 핸들러 + Chart.js + API 호출 + 라이브 시뮬레이션)
+(API fetch 호출 + 렌더링 함수 + 이벤트 핸들러 + Chart.js 바인딩 + 에러 처리 + 라이브 갱신)
 \`\`\``;
 }
 
