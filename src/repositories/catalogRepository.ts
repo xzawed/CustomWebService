@@ -107,8 +107,8 @@ export class CatalogRepository extends BaseRepository<ApiCatalogItem> implements
       creditRequired: row.credit_required != null ? Number(row.credit_required) : null,
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string,
-      verificationStatus: (row.verification_status ?? 'unverified') as ApiVerificationStatus | null,
-      verifiedAt: (row.verified_at as string) ?? null,
+      verificationStatus: (row.verification_status ?? 'unverified') as ApiVerificationStatus,
+      verifiedAt: row.verified_at != null ? (row.verified_at as string) : null,
       lastVerificationNote: (row.last_verification_note as string) ?? null,
     };
   }
