@@ -22,7 +22,6 @@ const AUDIENCE_OPTIONS: { value: DesignAudience; label: string }[] = [
 const LAYOUT_OPTIONS: { value: DesignLayout; label: string }[] = [
   { value: 'auto', label: '자동' },
   { value: 'dashboard', label: '대시보드' },
-  { value: 'gallery', label: '갤러리' },
   { value: 'feed', label: '피드/목록' },
   { value: 'landing', label: '랜딩페이지' },
   { value: 'tool', label: '도구/유틸리티' },

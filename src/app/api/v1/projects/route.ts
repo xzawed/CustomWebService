@@ -14,7 +14,7 @@ const createProjectSchema = z.object({
     .object({
       mood: z.enum(['auto', 'light', 'dark', 'warm', 'colorful', 'minimal']),
       audience: z.enum(['general', 'business', 'youth', 'premium']),
-      layoutPreference: z.enum(['auto', 'dashboard', 'gallery', 'feed', 'landing', 'tool']),
+      layoutPreference: z.enum(['auto', 'dashboard', 'feed', 'landing', 'tool']),
     })
     .optional(),
 });

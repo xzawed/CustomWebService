@@ -12,7 +12,7 @@ export type ProjectStatus =
 
 export type DesignMood = 'auto' | 'light' | 'dark' | 'warm' | 'colorful' | 'minimal';
 export type DesignAudience = 'general' | 'business' | 'youth' | 'premium';
-export type DesignLayout = 'auto' | 'dashboard' | 'gallery' | 'feed' | 'landing' | 'tool';
+export type DesignLayout = 'auto' | 'dashboard' | 'feed' | 'landing' | 'tool';
 
 export interface DesignPreferences {
   mood: DesignMood;

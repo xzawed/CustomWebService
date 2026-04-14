@@ -1,7 +1,6 @@
 import type { ICodeTemplate } from './ICodeTemplate';
 import { DashboardTemplate } from './DashboardTemplate';
 import { CalculatorTemplate } from './CalculatorTemplate';
-import { GalleryTemplate } from './GalleryTemplate';
 import { InfoLookupTemplate } from './InfoLookupTemplate';
 import { MapServiceTemplate } from './MapServiceTemplate';
 import { ContentFeedTemplate } from './ContentFeedTemplate';
@@ -17,7 +16,6 @@ class TemplateRegistryImpl {
   constructor() {
     this.register(new DashboardTemplate());
     this.register(new CalculatorTemplate());
-    this.register(new GalleryTemplate());
     this.register(new InfoLookupTemplate());
     this.register(new MapServiceTemplate());
     this.register(new ContentFeedTemplate());

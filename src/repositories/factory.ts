@@ -9,7 +9,6 @@ import type {
   IEventRepository,
   IRateLimitRepository,
   IUserApiKeyRepository,
-  IGalleryRepository,
 } from '@/repositories/interfaces';
 
 // Supabase implementations
@@ -18,7 +17,6 @@ import { UserRepository } from '@/repositories/userRepository';
 import { CodeRepository } from '@/repositories/codeRepository';
 import { CatalogRepository } from '@/repositories/catalogRepository';
 import { EventRepository } from '@/repositories/eventRepository';
-import { GalleryRepository } from '@/repositories/galleryRepository';
 import { SupabaseRateLimitRepository } from '@/repositories/supabaseRateLimitRepository';
 import { SupabaseUserApiKeyRepository } from '@/repositories/supabaseUserApiKeyRepository';
 
@@ -87,10 +85,4 @@ export function createUserApiKeyRepository(supabase?: SupabaseClient): IUserApiK
   }
   if (!supabase) throw new Error('Supabase 모드에서는 SupabaseClient가 필요합니다.');
   return new SupabaseUserApiKeyRepository(supabase);
-}
-
-export function createGalleryRepository(supabase?: SupabaseClient): IGalleryRepository {
-  // Gallery uses Supabase-specific features (RPC for likes, joins) — Drizzle not yet implemented
-  if (!supabase) throw new Error('Supabase 모드에서는 SupabaseClient가 필요합니다.');
-  return new GalleryRepository(supabase);
 }

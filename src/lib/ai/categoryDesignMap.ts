@@ -93,12 +93,12 @@ const CATEGORY_RULES: CategoryRule[] = [
   {
     categories: ['image'],
     theme: 'monochrome',
-    layout: 'gallery-masonry',
+    layout: 'hero-tabs-grid',
     useChart: false,
     useMap: false,
-    description: '이미지/갤러리 서비스 — 그리드 갤러리 + 필터 + 상세 모달',
-    allowedSections: ['갤러리 그리드', '카테고리 필터 바', '이미지 상세 모달', '인기/최신 탭', '이미지 정보 오버레이'],
-    imageKeywords: ['photography', 'art', 'gallery', 'creative', 'design'],
+    description: '이미지 서비스 — 카드 그리드 + 필터 + 상세 모달',
+    allowedSections: ['카드 그리드', '카테고리 필터 바', '이미지 상세 모달', '인기/최신 탭', '이미지 정보 오버레이'],
+    imageKeywords: ['photography', 'art', 'creative', 'design'],
   },
   {
     categories: ['utility', 'dictionary', 'translation'],
