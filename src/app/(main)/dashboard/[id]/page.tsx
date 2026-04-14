@@ -7,6 +7,7 @@ import { createCodeRepository } from '@/repositories/factory';
 import { redirect, notFound } from 'next/navigation';
 import type { ProjectStatus } from '@/types/project';
 import { ProjectPublishActions } from '@/components/dashboard/ProjectPublishActions';
+import { RePromptSection } from '@/components/dashboard/RePromptSection';
 
 export const dynamic = 'force-dynamic';
 
@@ -137,6 +138,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         project.status === 'unpublished') && (
         <section className="mb-8">
           <ProjectPublishActions project={project} />
+        </section>
+      )}
+
+      {/* Reprompt */}
+      {latestCode && ['generated', 'deployed', 'published', 'unpublished'].includes(project.status) && (
+        <section className="mb-8">
+          <RePromptSection projectId={project.id} currentVersion={latestCode.version} />
         </section>
       )}
 
