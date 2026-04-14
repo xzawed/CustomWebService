@@ -12,7 +12,7 @@ vi.mock('@/lib/ai/codeParser', () => ({
 }));
 vi.mock('@/lib/ai/codeValidator', () => ({
   validateAll: vi.fn(() => ({ passed: true, errors: [], warnings: [] })),
-  evaluateQuality: vi.fn(() => ({ structuralScore: 80, mobileScore: 80 })),
+  evaluateQuality: vi.fn(() => ({ structuralScore: 80, mobileScore: 80, details: [] })),
 }));
 vi.mock('@/lib/ai/qualityLoop', () => ({
   shouldRetryGeneration: vi.fn(() => false),
@@ -82,11 +82,13 @@ const makeInput = (): PipelineInput => ({
   apis: [],
   stage1SystemPrompt: 'stage1-system',
   stage1UserPrompt: 'stage1-user',
+  stage2FunctionSystemPrompt: 'stage2-function-system',
+  buildStage2FunctionUserPrompt: (code, _staticIssues, _qcIssues) => `stage2-function-user html=${code.html}`,
   stage2SystemPrompt: 'stage2-system',
   buildStage2UserPrompt: (code) => `stage2-user html=${code.html}`,
 });
 
-describe('runGenerationPipeline (2-stage)', () => {
+describe('runGenerationPipeline (3-stage)', () => {
   let mockAiProvider: ReturnType<typeof makeAiProvider>;
 
   beforeEach(() => {
@@ -95,9 +97,9 @@ describe('runGenerationPipeline (2-stage)', () => {
     vi.mocked(AiProviderFactory.createForTask).mockReturnValue(mockAiProvider as unknown as ReturnType<typeof AiProviderFactory.createForTask>);
   });
 
-  it('generateCodeStream을 정확히 2번 호출한다', async () => {
+  it('generateCodeStream을 정확히 3번 호출한다', async () => {
     await runGenerationPipeline(makeInput(), makeSse(), makeServices());
-    expect(mockAiProvider.generateCodeStream).toHaveBeenCalledTimes(2);
+    expect(mockAiProvider.generateCodeStream).toHaveBeenCalledTimes(3);
   });
 
   it('1번째 호출은 stage1 프롬프트를 사용한다', async () => {
@@ -109,16 +111,25 @@ describe('runGenerationPipeline (2-stage)', () => {
     );
   });
 
-  it('2번째 호출은 stage2 프롬프트를 사용한다', async () => {
+  it('2번째 호출은 stage2 기능검증 프롬프트를 사용한다', async () => {
     await runGenerationPipeline(makeInput(), makeSse(), makeServices());
     expect(mockAiProvider.generateCodeStream).toHaveBeenNthCalledWith(
       2,
+      expect.objectContaining({ system: 'stage2-function-system' }),
+      expect.any(Function),
+    );
+  });
+
+  it('3번째 호출은 stage3 디자인 프롬프트를 사용한다', async () => {
+    await runGenerationPipeline(makeInput(), makeSse(), makeServices());
+    expect(mockAiProvider.generateCodeStream).toHaveBeenNthCalledWith(
+      3,
       expect.objectContaining({ system: 'stage2-system' }),
       expect.any(Function),
     );
   });
 
-  it('stage1_generating → stage1_complete → stage2_generating 순서로 progress 이벤트를 전송한다', async () => {
+  it('stage1_generating → stage1_complete → stage2_function_generating → stage3_generating 순서로 progress 이벤트를 전송한다', async () => {
     const sse = makeSse();
     await runGenerationPipeline(makeInput(), sse, makeServices());
     const steps = (sse.send as ReturnType<typeof vi.fn>).mock.calls
@@ -126,13 +137,15 @@ describe('runGenerationPipeline (2-stage)', () => {
       .map((c: unknown[]) => (c[1] as { step: string }).step);
     const s1Idx = steps.indexOf('stage1_generating');
     const s1cIdx = steps.indexOf('stage1_complete');
-    const s2Idx = steps.indexOf('stage2_generating');
+    const s2fIdx = steps.indexOf('stage2_function_generating');
+    const s3Idx = steps.indexOf('stage3_generating');
     expect(s1Idx).toBeGreaterThanOrEqual(0);
     expect(s1cIdx).toBeGreaterThan(s1Idx);
-    expect(s2Idx).toBeGreaterThan(s1cIdx);
+    expect(s2fIdx).toBeGreaterThan(s1cIdx);
+    expect(s3Idx).toBeGreaterThan(s2fIdx);
   });
 
-  it('buildStage2UserPrompt 콜백이 stage1 출력을 받아 호출된다', async () => {
+  it('buildStage2UserPrompt 콜백이 stage2Function 출력을 받아 호출된다', async () => {
     const buildStage2UserPrompt = vi.fn().mockReturnValue('stage2-user-prompt');
     const input = { ...makeInput(), buildStage2UserPrompt };
     await runGenerationPipeline(input, makeSse(), makeServices());

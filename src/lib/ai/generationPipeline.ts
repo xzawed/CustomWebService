@@ -33,15 +33,24 @@ export interface PipelineInput {
   stage1SystemPrompt: string;
   /** Stage 1 (구조·기능) 유저 프롬프트 */
   stage1UserPrompt: string;
-  /** Stage 2 (디자인·폴리시) 시스템 프롬프트 */
+  /** Stage 2 (기능 검증) 시스템 프롬프트 */
+  stage2FunctionSystemPrompt: string;
+  /**
+   * Stage 2 기능 검증 유저 프롬프트 빌더.
+   * Receives stage1Code + QC issues.
+   */
+  buildStage2FunctionUserPrompt: (
+    stage1Code: { html: string; css: string; js: string },
+    staticQcIssues: string[],
+    fastQcIssues: string[] | null,
+  ) => string;
+  /** Stage 3 (디자인·폴리시) 시스템 프롬프트 */
   stage2SystemPrompt: string;
   /**
-   * Stage 2 유저 프롬프트 빌더 — pipeline 내부에서 stage1 결과를 받아 호출된다.
-   * generate: buildStage2UserPrompt(stage1Code)
-   * regenerate: buildStage2RegenerationUserPrompt(stage1Code, feedback)
+   * Stage 3 유저 프롬프트 빌더.
    */
   buildStage2UserPrompt: (stage1Code: { html: string; css: string; js: string }) => string;
-  /** 코드 메타데이터에 병합할 추가 필드 (예: { userFeedback }) */
+  /** 코드 메타데이터에 병합할 추가 필드 */
   extraMetadata?: Record<string, unknown>;
 }
 
@@ -186,7 +195,7 @@ async function runStage1(
       const now = Date.now();
       if (now - lastProgressUpdate < 500) return;
       lastProgressUpdate = now;
-      const estimatedProgress = Math.min(40, 5 + Math.floor((accumulated.length / 15000) * 35));
+      const estimatedProgress = Math.min(28, 5 + Math.floor((accumulated.length / 15000) * 23));
       const elapsed = Math.floor((now - streamStartTime) / 1000);
       sse.send('progress', {
         step: 'stage1_generating',
@@ -197,6 +206,54 @@ async function runStage1(
   );
 
   return parseGeneratedCode(response.content);
+}
+
+async function runStage2Function(
+  stage1Code: { html: string; css: string; js: string },
+  systemPrompt: string,
+  buildUserPrompt: (
+    code: { html: string; css: string; js: string },
+    staticIssues: string[],
+    qcIssues: string[] | null,
+  ) => string,
+  staticQcIssues: string[],
+  fastQcIssues: string[] | null,
+  aiProvider: IAiProvider,
+  sse: SseWriter,
+): Promise<{
+  parsed: { html: string; css: string; js: string };
+  durationMs: number;
+  tokensUsed: { input: number; output: number };
+}> {
+  sse.send('progress', { step: 'stage1_complete', progress: 30, message: '구조 완성. 기능 검증 중...' });
+  sse.send('progress', { step: 'stage2_function_generating', progress: 35, message: '2단계: 기능 버그 수정 중...' });
+
+  const userPrompt = buildUserPrompt(stage1Code, staticQcIssues, fastQcIssues);
+  let lastProgressUpdate = Date.now();
+  const streamStartTime = Date.now();
+
+  const response = await aiProvider.generateCodeStream(
+    { system: systemPrompt, user: userPrompt },
+    (_chunk: string, accumulated: string) => {
+      if (sse.isCancelled()) return;
+      const now = Date.now();
+      if (now - lastProgressUpdate < 500) return;
+      lastProgressUpdate = now;
+      const estimatedProgress = Math.min(62, 35 + Math.floor((accumulated.length / 10000) * 27));
+      const elapsed = Math.floor((now - streamStartTime) / 1000);
+      sse.send('progress', {
+        step: 'stage2_function_generating',
+        progress: estimatedProgress,
+        message: `2단계: 기능 버그 수정 중... (${elapsed}초 경과)`,
+      });
+    },
+  );
+
+  return {
+    parsed: parseGeneratedCode(response.content),
+    durationMs: response.durationMs,
+    tokensUsed: response.tokensUsed,
+  };
 }
 
 async function runStage2(
@@ -213,8 +270,8 @@ async function runStage2(
   tokensUsed: { input: number; output: number };
   userPromptUsed: string;
 }> {
-  sse.send('progress', { step: 'stage1_complete', progress: 45, message: '구조 완성. 디자인 적용 준비 중...' });
-  sse.send('progress', { step: 'stage2_generating', progress: 50, message: '2단계: 디자인 및 인터랙션 적용 중...' });
+  sse.send('progress', { step: 'stage2_function_complete', progress: 65, message: '기능 검증 완성. 디자인 적용 중...' });
+  sse.send('progress', { step: 'stage3_generating', progress: 68, message: '3단계: 디자인 및 인터랙션 적용 중...' });
 
   const userPrompt = buildUserPrompt(stage1Code);
 
@@ -228,12 +285,12 @@ async function runStage2(
       const now = Date.now();
       if (now - lastProgressUpdate < 500) return;
       lastProgressUpdate = now;
-      const estimatedProgress = Math.min(82, 50 + Math.floor((accumulated.length / 15000) * 32));
+      const estimatedProgress = Math.min(82, 68 + Math.floor((accumulated.length / 15000) * 14));
       const elapsed = Math.floor((now - streamStartTime) / 1000);
       sse.send('progress', {
-        step: 'stage2_generating',
+        step: 'stage3_generating',
         progress: estimatedProgress,
-        message: `2단계: 디자인 및 인터랙션 적용 중... (${elapsed}초 경과, ${(accumulated.length / 1024).toFixed(1)}KB)`,
+        message: `3단계: 디자인 및 인터랙션 적용 중... (${elapsed}초 경과, ${(accumulated.length / 1024).toFixed(1)}KB)`,
       });
     },
   );
@@ -263,6 +320,8 @@ export async function runGenerationPipeline(
 
   const stage1SystemPrompt = input.stage1SystemPrompt;
   const stage1UserPrompt = input.stage1UserPrompt;
+  const stage2FunctionSystemPrompt = input.stage2FunctionSystemPrompt;
+  const buildStage2FunctionUserPromptFn = input.buildStage2FunctionUserPrompt;
   const stage2SystemPrompt = input.stage2SystemPrompt;
   const buildStage2UserPrompt = input.buildStage2UserPrompt;
 
@@ -280,7 +339,7 @@ export async function runGenerationPipeline(
     }
     const aiProvider: IAiProvider = aiProviderInit;
 
-    // Stage 1: 구조·기능 생성
+    // Stage 1: 구조·기능 생성 (0→30%)
     const stage1Code = await runStage1(
       stage1SystemPrompt,
       stage1UserPrompt,
@@ -290,9 +349,50 @@ export async function runGenerationPipeline(
 
     if (sse.isCancelled()) return;
 
-    // Stage 2: 디자인·폴리시 적용
-    const stage2Result = await runStage2(
+    // Stage 1 정적 QC — stage2Function에 전달
+    const stage1Validation = validateAll(stage1Code.html, stage1Code.css, stage1Code.js);
+    const stage1Quality = evaluateQuality(stage1Code.html, stage1Code.css, stage1Code.js);
+    const staticQcIssues: string[] = [
+      ...stage1Validation.warnings,
+      ...stage1Quality.details,
+      ...(((stage1Quality as { fetchCallCount?: number }).fetchCallCount ?? 1) === 0
+        ? ['fetch() 호출이 없습니다 — 반드시 API 호출 추가']
+        : []),
+      ...(((stage1Quality as { placeholderCount?: number }).placeholderCount ?? 0) > 0
+        ? [`Placeholder 감지 (${(stage1Quality as { placeholderCount?: number }).placeholderCount}개): 홍길동, 준비 중 등 제거 필요`]
+        : []),
+    ];
+
+    // Stage 1 Fast QC (기능 문제 감지용)
+    let stage1FastQcIssues: string[] | null = null;
+    if (isQcEnabled()) {
+      const assembled = safeAssembleHtml(stage1Code);
+      if (assembled) {
+        try {
+          const report = await runFastQc(assembled);
+          stage1FastQcIssues = report?.checks.filter(c => !c.passed).map(c => c.name) ?? null;
+        } catch {
+          // Fast QC 실패해도 계속 진행
+        }
+      }
+    }
+
+    // Stage 2: 기능 검증 (30→65%)
+    const stage2FunctionResult = await runStage2Function(
       stage1Code,
+      stage2FunctionSystemPrompt,
+      buildStage2FunctionUserPromptFn,
+      staticQcIssues,
+      stage1FastQcIssues,
+      aiProvider,
+      sse,
+    );
+
+    if (sse.isCancelled()) return;
+
+    // Stage 3: 디자인·폴리시 적용 (65→90%)
+    const stage3Result = await runStage2(
+      stage2FunctionResult.parsed,
       stage2SystemPrompt,
       buildStage2UserPrompt,
       aiProvider,
@@ -303,12 +403,15 @@ export async function runGenerationPipeline(
 
     sse.send('progress', { step: 'validating', progress: 85, message: '코드 검증 중...' });
 
-    let parsed = stage2Result.parsed;
+    let parsed = stage3Result.parsed;
     const stage2Response = {
-      provider: stage2Result.provider,
-      model: stage2Result.model,
-      durationMs: stage2Result.durationMs,
-      tokensUsed: stage2Result.tokensUsed,
+      provider: stage3Result.provider,
+      model: stage3Result.model,
+      durationMs: stage3Result.durationMs + stage2FunctionResult.durationMs,
+      tokensUsed: {
+        input: stage3Result.tokensUsed.input + stage2FunctionResult.tokensUsed.input,
+        output: stage3Result.tokensUsed.output + stage2FunctionResult.tokensUsed.output,
+      },
     };
 
     const validation = validateAll(parsed.html, parsed.css, parsed.js);
@@ -428,7 +531,7 @@ export async function runGenerationPipeline(
       framework: 'vanilla',
       aiProvider: stage2Response.provider,
       aiModel: stage2Response.model,
-      aiPromptUsed: stage2Result.userPromptUsed,
+      aiPromptUsed: stage3Result.userPromptUsed,
       generationTimeMs: stage2Response.durationMs,
       tokenUsage: stage2Response.tokensUsed,
       dependencies: [],

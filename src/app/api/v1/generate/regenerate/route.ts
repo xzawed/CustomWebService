@@ -8,6 +8,8 @@ import {
   buildStage1RegenerationUserPrompt,
   buildStage2SystemPrompt,
   buildStage2RegenerationUserPrompt,
+  buildStage2FunctionSystemPrompt,
+  buildStage2FunctionRegenerationUserPrompt,
 } from '@/lib/ai/promptBuilder';
 import { getCorrelationId } from '@/lib/utils/correlationId';
 import {
@@ -97,6 +99,9 @@ export async function POST(request: Request): Promise<Response> {
             apis: projectApis,
             stage1SystemPrompt,
             stage1UserPrompt,
+            stage2FunctionSystemPrompt: buildStage2FunctionSystemPrompt(),
+            buildStage2FunctionUserPrompt: (stage1Code, staticIssues, qcIssues) =>
+              buildStage2FunctionRegenerationUserPrompt(stage1Code, staticIssues, qcIssues, feedback),
             stage2SystemPrompt,
             buildStage2UserPrompt: (stage1Code) => buildStage2RegenerationUserPrompt(stage1Code, feedback),
             extraMetadata: { userFeedback: feedback },

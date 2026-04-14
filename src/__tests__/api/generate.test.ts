@@ -31,6 +31,8 @@ vi.mock('@/providers/ai/AiProviderFactory', () => ({
 vi.mock('@/lib/ai/promptBuilder', () => ({
   buildStage1SystemPrompt: vi.fn().mockReturnValue('system prompt'),
   buildStage1UserPrompt: vi.fn().mockReturnValue('user prompt'),
+  buildStage2FunctionSystemPrompt: vi.fn().mockReturnValue('stage2 function system prompt'),
+  buildStage2FunctionUserPrompt: vi.fn().mockReturnValue('stage2 function user prompt'),
   buildStage2SystemPrompt: vi.fn().mockReturnValue('stage2 system prompt'),
   buildStage2UserPrompt: vi.fn().mockReturnValue('stage2 user prompt'),
 }));

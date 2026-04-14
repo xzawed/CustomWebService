@@ -8,6 +8,7 @@ let cachedStage1SystemPrompt: string | null = null;
 export function clearPromptCache(): void {
   cachedStage1SystemPrompt = null;
   cachedStage2SystemPrompt = null; // declared further below; accessible via closure at call time
+  cachedStage2FunctionSystemPrompt = null; // declared further below; accessible via closure at call time
 }
 
 export function buildStage1SystemPrompt(templateHint?: string): string {
@@ -1055,4 +1056,99 @@ ${stage1Code.js}
 \`\`\`javascript
 (기존 기능 그대로, 시각 폴리시 함수 추가)
 \`\`\``;
+}
+
+// ─── Stage 2 Function Verification 시스템 프롬프트 ───────────────────────────
+
+let cachedStage2FunctionSystemPrompt: string | null = null;
+
+export function buildStage2FunctionSystemPrompt(): string {
+  return cachedStage2FunctionSystemPrompt ?? (cachedStage2FunctionSystemPrompt = _buildStage2FunctionSystemPrompt());
+}
+
+function _buildStage2FunctionSystemPrompt(): string {
+  return `당신은 1단계에서 생성된 웹서비스 코드의 기능 버그를 수정하는 JavaScript 전문가입니다.
+
+## 핵심 규칙 (위반 시 실패)
+
+1. **JavaScript 로직만 수정한다.** CSS, 디자인 변경 금지. HTML 구조, 클래스 이름은 절대 변경하지 않는다.
+2. **fetch() 호출이 없으면 반드시 추가한다.** 아래 API 호출 지시를 따른다.
+3. **Placeholder 문자열을 제거한다.** 다음 문자열이 JS 코드나 렌더링된 HTML에 있으면 삭제: 홍길동, 김철수, 이영희, test@example.com, user@test.com, Loading..., 준비 중, 구현 예정, Sample Data, Lorem ipsum.
+4. **응답 데이터 파싱이 잘못되어 있으면 수정한다.** \`data.items\`가 undefined인 경우 올바른 path로 교체한다.
+5. **이벤트 핸들러 JS 버그를 수정한다.** 버튼 클릭이 동작하지 않는 경우, querySelector 오류 등.
+6. **전체 코드를 HTML / CSS / JavaScript 형식으로 반환한다.**
+
+## 허용 작업
+
+- fetch() 추가/수정
+- 응답 JSON 파싱 경로 수정 (data.X, data.Y.Z 등)
+- 이벤트 핸들러 버그 수정
+- placeholder 문자열 제거
+- renderCards/renderList 함수 수정
+- DOMContentLoaded 내 로직 수정
+
+## 금지 작업
+
+- CSS 클래스 추가/제거/변경
+- HTML 태그 추가/제거
+- 섹션 재설계
+- 색상, 폰트, 레이아웃 변경
+- 이미 동작하는 기능 수정`;
+}
+
+// ─── Stage 2 Function Verification 유저 프롬프트 ────────────────────────────
+
+export function buildStage2FunctionUserPrompt(
+  stage1Code: { html: string; css: string; js: string },
+  staticQcIssues: string[],
+  fastQcIssues: string[] | null,
+): string {
+  const issueBlock = staticQcIssues.length > 0 || (fastQcIssues && fastQcIssues.length > 0)
+    ? `## 발견된 문제 (반드시 수정)\n\n${staticQcIssues.map(i => `- [정적 검사] ${i}`).join('\n')}\n${fastQcIssues ? fastQcIssues.map(i => `- [브라우저 QC] ${i}`).join('\n') : ''}\n`
+    : '## 문제 없음 — 코드를 그대로 반환하세요\n\n';
+
+  return `${issueBlock}
+## 1단계 생성 코드
+
+### HTML
+\`\`\`html
+${stage1Code.html}
+\`\`\`
+
+### CSS
+\`\`\`css
+${stage1Code.css}
+\`\`\`
+
+### JavaScript
+\`\`\`javascript
+${stage1Code.js}
+\`\`\`
+
+위 문제를 JavaScript 코드만 수정하여 전체 코드를 반환하세요:
+
+### HTML
+\`\`\`html
+(HTML — 변경하지 말 것, 그대로 반환)
+\`\`\`
+
+### CSS
+\`\`\`css
+(CSS — 변경하지 말 것, 그대로 반환)
+\`\`\`
+
+### JavaScript
+\`\`\`javascript
+(수정된 JavaScript 코드)
+\`\`\``;
+}
+
+export function buildStage2FunctionRegenerationUserPrompt(
+  stage1Code: { html: string; css: string; js: string },
+  staticQcIssues: string[],
+  fastQcIssues: string[] | null,
+  feedback: string,
+): string {
+  return buildStage2FunctionUserPrompt(stage1Code, staticQcIssues, fastQcIssues) +
+    `\n\n## 사용자 피드백 (기능 관련 부분만 반영)\n${feedback}`;
 }

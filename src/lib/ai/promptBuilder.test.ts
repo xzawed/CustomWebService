@@ -180,3 +180,29 @@ describe('buildStage1UserPrompt — exampleCall injection', () => {
     expect(prompt).toContain('responseDataPath: current');
   });
 });
+
+import { buildStage2FunctionSystemPrompt, buildStage2FunctionUserPrompt } from './promptBuilder';
+
+describe('buildStage2FunctionSystemPrompt', () => {
+  it('instructs JS-only fixes', () => {
+    const prompt = buildStage2FunctionSystemPrompt();
+    expect(prompt).toMatch(/JavaScript.*수정|JS.*버그/i);
+    expect(prompt).toMatch(/CSS.*변경.*금지|디자인.*변경.*금지/i);
+  });
+
+  it('includes placeholder removal instruction', () => {
+    const prompt = buildStage2FunctionSystemPrompt();
+    expect(prompt).toContain('홍길동');
+    expect(prompt).toContain('준비 중');
+  });
+});
+
+describe('buildStage2FunctionUserPrompt', () => {
+  it('embeds QC issues in the prompt', () => {
+    const code = { html: '<html>', css: '', js: 'console.log("hi")' };
+    const staticIssues = ['fetch 호출이 없습니다', 'placeholder 감지: 준비 중'];
+    const prompt = buildStage2FunctionUserPrompt(code, staticIssues, null);
+    expect(prompt).toContain('fetch 호출이 없습니다');
+    expect(prompt).toContain('placeholder 감지: 준비 중');
+  });
+});

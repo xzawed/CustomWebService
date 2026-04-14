@@ -9,6 +9,8 @@ import {
   buildStage1UserPrompt,
   buildStage2SystemPrompt,
   buildStage2UserPrompt,
+  buildStage2FunctionSystemPrompt,
+  buildStage2FunctionUserPrompt,
 } from '@/lib/ai/promptBuilder';
 import { getCorrelationId } from '@/lib/utils/correlationId';
 import { AuthRequiredError, ValidationError, handleApiError } from '@/lib/utils/errors';
@@ -85,6 +87,9 @@ export async function POST(request: Request): Promise<Response> {
             apis,
             stage1SystemPrompt,
             stage1UserPrompt,
+            stage2FunctionSystemPrompt: buildStage2FunctionSystemPrompt(),
+            buildStage2FunctionUserPrompt: (stage1Code, staticIssues, qcIssues) =>
+              buildStage2FunctionUserPrompt(stage1Code, staticIssues, qcIssues),
             stage2SystemPrompt,
             buildStage2UserPrompt,
           },
