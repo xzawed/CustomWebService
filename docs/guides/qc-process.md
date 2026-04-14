@@ -28,16 +28,17 @@
 
 ### Stage 2: 코드 품질 평가 (점수)
 
-14개 정적 체크로 0-100 점수 산출:
+16개 정적 체크로 0-100 점수 산출:
 
 | 영역 | 체크 항목 |
 |------|----------|
 | 구조 | 시맨틱 HTML, 푸터, 그리드/플렉스 레이아웃 |
-| 데이터 | 목 데이터 배열, DOMContentLoaded, 이벤트 리스너 2개+ |
+| API 바인딩 | fetch 호출 존재(+1), JSON 파싱(+1), placeholder 없음(+1) |
 | 반응형 | 반응형 클래스 존재, 밀도 8개+, 모바일 네비게이션 패턴 |
 | 안전성 | 위험한 고정 너비 없음, 이미지 오버플로우 보호 |
 | 품질 | 이미지 alt, 트랜지션/애니메이션, 한국어 텍스트 |
 
+**주요 메트릭**: `fetchCallCount`, `hasProxyCall`, `hasJsonParse`, `placeholderCount`  
 **결과**: `structuralScore` (0-100), `mobileScore` (0-100)  
 **담당**: `codeValidator.evaluateQuality()`
 
@@ -51,18 +52,21 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 | 가로 스크롤 | 375px | scrollWidth ≤ clientWidth |
 | 푸터 가시성 | 375px | `<footer>` 존재 + visible |
 | 레이아웃 겹침 | 375px | header/main/footer 비겹침 |
+| **placeholder 없음** | 375px | DOM 텍스트에 placeholder 문자열 미존재 |
 
 **통과 기준**: overallScore ≥ 60  
 **타임아웃**: 3초 (초과 시 경고 후 진행)  
 **환경변수**: `ENABLE_RENDERING_QC=true`  
 **담당**: `renderingQc.runFastQc()`
 
-### Stage 4: 이슈 판단 → 자동 재생성 (최대 2회)
+### Stage 4: 이슈 판단 → 자동 재생성 (최대 3회)
 
 아래 조건 중 하나라도 해당하면 자동 재생성:
 
 | 조건 | 임계값 |
 |------|--------|
+| fetch 호출 없음 | fetchCallCount === 0 |
+| placeholder 존재 | placeholderCount > 0 |
 | 구조 점수 미달 | structuralScore < 60 |
 | 모바일 점수 미달 | mobileScore < 60 |
 | JS 콘솔 에러 감지 | consoleErrors.passed === false |
@@ -98,11 +102,14 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 
 | 체크 | 뷰포트 | 통과 기준 |
 |------|--------|----------|
-| Fast QC 4개 | 375px | 위와 동일 |
+| Fast QC 5개 | 375px | 위와 동일 (placeholder 체크 포함) |
 | 이미지 로딩 | 전체 | 모든 `<img>` naturalWidth > 0 |
 | 터치 타겟 | 전체 | 버튼/링크 44px 이상 |
 | 반응형 브레이크포인트 | 375/768/1280 | 가로 스크롤 없음 |
 | 접근성 | 전체 | h1 존재, 제목 순서, main 존재 |
+| **인터랙티브 동작** | 전체 | 버튼 클릭 → DOM 변화 감지 |
+| **네트워크 활동** | 전체 | 외부 API 요청 1건 이상 캡처 |
+| **로딩 상태 해소** | 전체 | 로딩 스켈레톤이 3초 이내 사라짐 |
 
 **결과**: DB 메타데이터 업데이트 (Fast QC 결과를 덮어씀)  
 **통과 기준**: overallScore ≥ 50
@@ -135,7 +142,7 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 | Fast QC 타임아웃 | 3초 | — | 초과 시 null 반환, 진행 |
 | Deep QC 타임아웃 | 10초 | — | 초과 시 null 반환, 진행 |
 | 렌더링 QC 활성화 | false | `ENABLE_RENDERING_QC` | true로 설정 시 활성화 — Railway 활성화 전 Dockerfile 수정 필요 |
-| 최대 재생성 횟수 | 2회 | — | 품질 루프 최대 2회 |
+| 최대 재생성 횟수 | 3회 | — | 품질 루프 최대 3회 |
 
 ---
 
@@ -191,3 +198,4 @@ RUN npx playwright install chromium --with-deps
 | 2026-04-04 | 초안 작성 — Phase 1(코드 레벨) + Phase 2(렌더링 QC) + 격차 해소 |
 | 2026-04-05 | 임계값 40→60, 재시도 최대 2회, Deep QC 조건부 실행, 푸터/레이아웃 체크 추가 |
 | 2026-04-12 | Railway 활성화 가이드 추가 (Dockerfile 수정 방법, 메모리 요구사항) |
+| 2026-04-14 | 품질 대개편: API 바인딩 메트릭 추가(fetchCallCount/hasProxyCall/hasJsonParse/placeholderCount), Fast QC +1 체크(placeholder), Deep QC +3 체크(인터랙티브/네트워크/로딩), 최대 재생성 2→3회 |

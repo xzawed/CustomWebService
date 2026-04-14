@@ -1,15 +1,34 @@
 // scripts/verifyCatalog.ts
-// Run: npx tsx scripts/verifyCatalog.ts > verification-report.json
-// Requires: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local
+// Run: npx tsx scripts/verifyCatalog.ts
+// Reads .env.local automatically — no shell env setup needed
 
 import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
+import * as path from 'path';
+
+// Auto-load .env.local (handles UTF-8 BOM and CRLF line endings)
+const envPath = path.resolve(process.cwd(), '.env.local');
+if (fs.existsSync(envPath)) {
+  const lines = fs.readFileSync(envPath, 'utf-8')
+    .replace(/^\uFEFF/, '')   // strip BOM
+    .replace(/\r/g, '')       // strip CR
+    .split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+    if (key && !process.env[key]) process.env[key] = val;
+  }
+}
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local');
   process.exit(1);
 }
 
@@ -39,15 +58,18 @@ interface ApiResult {
 
 async function testEndpoint(
   api: { id: string; baseUrl: string; authType: string; requiresProxy: boolean },
-  endpoint: { path: string; method: string; params: Array<{ name: string; required: boolean; defaultValue?: string }> }
+  endpoint: { path: string; method: string; params?: unknown }
 ): Promise<EndpointResult> {
   if (endpoint.method !== 'GET') {
     return { path: endpoint.path, method: endpoint.method, status: 'skipped' };
   }
 
+  const paramList: Array<{ name: string; required: boolean; defaultValue?: string }> =
+    Array.isArray(endpoint.params) ? endpoint.params : [];
+
   // Build URL with default params
   const params = new URLSearchParams();
-  for (const p of endpoint.params) {
+  for (const p of paramList) {
     if (p.required || p.defaultValue) {
       params.set(p.name, p.defaultValue ?? 'test');
     }
@@ -118,7 +140,7 @@ async function main() {
 
   for (const api of apis) {
     const endpoints: EndpointResult[] = [];
-    const eps = (api.endpoints as Array<{ path: string; method: string; params: Array<{ name: string; required: boolean; defaultValue?: string }> }>) ?? [];
+    const eps = (api.endpoints as Array<{ path: string; method: string; params?: unknown }>) ?? [];
 
     for (const ep of eps.slice(0, 3)) { // Test up to 3 endpoints per API
       process.stderr.write(`Testing ${api.name} ${ep.method} ${ep.path}...\n`);

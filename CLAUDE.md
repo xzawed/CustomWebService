@@ -117,7 +117,7 @@ pnpm test:coverage    # 커버리지 리포트
 | 배포/운영 작업 | [docs/guides/deployment.md](docs/guides/deployment.md) |
 | DB/Auth Provider 전환 | [docs/decisions/provider-migration.md](docs/decisions/provider-migration.md) |
 | 설계 결정 배경 | [docs/decisions/](docs/decisions/) |
-| 2단계 생성 파이프라인 설계 | [docs/superpowers/specs/2026-04-14-two-stage-generation-design.md](docs/superpowers/specs/2026-04-14-two-stage-generation-design.md) |
+| 3단계 생성 파이프라인 설계 | [docs/superpowers/specs/2026-04-14-two-stage-generation-design.md](docs/superpowers/specs/2026-04-14-two-stage-generation-design.md) |
 
 - [README.md](README.md) — 프로젝트 전체 개요
 - [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) — PR 템플릿
@@ -145,8 +145,8 @@ pnpm test:coverage    # 커버리지 리포트
 - 모든 코드 생성/재생성은 `docs/guides/qc-process.md`의 8단계를 동일하게 거침
 - 보안 검증 → 코드 품질 → Fast QC → 자동 재생성 → 재검증 → 저장 → Deep QC → 사용자 알림
 - QC 파이프라인 핵심 파일: `src/lib/ai/generationPipeline.ts` (공통 파이프라인, Phase 5에서 추출)
-- 생성 파이프라인은 2단계: Stage 1(구조·기능, 0→45%) → Stage 2(디자인·폴리시, 45→90%)
-- QC·저장은 Stage 2 결과에만 적용; Stage 1 출력은 중간 산출물로 DB 저장 안 함
+- 생성 파이프라인은 3단계: Stage 1(구조·API 호출, 0→30%) → Stage 2(기능 검증, 30→65%) → Stage 3(디자인 폴리시, 65→90%)
+- QC·저장은 Stage 3 결과에만 적용; Stage 1/2 출력은 중간 산출물로 DB 저장 안 함
 - QC 관련 로직 수정 시 `generationPipeline.ts` 중심으로 수정하면 generate/regenerate 양쪽에 동시 반영됨
 
 ### Edge Runtime 호환성 (middleware.ts / proxy.ts 수정 시 필수)
