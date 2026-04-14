@@ -105,7 +105,7 @@ export interface CodeMetadata {
   inferredTheme?: string;
   inferredLayout?: string;
   qualityLoopUsed?: boolean;
-  // Real API binding quality fields
+  // API binding quality fields
   fetchCallCount?: number;
   hasProxyCall?: boolean;
   hasJsonParse?: boolean;

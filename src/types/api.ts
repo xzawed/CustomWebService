@@ -42,7 +42,7 @@ export interface ApiCatalogItem {
   creditRequired: number | null;
   createdAt: string;
   updatedAt: string;
-  verificationStatus?: ApiVerificationStatus;
+  verificationStatus?: ApiVerificationStatus | null;
   verifiedAt?: string | null;
   lastVerificationNote?: string | null;
 }
