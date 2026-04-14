@@ -1,8 +1,8 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { getLimits } from '@/lib/config/features';
 import { getDbProvider } from '@/lib/config/providers';
-import { getDb } from '@/lib/db/connection';
 import { getFailoverStatus } from '@/lib/db/failover';
+import { createCatalogRepository } from '@/repositories/factory';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,93 +11,40 @@ export async function GET(): Promise<Response> {
   const usage: Record<string, unknown> = {};
   let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
 
-  // Database check
-  if (getDbProvider() === 'postgres') {
-    try {
-      const db = getDb();
-      const { count } = await import('drizzle-orm');
-      const { apiCatalog } = await import('@/lib/db/schema');
-      await db.select({ n: count() }).from(apiCatalog).limit(1);
-      checks.database = 'ok';
-    } catch {
-      checks.database = 'error';
-      status = 'unhealthy';
+  // Database check + usage stats
+  try {
+    const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
+    const repo = createCatalogRepository(supabase);
+
+    const dbOk = await repo.ping();
+    checks.database = dbOk ? 'ok' : 'error';
+    if (!dbOk) status = 'unhealthy';
+
+    if (dbOk) {
+      try {
+        const limits = getLimits();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const counts = await repo.getUsageCounts(today);
+        usage.todayGenerations = counts.todayGenerations;
+        usage.totalProjects = counts.totalProjects;
+        usage.totalUsers = counts.totalUsers;
+        usage.limits = {
+          maxDailyGenerationsPerUser: limits.maxDailyGenerations,
+          maxApisPerProject: limits.maxApisPerProject,
+          maxProjectsPerUser: limits.maxProjectsPerUser,
+        };
+      } catch {
+        usage.error = 'stats unavailable';
+      }
     }
-  } else {
-    let supabase: Awaited<ReturnType<typeof createServiceClient>> | null = null;
-    try {
-      supabase = await createServiceClient();
-      const { error } = await supabase
-        .from('api_catalog')
-        .select('id', { count: 'exact', head: true });
-      checks.database = error ? 'error' : 'ok';
-      if (error) status = 'unhealthy';
-    } catch {
-      checks.database = 'error';
-      status = 'unhealthy';
-    }
-
-    // Usage limits (Supabase path)
-    try {
-      if (!supabase) throw new Error('DB not available');
-      const limits = getLimits();
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const [genResult, projectResult, userResult] = await Promise.all([
-        supabase
-          .from('generated_codes')
-          .select('id', { count: 'exact', head: true })
-          .gte('created_at', today.toISOString()),
-        supabase.from('projects').select('id', { count: 'exact', head: true }),
-        supabase.from('users').select('id', { count: 'exact', head: true }),
-      ]);
-
-      usage.todayGenerations = genResult.count ?? 0;
-      usage.totalProjects = projectResult.count ?? 0;
-      usage.totalUsers = userResult.count ?? 0;
-      usage.limits = {
-        maxDailyGenerationsPerUser: limits.maxDailyGenerations,
-        maxApisPerProject: limits.maxApisPerProject,
-        maxProjectsPerUser: limits.maxProjectsPerUser,
-      };
-    } catch {
-      usage.error = 'stats unavailable';
-    }
+  } catch {
+    checks.database = 'error';
+    status = 'unhealthy';
   }
 
-  // Postgres path usage stats
-  if (getDbProvider() === 'postgres' && checks.database === 'ok') {
-    try {
-      const db = getDb();
-      const { count, gte } = await import('drizzle-orm');
-      const { generatedCodes, projects, users } = await import('@/lib/db/schema');
-      const limits = getLimits();
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const [genResult, projectResult, userResult] = await Promise.all([
-        db.select({ n: count() }).from(generatedCodes).where(gte(generatedCodes.created_at, today)),
-        db.select({ n: count() }).from(projects),
-        db.select({ n: count() }).from(users),
-      ]);
-
-      usage.todayGenerations = Number(genResult[0]?.n ?? 0);
-      usage.totalProjects = Number(projectResult[0]?.n ?? 0);
-      usage.totalUsers = Number(userResult[0]?.n ?? 0);
-      usage.limits = {
-        maxDailyGenerationsPerUser: limits.maxDailyGenerations,
-        maxApisPerProject: limits.maxApisPerProject,
-        maxProjectsPerUser: limits.maxProjectsPerUser,
-      };
-    } catch {
-      usage.error = 'stats unavailable';
-    }
-  }
-
-  // AI service check (actual API validation)
+  // AI service check
   checks.aiProvider = 'claude';
   try {
     const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
@@ -109,7 +56,7 @@ export async function GET(): Promise<Response> {
   }
   if (checks.ai !== 'ok') status = status === 'healthy' ? 'degraded' : status;
 
-  // Deploy service check (verify env keys are configured)
+  // Deploy service check
   const hasGithub = !!(process.env.GITHUB_TOKEN && process.env.GITHUB_ORG);
   const hasRailway = !!process.env.RAILWAY_TOKEN;
   checks.deploy = hasGithub || hasRailway ? 'ok' : 'unconfigured';

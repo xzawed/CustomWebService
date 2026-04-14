@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { BaseRepository } from './base/BaseRepository';
 import type { ApiCatalogItem, ApiVerificationStatus, CatalogSearchParams, Category } from '@/types/api';
-import type { ICatalogRepository } from '@/repositories/interfaces';
+import type { ICatalogRepository, ProjectStatus } from '@/repositories/interfaces';
 
 export class CatalogRepository extends BaseRepository<ApiCatalogItem> implements ICatalogRepository {
   constructor(supabase: SupabaseClient) {
@@ -82,6 +82,59 @@ export class CatalogRepository extends BaseRepository<ApiCatalogItem> implements
 
     if (error) throw error;
     return (data ?? []).map((row) => this.toDomain(row));
+  }
+
+  async getApiUsageFromProjects(statuses: ProjectStatus[]): Promise<Array<{ apiId: string; context: string }>> {
+    const { data, error } = await this.supabase
+      .from('project_apis')
+      .select('api_id, projects!inner(context, status)')
+      .in('projects.status', statuses);
+
+    if (error || !data) return [];
+
+    return data.map((row) => ({
+      apiId: row.api_id as string,
+      context: ((row.projects as unknown as { context: string }).context) ?? '',
+    }));
+  }
+
+  async getActiveNameToIdMap(): Promise<Map<string, string>> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select('id, name')
+      .eq('is_active', true);
+
+    if (error || !data) return new Map();
+
+    const map = new Map<string, string>();
+    for (const row of data) {
+      map.set((row.name as string).toLowerCase(), row.id as string);
+    }
+    return map;
+  }
+
+  async ping(): Promise<boolean> {
+    const { error } = await this.supabase
+      .from(this.tableName)
+      .select('id', { count: 'exact', head: true });
+    return !error;
+  }
+
+  async getUsageCounts(sinceDate: Date): Promise<{ todayGenerations: number; totalProjects: number; totalUsers: number }> {
+    const [genResult, projectResult, userResult] = await Promise.all([
+      this.supabase
+        .from('generated_codes')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', sinceDate.toISOString()),
+      this.supabase.from('projects').select('id', { count: 'exact', head: true }),
+      this.supabase.from('users').select('id', { count: 'exact', head: true }),
+    ]);
+
+    return {
+      todayGenerations: genResult.count ?? 0,
+      totalProjects: projectResult.count ?? 0,
+      totalUsers: userResult.count ?? 0,
+    };
   }
 
   protected toDomain(row: Record<string, unknown>): ApiCatalogItem {

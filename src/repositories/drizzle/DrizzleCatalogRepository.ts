@@ -1,8 +1,8 @@
-import { eq, and, or, ilike, isNull, inArray, sql, count as drizzleCount, asc, desc } from 'drizzle-orm';
+import { eq, and, or, ilike, isNull, inArray, sql, count as drizzleCount, asc, desc, gte } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/lib/db/schema';
 import type { ApiCatalogItem, CatalogSearchParams, Category } from '@/types/api';
-import type { ICatalogRepository } from '@/repositories/interfaces';
+import type { ICatalogRepository, ProjectStatus } from '@/repositories/interfaces';
 import type { QueryOptions } from '@/repositories/interfaces/IBaseRepository';
 
 type DrizzleDb = NodePgDatabase<typeof schema>;
@@ -182,6 +182,61 @@ export class DrizzleCatalogRepository implements ICatalogRepository {
       .where(inArray(schema.apiCatalog.id, ids));
 
     return rows.map((row) => this.toDomain(row));
+  }
+
+  async getApiUsageFromProjects(statuses: ProjectStatus[]): Promise<Array<{ apiId: string; context: string }>> {
+    const rows = await this.db
+      .select({
+        api_id: schema.projectApis.api_id,
+        context: schema.projects.context,
+      })
+      .from(schema.projectApis)
+      .innerJoin(schema.projects, eq(schema.projectApis.project_id, schema.projects.id))
+      .where(inArray(schema.projects.status, statuses));
+
+    return rows.map((row) => ({
+      apiId: row.api_id,
+      context: row.context ?? '',
+    }));
+  }
+
+  async getActiveNameToIdMap(): Promise<Map<string, string>> {
+    const rows = await this.db
+      .select({ id: schema.apiCatalog.id, name: schema.apiCatalog.name })
+      .from(schema.apiCatalog)
+      .where(eq(schema.apiCatalog.is_active, true));
+
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      map.set(row.name.toLowerCase(), row.id);
+    }
+    return map;
+  }
+
+  async ping(): Promise<boolean> {
+    try {
+      await this.db
+        .select({ n: drizzleCount() })
+        .from(schema.apiCatalog)
+        .limit(1);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async getUsageCounts(sinceDate: Date): Promise<{ todayGenerations: number; totalProjects: number; totalUsers: number }> {
+    const [genResult, projectResult, userResult] = await Promise.all([
+      this.db.select({ n: drizzleCount() }).from(schema.generatedCodes).where(gte(schema.generatedCodes.created_at, sinceDate)),
+      this.db.select({ n: drizzleCount() }).from(schema.projects),
+      this.db.select({ n: drizzleCount() }).from(schema.users),
+    ]);
+
+    return {
+      todayGenerations: Number(genResult[0]?.n ?? 0),
+      totalProjects: Number(projectResult[0]?.n ?? 0),
+      totalUsers: Number(userResult[0]?.n ?? 0),
+    };
   }
 
   private toDomain(row: typeof schema.apiCatalog.$inferSelect): ApiCatalogItem {
