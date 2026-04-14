@@ -93,15 +93,15 @@ describe('evaluateQuality', () => {
   <div class="transition-all sm:text-lg">텍스트</div>
 </body></html>`;
     const js = `
-      const mockData = [{ id: 1, title: '테스트' }];
       document.addEventListener('DOMContentLoaded', () => {});
       btn.addEventListener('click', () => {});
       el.addEventListener('input', () => {});
+      fetch('/api/v1/proxy?apiId=1').then(r => r.json()).then(data => {});
     `;
     const result = evaluateQuality(html, '', js);
     expect(result.structuralScore).toBe(100);
     expect(result.hasSemanticHtml).toBe(true);
-    expect(result.hasMockData).toBe(true);
+    expect(result.hasMockData).toBe(false); // deprecated — always false
     expect(result.hasInteraction).toBe(true);
     expect(result.hasFooter).toBe(true);
     expect(result.mobileScore).toBe(100);
@@ -109,13 +109,16 @@ describe('evaluateQuality', () => {
     expect(result.noFixedOverflow).toBe(true);
     expect(result.hasImageProtection).toBe(true);
     expect(result.hasMobileNav).toBe(true);
+    expect(result.fetchCallCount).toBeGreaterThan(0);
+    expect(result.placeholderCount).toBe(0);
   });
 
   it('빈 코드는 낮은 점수를 반환한다', () => {
     const result = evaluateQuality('<div></div>', '', '');
     expect(result.structuralScore).toBeLessThan(30);
-    expect(result.hasMockData).toBe(false);
+    expect(result.hasMockData).toBe(false); // deprecated — always false
     expect(result.hasInteraction).toBe(false);
+    expect(result.fetchCallCount).toBe(0);
   });
 
   it('details에 부족한 항목이 나열된다', () => {
@@ -163,5 +166,35 @@ describe('evaluateQuality', () => {
     const result = evaluateQuality('<div></div>', '', '');
     expect(result.mobileScore).toBeGreaterThanOrEqual(0);
     expect(result.mobileScore).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('evaluateQuality — fetch-first scoring', () => {
+  const baseHtml = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width"><title>T</title></head>
+    <body><main><nav></nav><footer></footer></main></body></html>`;
+
+  it('gives +1 for fetch() call in JS', () => {
+    const withFetch = evaluateQuality(baseHtml, '', `fetch('/api/v1/proxy?apiId=1').then(r=>r.json())`);
+    const noFetch = evaluateQuality(baseHtml, '', 'console.log("hi")');
+    expect(withFetch.fetchCallCount).toBeGreaterThan(0);
+    expect(noFetch.fetchCallCount).toBe(0);
+    expect(withFetch.structuralScore).toBeGreaterThan(noFetch.structuralScore);
+  });
+
+  it('penalizes zero fetch calls (detail message includes fetch)', () => {
+    const result = evaluateQuality(baseHtml, '', 'const mockData = [{id:1}]');
+    expect(result.fetchCallCount).toBe(0);
+    expect(result.details.some(d => d.includes('fetch'))).toBe(true);
+  });
+
+  it('does NOT give bonus for const mockData array', () => {
+    const withMock = evaluateQuality(baseHtml, '', 'const mockData = [{id:1},{id:2}]; fetch("/api")');
+    const noMock = evaluateQuality(baseHtml, '', 'fetch("/api")');
+    expect(withMock.structuralScore).toBe(noMock.structuralScore);
+  });
+
+  it('detects placeholder strings', () => {
+    const result = evaluateQuality(baseHtml, '', 'document.write("홍길동"); fetch("/api")');
+    expect(result.placeholderCount).toBeGreaterThan(0);
   });
 });

@@ -101,6 +101,11 @@ export interface QualityMetrics {
   hasMobileNav: boolean;
   hasFooter: boolean;
   hasImgAlt: boolean;
+  // New real-data binding fields (after hasImgAlt)
+  fetchCallCount: number;
+  hasProxyCall: boolean;
+  hasJsonParse: boolean;
+  placeholderCount: number;
   details: string[];
 }
 
@@ -113,7 +118,7 @@ export function evaluateQuality(html: string, _css: string, js: string): Quality
   const fullCode = `${html}\n${js}`;
   const details: string[] = [];
   let score = 0;
-  const maxScore = 14; // number of checks
+  const maxScore = 16; // number of checks
 
   // 1. Semantic HTML: <main>, <nav>, <article>, <section>, <footer>
   const semanticTags = ['<main', '<nav', '<footer', '<section', '<article'];
@@ -125,13 +130,35 @@ export function evaluateQuality(html: string, _css: string, js: string): Quality
     details.push(`시맨틱 HTML 부족 (${semanticCount}/2 태그)`);
   }
 
-  // 2. Mock data array exists
-  const hasMockData = /const\s+\w*(mock|data|items|list|posts|products|cards)\w*\s*=\s*\[/i.test(js);
-  if (hasMockData) {
+  // 2. Has real fetch() call — REQUIRED
+  const fetchMatches = js.match(/\bfetch\s*\(/g) ?? [];
+  const fetchCallCount = fetchMatches.length;
+  const hasProxyCall = /\/api\/v1\/proxy/.test(js);
+  const hasJsonParse = /\.json\(\)|JSON\.parse\s*\(/.test(js);
+  if (fetchCallCount > 0) {
     score++;
   } else {
-    details.push('목 데이터 배열이 감지되지 않았습니다');
+    details.push('fetch() 호출이 없습니다 — 실제 API 호출 필수');
   }
+
+  // 2b. Response JSON parsing
+  if (hasJsonParse) {
+    score++;
+  } else {
+    details.push('.json() 또는 JSON.parse() 없음 — API 응답 파싱 필요');
+  }
+
+  // 2c. No placeholder strings
+  const PLACEHOLDER_PATTERN = /홍길동|김철수|이영희|test@example\.com|user@test\.com|Loading\.\.\.|준비 중|구현 예정|Sample Data|Lorem ipsum/g;
+  const placeholderCount = (fullCode.match(PLACEHOLDER_PATTERN) ?? []).length;
+  if (placeholderCount === 0) {
+    score++;
+  } else {
+    details.push(`Placeholder 문자열 감지 (${placeholderCount}개): 홍길동, 준비 중 등 제거 필요`);
+  }
+
+  // deprecated — always false
+  const hasMockData = false;
 
   // 3. DOMContentLoaded listener
   const hasDomReady = /DOMContentLoaded|addEventListener\s*\(\s*['"]load['"]/i.test(js);
@@ -245,7 +272,7 @@ export function evaluateQuality(html: string, _css: string, js: string): Quality
     structuralScore,
     mobileScore,
     hasSemanticHtml,
-    hasMockData,
+    hasMockData, // deprecated — always false, use fetchCallCount instead
     hasInteraction,
     hasResponsiveClasses,
     hasAdequateResponsive,
@@ -254,6 +281,10 @@ export function evaluateQuality(html: string, _css: string, js: string): Quality
     hasMobileNav,
     hasFooter,
     hasImgAlt,
+    fetchCallCount,
+    hasProxyCall,
+    hasJsonParse,
+    placeholderCount,
     details,
   };
 }
