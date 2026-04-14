@@ -169,6 +169,10 @@ pnpm test:coverage    # 커버리지 리포트
 ## 타입 주의사항
 
 - `IAiProvider.tokensUsed` — `{ input: number; output: number }` 구조 (`inputTokens`/`outputTokens` 아님)
+- **Anthropic 모델 ID 주의**: 날짜 suffix 없으면 API 실패 — 반드시 `claude-haiku-4-5-20251001`, `claude-sonnet-4-6`, `claude-opus-4-6` 형태 사용
+- `AiProviderFactory.ts` 모델 ID 수정 시 `.test.ts`도 반드시 동시에 업데이트 (CI 파손 방지)
+- **JSONB 필드명 이중성**: `catalogRepository.parseEndpoints()` 같은 JSONB 매퍼는 snake_case(`example_call`)와 camelCase(`exampleCall`) 둘 다 처리 필요 — DB 직접 삽입 vs 코드 경로 차이
+- **Playwright 병렬 체크 주의**: 단일 `page` 인스턴스에서 `Promise.allSettled` 사용 시 viewport를 변경하는 체크는 반드시 다른 체크 완료 후 순차 실행 (`renderingQc.ts` 참고)
 
 ## Claude 도움 요청 원칙
 
