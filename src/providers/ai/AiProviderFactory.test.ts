@@ -83,7 +83,7 @@ describe('AiProviderFactory.createForTask()', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_PROVIDER;
     const provider = AiProviderFactory.createForTask('suggestion');
-    expect(provider.model).toBe('claude-haiku-4-5-20251001');
+    expect(provider.model).toBe('claude-haiku-4-5');
   });
 
   it('같은 태스크는 싱글톤으로 반환된다', () => {
