@@ -158,13 +158,13 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
     page.setDefaultTimeout(QC_TIMEOUTS.PAGE_DEFAULT_MS);
     await page.setContent(html, { waitUntil: 'networkidle', timeout: QC_TIMEOUTS.DEEP_CONTENT_MS });
 
+    // Step 1: Run all viewport-fixed checks in parallel (viewport stays at 375px)
     const [
       scrollResult,
       footerResult,
       overlapResult,
       imageResult,
       touchResult,
-      breakpointResult,
       a11yResult,
     ] = settledResults(
       await Promise.allSettled([
@@ -173,7 +173,6 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
         withCheckTimeout(() => checkNoLayoutOverlap(page), 'noLayoutOverlap'),
         withCheckTimeout(() => checkImageLoading(page), 'imageLoading'),
         withCheckTimeout(() => checkTouchTargets(page), 'touchTargets'),
-        withCheckTimeout(() => checkResponsiveBreakpoints(page), 'responsiveBreakpoints'),
         withCheckTimeout(() => checkAccessibility(page), 'accessibility'),
       ]),
       [
@@ -182,9 +181,16 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
         'noLayoutOverlap',
         'imageLoading',
         'touchTargets',
-        'responsiveBreakpoints',
         'accessibility',
       ]
+    );
+
+    // Step 2: Run viewport-changing check alone after the above complete
+    const [breakpointResult] = settledResults(
+      await Promise.allSettled([
+        withCheckTimeout(() => checkResponsiveBreakpoints(page), 'responsiveBreakpoints'),
+      ]),
+      ['responsiveBreakpoints']
     );
 
     const consoleResult = checkConsoleErrors(errors);
