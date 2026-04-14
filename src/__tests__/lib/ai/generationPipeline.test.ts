@@ -12,7 +12,8 @@ vi.mock('@/lib/ai/codeParser', () => ({
 }));
 vi.mock('@/lib/ai/codeValidator', () => ({
   validateAll: vi.fn(() => ({ passed: true, errors: [], warnings: [] })),
-  evaluateQuality: vi.fn(() => ({ structuralScore: 80, mobileScore: 80, details: [] })),
+  // fetchCallCount: 0 → Stage 2 필요 조건 충족 (기본값으로 3-stage 경로 테스트)
+  evaluateQuality: vi.fn(() => ({ structuralScore: 80, mobileScore: 80, details: [], fetchCallCount: 0, placeholderCount: 0 })),
 }));
 vi.mock('@/lib/ai/qualityLoop', () => ({
   shouldRetryGeneration: vi.fn(() => false),

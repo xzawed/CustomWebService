@@ -182,7 +182,11 @@ async function runStage1(
   userPrompt: string,
   aiProvider: IAiProvider,
   sse: SseWriter,
-): Promise<{ html: string; css: string; js: string }> {
+): Promise<{
+  parsed: { html: string; css: string; js: string };
+  durationMs: number;
+  tokensUsed: { input: number; output: number };
+}> {
   let lastProgressUpdate = Date.now();
   const streamStartTime = Date.now();
 
@@ -205,7 +209,11 @@ async function runStage1(
     },
   );
 
-  return parseGeneratedCode(response.content);
+  return {
+    parsed: parseGeneratedCode(response.content),
+    durationMs: response.durationMs,
+    tokensUsed: response.tokensUsed,
+  };
 }
 
 async function runStage2Function(
@@ -262,6 +270,8 @@ async function runStage2(
   buildUserPrompt: (code: { html: string; css: string; js: string }) => string,
   aiProvider: IAiProvider,
   sse: SseWriter,
+  /** Stage 2 스킵 시 이미 stage2_function_complete 이벤트가 발행된 경우 true */
+  stage2FunctionCompleteAlreadySent = false,
 ): Promise<{
   parsed: { html: string; css: string; js: string };
   provider: string;
@@ -270,7 +280,9 @@ async function runStage2(
   tokensUsed: { input: number; output: number };
   userPromptUsed: string;
 }> {
-  sse.send('progress', { step: 'stage2_function_complete', progress: 65, message: '기능 검증 완성. 디자인 적용 중...' });
+  if (!stage2FunctionCompleteAlreadySent) {
+    sse.send('progress', { step: 'stage2_function_complete', progress: 65, message: '기능 검증 완성. 디자인 적용 중...' });
+  }
   sse.send('progress', { step: 'stage3_generating', progress: 68, message: '3단계: 디자인 및 인터랙션 적용 중...' });
 
   const userPrompt = buildUserPrompt(stage1Code);
@@ -340,12 +352,13 @@ export async function runGenerationPipeline(
     const aiProvider: IAiProvider = aiProviderInit;
 
     // Stage 1: 구조·기능 생성 (0→30%)
-    const stage1Code = await runStage1(
+    const stage1Result = await runStage1(
       stage1SystemPrompt,
       stage1UserPrompt,
       aiProvider,
       sse,
     );
+    const stage1Code = stage1Result.parsed;
 
     if (sse.isCancelled()) return;
 
@@ -365,28 +378,63 @@ export async function runGenerationPipeline(
 
     // Stage 1 Fast QC (기능 문제 감지용)
     let stage1FastQcIssues: string[] | null = null;
+    let stage1FastQcPassed: boolean | null = null;
     if (isQcEnabled()) {
       const assembled = safeAssembleHtml(stage1Code);
       if (assembled) {
         try {
           const report = await runFastQc(assembled);
-          stage1FastQcIssues = report?.checks.filter(c => !c.passed).map(c => c.name) ?? null;
+          if (report) {
+            stage1FastQcIssues = report.checks.filter(c => !c.passed).map(c => c.name);
+            stage1FastQcPassed = report.passed;
+          }
         } catch {
           // Fast QC 실패해도 계속 진행
         }
       }
     }
 
-    // Stage 2: 기능 검증 (30→65%)
-    const stage2FunctionResult = await runStage2Function(
-      stage1Code,
-      stage2FunctionSystemPrompt,
-      buildStage2FunctionUserPromptFn,
-      staticQcIssues,
-      stage1FastQcIssues,
-      aiProvider,
-      sse,
-    );
+    // Stage 2 필요 여부 판단
+    const needsStage2 =
+      stage1Quality.fetchCallCount === 0 ||
+      stage1Quality.placeholderCount > 0 ||
+      stage1FastQcPassed === false;
+
+    logger.info('Stage 2 necessity evaluated', {
+      projectId,
+      needsStage2,
+      fetchCallCount: stage1Quality.fetchCallCount,
+      placeholderCount: stage1Quality.placeholderCount,
+      stage1FastQcPassed,
+    });
+
+    // Stage 2: 기능 검증 (30→65%) — 품질 부족 시에만 실행
+    let stage2FunctionResult: {
+      parsed: { html: string; css: string; js: string };
+      durationMs: number;
+      tokensUsed: { input: number; output: number };
+    };
+
+    if (needsStage2) {
+      stage2FunctionResult = await runStage2Function(
+        stage1Code,
+        stage2FunctionSystemPrompt,
+        buildStage2FunctionUserPromptFn,
+        staticQcIssues,
+        stage1FastQcIssues,
+        aiProvider,
+        sse,
+      );
+    } else {
+      // Stage 2 스킵: Stage 1 결과를 그대로 통과시킴
+      sse.send('progress', { step: 'stage1_complete', progress: 30, message: '구조 완성. 기능 검증 스킵 (품질 충분).' });
+      sse.send('progress', { step: 'stage2_function_complete', progress: 65, message: '기능 검증 완성. 디자인 적용 중...' });
+      stage2FunctionResult = {
+        parsed: stage1Code,
+        durationMs: 0,
+        tokensUsed: { input: 0, output: 0 },
+      };
+    }
 
     if (sse.isCancelled()) return;
 
@@ -397,6 +445,7 @@ export async function runGenerationPipeline(
       buildStage2UserPrompt,
       aiProvider,
       sse,
+      !needsStage2,
     );
 
     if (sse.isCancelled()) return;
@@ -407,10 +456,10 @@ export async function runGenerationPipeline(
     const stage2Response = {
       provider: stage3Result.provider,
       model: stage3Result.model,
-      durationMs: stage3Result.durationMs + stage2FunctionResult.durationMs,
+      durationMs: stage3Result.durationMs + stage2FunctionResult.durationMs + stage1Result.durationMs,
       tokensUsed: {
-        input: stage3Result.tokensUsed.input + stage2FunctionResult.tokensUsed.input,
-        output: stage3Result.tokensUsed.output + stage2FunctionResult.tokensUsed.output,
+        input: stage3Result.tokensUsed.input + stage2FunctionResult.tokensUsed.input + stage1Result.tokensUsed.input,
+        output: stage3Result.tokensUsed.output + stage2FunctionResult.tokensUsed.output + stage1Result.tokensUsed.output,
       },
     };
 
