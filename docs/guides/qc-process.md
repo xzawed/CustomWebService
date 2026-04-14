@@ -14,7 +14,7 @@
 
 모든 코드 변경(생성, 재생성, 수정)은 아래 단계를 **동일하게** 거친다.
 
-### Stage 1: 보안 검증 (차단)
+### Step 1: 보안 검증 (차단)
 
 | 체크 | 결과 | 동작 |
 |------|------|------|
@@ -26,7 +26,7 @@
 **담당**: `codeValidator.validateAll()` → `validateSecurity()`  
 **파일**: `src/lib/ai/codeValidator.ts`
 
-### Stage 2: 코드 품질 평가 (점수)
+### Step 2: 코드 품질 평가 (점수)
 
 16개 정적 체크로 0-100 점수 산출:
 
@@ -42,7 +42,7 @@
 **결과**: `structuralScore` (0-100), `mobileScore` (0-100)  
 **담당**: `codeValidator.evaluateQuality()`
 
-### Stage 3: 렌더링 QC — Fast (인라인, 3초)
+### Step 3: 렌더링 QC — Fast (인라인, 3초)
 
 Playwright headless Chromium으로 실제 렌더링 검증:
 
@@ -59,7 +59,7 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 **환경변수**: `ENABLE_RENDERING_QC=true`  
 **담당**: `renderingQc.runFastQc()`
 
-### Stage 4: 이슈 판단 → 자동 재생성 (최대 3회)
+### Step 4: 이슈 판단 → 자동 재생성 (최대 3회)
 
 아래 조건 중 하나라도 해당하면 자동 재생성:
 
@@ -81,14 +81,14 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 
 **담당**: `qualityLoop.shouldRetryGeneration()`, `buildQualityImprovementPrompt()`
 
-### Stage 5: 재생성 코드 재검증
+### Step 5: 재생성 코드 재검증
 
-재생성된 코드에 대해 **Stage 2 + Stage 3을 다시 실행**:
+재생성된 코드에 대해 **Step 2 + Step 3을 다시 실행**:
 - `evaluateQuality()` 재실행
 - `runFastQc()` 재실행
 - 코드 점수 OR QC 점수가 개선되면 채택, 아니면 원본 유지
 
-### Stage 6: 저장
+### Step 6: 저장
 
 최선 버전을 DB에 저장. 메타데이터에 포함:
 - 14개 품질 메트릭
@@ -96,7 +96,7 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 - 카테고리/테마/레이아웃 추론
 - qualityLoopUsed 플래그
 
-### Stage 7: 렌더링 QC — Deep (비동기, 10초)
+### Step 7: 렌더링 QC — Deep (비동기, 10초)
 
 저장 후 비동기로 심층 검증 실행:
 
@@ -114,7 +114,7 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 **결과**: DB 메타데이터 업데이트 (Fast QC 결과를 덮어씀)  
 **통과 기준**: overallScore ≥ 50
 
-### Stage 8: 사용자 알림
+### Step 8: 사용자 알림
 
 - **SSE complete 이벤트**: Fast QC 결과 포함 (score, passed, 실패 항목)
 - **게시 시**: QC 미통과 경고를 API 응답에 포함
@@ -123,8 +123,8 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 
 ## 2. 적용 범위
 
-| 작업 유형 | Stage 1 | Stage 2 | Stage 3 | Stage 4 | Stage 5 | Stage 6 | Stage 7 | Stage 8 |
-|----------|---------|---------|---------|---------|---------|---------|---------|---------|
+| 작업 유형 | Step 1 | Step 2 | Step 3 | Step 4 | Step 5 | Step 6 | Step 7 | Step 8 |
+|----------|--------|--------|--------|--------|--------|--------|--------|--------|
 | **신규 생성** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **재생성** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **게시** | — | — | — | — | — | — | — | ✅ 경고 |
@@ -141,7 +141,7 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 | Deep QC 통과 | 50 | — | 8개 체크 평균 50점 이상 (Fast QC 실패 시에만 실행) |
 | Fast QC 타임아웃 | 3초 | — | 초과 시 null 반환, 진행 |
 | Deep QC 타임아웃 | 10초 | — | 초과 시 null 반환, 진행 |
-| 렌더링 QC 활성화 | false | `ENABLE_RENDERING_QC` | true로 설정 시 활성화 — Railway 활성화 전 Dockerfile 수정 필요 |
+| 렌더링 QC 활성화 | **true** | `ENABLE_RENDERING_QC` | Railway에서 활성화됨 (2026-04-15) |
 | 최대 재생성 횟수 | 3회 | — | 품질 루프 최대 3회 |
 
 ---
@@ -199,3 +199,4 @@ RUN npx playwright install chromium --with-deps
 | 2026-04-05 | 임계값 40→60, 재시도 최대 2회, Deep QC 조건부 실행, 푸터/레이아웃 체크 추가 |
 | 2026-04-12 | Railway 활성화 가이드 추가 (Dockerfile 수정 방법, 메모리 요구사항) |
 | 2026-04-14 | 품질 대개편: API 바인딩 메트릭 추가(fetchCallCount/hasProxyCall/hasJsonParse/placeholderCount), Fast QC +1 체크(placeholder), Deep QC +3 체크(인터랙티브/네트워크/로딩), 최대 재생성 2→3회 |
+| 2026-04-15 | 버그 수정: "Stage" → "Step" 용어 통일 (생성 파이프라인의 Stage 1/2/3과 혼동 방지), ENABLE_RENDERING_QC Railway 활성화 |

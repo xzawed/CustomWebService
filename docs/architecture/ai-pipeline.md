@@ -19,7 +19,7 @@
 | Stage 3 (디자인 폴리시) | 65→90% | 디자인·레이아웃 완성 | CSS/HTML 문구 (JS 변경 금지) | 정적 QC + Deep Playwright QC |
 
 - DB에는 **Stage 3 결과물만** 저장
-- Stage 2는 `fetchCallCount === 0` 또는 `placeholderCount > 0` 감지 시에도 수행됨
+- Stage 2는 **조건부 실행**: `fetchCallCount === 0`, `placeholderCount > 0`, 또는 Fast QC 실패 시에만 수행. 모두 통과 시 Stage 1 코드를 그대로 Stage 3으로 전달 (LLM 호출 절감)
 
 ### 2.2 데이터 흐름
 
@@ -287,7 +287,9 @@ Avoid: [제외할 요소]
 
 생성 흐름:
 1. Stage 1 → `codeValidator.validateAll()` (보안 차단) → `evaluateQuality()` (품질 점수, fetchCallCount 포함)
-2. 기준 미달(fetchCallCount=0, placeholderCount>0 포함) 시 Stage 2 기능 검증 실행
+2. **조건부**: fetchCallCount=0, placeholderCount>0, 또는 Fast QC 실패 시에만 Stage 2 기능 검증 실행. 통과 시 Stage 1 코드 직행
 3. Stage 3 디자인 폴리시 실행 → DB 저장 → 비동기 Deep QC
+
+`exampleCall` 흐름: DB JSONB(endpoints 배열) → `catalogRepository.parseEndpoints()` → `ApiEndpoint.exampleCall` → 사용자 프롬프트 `✅ 실제 동작 예제` 블록 → AI Stage 1 생성
 
 핵심 파일: `src/lib/ai/generationPipeline.ts` (공통 파이프라인 — generate/regenerate 양쪽 적용)

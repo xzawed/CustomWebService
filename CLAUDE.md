@@ -145,8 +145,10 @@ pnpm test:coverage    # 커버리지 리포트
 - 모든 코드 생성/재생성은 `docs/guides/qc-process.md`의 8단계를 동일하게 거침
 - 보안 검증 → 코드 품질 → Fast QC → 자동 재생성 → 재검증 → 저장 → Deep QC → 사용자 알림
 - QC 파이프라인 핵심 파일: `src/lib/ai/generationPipeline.ts` (공통 파이프라인, Phase 5에서 추출)
-- 생성 파이프라인은 3단계: Stage 1(구조·API 호출, 0→30%) → Stage 2(기능 검증, 30→65%) → Stage 3(디자인 폴리시, 65→90%)
+- 생성 파이프라인은 3단계: Stage 1(구조·API 호출, 0→30%) → Stage 2(기능 검증, 조건부, 30→65%) → Stage 3(디자인 폴리시, 65→90%)
+- Stage 2는 조건부 실행: fetchCallCount=0, placeholderCount>0, 또는 Fast QC 실패 시에만 LLM 호출. 통과 시 Stage 1 코드가 Stage 3으로 직행
 - QC·저장은 Stage 3 결과에만 적용; Stage 1/2 출력은 중간 산출물로 DB 저장 안 함
+- 3단계 파이프라인과 **별도로** 품질 루프(Quality Loop)가 최대 3회 재생성을 시도할 수 있음 — 두 메커니즘이 중첩됨
 - QC 관련 로직 수정 시 `generationPipeline.ts` 중심으로 수정하면 generate/regenerate 양쪽에 동시 반영됨
 
 ### Edge Runtime 호환성 (middleware.ts / proxy.ts 수정 시 필수)
