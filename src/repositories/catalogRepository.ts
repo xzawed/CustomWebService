@@ -141,6 +141,9 @@ export class CatalogRepository extends BaseRepository<ApiCatalogItem> implements
           (ep.response_example as Record<string, unknown>) ??
           (ep.responseExample as Record<string, unknown>) ??
           {},
+        exampleCall: (ep.example_call as string | undefined) ?? (ep.exampleCall as string | undefined) ?? undefined,
+        responseDataPath: (ep.response_data_path as string | undefined) ?? (ep.responseDataPath as string | undefined) ?? undefined,
+        requestHeaders: (ep.request_headers as Record<string, string> | undefined) ?? (ep.requestHeaders as Record<string, string> | undefined) ?? undefined,
       };
     });
   }

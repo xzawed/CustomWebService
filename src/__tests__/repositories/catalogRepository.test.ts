@@ -103,6 +103,113 @@ describe('CatalogRepository — toDomain mapper (verification fields)', () => {
     });
   });
 
+  describe('parseEndpoints — exampleCall / responseDataPath / requestHeaders', () => {
+    it('snake_case DB 컬럼(example_call)을 exampleCall로 매핑한다', async () => {
+      const { supabase, chain } = makeSupabase();
+      chain.in.mockResolvedValueOnce({
+        data: [
+          {
+            ...baseRow,
+            endpoints: [
+              {
+                path: '/forecast',
+                method: 'GET',
+                description: '날씨 예보',
+                params: [],
+                responseExample: {},
+                example_call: "fetch('https://api.example.com/forecast?city=Seoul')",
+              },
+            ],
+          },
+        ],
+        error: null,
+      });
+
+      const repo = new CatalogRepository(supabase);
+      const [item] = await repo.findByIds(['api-1']);
+      expect(item.endpoints[0].exampleCall).toBe("fetch('https://api.example.com/forecast?city=Seoul')");
+    });
+
+    it('camelCase(exampleCall) 형태도 매핑한다', async () => {
+      const { supabase, chain } = makeSupabase();
+      chain.in.mockResolvedValueOnce({
+        data: [
+          {
+            ...baseRow,
+            endpoints: [
+              {
+                path: '/forecast',
+                method: 'GET',
+                description: '날씨 예보',
+                params: [],
+                responseExample: {},
+                exampleCall: "fetch('https://api.example.com/forecast?city=Busan')",
+              },
+            ],
+          },
+        ],
+        error: null,
+      });
+
+      const repo = new CatalogRepository(supabase);
+      const [item] = await repo.findByIds(['api-1']);
+      expect(item.endpoints[0].exampleCall).toBe("fetch('https://api.example.com/forecast?city=Busan')");
+    });
+
+    it('exampleCall이 없으면 undefined로 남는다', async () => {
+      const { supabase, chain } = makeSupabase();
+      chain.in.mockResolvedValueOnce({
+        data: [
+          {
+            ...baseRow,
+            endpoints: [
+              {
+                path: '/forecast',
+                method: 'GET',
+                description: '날씨 예보',
+                params: [],
+                responseExample: {},
+              },
+            ],
+          },
+        ],
+        error: null,
+      });
+
+      const repo = new CatalogRepository(supabase);
+      const [item] = await repo.findByIds(['api-1']);
+      expect(item.endpoints[0].exampleCall).toBeUndefined();
+    });
+
+    it('response_data_path와 request_headers도 매핑한다', async () => {
+      const { supabase, chain } = makeSupabase();
+      chain.in.mockResolvedValueOnce({
+        data: [
+          {
+            ...baseRow,
+            endpoints: [
+              {
+                path: '/data',
+                method: 'GET',
+                description: '데이터',
+                params: [],
+                responseExample: {},
+                response_data_path: 'data.items',
+                request_headers: { 'X-Custom-Header': 'value' },
+              },
+            ],
+          },
+        ],
+        error: null,
+      });
+
+      const repo = new CatalogRepository(supabase);
+      const [item] = await repo.findByIds(['api-1']);
+      expect(item.endpoints[0].responseDataPath).toBe('data.items');
+      expect(item.endpoints[0].requestHeaders).toEqual({ 'X-Custom-Header': 'value' });
+    });
+  });
+
   describe('lastVerificationNote', () => {
     it('DB 컬럼이 null이면 null로 매핑한다', async () => {
       const { supabase, chain } = makeSupabase();
