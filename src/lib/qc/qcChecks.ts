@@ -335,48 +335,209 @@ export async function checkNoRuntimePlaceholder(page: Page): Promise<QcCheckResu
   }
 }
 
+// ---------------------------------------------------------------------------
+// interactiveBehavior sub-check helpers
+// ---------------------------------------------------------------------------
+
+interface SubCheckResult {
+  found: boolean;
+  passed: boolean;
+  detail: string;
+}
+
 /**
- * Deep check: Clicks the first interactive button and checks if DOM changes.
+ * Sub-check 1: Fill a text input and click a nearby button, then verify DOM changed.
+ */
+async function subCheckInputAction(page: Page): Promise<SubCheckResult> {
+  // Find first visible text input
+  const inputs = await page.$$('input[type="text"], input:not([type]), textarea');
+  let foundInput = false;
+  for (const input of inputs.slice(0, 5)) {
+    try {
+      const visible = await input.isVisible();
+      if (!visible) continue;
+      foundInput = true;
+
+      // Fill with test value
+      await input.fill('Seoul');
+
+      // Look for a nearby button: submit button, search button, or first button
+      const button = await page.$('button[type="submit"], button[type="search"], input[type="submit"]') ??
+        await page.$('button');
+      if (!button) {
+        return { found: true, passed: false, detail: '입력 필드 있음 — 클릭 가능한 버튼 없음' };
+      }
+
+      const btnVisible = await button.isVisible();
+      if (!btnVisible) {
+        return { found: true, passed: false, detail: '입력 필드 있음 — 버튼이 보이지 않음' };
+      }
+
+      // Capture state before click
+      const beforeText = await page.evaluate(() => document.body.innerText);
+      const beforeCount = await page.evaluate(() => document.body.querySelectorAll('*').length);
+
+      await button.click({ timeout: 2000 });
+      await page.waitForTimeout(1500);
+
+      const afterText = await page.evaluate(() => document.body.innerText);
+      const afterCount = await page.evaluate(() => document.body.querySelectorAll('*').length);
+
+      const textChanged = Math.abs(afterText.length - beforeText.length) > 20;
+      const domChanged = Math.abs(afterCount - beforeCount) > 0;
+
+      if (textChanged || domChanged) {
+        return { found: true, passed: true, detail: '입력+버튼 플로우: DOM 변화 확인됨' };
+      } else {
+        return { found: true, passed: false, detail: '입력+버튼 클릭 후 DOM 변화 없음 — 인터랙션이 동작하지 않을 수 있음' };
+      }
+    } catch {
+      // try next input
+    }
+  }
+
+  if (!foundInput) {
+    return { found: false, passed: false, detail: '텍스트 입력 필드 없음' };
+  }
+  return { found: true, passed: false, detail: '텍스트 입력 필드 처리 중 오류' };
+}
+
+/**
+ * Sub-check 2: Click a filter/tab button in a group of 3+ and verify something changed.
+ */
+async function subCheckFilterTab(page: Page): Promise<SubCheckResult> {
+  // Look for tab/filter button groups: role="tab", or buttons with @click, or sibling button groups
+  const candidates = await page.$$('[role="tab"], [x-on\\:click], [\\@click]');
+
+  // If no explicit tab/filter found, look for groups of 3+ sibling buttons
+  let targetButton = candidates.length >= 2 ? candidates[1] : null;
+
+  if (!targetButton) {
+    // Heuristic: find a parent element with 3+ direct button children
+    const groupParent = await page.evaluateHandle(() => {
+      const allButtons = Array.from(document.querySelectorAll('button'));
+      const parents = new Map<Element, Element[]>();
+      for (const btn of allButtons) {
+        const parent = btn.parentElement;
+        if (!parent) continue;
+        if (!parents.has(parent)) parents.set(parent, []);
+        parents.get(parent)!.push(btn);
+      }
+      for (const [, btns] of parents) {
+        if (btns.length >= 3) {
+          // Return the second button (index 1) to avoid first = submit/action
+          return btns[1] ?? null;
+        }
+      }
+      return null;
+    });
+
+    // Check if the handle is a real element
+    const asElement = groupParent.asElement();
+    if (asElement) {
+      targetButton = asElement;
+    }
+  }
+
+  if (!targetButton) {
+    return { found: false, passed: false, detail: '필터/탭 버튼 그룹 없음' };
+  }
+
+  try {
+    const visible = await targetButton.isVisible();
+    if (!visible) {
+      return { found: true, passed: false, detail: '필터/탭 버튼이 보이지 않음' };
+    }
+
+    const beforeListCount = await page.evaluate(() =>
+      document.querySelectorAll('li, .card, article, [class*="item"], [class*="card"]').length
+    );
+    const beforeActiveClass = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('[class*="active"], [aria-selected="true"]'))
+        .map(el => el.className).join(',')
+    );
+
+    await targetButton.click({ timeout: 2000 });
+    await page.waitForTimeout(800);
+
+    const afterListCount = await page.evaluate(() =>
+      document.querySelectorAll('li, .card, article, [class*="item"], [class*="card"]').length
+    );
+    const afterActiveClass = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('[class*="active"], [aria-selected="true"]'))
+        .map(el => el.className).join(',')
+    );
+
+    const listChanged = afterListCount !== beforeListCount;
+    const activeChanged = afterActiveClass !== beforeActiveClass;
+
+    if (listChanged || activeChanged) {
+      return { found: true, passed: true, detail: '필터/탭 클릭 후 변화 확인됨' };
+    } else {
+      return { found: true, passed: false, detail: '필터/탭 클릭 후 변화 없음 — 필터/탭이 동작하지 않을 수 있음' };
+    }
+  } catch {
+    return { found: true, passed: false, detail: '필터/탭 클릭 중 오류 발생' };
+  }
+}
+
+/**
+ * Deep check: Tests real interactive behavior via two sub-checks:
+ *   1. Input + action flow (fill text input → click button → verify DOM change)
+ *   2. Filter/tab interaction (click 2nd+ button in a group → verify change)
+ *
+ * Scoring:
+ *   - Both pass:                           100
+ *   - Sub-check 1 passes, 2 not found:     80
+ *   - Sub-check 1 not found, 2 passes:     80
+ *   - Neither found (display-only page):   70
+ *   - One found and fails:                 40
+ *   - Both found and both fail:            0
  */
 export async function checkInteractiveBehavior(page: Page): Promise<QcCheckResult> {
   const start = Date.now();
   try {
-    const before = await page.evaluate(() => document.body.innerHTML.length);
+    const [sub1, sub2] = await Promise.all([
+      subCheckInputAction(page),
+      subCheckFilterTab(page),
+    ]);
 
-    const buttons = await page.$$('button, [role="tab"]');
-    let clicked = false;
-    for (const btn of buttons.slice(0, 5)) {
-      try {
-        const visible = await btn.isVisible();
-        if (visible) {
-          await btn.click({ timeout: 2000 });
-          clicked = true;
-          break;
-        }
-      } catch {
-        // try next
+    const details: string[] = [];
+    if (sub1.detail) details.push(`[입력플로우] ${sub1.detail}`);
+    if (sub2.detail) details.push(`[필터/탭] ${sub2.detail}`);
+
+    let score: number;
+    let passed: boolean;
+
+    if (sub1.found && sub2.found) {
+      if (sub1.passed && sub2.passed) {
+        score = 100;
+        passed = true;
+      } else if (sub1.passed || sub2.passed) {
+        score = 40;
+        passed = false;
+      } else {
+        score = 0;
+        passed = false;
       }
+    } else if (!sub1.found && !sub2.found) {
+      // Display-only page — neutral
+      score = 70;
+      passed = true;
+    } else if (sub1.found && !sub2.found) {
+      score = sub1.passed ? 80 : 40;
+      passed = sub1.passed;
+    } else {
+      // !sub1.found && sub2.found
+      score = sub2.passed ? 80 : 40;
+      passed = sub2.passed;
     }
-
-    if (!clicked) {
-      return {
-        name: 'interactiveBehavior',
-        passed: true,
-        score: 100,
-        details: ['No clickable buttons found — skipping'],
-        durationMs: Date.now() - start,
-      };
-    }
-
-    await page.waitForTimeout(500);
-    const after = await page.evaluate(() => document.body.innerHTML.length);
-    const changed = Math.abs(after - before) > 10;
 
     return {
       name: 'interactiveBehavior',
-      passed: changed,
-      score: changed ? 100 : 30,
-      details: changed ? [] : ['버튼 클릭 후 DOM 변화 없음 — 인터랙션이 동작하지 않을 수 있음'],
+      passed,
+      score,
+      details,
       durationMs: Date.now() - start,
     };
   } catch (err) {
