@@ -468,7 +468,7 @@ function showError(container, message) {
     <div class="error-card flex flex-col items-center justify-center py-16 text-center">
       <i class="fas fa-exclamation-circle text-4xl text-red-400 mb-4"></i>
       <p class="text-gray-600 mb-4">\\\${message}</p>
-      <button onclick="loadData()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+      <button onclick="fetchApiData()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
         다시 시도
       </button>
     </div>\\\`;
