@@ -531,7 +531,11 @@ export async function runGenerationPipeline(
 
       try {
         const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport);
-        const retryResponse = await aiProvider.generateCode({ system: stage2SystemPrompt, user: improvementPrompt });
+        const retryResponse = await aiProvider.generateCode({
+          system: stage2SystemPrompt,
+          user: improvementPrompt,
+          extendedThinking: true,
+        });
         const retryParsed = parseGeneratedCode(retryResponse.content);
 
         if (retryParsed.html) {
