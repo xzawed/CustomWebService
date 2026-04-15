@@ -1,5 +1,5 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { PublishDialog } from './PublishDialog';
 import type { Project } from '@/types/project';
 
@@ -44,6 +44,10 @@ describe('PublishDialog', () => {
     vi.stubGlobal('fetch', vi.fn());
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('AI 추천 없을 때 직접 입력 폼만 표시된다', () => {
     render(
       <PublishDialog
@@ -84,6 +88,16 @@ describe('PublishDialog', () => {
   });
 
   it('게시하기 버튼은 커스텀 모드에서 available 상태일 때만 활성화', async () => {
+    vi.useFakeTimers();
+
+    // fetch resolves with available: true
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        json: () => Promise.resolve({ data: { available: true } }),
+      }),
+    );
+
     // No suggestions → custom mode by default
     render(
       <PublishDialog
@@ -98,12 +112,21 @@ describe('PublishDialog', () => {
     // idle state → disabled
     expect(publishButton.hasAttribute('disabled')).toBe(true);
 
-    // Type something but checkResult is still 'checking' (fetch not resolved)
+    // Type something — checkResult transitions to 'checking'
     const input = screen.getByPlaceholderText('my-service');
     fireEvent.change(input, { target: { value: 'my-slug' } });
 
-    // Still disabled while checking
+    // Still disabled while checking (debounce not yet fired)
     expect(publishButton.hasAttribute('disabled')).toBe(true);
+
+    // Advance past the 300ms debounce; vi.runAllTimersAsync flushes timers
+    // and awaits any resulting microtasks (including the fetch promise chain)
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    // fetch resolved with available: true → button should be enabled
+    expect(publishButton.hasAttribute('disabled')).toBe(false);
   });
 
   it('취소 버튼이 onClose를 호출한다', () => {
