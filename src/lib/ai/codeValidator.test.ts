@@ -101,7 +101,7 @@ describe('evaluateQuality', () => {
     const result = evaluateQuality(html, '', js);
     expect(result.structuralScore).toBe(100);
     expect(result.hasSemanticHtml).toBe(true);
-    expect(result.hasMockData).toBe(false); // deprecated — always false
+    expect(result.hasMockData).toBe(false); // derived from hardcodedArrayCount > 0
     expect(result.hasInteraction).toBe(true);
     expect(result.hasFooter).toBe(true);
     expect(result.mobileScore).toBe(100);
@@ -116,7 +116,7 @@ describe('evaluateQuality', () => {
   it('빈 코드는 낮은 점수를 반환한다', () => {
     const result = evaluateQuality('<div></div>', '', '');
     expect(result.structuralScore).toBeLessThan(30);
-    expect(result.hasMockData).toBe(false); // deprecated — always false
+    expect(result.hasMockData).toBe(false); // derived from hardcodedArrayCount > 0
     expect(result.hasInteraction).toBe(false);
     expect(result.fetchCallCount).toBe(0);
   });

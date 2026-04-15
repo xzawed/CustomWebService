@@ -41,6 +41,7 @@ function makeHighQualityMetrics(overrides: Partial<QualityMetrics> = {}): Qualit
     hasProxyCall: false,
     hasJsonParse: true,
     placeholderCount: 0,
+    hardcodedArrayCount: 0,
     details: [],
     ...overrides,
   };

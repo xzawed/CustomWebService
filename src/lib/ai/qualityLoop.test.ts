@@ -8,6 +8,7 @@ const baseMetrics: QualityMetrics = {
   hasResponsiveClasses: true, hasAdequateResponsive: true, noFixedOverflow: true,
   hasImageProtection: true, hasMobileNav: true, hasFooter: true, hasImgAlt: true,
   fetchCallCount: 1, hasProxyCall: false, hasJsonParse: true, placeholderCount: 0,
+  hardcodedArrayCount: 0,
   details: [],
 };
 

@@ -66,6 +66,11 @@ vi.mock('@/lib/ai/codeValidator', () => ({
     hasMobileNav: true,
     hasFooter: true,
     hasImgAlt: true,
+    fetchCallCount: 1,
+    hasProxyCall: false,
+    hasJsonParse: true,
+    placeholderCount: 0,
+    hardcodedArrayCount: 1,
     details: [],
   }),
 }));
