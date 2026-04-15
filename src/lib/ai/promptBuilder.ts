@@ -551,7 +551,146 @@ function showError(container, message) {
 - 버튼 로딩 상태·리플 효과
 - Empty State UI (아이콘·액션 버튼 포함)
 
-지금은 기본 Tailwind 유틸리티(bg-white, text-gray-900 등)로 구조만 완성하세요.`;
+지금은 기본 Tailwind 유틸리티(bg-white, text-gray-900 등)로 구조만 완성하세요.
+
+## 예시: 올바른 코드 생성 패턴
+
+### 예시 1: JSONPlaceholder + 할 일 목록
+**사용자 요청:** "할 일 목록 관리 앱"
+**선택된 API:** JSONPlaceholder — GET /todos (auth_type: none, base_url: https://jsonplaceholder.typicode.com)
+
+**올바른 구현 패턴:**
+
+HTML:
+\`\`\`html
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+  <div id="loading" class="text-center py-20 text-gray-400">불러오는 중...</div>
+  <div id="error" class="hidden flex flex-col items-center justify-center py-16 text-center">
+    <i class="fas fa-exclamation-circle text-4xl text-red-400 mb-4"></i>
+    <p id="error-msg" class="text-gray-600 mb-4"></p>
+    <button onclick="loadTodos()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+      다시 시도
+    </button>
+  </div>
+  <div id="content" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+</main>
+\`\`\`
+
+JavaScript:
+\`\`\`javascript
+// ✅ 올바른 패턴: 직접 fetch (auth_type: none)
+async function loadTodos() {
+  document.getElementById('loading').classList.remove('hidden');
+  document.getElementById('error').classList.add('hidden');
+  document.getElementById('content').classList.add('hidden');
+
+  try {
+    const res = await fetch('https://jsonplaceholder.typicode.com/todos?_limit=20');
+    if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
+    const items = await res.json(); // [{id, title, completed, userId}]
+
+    const container = document.getElementById('content');
+    container.innerHTML = items.map(item => \`
+      <div class="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 p-5 \${item.completed ? 'opacity-60' : ''}">
+        <div class="flex items-start gap-3">
+          <span class="mt-1 w-5 h-5 rounded-full flex-shrink-0 \${item.completed ? 'bg-green-500' : 'border-2 border-gray-300'}"></span>
+          <p class="text-sm font-medium text-gray-800 line-clamp-2">\${item.title}</p>
+        </div>
+        <p class="text-xs text-gray-400 mt-3">사용자 #\${item.userId}</p>
+      </div>
+    \`).join('');
+
+    document.getElementById('loading').classList.add('hidden');
+    container.classList.remove('hidden');
+  } catch (err) {
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('error-msg').textContent = '데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
+    document.getElementById('error').classList.remove('hidden');
+    console.error(err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadTodos);
+\`\`\`
+
+// ✅ 핵심 원칙 (이 예시):
+// - const mockTodos = [...] 같은 하드코딩 배열 없음
+// - auth_type: none → base_url로 직접 fetch (프록시 불필요)
+// - 에러 시 에러 카드 + 재시도 버튼
+// - 로딩/에러/성공 세 가지 상태 처리
+
+---
+
+### 예시 2: 인증 필요 API + 뉴스 피드 (프록시 사용)
+**사용자 요청:** "우주 뉴스 피드"
+**선택된 API:** Spaceflight News — GET /v4/articles/ (auth_type: api_key, apiId: abc-123)
+
+**올바른 구현 패턴:**
+
+HTML:
+\`\`\`html
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+  <div id="loading" class="text-center py-20 text-gray-400">기사를 불러오는 중...</div>
+  <div id="error" class="hidden flex flex-col items-center justify-center py-16 text-center">
+    <i class="fas fa-exclamation-circle text-4xl text-red-400 mb-4"></i>
+    <p id="error-msg" class="text-gray-600 mb-4"></p>
+    <button onclick="loadArticles()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+      다시 시도
+    </button>
+  </div>
+  <div id="content" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+</main>
+\`\`\`
+
+JavaScript:
+\`\`\`javascript
+// ✅ 올바른 패턴: auth_type api_key → /api/v1/proxy 사용
+async function loadArticles() {
+  document.getElementById('loading').classList.remove('hidden');
+  document.getElementById('error').classList.add('hidden');
+  document.getElementById('content').classList.add('hidden');
+
+  try {
+    // apiId는 API 목록에서 제공된 값 사용, proxyPath는 엔드포인트 경로
+    const res = await fetch('/api/v1/proxy?apiId=abc-123&proxyPath=%2Fv4%2Farticles%2F&limit=12');
+    if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
+    const data = await res.json();
+    const articles = data.results ?? data.articles ?? data ?? [];
+
+    const container = document.getElementById('content');
+    container.innerHTML = articles.map(article => \`
+      <article class="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer"
+               onclick="window.open('\${article.url}', '_blank')">
+        <img src="\${article.image_url || 'https://source.unsplash.com/600x400/?space,rocket'}"
+             alt="\${article.title} 관련 이미지"
+             class="w-full aspect-video object-cover">
+        <div class="p-5">
+          <h3 class="text-lg font-semibold line-clamp-2">\${article.title}</h3>
+          <p class="text-sm text-gray-500 mt-2 line-clamp-3">\${article.summary ?? ''}</p>
+          <p class="text-xs text-gray-400 mt-3">\${new Date(article.published_at).toLocaleDateString('ko-KR')}</p>
+        </div>
+      </article>
+    \`).join('');
+
+    document.getElementById('loading').classList.add('hidden');
+    container.classList.remove('hidden');
+  } catch (err) {
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('error-msg').textContent = '뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
+    document.getElementById('error').classList.remove('hidden');
+    console.error(err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadArticles);
+\`\`\`
+
+// ✅ 핵심 원칙 (이 예시):
+// - auth_type: api_key → /api/v1/proxy?apiId=...&proxyPath=... 사용 (직접 외부 URL 금지)
+// - 'YOUR_API_KEY' 절대 사용 안 함 — 프록시가 키를 서버에서 처리
+// - data.results ?? data.articles ?? data ?? [] 패턴으로 응답 구조 대응
+// - API 응답 이미지 필드(image_url) 우선 사용, 없을 때만 Unsplash fallback
+// - <article> 시맨틱 태그 + 한국어 alt 속성`;
 }
 
 export function buildStage1UserPrompt(

@@ -44,17 +44,11 @@ export function buildQualityImprovementPrompt(
         .join('\n')
     : '';
 
-  // 토큰 최적화: 전체 코드 대신 앞부분만 전송 (50-70% 절감)
-  const htmlLines = previousCode.html.split('\n');
-  const jsLines = previousCode.js.split('\n');
-  const htmlPreview = htmlLines.slice(0, 200).join('\n');
-  const jsPreview = jsLines.slice(0, 100).join('\n');
+  return `## 이전 생성 코드 (전체)
 
-  return `## 이전 생성 코드 (요약)
-
-### HTML${htmlLines.length > 200 ? ' (처음 200줄)' : ''}
+### HTML
 \`\`\`html
-${htmlPreview}
+${previousCode.html}
 \`\`\`
 
 ### CSS
@@ -62,9 +56,9 @@ ${htmlPreview}
 ${previousCode.css}
 \`\`\`
 
-### JavaScript${jsLines.length > 100 ? ' (처음 100줄)' : ''}
+### JavaScript
 \`\`\`javascript
-${jsPreview}
+${previousCode.js}
 \`\`\`
 
 ## 품질 개선 요청
