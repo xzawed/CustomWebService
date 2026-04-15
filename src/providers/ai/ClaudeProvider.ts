@@ -55,12 +55,24 @@ export class ClaudeProvider implements IAiProvider {
           await sleep(delay);
         }
 
+        const useExtendedThinking = prompt.extendedThinking === true;
         const result = await this.client.messages.create({
           model: this.model,
-          system: prompt.system,
+          system: [
+            {
+              type: 'text' as const,
+              text: prompt.system,
+              cache_control: { type: 'ephemeral' as const },
+            },
+          ],
           messages: [{ role: 'user', content: prompt.user }],
-          temperature: prompt.temperature ?? 0.7,
-          max_tokens: prompt.maxTokens ?? 32000,
+          ...(useExtendedThinking
+            ? {
+                thinking: { type: 'enabled' as const, budget_tokens: 10000 },
+                temperature: 1,
+              }
+            : { temperature: prompt.temperature ?? 0.7 }),
+          max_tokens: prompt.maxTokens ?? 48000,
         });
 
         const textBlock = result.content.find(
@@ -110,10 +122,16 @@ export class ClaudeProvider implements IAiProvider {
 
         const stream = this.client.messages.stream({
           model: this.model,
-          system: prompt.system,
+          system: [
+            {
+              type: 'text' as const,
+              text: prompt.system,
+              cache_control: { type: 'ephemeral' as const },
+            },
+          ],
           messages: [{ role: 'user', content: prompt.user }],
           temperature: prompt.temperature ?? 0.7,
-          max_tokens: prompt.maxTokens ?? 32000,
+          max_tokens: prompt.maxTokens ?? 48000,
         });
 
         let accumulated = '';

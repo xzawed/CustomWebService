@@ -118,19 +118,40 @@ describe('ClaudeProvider', () => {
       expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ temperature: 0.7 }));
     });
 
-    it('기본 max_tokens는 32000이다', async () => {
+    it('기본 max_tokens는 48000이다', async () => {
       await provider.generateCode({ system: 'sys', user: 'user' });
-      expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ max_tokens: 32000 }));
+      expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ max_tokens: 48000 }));
     });
 
-    it('system 프롬프트를 별도 필드로 전달한다', async () => {
+    it('system 프롬프트를 cache_control 포함 배열로 전달한다', async () => {
       await provider.generateCode({ system: 'test-system', user: 'test-user' });
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          system: 'test-system',
+          system: [
+            {
+              type: 'text',
+              text: 'test-system',
+              cache_control: { type: 'ephemeral' },
+            },
+          ],
           messages: [{ role: 'user', content: 'test-user' }],
         })
       );
+    });
+
+    it('extendedThinking 활성화 시 thinking 파라미터와 temperature 1이 전달된다', async () => {
+      await provider.generateCode({ system: 'sys', user: 'user', extendedThinking: true });
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          thinking: { type: 'enabled', budget_tokens: 10000 },
+          temperature: 1,
+        })
+      );
+    });
+
+    it('extendedThinking 비활성화 시 기본 temperature 0.7이 전달된다', async () => {
+      await provider.generateCode({ system: 'sys', user: 'user' });
+      expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ temperature: 0.7 }));
     });
   });
 
