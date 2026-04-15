@@ -45,3 +45,7 @@ drizzle/
 
 # claude — settings.local.json(시크릿)만 제외, settings.json(훅/권한)은 버전 관리
 .claude/settings.local.json
+
+# 임시 검증 산출물
+verification-report.json
+verify.log
