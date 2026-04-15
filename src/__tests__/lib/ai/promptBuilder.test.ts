@@ -83,7 +83,7 @@ describe('buildStage2SystemPrompt', () => {
 
   it('기능 변경 금지 규칙을 포함한다', () => {
     const prompt = buildStage2SystemPrompt();
-    expect(prompt).toContain('기능과 목 데이터는');
+    expect(prompt).toContain('기능은 절대 변경하지 말 것');
   });
 
   it('스켈레톤 UI 패턴을 포함한다', () => {

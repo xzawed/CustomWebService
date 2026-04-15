@@ -326,15 +326,17 @@ function openModal(item) {
 }
 \`\`\`
 
-### Chart.js (반드시 데이터 포함)
+### Chart.js (반드시 API 응답 데이터로 구성)
 \`\`\`javascript
+// API에서 차트 데이터를 가져온 후 렌더링
+const chartData = await fetchChartData(); // fetch()로 받은 응답을 가공
 new Chart(ctx, {
   type: 'bar', // 또는 line, doughnut, radar 등
   data: {
-    labels: ['1월', '2월', '3월', '4월', '5월', '6월'],
+    labels: chartData.labels,
     datasets: [{
-      label: '월별 방문자',
-      data: [4200, 5100, 4800, 6200, 7100, 8500], // ★ 반드시 실제 숫자
+      label: chartData.label,
+      data: chartData.values, // ★ 반드시 API 응답 데이터 — 하드코딩 숫자 절대 금지
       backgroundColor: 'rgba(59, 130, 246, 0.8)',
       borderRadius: 8,
     }]
@@ -459,13 +461,17 @@ document.querySelectorAll('.animate-on-scroll').forEach(el => {
 섹션별 데이터 갱신 중에는 해당 영역에 로딩 표시자를 표시하세요. 스켈레톤 UI 디자인은 2단계에서 적용됩니다.
 
 ### API 실패 시
-목 데이터를 유지하고, 상단에 비침습적 배너 표시:
+에러 카드를 표시하고 재시도 버튼을 제공하라. **mock data로 대체하는 것은 절대 금지**:
 \`\`\`javascript
-function showApiBanner() {
-  const banner = document.createElement('div');
-  banner.className = 'bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-sm text-amber-700';
-  banner.innerHTML = '<i class="fas fa-info-circle mr-2"></i>실시간 데이터를 불러오지 못했습니다. 샘플 데이터를 표시합니다.';
-  document.body.prepend(banner);
+function showError(container, message) {
+  container.innerHTML = \\\`
+    <div class="error-card flex flex-col items-center justify-center py-16 text-center">
+      <i class="fas fa-exclamation-circle text-4xl text-red-400 mb-4"></i>
+      <p class="text-gray-600 mb-4">\\\${message}</p>
+      <button onclick="loadData()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+        다시 시도
+      </button>
+    </div>\\\`;
 }
 \`\`\`
 
@@ -755,7 +761,7 @@ function _buildStage2SystemPrompt(): string {
 
 ## 핵심 규칙 (위반 시 실패)
 
-1. **기능과 목 데이터는 절대 변경하지 말 것.** JavaScript 로직, API 호출, 목 데이터 배열, 이벤트 핸들러는 그대로 유지.
+1. **기능은 절대 변경하지 말 것.** JavaScript 로직, API 호출, 이벤트 핸들러는 그대로 유지. 단, 하드코딩된 mock 배열이 있다면 API fetch로 대체하라.
 2. **HTML 시맨틱 구조는 유지.** 섹션 재설계 금지 — CSS 클래스 추가·변경만 허용.
 3. **전체 코드를 HTML / CSS / JavaScript 형식으로 반환.**
 4. **모든 텍스트는 한국어 유지.**
@@ -888,10 +894,7 @@ DOMContentLoaded 직후 300ms 동안 스켈레톤을 먼저 표시하라:
 \`\`\`javascript
 document.addEventListener('DOMContentLoaded', () => {
   renderSkeletons(8);
-  setTimeout(() => {
-    renderCards(mockData);
-    fetchApiData();
-  }, 300);
+  fetchApiData(); // API 응답 후 renderCards(apiData)로 실제 데이터 렌더링
 });
 \`\`\`
 
@@ -964,8 +967,8 @@ function showToast(message, type = 'success') {
 
 ## 절대 금지
 
-- JavaScript 로직·이벤트 핸들러 변경
-- 목 데이터 배열 수정
+- JavaScript 로직·이벤트 핸들러 변경 (API 호출 개선 목적 제외)
+- 하드코딩 mock 배열을 그대로 유지하는 것 (API fetch로 대체 필수)
 - 기존 기능 제거
 - HTML 섹션 재설계
 - @keyframes 없는 CSS 반환
@@ -981,7 +984,7 @@ export function buildStage2UserPrompt(stage1Code: {
   js: string;
 }): string {
   return `다음은 1단계에서 생성된 구조 코드입니다.
-기능과 목 데이터는 완성되어 있으므로 수정하지 마세요.
+기능과 API 호출 구조는 유지하세요. 하드코딩된 mock 배열이 있다면 API fetch로 대체하세요.
 디자인 시스템, 애니메이션, 마이크로 인터랙션을 강화하여 전체 코드를 반환하세요.
 
 ### HTML (1단계)
