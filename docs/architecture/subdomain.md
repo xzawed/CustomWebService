@@ -807,3 +807,34 @@ CREATE UNIQUE INDEX idx_projects_slug ON projects (slug) WHERE slug IS NOT NULL;
 ---
 
 *이 문서는 구현 시작 전 팀 리뷰 후 확정하며, 각 Phase 완료 시 업데이트합니다.*
+
+---
+
+## 11. Slug 정책 (현행)
+
+### 11-1. AI 슬러그 제안
+
+코드 생성 Stage 3 완료 직후 `suggestSlugs()` (`src/lib/ai/slugSuggester.ts`)가 **best-effort**로 호출된다.
+
+- 모델: `claude-haiku-4-5` (빠른 응답, 비용 최소화)
+- 출력: 영문 소문자·하이픈 슬러그 3개
+- 저장: `projects.suggested_slugs` (TEXT[] 컬럼)
+- 실패 시: 오류 무시, 파이프라인 계속 진행 (빈 배열로 폴백)
+
+### 11-2. 게시 다이얼로그 흐름
+
+1. AI 제안 슬러그 3개를 라디오 버튼으로 표시 (`PublishDialog.tsx`)
+2. 직접 입력 옵션 (커스텀 슬러그)
+3. 선택/입력 시 실시간 가용성 체크 (`GET /api/v1/projects/slug-check?slug=…`)
+4. 확인 → `POST /api/v1/projects/[id]/publish { slug }`
+
+**재게시(Re-publish):** 이미 slug가 할당된 프로젝트를 재게시하면 기존 slug를 그대로 유지 (다이얼로그 미표시).
+
+### 11-3. 충돌 해소
+
+`assignUniqueSlug()` (`src/services/projectService.ts`):
+
+1. base slug 시도
+2. 실패 시 `base-2` … `base-10` 순차 시도
+3. 모두 실패 시 타임스탬프 suffix 폴백
+4. INSERT 시 Postgres 23505(unique_violation) 발생 → 1회 재시도

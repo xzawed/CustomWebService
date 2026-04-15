@@ -103,6 +103,7 @@ pnpm test:coverage    # 커버리지 리포트
 - `ENCRYPTION_KEY` — 사용자 API 키 암호화
 - `GITHUB_TOKEN`, `RAILWAY_TOKEN` — 배포용
 - `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
+- `AI_MODEL_SUGGESTION`, `AI_MODEL_GENERATION` — Claude 모델 ID 오버라이드 (선택, 기본값 있음)
 
 ## 문서 참조
 
@@ -173,6 +174,7 @@ pnpm test:coverage    # 커버리지 리포트
 - `AiProviderFactory.ts` 모델 ID 수정 시 `.test.ts`도 반드시 동시에 업데이트 (CI 파손 방지)
 - **JSONB 필드명 이중성**: `catalogRepository.parseEndpoints()` 같은 JSONB 매퍼는 snake_case(`example_call`)와 camelCase(`exampleCall`) 둘 다 처리 필요 — DB 직접 삽입 vs 코드 경로 차이
 - **Playwright 병렬 체크 주의**: 단일 `page` 인스턴스에서 `Promise.allSettled` 사용 시 viewport를 변경하는 체크는 반드시 다른 체크 완료 후 순차 실행 (`renderingQc.ts` 참고)
+- **slug 충돌 처리**: `assignUniqueSlug()` in `projectService.ts` — base → base-2 → … → base-10 → timestamp fallback; 23505 unique 위반 시 1회 재시도
 
 ## Claude 도움 요청 원칙
 

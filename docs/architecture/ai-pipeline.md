@@ -289,6 +289,7 @@ Avoid: [제외할 요소]
 1. Stage 1 → `codeValidator.validateAll()` (보안 차단) → `evaluateQuality()` (품질 점수, fetchCallCount 포함)
 2. **조건부**: fetchCallCount=0, placeholderCount>0, 또는 Fast QC 실패 시에만 Stage 2 기능 검증 실행. 통과 시 Stage 1 코드 직행
 3. Stage 3 디자인 폴리시 실행 → DB 저장 → 비동기 Deep QC
+4. **best-effort**: `suggestSlugs()` 호출 (`claude-haiku-4-5`, `src/lib/ai/slugSuggester.ts`) → 성공 시 3개 슬러그 후보를 `projects.suggested_slugs`에 저장, 실패 시 무시
 
 `exampleCall` 흐름: DB JSONB(endpoints 배열) → `catalogRepository.parseEndpoints()` → `ApiEndpoint.exampleCall` → 사용자 프롬프트 `✅ 실제 동작 예제` 블록 → AI Stage 1 생성
 
