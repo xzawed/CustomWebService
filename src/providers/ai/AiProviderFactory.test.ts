@@ -107,5 +107,50 @@ describe('AiProviderFactory.createForTask()', () => {
     delete process.env.AI_PROVIDER;
     expect(() => AiProviderFactory.createForTask('generation')).toThrow('ANTHROPIC_API_KEY is not set');
   });
+
+  it('AI_MODEL_SUGGESTION 설정 시 suggestion 태스크가 해당 모델을 사용한다', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    process.env.AI_MODEL_SUGGESTION = 'claude-sonnet-4-6';
+    const provider = AiProviderFactory.createForTask('suggestion');
+    expect(provider.model).toBe('claude-sonnet-4-6');
+  });
+
+  it('AI_MODEL_GENERATION 설정 시 generation 태스크가 해당 모델을 사용한다', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    process.env.AI_MODEL_GENERATION = 'claude-opus-4-6';
+    const provider = AiProviderFactory.createForTask('generation');
+    expect(provider.model).toBe('claude-opus-4-6');
+  });
+
+  it('허용되지 않은 모델 ID 설정 시 기본값으로 폴백한다', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    process.env.AI_MODEL_SUGGESTION = 'claude-haiku-4-5-20251001';
+    const provider = AiProviderFactory.createForTask('suggestion');
+    expect(provider.model).toBe('claude-haiku-4-5');
+  });
+
+  it('AI_MODEL_SUGGESTION 미설정 시 기본값 Haiku를 사용한다', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    delete process.env.AI_MODEL_SUGGESTION;
+    const provider = AiProviderFactory.createForTask('suggestion');
+    expect(provider.model).toBe('claude-haiku-4-5');
+  });
+
+  it('AI_MODEL_GENERATION 미설정 시 기본값 Sonnet을 사용한다', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    delete process.env.AI_MODEL_GENERATION;
+    const provider = AiProviderFactory.createForTask('generation');
+    expect(provider.model).toBe('claude-sonnet-4-6');
+  });
+
+  it('모델이 다르면 다른 인스턴스를 반환한다', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    delete process.env.AI_MODEL_GENERATION;
+    const p1 = AiProviderFactory.createForTask('generation'); // sonnet (기본값)
+    (AiProviderFactory as any).providers = new Map(); // 캐시 초기화
+    process.env.AI_MODEL_GENERATION = 'claude-opus-4-6';
+    const p2 = AiProviderFactory.createForTask('generation'); // opus
+    expect(p1.model).not.toBe(p2.model);
+  });
 });
 
