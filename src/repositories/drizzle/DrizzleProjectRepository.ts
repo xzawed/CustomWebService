@@ -136,6 +136,13 @@ export class DrizzleProjectRepository implements IProjectRepository {
     return rows.length > 0 ? this.toDomain(rows[0]) : null;
   }
 
+  async updateSuggestedSlugs(id: string, slugs: string[]): Promise<void> {
+    await this.db
+      .update(schema.projects)
+      .set({ suggested_slugs: slugs })
+      .where(eq(schema.projects.id, id));
+  }
+
   async updateSlug(id: string, slug: string, publishedAt: Date): Promise<Project> {
     const [row] = await this.db
       .update(schema.projects)

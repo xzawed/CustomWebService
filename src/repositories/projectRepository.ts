@@ -63,6 +63,15 @@ export class ProjectRepository extends BaseRepository<Project> implements IProje
     return data ? this.toDomain(data) : null;
   }
 
+  async updateSuggestedSlugs(id: string, slugs: string[]): Promise<void> {
+    const { error } = await this.supabase
+      .from('projects')
+      .update({ suggested_slugs: slugs })
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
   async updateSlug(id: string, slug: string, publishedAt: Date): Promise<Project> {
     const { data, error } = await this.supabase
       .from(this.tableName)
