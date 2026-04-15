@@ -35,6 +35,7 @@ export interface Project {
   currentVersion: number;
   apis: ApiCatalogItem[];
   slug: string | null;
+  suggestedSlugs?: string[];
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;

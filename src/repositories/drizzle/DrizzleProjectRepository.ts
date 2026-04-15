@@ -167,6 +167,7 @@ export class DrizzleProjectRepository implements IProjectRepository {
       currentVersion: row.current_version ?? 0,
       apis: [],
       slug: row.slug ?? null,
+      suggestedSlugs: row.suggested_slugs ?? undefined,
       publishedAt: row.published_at ? String(row.published_at) : null,
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at),

@@ -101,6 +101,7 @@ export class ProjectRepository extends BaseRepository<Project> implements IProje
       currentVersion: (row.current_version as number) ?? 0,
       apis: [],
       slug: (row.slug as string) ?? null,
+      suggestedSlugs: (row.suggested_slugs as string[]) ?? undefined,
       publishedAt: (row.published_at as string) ?? null,
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string,

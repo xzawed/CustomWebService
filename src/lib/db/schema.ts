@@ -120,6 +120,7 @@ export const projects = pgTable('projects', {
   metadata: jsonb('metadata').default({}),
   current_version: integer('current_version').default(0),
   slug: text('slug'),
+  suggested_slugs: text('suggested_slugs').array(),
   published_at: timestamp('published_at', { withTimezone: true }),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
