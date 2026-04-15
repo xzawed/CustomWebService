@@ -1,7 +1,6 @@
 import type { ApiCatalogItem } from '@/types/api';
 import type { DesignPreferences } from '@/types/project';
 import { inferDesignFromCategories } from './categoryDesignMap';
-import type { FeatureSpec } from './featureExtractor';
 
 // 시스템 프롬프트 모듈 레벨 캐싱 — 매 요청마다 재생성하지 않음
 let cachedStage1SystemPrompt: string | null = null;
@@ -15,9 +14,8 @@ export function clearPromptCache(): void {
 /**
  * Stage 1 시스템 프롬프트를 빌드합니다.
  * @param templateHint - 템플릿 가이던스 힌트 (선택)
- * @param featureSpec - 기능 사양 (Stage 0에서 추출, 선택 — null이면 체크리스트 생략)
  */
-export function buildStage1SystemPrompt(templateHint?: string, featureSpec?: FeatureSpec | null): string {
+export function buildStage1SystemPrompt(templateHint?: string): string {
   const base = cachedStage1SystemPrompt ?? (cachedStage1SystemPrompt = _buildStage1SystemPrompt());
 
   let result = base;
@@ -29,21 +27,6 @@ export function buildStage1SystemPrompt(templateHint?: string, featureSpec?: Fea
 [템플릿 가이던스]
 ${safeHint}
 위의 레이아웃 구조를 반드시 따르세요. 위에 명시된 섹션 구성과 UI 패턴은 필수 사항입니다. 이 구조 안에서 콘텐츠와 API 통합 내용을 채워주세요.`;
-  }
-
-  if (featureSpec && featureSpec.features.length > 0) {
-    const featureList = featureSpec.features
-      .map((f) => `- [${f.id}] ${f.description} (검증: ${f.verifiableBy})`)
-      .join('\n');
-    result = `${result}
-
-## 필수 구현 기능 목록
-
-아래 기능들은 반드시 구현되어야 합니다. 각 기능에 맞는 DOM 요소와 Alpine.js 상태를 포함하세요:
-
-${featureList}
-
-생성 후 이 목록을 기준으로 모든 기능이 구현되었는지 자체 검토하세요.`;
   }
 
   return result;
