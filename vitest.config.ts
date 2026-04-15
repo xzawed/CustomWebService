@@ -6,7 +6,8 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    environmentMatchGlobs: [['src/**/*.test.tsx', 'happy-dom']],
     exclude: ['node_modules/**', 'e2e/**'],
     coverage: {
       provider: 'v8',

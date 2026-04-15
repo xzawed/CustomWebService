@@ -6,12 +6,15 @@ export function usePublish() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const publish = async (projectId: string) => {
+  const publish = async (projectId: string, slug?: string) => {
     setIsLoading(true);
     setError(null);
     try {
+      const body = slug ? JSON.stringify({ slug }) : undefined;
       const res = await fetch(`/api/v1/projects/${projectId}/publish`, {
         method: 'POST',
+        headers: slug ? { 'Content-Type': 'application/json' } : {},
+        body,
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePublish } from '@/hooks/usePublish';
 import { buildPublishUrl } from '@/lib/utils/publishUrl';
+import { PublishDialog } from './PublishDialog';
 import type { Project } from '@/types/project';
 
 interface ProjectPublishActionsProps {
@@ -14,17 +15,24 @@ export function ProjectPublishActions({ project }: ProjectPublishActionsProps) {
   const router = useRouter();
   const { publish, unpublish, isLoading, error } = usePublish();
   const [copied, setCopied] = useState(false);
+  const [showDialog, setShowDialog] = useState(false);
 
   const publishUrl = project.slug ? buildPublishUrl(project.slug) : null;
   const canPublish = ['generated', 'deployed', 'unpublished'].includes(project.status);
   const isPublished = project.status === 'published';
 
   const handlePublish = async () => {
-    try {
-      await publish(project.id);
-      router.refresh();
-    } catch {
-      // 에러는 usePublish에서 처리
+    if (project.slug) {
+      // 재게시: 슬러그가 이미 있으므로 다이얼로그 없이 바로 게시
+      try {
+        await publish(project.id);
+        router.refresh();
+      } catch {
+        // 에러는 usePublish에서 처리
+      }
+    } else {
+      // 최초 게시: 슬러그 선택 다이얼로그 열기
+      setShowDialog(true);
     }
   };
 
@@ -103,6 +111,13 @@ export function ProjectPublishActions({ project }: ProjectPublishActionsProps) {
           </button>
         )}
       </div>
+      {showDialog && (
+        <PublishDialog
+          project={project}
+          onClose={() => setShowDialog(false)}
+          onPublished={() => router.refresh()}
+        />
+      )}
     </div>
   );
 }
