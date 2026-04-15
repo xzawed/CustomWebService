@@ -825,8 +825,8 @@ CREATE UNIQUE INDEX idx_projects_slug ON projects (slug) WHERE slug IS NOT NULL;
 
 1. AI 제안 슬러그 3개를 라디오 버튼으로 표시 (`PublishDialog.tsx`)
 2. 직접 입력 옵션 (커스텀 슬러그)
-3. 선택/입력 시 실시간 가용성 체크 (`GET /api/v1/projects/slug-check?slug=…`)
-4. 확인 → `POST /api/v1/projects/[id]/publish { slug }`
+3. 커스텀 입력 시 300ms 디바운스로 실시간 가용성 체크: `POST /api/v1/projects/[id]/slug/check` body `{ slug }` → `{ available, reason?: 'invalid' | 'reserved' | 'taken' }`
+4. 확인 → `POST /api/v1/projects/[id]/publish` body `{ slug }` (또는 AI 실패 폴백 시 body 없이)
 
 **재게시(Re-publish):** 이미 slug가 할당된 프로젝트를 재게시하면 기존 slug를 그대로 유지 (다이얼로그 미표시).
 

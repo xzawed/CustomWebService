@@ -178,7 +178,18 @@ API 카탈로그 전체 조회
 ### POST /api/v1/projects/:id/publish
 생성된 서비스를 서브도메인으로 게시
 
-> 고유 slug가 자동 생성되어 `https://<app-domain>/site/<slug>` 로 공개됩니다.
+> 최초 게시 시 `slug`를 직접 지정할 수 있습니다. 미제공 시 자동 생성됩니다. 재게시는 기존 slug를 유지합니다.
+
+**Request Body (선택):**
+```json
+{
+    "slug": "my-weather-app"
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `slug` | string | N | 최초 게시 시 사용할 slug. 미제공 시 AI 추천 또는 자동 생성. 충돌 시 `-2`, `-3` suffix 자동 부여 |
 
 **Response:**
 ```json
