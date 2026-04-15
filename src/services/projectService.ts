@@ -3,7 +3,8 @@ import { eventBus } from '@/lib/events/eventBus';
 import { getLimits } from '@/lib/config/features';
 import { NotFoundError, ValidationError } from '@/lib/utils/errors';
 import { assertOwner } from '@/lib/auth/authorize';
-import { generateSlug } from '@/lib/utils/slugify';
+import { generateSlug, isValidSlug } from '@/lib/utils/slugify';
+import { isUniqueViolation } from '@/lib/db/errors';
 import type { Project, ProjectMetadata, CreateProjectInput } from '@/types/project';
 import type { ApiCatalogItem } from '@/types/api';
 
@@ -102,23 +103,58 @@ export class ProjectService {
     return this.projectRepo.update(id, { status } as Partial<Project>);
   }
 
-  async publish(id: string, userId: string): Promise<Project> {
+  async publish(id: string, userId: string, chosenSlug?: string): Promise<Project> {
     const project = await this.getById(id, userId);
-
-    const publishableStatuses: Project['status'][] = ['generated', 'deployed', 'unpublished'];
-    if (!publishableStatuses.includes(project.status)) {
+    const publishable: Project['status'][] = ['generated', 'deployed', 'unpublished'];
+    if (!publishable.includes(project.status)) {
       throw new ValidationError('생성이 완료된 프로젝트만 게시할 수 있습니다.');
     }
 
-    const slug = project.slug ?? generateSlug(project.name, project.id);
-    const published = await this.projectRepo.updateSlug(id, slug, new Date());
+    // 재게시: 기존 slug 유지 (현행 정책)
+    if (project.slug) {
+      const republished = await this.projectRepo.updateSlug(id, project.slug, new Date());
+      this.emitPublishedEvent(id, userId, project.slug);
+      return republished;
+    }
 
+    // 최초 게시: chosenSlug 우선, 아니면 generateSlug 폴백
+    const baseSlug = chosenSlug && isValidSlug(chosenSlug)
+      ? chosenSlug
+      : generateSlug(project.name, project.id);
+
+    const finalSlug = await this.assignUniqueSlug(baseSlug);
+
+    // 레이스 대비: 23505 unique 위반 시 1회 재시도
+    try {
+      const published = await this.projectRepo.updateSlug(id, finalSlug, new Date());
+      this.emitPublishedEvent(id, userId, finalSlug);
+      return published;
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        const retrySlug = await this.assignUniqueSlug(baseSlug);
+        const published = await this.projectRepo.updateSlug(id, retrySlug, new Date());
+        this.emitPublishedEvent(id, userId, retrySlug);
+        return published;
+      }
+      throw err;
+    }
+  }
+
+  private emitPublishedEvent(id: string, userId: string, slug: string): void {
     eventBus.emit({
       type: 'PROJECT_PUBLISHED',
       payload: { projectId: id, userId, slug },
     });
+  }
 
-    return published;
+  private async assignUniqueSlug(base: string): Promise<string> {
+    for (let i = 0; i < 10; i++) {
+      const candidate = i === 0 ? base : `${base}-${i + 1}`;
+      const existing = await this.projectRepo.findBySlug(candidate);
+      if (!existing) return candidate;
+    }
+    // 극단적 폴백
+    return `${base}-${Date.now().toString(36).slice(-4)}`;
   }
 
   async unpublish(id: string, userId: string): Promise<Project> {

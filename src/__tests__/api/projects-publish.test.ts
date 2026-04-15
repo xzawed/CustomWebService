@@ -78,7 +78,7 @@ describe('/api/v1/projects/[id]/publish', () => {
       expect(response.status).toBe(200);
       const body = await response.json();
       expect(body).toMatchObject({ success: true, data: mockProject });
-      expect(publishMock).toHaveBeenCalledWith('proj-1', 'user-1');
+      expect(publishMock).toHaveBeenCalledWith('proj-1', 'user-1', undefined);
     });
 
     it('renderingQcPassed=false인 경우 qcWarnings를 응답에 포함한다', async () => {
@@ -110,6 +110,94 @@ describe('/api/v1/projects/[id]/publish', () => {
       expect(body.qcWarnings).toBeDefined();
       expect(body.qcWarnings.length).toBeGreaterThan(0);
       expect(body.qcWarnings[0]).toContain('렌더링 QC 미통과');
+    });
+  });
+
+  // ---- POST (slug extension) ----
+  describe('POST /api/v1/projects/[id]/publish (slug extension)', () => {
+    it('body 없이 게시 시 기본 동작 유지', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+      const { createCodeRepository } = await import('@/repositories/factory');
+      vi.mocked(createCodeRepository).mockReturnValue({
+        findByProject: vi.fn().mockResolvedValue(null),
+      } as never);
+
+      const publishMock = vi.fn().mockResolvedValue(mockProject);
+      const { createProjectService } = await import('@/services/factory');
+      vi.mocked(createProjectService).mockReturnValue({
+        publish: publishMock,
+      } as never);
+
+      const { POST } = await import('@/app/api/v1/projects/[id]/publish/route');
+      const response = await POST(new Request('http://localhost'), {
+        params: Promise.resolve({ id: 'proj-1' }),
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.success).toBe(true);
+      expect(body.data.slug).toBe('test-project');
+      expect(publishMock).toHaveBeenCalledWith('proj-1', 'user-1', undefined);
+    });
+
+    it('body.slug 제공 시 service에 전달된다', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+      const { createCodeRepository } = await import('@/repositories/factory');
+      vi.mocked(createCodeRepository).mockReturnValue({
+        findByProject: vi.fn().mockResolvedValue(null),
+      } as never);
+
+      const publishMock = vi.fn().mockResolvedValue({ ...mockProject, slug: 'my-service' });
+      const { createProjectService } = await import('@/services/factory');
+      vi.mocked(createProjectService).mockReturnValue({
+        publish: publishMock,
+      } as never);
+
+      const { POST } = await import('@/app/api/v1/projects/[id]/publish/route');
+      const response = await POST(
+        new Request('http://localhost', {
+          method: 'POST',
+          body: JSON.stringify({ slug: 'my-service' }),
+          headers: { 'Content-Type': 'application/json' },
+        }),
+        { params: Promise.resolve({ id: 'proj-1' }) },
+      );
+
+      expect(response.status).toBe(200);
+      expect(publishMock).toHaveBeenCalledWith('proj-1', 'user-1', 'my-service');
+    });
+
+    it('body 파싱 실패 시에도 게시는 성공한다', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+      const { createCodeRepository } = await import('@/repositories/factory');
+      vi.mocked(createCodeRepository).mockReturnValue({
+        findByProject: vi.fn().mockResolvedValue(null),
+      } as never);
+
+      const publishMock = vi.fn().mockResolvedValue(mockProject);
+      const { createProjectService } = await import('@/services/factory');
+      vi.mocked(createProjectService).mockReturnValue({
+        publish: publishMock,
+      } as never);
+
+      const { POST } = await import('@/app/api/v1/projects/[id]/publish/route');
+      const response = await POST(
+        new Request('http://localhost', {
+          method: 'POST',
+          body: 'not-valid-json',
+          headers: { 'Content-Type': 'application/json' },
+        }),
+        { params: Promise.resolve({ id: 'proj-1' }) },
+      );
+
+      expect(response.status).toBe(200);
+      expect(publishMock).toHaveBeenCalledWith('proj-1', 'user-1', undefined);
     });
   });
 

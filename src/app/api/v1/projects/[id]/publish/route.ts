@@ -6,13 +6,24 @@ import { createCodeRepository } from '@/repositories/factory';
 import { AuthRequiredError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
     const { id } = await params;
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
+
+    // body.slug 파싱 — 실패해도 게시는 계속 진행
+    let chosenSlug: string | undefined;
+    try {
+      const body = await request.json() as { slug?: unknown };
+      if (typeof body?.slug === 'string') {
+        chosenSlug = body.slug;
+      }
+    } catch {
+      // body 없음 또는 JSON 파싱 실패 — slug 없이 진행
+    }
 
     const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
 
@@ -35,7 +46,7 @@ export async function POST(
     }
 
     const service = createProjectService(supabase);
-    const project = await service.publish(id, user.id);
+    const project = await service.publish(id, user.id, chosenSlug);
 
     return jsonResponse({
       success: true,
