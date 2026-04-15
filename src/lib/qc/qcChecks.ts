@@ -298,17 +298,30 @@ export async function checkResponsiveBreakpoints(page: Page): Promise<QcCheckRes
  */
 export async function checkNoRuntimePlaceholder(page: Page): Promise<QcCheckResult> {
   const start = Date.now();
-  const PLACEHOLDERS = ['홍길동', '김철수', '이영희', 'test@example.com', 'Loading...', '준비 중', '구현 예정', 'Sample Data', 'Lorem ipsum'];
+  const PLACEHOLDERS = [
+    '홍길동', '김철수', '이영희',
+    'test@example.com', 'Loading...', '준비 중', '구현 예정', '곧 출시', '추후 업데이트',
+    'Sample Data', 'Lorem ipsum', 'Lorem',
+    'Coming soon', 'John Doe', 'Jane Smith', 'TBD', 'Placeholder', 'dummy',
+  ];
 
   try {
     const bodyText = await page.evaluate(() => document.body.innerText);
     const found = PLACEHOLDERS.filter(p => bodyText.includes(p));
-    const passed = found.length === 0;
+
+    // href="#" 링크 탐지
+    const hrefHashCount = await page.$$eval('a[href="#"]', (els) => els.length).catch(() => 0);
+
+    const allIssues = [
+      ...found.map(p => `Placeholder 감지: "${p}"`),
+      ...(hrefHashCount > 0 ? [`href="#" 링크 ${hrefHashCount}개 감지 — 실제 URL로 교체 필요`] : []),
+    ];
+    const passed = allIssues.length === 0;
     return {
       name: 'noRuntimePlaceholder',
       passed,
-      score: passed ? 100 : Math.max(0, 100 - found.length * 25),
-      details: found.map(p => `Placeholder 감지: "${p}"`),
+      score: passed ? 100 : Math.max(0, 100 - allIssues.length * 25),
+      details: allIssues,
       durationMs: Date.now() - start,
     };
   } catch (err) {
