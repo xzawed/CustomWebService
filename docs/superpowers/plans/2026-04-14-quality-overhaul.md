@@ -453,7 +453,7 @@ git commit -m "feat: 카탈로그 API 검증 스크립트 추가 (scripts/verify
 
 Context: After the user runs `scripts/verifyCatalog.ts`, pick 3–5 APIs where `overallStatus === 'verified'`. For each, update the `endpoints` JSONB to include `exampleCall` and `responseDataPath`. This is done via Supabase Studio UPDATE or a one-off script.
 
-- [ ] **Step 1: For each golden API, update the Supabase record**
+- [x] **Step 1: For each golden API, update the Supabase record**
 
 Example SQL for a weather API (adapt to actual values from report):
 
@@ -479,11 +479,11 @@ SET
 WHERE id = 'REPLACE_WITH_ACTUAL_ID';
 ```
 
-- [ ] **Step 2: Create golden-set documentation**
+- [x] **Step 2: Create golden-set documentation**
 
 Create `docs/reference/golden-api-set.md` documenting each golden API: name, ID, verified endpoints, example calls. (Content filled in after user runs verification script.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/reference/golden-api-set.md
