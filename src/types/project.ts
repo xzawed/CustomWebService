@@ -111,6 +111,8 @@ export interface CodeMetadata {
   hasProxyCall?: boolean;
   hasJsonParse?: boolean;
   placeholderCount?: number;
+  // Framework used for generation
+  framework?: 'vanilla' | 'alpine';
 }
 
 export interface CreateProjectInput {
