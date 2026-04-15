@@ -129,7 +129,11 @@ document.querySelectorAll('.comparison-controls input').forEach(el => {
       promptHint: `Layout: two-column-comparison
 Required sections (in order): 제목/설명 헤더, 입력 컨트롤(A vs B 입력 + 비교 버튼), 2열 비교 카드 + 중앙 차이 배지
 UI patterns: 3열 그리드(카드A + 배지컬럼 + 카드B), 수치 차이 색상 강조(양수=초록, 음수=빨강)
-Must include: 두 항목 동시 입력, 차이 배지(퍼센트), 항목별 stat-row, DOMContentLoaded API fetch(), no hardcoded data arrays
+State management: x-data="{ itemA: '', itemB: '', resultA: null, resultB: null, diffs: [], loading: false, error: null }" x-init=""
+Inputs: x-model="itemA" and x-model="itemB" on text inputs, @keydown.enter="compare()" on both inputs
+Action: @click="compare()" on compare button, :disabled="loading || !itemA || !itemB"
+Results: x-show="resultA && resultB" comparison grid, x-show="error" error message with @click="error=null" dismiss
+Must include: Alpine.js CDN, 두 항목 동시 입력, 차이 배지(퍼센트), 항목별 stat-row, DOMContentLoaded API fetch(), no hardcoded data arrays
 Avoid: 단일 컬럼, 지도, 무한 스크롤`,
     };
   }

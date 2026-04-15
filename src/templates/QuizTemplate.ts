@@ -154,7 +154,12 @@ function resetQuiz() {
       promptHint: `Layout: quiz-flow
 Required sections (in order): 시작 화면(제목+시작버튼), 퀴즈 화면(진행바 + 카운터 + 질문 카드 + 선택지 버튼), 결과 화면(점수 + 오답 요약)
 UI patterns: 단일 화면 전환(시작→진행→결과), 선택 시 정답/오답 색상 피드백, 진행바 애니메이션
-Must include: 진행바, 정답/오답 즉시 표시, 결과 요약(문제별 정오), 다시 풀기 버튼, DOMContentLoaded API fetch(), no hardcoded questions
+State management: x-data="{ screen: 'start', questions: [], current: 0, score: 0, answers: [], loading: false, selected: null }" — screen transitions: 'start' → 'quiz' → 'result'
+Screen visibility: x-show="screen === 'start'", x-show="screen === 'quiz'", x-show="screen === 'result'" with x-transition
+Start: @click="startQuiz()" on start button, x-show="loading" spinner during fetch
+Quiz: options rendered with x-for="(opt, i) in questions[current].options" @click="selectOption(i)" :class binding for correct/wrong state
+Progress: :style="'width: ' + (current / questions.length * 100) + '%'"
+Must include: Alpine.js CDN, 진행바, 정답/오답 즉시 표시, 결과 요약(문제별 정오), 다시 풀기 버튼(@click="screen='start'"), DOMContentLoaded API fetch(), no hardcoded questions
 Avoid: 그리드 레이아웃, 사이드바, 차트`,
     };
   }

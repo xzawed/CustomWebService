@@ -127,7 +127,12 @@ loadEvents();`,
       promptHint: `Layout: vertical-timeline
 Required sections (in order): 제목/설명 헤더, 검색바 + 연도 필터, 세로 타임라인(날짜 마커 + 이벤트 카드)
 UI patterns: 좌측 수직선 + 원형 마커, 카드형 이벤트 항목, 날짜 상단 표시
-Must include: 연도별 필터 셀렉트, 검색 디바운스(300ms), 이벤트 아이콘, DOMContentLoaded API fetch(), no hardcoded events
+State management: x-data="{ events: [], years: [], search: '', selectedYear: 'all', loading: true, error: null }" x-init="loadEvents()"
+Search: x-model="search" with debounced filtering via @input handler (300ms)
+Year filter: x-model="selectedYear" on select, options x-for="year in years"
+Timeline: x-for="event in filteredEvents" :key="event.id" with x-show="!loading" x-transition
+Loading: x-show="loading" skeleton items, x-show="error" error message
+Must include: Alpine.js CDN, 연도별 필터 셀렉트, 검색 디바운스(300ms), 이벤트 아이콘, DOMContentLoaded API fetch(), no hardcoded events
 Avoid: 수평 타임라인, 차트, 지도`,
     };
   }

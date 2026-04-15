@@ -111,7 +111,12 @@ document.getElementById('input-value').addEventListener('keydown', (e) => {
         `Layout: input-result-tool
 Required sections (in order): 제목/설명 헤더, 입력폼(숫자 입력 + 단위 선택), 화살표/결과 영역, 변환 히스토리 목록
 UI patterns: 중앙 정렬 단일 카드, 큰 입력 필드, 명확한 변환 방향 표시
-Must include: Enter 키 변환 지원, 히스토리 항목 최소 5개, API 로딩 상태 표시, DOMContentLoaded API fetch(), no hardcoded conversion values
+State management: x-data="{ inputValue: '', inputUnit: '', outputValue: '', outputUnit: '', loading: false, history: [] }" — x-model for inputs and selects
+Inputs: x-model="inputValue" on number input, x-model="inputUnit" on from-unit select, x-model="outputUnit" on to-unit select
+Action: @click="convert()" on convert button, @keydown.enter="convert()" on input field
+Loading: x-show="loading" spinner, :disabled="loading" on button
+History: x-show="history.length > 0" list rendered with x-for="item in history"
+Must include: Alpine.js CDN, Enter 키 변환 지원, 히스토리 항목 최소 5개, API 로딩 상태 표시, DOMContentLoaded API fetch(), no hardcoded conversion values
 Avoid: 복수 탭, 지도/차트, 마케팅 섹션`,
     };
   }

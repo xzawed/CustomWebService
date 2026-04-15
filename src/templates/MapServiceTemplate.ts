@@ -135,7 +135,11 @@ else console.warn('Leaflet이 로드되지 않았습니다. CDN 링크를 추가
       promptHint: `Layout: map-sidebar
 Required sections (in order): 사이드바(검색바 + 항목 리스트), Leaflet 지도(우측 메인)
 UI patterns: 좌우 분할 레이아웃(사이드바 320px + 지도 flex:1), 마커 클릭 시 팝업
-Must include: Leaflet.js CDN, OpenStreetMap 타일, 검색 필터링(300ms 디바운스), 마커 + 팝업, DOMContentLoaded API fetch(), no hardcoded data arrays
+State management: x-data="{ places: [], filtered: [], search: '', loading: true, selectedId: null }" x-init="loadPlaces()"
+Search: x-model="search" with @input="filterPlaces()" debounce 300ms
+List: x-for="place in filtered" :key="place.id" with @click="focusPlace(place)" and :class="{ active: selectedId === place.id }"
+Loading: x-show="loading" skeleton list items
+Must include: Alpine.js CDN, Leaflet.js CDN, OpenStreetMap 타일, 검색 필터링(300ms 디바운스), 마커 + 팝업, DOMContentLoaded API fetch(), no hardcoded data arrays
 Avoid: 전체 페이지 스크롤, 테이블 레이아웃, 차트`,
     };
   }

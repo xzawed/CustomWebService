@@ -128,8 +128,13 @@ document.getElementById('search-input').addEventListener('keydown', (e) => {
 });`,
       promptHint: `Layout: search-detail
 Required sections: 검색바+버튼, 결과 상세카드(제목+본문), 관련 항목 리스트
-Must include: DOMContentLoaded에서 검색 API fetch() 구현, Enter 키 검색, 로딩 상태, 에러 Empty State
-API call pattern: fetch() → data.responseDataPath → renderResult()
+State management: x-data="{ query: '', result: null, related: [], loading: false, error: null }" x-init=""
+Search input: x-model="query" with @keydown.enter="search()" on input
+Search button: @click="search()" :disabled="loading || !query"
+States: x-show="loading" spinner, x-show="error" error card, x-show="result" detail card with x-transition
+Related: x-for="item in related" pill tags with @click="query = item; search()"
+Must include: Alpine.js CDN, DOMContentLoaded에서 검색 API fetch() 구현, Enter 키 검색, 로딩 상태, 에러 Empty State
+API call pattern: fetch() → data.responseDataPath → assign to result/related
 Avoid: 하드코딩 데이터, 가데이터 배열, picsum.photos`,
     };
   }
