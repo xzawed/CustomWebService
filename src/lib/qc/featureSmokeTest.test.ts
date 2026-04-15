@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { runFeatureSmokeTests } from './featureSmokeTest';
-import type { Feature } from './featureExtractor';
+import type { Feature } from '../ai/featureExtractor';
 
 // ---------------------------------------------------------------------------
 // Mock Page factory
@@ -21,7 +21,7 @@ function createMockPage(overrides: Record<string, unknown> = {}) {
 
 function makeFeature(verifiableBy: Feature['verifiableBy'], id = 1): Feature {
   return {
-    featureId: `feature-${verifiableBy}-${id}`,
+    id: `feature-${verifiableBy}-${id}`,
     description: `${verifiableBy} 기능`,
     verifiableBy,
   };
@@ -199,7 +199,7 @@ describe('결과 구조 검증', () => {
     });
 
     const feature: Feature = {
-      featureId: 'feature-list-42',
+      id: 'feature-list-42',
       description: '목록 표시 기능',
       verifiableBy: 'list',
     };

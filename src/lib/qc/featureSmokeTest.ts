@@ -6,7 +6,7 @@
  */
 
 import type { Page } from 'playwright-core';
-import type { Feature } from './featureExtractor';
+import type { Feature } from '../ai/featureExtractor';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -140,7 +140,7 @@ export async function runFeatureSmokeTests(
     }
 
     results.push({
-      featureId: feature.featureId,
+      featureId: feature.id,
       description: feature.description,
       verifiableBy: feature.verifiableBy,
       passed: checkResult.passed,
