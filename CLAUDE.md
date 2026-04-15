@@ -113,6 +113,7 @@ pnpm test:coverage    # 커버리지 리포트
 | AI 코드 생성 흐름 | [docs/architecture/ai-pipeline.md](docs/architecture/ai-pipeline.md) |
 | 코드 생성/재생성 작업 **(필수)** | [docs/guides/qc-process.md](docs/guides/qc-process.md) |
 | API 엔드포인트 목록 | [docs/reference/api-endpoints.md](docs/reference/api-endpoints.md) |
+| 골든셋 API 목록 (검증된 6개) | [docs/reference/golden-api-set.md](docs/reference/golden-api-set.md) |
 | 환경변수 목록 | [docs/reference/env-vars.md](docs/reference/env-vars.md) |
 | 에러 클래스 참조 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
 | 배포/운영 작업 | [docs/guides/deployment.md](docs/guides/deployment.md) |
