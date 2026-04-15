@@ -7,7 +7,7 @@ const baseMetrics: QualityMetrics = {
   hasSemanticHtml: true, hasMockData: false, hasInteraction: true,
   hasResponsiveClasses: true, hasAdequateResponsive: true, noFixedOverflow: true,
   hasImageProtection: true, hasMobileNav: true, hasFooter: true, hasImgAlt: true,
-  fetchCallCount: 1, hasProxyCall: false, hasJsonParse: true, placeholderCount: 0,
+  fetchCallCount: 1, hasProxyCall: true, hasJsonParse: true, placeholderCount: 0,
   hardcodedArrayCount: 0,
   details: [],
 };
@@ -60,6 +60,23 @@ describe('shouldRetryGeneration', () => {
 
   it('does NOT retry when fetch present and no placeholders', () => {
     expect(shouldRetryGeneration(baseMetrics, null)).toBe(false);
+  });
+
+  it('retries when fetch calls exist but none use the proxy (hasProxyCall=false)', () => {
+    expect(shouldRetryGeneration({ ...baseMetrics, hasProxyCall: false, fetchCallCount: 2 }, null)).toBe(true);
+  });
+
+  it('does NOT retry when no fetch calls (fetchCallCount=0 already triggers independently)', () => {
+    // fetchCallCount=0 triggers separately; hasProxyCall=false alone (no fetches) should not double-trigger
+    expect(shouldRetryGeneration({ ...baseMetrics, hasProxyCall: false, fetchCallCount: 0 }, null)).toBe(true);
+  });
+
+  it('retries when hardcodedArrayCount > 0', () => {
+    expect(shouldRetryGeneration({ ...baseMetrics, hardcodedArrayCount: 3 }, null)).toBe(true);
+  });
+
+  it('does NOT retry when hardcodedArrayCount is 0 and other metrics are fine', () => {
+    expect(shouldRetryGeneration({ ...baseMetrics, hardcodedArrayCount: 0 }, null)).toBe(false);
   });
 });
 

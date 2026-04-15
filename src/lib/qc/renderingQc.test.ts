@@ -38,7 +38,7 @@ function makeHighQualityMetrics(overrides: Partial<QualityMetrics> = {}): Qualit
     hasFooter: true,
     hasImgAlt: true,
     fetchCallCount: 1,
-    hasProxyCall: false,
+    hasProxyCall: true,
     hasJsonParse: true,
     placeholderCount: 0,
     hardcodedArrayCount: 0,

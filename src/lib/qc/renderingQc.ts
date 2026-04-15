@@ -166,6 +166,7 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
       imageResult,
       touchResult,
       a11yResult,
+      placeholderResult,
     ] = settledResults(
       await Promise.allSettled([
         withCheckTimeout(() => checkHorizontalScroll(page, 375), 'horizontalScroll'),
@@ -174,6 +175,7 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
         withCheckTimeout(() => checkImageLoading(page), 'imageLoading'),
         withCheckTimeout(() => checkTouchTargets(page), 'touchTargets'),
         withCheckTimeout(() => checkAccessibility(page), 'accessibility'),
+        withCheckTimeout(() => checkNoRuntimePlaceholder(page), 'noRuntimePlaceholder'),
       ]),
       [
         'horizontalScroll',
@@ -182,6 +184,7 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
         'imageLoading',
         'touchTargets',
         'accessibility',
+        'noRuntimePlaceholder',
       ]
     );
 
@@ -216,6 +219,7 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
       networkResult,
       interactResult,
       loadingResult,
+      placeholderResult,
     ];
     return buildReport(checks, QC_VIEWPORTS.DEEP, startTime, QC_THRESHOLDS.DEEP_PASS);
   } finally {

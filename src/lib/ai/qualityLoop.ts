@@ -21,6 +21,10 @@ export function shouldRetryGeneration(
   // New: retry if no fetch calls or placeholder strings present
   if (metrics.fetchCallCount === 0) return true;
   if (metrics.placeholderCount > 0) return true;
+  // Retry if fetch calls exist but none use the proxy (likely CORS-failing direct API calls)
+  if (!metrics.hasProxyCall && metrics.fetchCallCount > 0) return true;
+  // Retry if hardcoded array data is present (mock data instead of real API calls)
+  if (metrics.hardcodedArrayCount > 0) return true;
   return false;
 }
 
@@ -75,6 +79,8 @@ ${qcIssues ? `\n브라우저 렌더링 검증에서 발견된 추가 문제:\n${
 - 시맨틱 HTML 태그(<main>, <nav>, <footer>, <article>) 사용
 - 모든 <img>에 한국어 alt 속성 추가
 - fetch() 호출이 없다면 반드시 추가하라
+- 모든 fetch() 호출은 반드시 /api/v1/proxy 경로를 통해야 한다 — 외부 URL 직접 호출은 CORS 오류 발생
+- 하드코딩된 배열 데이터(const items = [...])는 제거하고 /api/v1/proxy를 통한 실제 API 호출로 교체
 - placeholder 문자열을 제거하라: 홍길동, test@example.com, Loading..., 준비 중, 구현 예정
 - <footer> 태그로 서비스명 + 저작권 + 링크 포함
 - 반응형 클래스(sm:/md:/lg:)를 최소 8곳 이상 사용
