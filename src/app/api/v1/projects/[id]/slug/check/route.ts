@@ -1,10 +1,10 @@
 import { getDbProvider } from '@/lib/config/providers';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
+import { assertOwner } from '@/lib/auth/authorize';
 import { createProjectRepository } from '@/repositories/factory';
 import {
   AuthRequiredError,
-  ForbiddenError,
   NotFoundError,
   ValidationError,
   handleApiError,
@@ -43,7 +43,7 @@ export async function POST(
 
     const project = await repo.findById(id);
     if (!project) throw new NotFoundError('프로젝트', id);
-    if (project.userId !== user.id) throw new ForbiddenError();
+    assertOwner(project, user.id);
 
     // 형식/예약어 검사
     if (!isValidSlug(slug)) {
