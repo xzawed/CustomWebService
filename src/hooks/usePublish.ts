@@ -17,8 +17,8 @@ export function usePublish() {
         body,
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message ?? '게시에 실패했습니다.');
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.message ?? '게시에 실패했습니다.');
       }
       return await res.json();
     } catch (err) {
@@ -38,8 +38,8 @@ export function usePublish() {
         method: 'DELETE',
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message ?? '게시 취소에 실패했습니다.');
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.message ?? '게시 취소에 실패했습니다.');
       }
       return await res.json();
     } catch (err) {

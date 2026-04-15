@@ -45,7 +45,9 @@ describe('PublishDialog', () => {
   });
 
   afterEach(() => {
+    vi.clearAllMocks();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it('AI 추천 없을 때 직접 입력 폼만 표시된다', () => {
@@ -156,5 +158,45 @@ describe('PublishDialog', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('AI 추천 선택 후 게시하기를 누르면 선택한 slug로 publish가 호출된다', async () => {
+    const project: Project = {
+      ...baseProject,
+      suggestedSlugs: ['weather-dashboard', 'seoul-hub', 'korea-air'],
+    };
+
+    render(
+      <PublishDialog
+        project={project}
+        onClose={onClose}
+        onPublished={onPublished}
+      />,
+    );
+
+    // First suggestion is pre-selected by default
+    const publishButton = screen.getByRole('button', { name: '게시하기' });
+    fireEvent.click(publishButton);
+
+    await waitFor(() => {
+      expect(mockPublish).toHaveBeenCalledWith(project.id, 'weather-dashboard');
+    });
+  });
+
+  it('기본 주소로 게시 버튼이 slug 없이 publish를 호출한다', async () => {
+    render(
+      <PublishDialog
+        project={baseProject}
+        onClose={onClose}
+        onPublished={onPublished}
+      />,
+    );
+
+    const defaultButton = screen.getByRole('button', { name: '기본 주소로 게시' });
+    fireEvent.click(defaultButton);
+
+    await waitFor(() => {
+      expect(mockPublish).toHaveBeenCalledWith(baseProject.id);
+    });
   });
 });

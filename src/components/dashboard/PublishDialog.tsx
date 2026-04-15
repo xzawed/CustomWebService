@@ -30,7 +30,9 @@ export function PublishDialog({ project, onClose, onPublished }: PublishDialogPr
   const { publish } = usePublish();
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   // Focus first radio or input on open
   useEffect(() => {
@@ -48,23 +50,62 @@ export function PublishDialog({ project, onClose, onPublished }: PublishDialogPr
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  // Focus trap
+  useEffect(() => {
+    const container = dialogRef.current;
+    if (!container) return;
+
+    const handleFocusTrap = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const focusable = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => el.offsetParent !== null);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    container.addEventListener('keydown', handleFocusTrap);
+    return () => container.removeEventListener('keydown', handleFocusTrap);
+  }, []);
+
   // Debounced slug check
   const checkSlug = useCallback(
     (value: string) => {
       if (debounceTimer.current) {
         clearTimeout(debounceTimer.current);
       }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
       if (!value.trim()) {
         setCheckResult('idle');
         return;
       }
       setCheckResult('checking');
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
       debounceTimer.current = setTimeout(async () => {
         try {
           const res = await fetch(`/api/v1/projects/${project.id}/slug/check`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ slug: value }),
+            signal: controller.signal,
           });
           const data = (await res.json()) as {
             data?: { available: boolean; reason?: string };
@@ -79,7 +120,10 @@ export function PublishDialog({ project, onClose, onPublished }: PublishDialogPr
               setCheckResult('taken');
             }
           }
-        } catch {
+        } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') {
+            return;
+          }
           setCheckResult('idle');
         }
       }, 300);
@@ -88,12 +132,25 @@ export function PublishDialog({ project, onClose, onPublished }: PublishDialogPr
   );
 
   useEffect(() => {
-    if (selectedMode === 'custom') {
-      checkSlug(customValue);
+    if (selectedMode !== 'custom') {
+      setCheckResult('idle');
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      return;
     }
+    checkSlug(customValue);
     return () => {
       if (debounceTimer.current) {
         clearTimeout(debounceTimer.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
       }
     };
   }, [customValue, selectedMode, checkSlug]);
@@ -191,6 +248,7 @@ export function PublishDialog({ project, onClose, onPublished }: PublishDialogPr
       onClick={handleBackdropClick}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-labelledby="publish-dialog-title"
         aria-modal="true"
