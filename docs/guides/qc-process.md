@@ -167,27 +167,20 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 
 현재 `ENABLE_RENDERING_QC=false` (기본값). Railway에서 활성화하려면:
 
-**1. Dockerfile 수정** — Playwright Chromium 의존성 설치:
+**1. Dockerfile 확인** — `node:20-alpine` 기반으로 `apk add chromium` 방식을 사용합니다 (이미 적용됨):
 
 ```dockerfile
-# Stage 3: Production runner — node:20-alpine → node:20-slim으로 변경 후 추가
-FROM node:20-slim AS runner
-RUN apt-get update && apt-get install -y \
-    libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
-    libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \
-    libxfixes3 libxrandr2 libgbm1 libasound2 \
-    && rm -rf /var/lib/apt/lists/*
+# Stage 3: Production runner — node:20-alpine 유지
+FROM node:20-alpine AS runner
+RUN apk add --no-cache chromium && \
+    rm -rf /var/cache/apk/*
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 # ... 이후 기존 Dockerfile 내용 동일
 ```
 
-**2. Chromium 설치** — 빌더 스테이지에서 실행:
-```dockerfile
-RUN npx playwright install chromium --with-deps
-```
+**2. Railway 메모리 확인** — Chromium 실행 시 인스턴스당 ~300MB 추가 필요. Railway 무료 티어(512MB)에서는 **메모리 부족 우려**. 유료 플랜($5/월 이상) 전환 후 활성화 권장.
 
-**3. Railway 메모리 확인** — Chromium 실행 시 인스턴스당 ~300MB 추가 필요. 현재 Railway 무료 티어(512MB) 에서는 **메모리 부족 우려**. 유료 플랜($5/월 이상) 전환 후 활성화 권장.
-
-**4. 환경변수 설정**: Railway Dashboard → Variables → `ENABLE_RENDERING_QC=true`
+**3. 환경변수 설정**: Railway Dashboard → Variables → `ENABLE_RENDERING_QC=true`
 
 ---
 
@@ -200,3 +193,4 @@ RUN npx playwright install chromium --with-deps
 | 2026-04-12 | Railway 활성화 가이드 추가 (Dockerfile 수정 방법, 메모리 요구사항) |
 | 2026-04-14 | 품질 대개편: API 바인딩 메트릭 추가(fetchCallCount/hasProxyCall/hasJsonParse/placeholderCount), Fast QC +1 체크(placeholder), Deep QC +3 체크(인터랙티브/네트워크/로딩), 최대 재생성 2→3회 |
 | 2026-04-15 | 버그 수정: "Stage" → "Step" 용어 통일 (생성 파이프라인의 Stage 1/2/3과 혼동 방지), ENABLE_RENDERING_QC Railway 활성화 |
+| 2026-04-16 | Dockerfile 가이드 수정 — node:20-slim + playwright install → node:20-alpine + apk add chromium (실제 Dockerfile 반영) |

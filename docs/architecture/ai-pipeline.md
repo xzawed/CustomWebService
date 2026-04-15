@@ -209,6 +209,7 @@ DB 저장 구조 (code_versions 테이블):
   - 구현: `src/providers/ai/ClaudeProvider.ts`
   - 팩토리: `AiProviderFactory.create()`, `AiProviderFactory.createForTask()`
   - 모델: `claude-sonnet-4-6` (기본), 태스크별 최적 모델 자동 선택
+  - 환경변수 오버라이드: `AI_MODEL_GENERATION` (코드 생성), `AI_MODEL_SUGGESTION` (slug 제안) — 허용 목록(`claude-*`) 검증 후 적용
 
 ### Provider 인터페이스 (`src/providers/ai/IAiProvider.ts`)
 - `generateCode(prompt)` — 단일 응답 생성
@@ -223,7 +224,7 @@ DB 저장 구조 (code_versions 테이블):
 
 ## 7. 템플릿 시스템 (Phase A-2 완료)
 
-자주 요청되는 서비스 유형에 대한 공식 템플릿 11개를 제공하여 AI 생성 품질 향상.  
+자주 요청되는 서비스 유형에 대한 공식 템플릿 10개를 제공하여 AI 생성 품질 향상.  
 **하이브리드 방식**: 템플릿이 레이아웃/구조를 정의하고, AI가 그 구조 안에서 API 통합과 데이터 표시 방식을 채운다.
 
 ### 구현 구조

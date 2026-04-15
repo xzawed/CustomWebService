@@ -204,6 +204,52 @@ API 카탈로그 전체 조회
 }
 ```
 
+### POST /api/v1/projects/:id/slug/check
+slug 가용성 실시간 검증 (PublishDialog에서 커스텀 입력 시 사용)
+
+**Request Body:**
+```json
+{
+    "slug": "my-weather-app"
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "available": true
+    }
+}
+```
+
+사용 불가한 경우:
+```json
+{
+    "success": true,
+    "data": {
+        "available": false,
+        "reason": "taken"
+    }
+}
+```
+
+| `reason` 값 | 설명 |
+|-------------|------|
+| `invalid` | 형식 오류 (길이, 문자, 예약어) |
+| `reserved` | 시스템 예약 slug |
+| `taken` | 다른 프로젝트가 사용 중 |
+
+| 상태 코드 | 설명 |
+|-----------|------|
+| 200 | 검증 완료 (available true/false) |
+| 400 | 요청 형식 오류 |
+| 401 | 미인증 |
+| 403 | 프로젝트 소유자가 아님 |
+
+---
+
 ### DELETE /api/v1/projects/:id/publish
 게시 취소 (서비스를 비공개로 전환)
 
