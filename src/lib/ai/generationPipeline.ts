@@ -10,7 +10,9 @@ import { eventBus } from '@/lib/events/eventBus';
 import { getLimits } from '@/lib/config/features';
 import { createServiceClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/utils/logger';
-import type { ICodeRepository, IEventRepository } from '@/repositories/interfaces';
+import { suggestSlugs } from '@/lib/ai/slugSuggester';
+import { extractTitle } from '@/lib/utils/htmlTitle';
+import type { ICodeRepository, IEventRepository, IProjectRepository } from '@/repositories/interfaces';
 import type { ApiCatalogItem } from '@/types/api';
 import type { SseWriter } from '@/lib/ai/sseWriter';
 import type { QcReport } from '@/types/qc';
@@ -29,6 +31,8 @@ export interface PipelineInput {
   userId: string;
   correlationId: string | undefined;
   apis: ApiCatalogItem[];
+  /** 사용자 서비스 설명 (slug 제안 훅에 사용) */
+  projectContext?: string;
   /** Stage 1 (구조·기능) 시스템 프롬프트 */
   stage1SystemPrompt: string;
   /** Stage 1 (구조·기능) 유저 프롬프트 */
@@ -59,6 +63,8 @@ export interface PipelineServices {
   eventRepo: IEventRepository;
   projectService: IProjectStatusUpdater;
   rateLimitService: IRateLimitDecrementer;
+  /** slug 제안 저장용 (선택적 — 없으면 slug 훅 스킵) */
+  projectRepo?: IProjectRepository;
 }
 
 // Safe wrapper: assembleHtml() can throw on malformed output
@@ -326,8 +332,8 @@ export async function runGenerationPipeline(
   sse: SseWriter,
   services: PipelineServices,
 ): Promise<void> {
-  const { projectId, userId, correlationId, apis, extraMetadata } = input;
-  const { codeRepo, eventRepo, projectService, rateLimitService } = services;
+  const { projectId, userId, correlationId, apis, extraMetadata, projectContext } = input;
+  const { codeRepo, eventRepo, projectService, rateLimitService, projectRepo } = services;
   const limits = getLimits();
 
   const stage1SystemPrompt = input.stage1SystemPrompt;
@@ -605,6 +611,26 @@ export async function runGenerationPipeline(
         }),
       },
     } as Parameters<typeof codeRepo.create>[0]);
+
+    // Stage 3 완료 후, best-effort slug 제안 (실패해도 파이프라인 계속)
+    if (projectRepo && projectContext) {
+      try {
+        const pageTitle = extractTitle(parsed.html);
+        const slugs = await suggestSlugs({
+          context: projectContext,
+          pageTitle,
+          categoryHints: apis.map((a) => a.category).filter((c): c is string => Boolean(c)),
+        });
+        if (slugs.length > 0) {
+          await projectRepo.updateSuggestedSlugs(projectId, slugs);
+        }
+      } catch (err) {
+        logger.warn('slug 제안 훅 실패 (무시)', {
+          projectId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
 
     try {
       await codeRepo.pruneOldVersions(projectId, limits.maxCodeVersionsPerProject);

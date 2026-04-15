@@ -22,6 +22,7 @@ import {
 import { getLimits } from '@/lib/config/features';
 import { createSseWriter } from '@/lib/ai/sseWriter';
 import { runGenerationPipeline } from '@/lib/ai/generationPipeline';
+import { createProjectRepository } from '@/repositories/factory';
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -97,6 +98,7 @@ export async function POST(request: Request): Promise<Response> {
             userId: user.id,
             correlationId,
             apis: projectApis,
+            projectContext: project.context,
             stage1SystemPrompt,
             stage1UserPrompt,
             stage2FunctionSystemPrompt: buildStage2FunctionSystemPrompt(),
@@ -112,6 +114,7 @@ export async function POST(request: Request): Promise<Response> {
             eventRepo: createEventRepository(serviceSupabase),
             projectService,
             rateLimitService,
+            projectRepo: createProjectRepository(supabase),
           },
         );
 

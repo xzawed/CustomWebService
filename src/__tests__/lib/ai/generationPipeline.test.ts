@@ -39,6 +39,12 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
+vi.mock('@/lib/ai/slugSuggester', () => ({
+  suggestSlugs: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('@/lib/utils/htmlTitle', () => ({
+  extractTitle: vi.fn().mockReturnValue(undefined),
+}));
 
 const makeAiProvider = () => ({
   name: 'claude',

@@ -17,6 +17,7 @@ import { AuthRequiredError, ValidationError, handleApiError } from '@/lib/utils/
 import { templateRegistry } from '@/templates/TemplateRegistry';
 import { createSseWriter } from '@/lib/ai/sseWriter';
 import { runGenerationPipeline } from '@/lib/ai/generationPipeline';
+import { createProjectRepository } from '@/repositories/factory';
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -85,6 +86,7 @@ export async function POST(request: Request): Promise<Response> {
             userId: user.id,
             correlationId,
             apis,
+            projectContext: project.context,
             stage1SystemPrompt,
             stage1UserPrompt,
             stage2FunctionSystemPrompt: buildStage2FunctionSystemPrompt(),
@@ -99,6 +101,7 @@ export async function POST(request: Request): Promise<Response> {
             eventRepo: createEventRepository(serviceSupabase),
             projectService,
             rateLimitService,
+            projectRepo: createProjectRepository(supabase),
           },
         );
 
