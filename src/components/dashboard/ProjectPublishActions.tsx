@@ -3,18 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePublish } from '@/hooks/usePublish';
+import { buildPublishUrl } from '@/lib/utils/publishUrl';
 import type { Project } from '@/types/project';
 
 interface ProjectPublishActionsProps {
   project: Project;
-}
-
-function buildPublishUrl(slug: string): string {
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
-  if (!rootDomain) return `/site/${slug}`;
-  const isLocalhost = rootDomain.includes('localhost') || rootDomain.includes('127.0.0.1');
-  if (isLocalhost) return `/site/${slug}`;
-  return `https://${slug}.${rootDomain}`;
 }
 
 export function ProjectPublishActions({ project }: ProjectPublishActionsProps) {

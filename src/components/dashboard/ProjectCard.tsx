@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { Project, ProjectStatus } from '@/types/project';
 import { Eye, ExternalLink, Trash2, Globe, GlobeLock, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
+import { buildPublishUrl } from '@/lib/utils/publishUrl';
 
 const statusConfig: Record<ProjectStatus, { label: string; dotClass: string; style: { background: string; color: string } }> = {
   draft:       { label: '초안',    dotClass: 'bg-slate-400',             style: { background: 'rgba(100,116,139,0.12)', color: '#64748b' } },
@@ -32,14 +33,6 @@ function formatDate(dateStr: string) {
     month: 'short',
     day: 'numeric',
   });
-}
-
-function buildPublishUrl(slug: string): string {
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
-  if (!rootDomain) return `/site/${slug}`;
-  const isLocalhost = rootDomain.includes('localhost') || rootDomain.includes('127.0.0.1');
-  if (isLocalhost) return `/site/${slug}`;
-  return `https://${slug}.${rootDomain}`;
 }
 
 export function ProjectCard({ project, onDelete, onPublish, onUnpublish }: ProjectCardProps) {
