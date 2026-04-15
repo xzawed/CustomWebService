@@ -12,8 +12,36 @@ export const QC_THRESHOLDS = {
   MOBILE: envInt('QC_MOBILE_THRESHOLD', 60),
   /** Fast QC overallScore 통과 기준 */
   FAST_PASS: envInt('QC_FAST_PASS_THRESHOLD', 60),
-  /** Deep QC overallScore 통과 기준 */
-  DEEP_PASS: envInt('QC_DEEP_PASS_THRESHOLD', 50),
+  /** Deep QC overallScore 통과 기준 (50 → 70으로 상향) */
+  DEEP_PASS: envInt('QC_DEEP_PASS_THRESHOLD', 70),
+} as const;
+
+/**
+ * Deep QC 체크별 가중치.
+ * - 3: 치명적 (이 체크 실패 = 페이지 사용 불가)
+ * - 2: 중요 (이 체크 실패 = 심각한 품질 문제)
+ * - 1: 표준 (기본 가중치)
+ *
+ * 키는 QcCheckResult.name 과 정확히 일치해야 함.
+ */
+export const QC_WEIGHTS: Record<string, number> = {
+  // Critical checks (weight 3) — 페이지 사용 불가 수준
+  consoleErrors: 3,
+  noRuntimePlaceholder: 3,
+  networkActivity: 3,
+
+  // Important checks (weight 2) — 심각한 품질 문제
+  horizontalScroll: 2,
+  footerVisible: 2,
+  interactiveBehavior: 2,
+  loadingStateDisappears: 2,
+
+  // Standard checks (weight 1) — 기본
+  noLayoutOverlap: 1,
+  imageLoading: 1,
+  touchTargets: 1,
+  responsiveBreakpoints: 1,
+  accessibility: 1,
 } as const;
 
 export const QC_TIMEOUTS = {
