@@ -31,6 +31,19 @@ vi.mock('@/lib/config/providers', () => ({
   getDbProvider: vi.fn().mockReturnValue('supabase'),
 }));
 
+vi.mock('@/lib/config/features', () => ({
+  getLimits: vi.fn().mockReturnValue({
+    maxDeployPerDay: 5,
+    maxApisPerProject: 5,
+    maxDailyGenerations: 10,
+    maxProjects: 20,
+    maxRegenerations: 5,
+    contextMinLength: 50,
+    contextMaxLength: 2000,
+    generationTimeoutMs: 120000,
+  }),
+}));
+
 // ---------- Test data ----------
 const mockUser = { id: 'user-1', email: 'test@test.com', name: null, avatarUrl: null };
 
@@ -129,6 +142,53 @@ describe('POST /api/v1/deploy', () => {
     expect(text).toContain('event: complete');
     expect(text).toContain('proj-1');
     expect(deployMock).toHaveBeenCalledWith('proj-1', 'user-1', 'railway', expect.any(Function));
+  });
+
+  describe('일일 배포 rate limit', () => {
+    it('한도 이내 배포 → 200', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+      // getLimits mock
+      vi.doMock('@/lib/config/features', () => ({
+        getLimits: vi.fn().mockReturnValue({ maxDeployPerDay: 5 }),
+      }));
+
+      const { createDeployService } = await import('@/services/factory');
+      vi.mocked(createDeployService).mockReturnValue({
+        deploy: vi.fn().mockResolvedValue({ deployUrl: 'https://example.com', repoUrl: '' }),
+      } as never);
+
+      const { POST } = await import('@/app/api/v1/deploy/route');
+      const response = await POST(makeRequest({ projectId: 'proj-1', platform: 'railway' }));
+      expect(response.status).toBe(200);
+    });
+
+    it('일일 한도 초과 → 429', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+      vi.doMock('@/lib/config/features', () => ({
+        getLimits: vi.fn().mockReturnValue({ maxDeployPerDay: 2 }),
+      }));
+
+      const { createDeployService } = await import('@/services/factory');
+      vi.mocked(createDeployService).mockReturnValue({
+        deploy: vi.fn().mockResolvedValue({ deployUrl: 'https://example.com', repoUrl: '' }),
+      } as never);
+
+      const { POST } = await import('@/app/api/v1/deploy/route');
+
+      // 2회 성공
+      for (let i = 0; i < 2; i++) {
+        const res = await POST(makeRequest({ projectId: 'proj-1', platform: 'railway' }));
+        expect(res.status).toBe(200);
+      }
+
+      // 3번째 → 429
+      const res = await POST(makeRequest({ projectId: 'proj-1', platform: 'railway' }));
+      expect(res.status).toBe(429);
+    });
   });
 
   it('배포 실패 시 SSE error 이벤트와 DEPLOYMENT_FAILED 이벤트가 발생한다', async () => {

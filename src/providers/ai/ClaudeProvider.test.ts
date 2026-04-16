@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ClaudeProvider } from './ClaudeProvider';
 
 // Anthropic SDK mock
@@ -165,6 +165,115 @@ describe('ClaudeProvider', () => {
 
       expect(result.provider).toBe('claude');
       expect(result.model).toBe('claude-sonnet-4-6');
+    });
+  });
+
+  describe('withRetry — 재시도 동작', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('첫 시도 성공 → 1회 호출, 정상 반환', async () => {
+      mockCreate.mockResolvedValueOnce({
+        content: [{ type: 'text', text: 'success' }],
+        usage: { input_tokens: 10, output_tokens: 10 },
+      });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+      expect(result.content).toBe('success');
+    });
+
+    it('429 에러 → 재시도 후 성공 (총 2회 호출)', async () => {
+      mockCreate
+        .mockRejectedValueOnce({ status: 429, name: 'RateLimitError' })
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'retry success' }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      expect(result.content).toBe('retry success');
+    });
+
+    it('500 서버 에러 → 재시도 후 성공', async () => {
+      mockCreate
+        .mockRejectedValueOnce({ status: 500, name: 'InternalServerError' })
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'ok after 500' }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      expect(result.content).toBe('ok after 500');
+    });
+
+    it('503 에러 → 재시도 후 성공', async () => {
+      mockCreate
+        .mockRejectedValueOnce({ status: 503 })
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'ok after 503' }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+    });
+
+    it('MAX_RETRIES(2) 초과 → 최종 에러 throw', async () => {
+      const retryableError = { status: 429, name: 'RateLimitError' };
+      mockCreate
+        .mockRejectedValueOnce(retryableError)
+        .mockRejectedValueOnce(retryableError)
+        .mockRejectedValueOnce(retryableError);
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      // rejection handler를 타이머 실행 전에 먼저 연결해 unhandled rejection 방지
+      const assertRejection = expect(promise).rejects.toMatchObject({ status: 429 });
+      await vi.runAllTimersAsync();
+      await assertRejection;
+
+      expect(mockCreate).toHaveBeenCalledTimes(3); // 초기 1회 + 재시도 2회
+    });
+
+    it('4xx (400) 에러 → 즉시 throw (재시도 없음)', async () => {
+      mockCreate.mockRejectedValueOnce({ status: 400, name: 'BadRequestError' });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      const assertRejection = expect(promise).rejects.toMatchObject({ status: 400 });
+      await vi.runAllTimersAsync();
+      await assertRejection;
+
+      expect(mockCreate).toHaveBeenCalledTimes(1); // 재시도 없음
+    });
+
+    it('401 에러 → 즉시 throw (재시도 없음)', async () => {
+      mockCreate.mockRejectedValueOnce({ status: 401, name: 'AuthError' });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      const assertRejection = expect(promise).rejects.toMatchObject({ status: 401 });
+      await vi.runAllTimersAsync();
+      await assertRejection;
+
+      expect(mockCreate).toHaveBeenCalledTimes(1);
     });
   });
 

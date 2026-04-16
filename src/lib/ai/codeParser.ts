@@ -22,7 +22,7 @@ function extractCodeBlock(text: string, language: string): string {
  * Sanitize AI-generated CSS to remove known injection attack patterns.
  * JS validation is handled separately by codeValidator.validateAll().
  */
-function sanitizeCss(css: string): string {
+export function sanitizeCss(css: string): string {
   return css
     // IE CSS expression injection: expression(...)
     .replace(/expression\s*\(/gi, '/* removed */(')
