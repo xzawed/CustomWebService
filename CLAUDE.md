@@ -35,12 +35,12 @@ src/
 ├── components/      # UI 컴포넌트 (builder/, catalog/, dashboard/, gallery/, layout/, settings/, ui/)
 ├── hooks/           # 커스텀 React hooks
 ├── lib/             # 유틸리티
-│   ├── ai/          # AI 프롬프트, 파이프라인, generationTracker
+│   ├── ai/          # AI 파이프라인 — generationPipeline(오케스트레이터), stageRunner, generationSaver, qualityLoop, generationTracker
 │   ├── config/      # 환경변수 기반 설정
 │   ├── deploy/      # 배포 관련
-│   ├── events/      # EventBus + EventRepository
-│   ├── i18n/        # 다국어 (t() 함수, 한국어 기본)
-│   ├── qc/          # QC 로직
+│   ├── events/      # EventBus (pub/sub) + eventPersister (전체 이벤트 자동 DB 기록)
+│   ├── i18n/        # 다국어 — t() 함수, ko.ts (한국어 메시지), types.ts (MessageKey)
+│   ├── qc/          # QC 로직 (deepQcRunner 포함)
 │   ├── supabase/    # Supabase 클라이언트
 │   └── utils/       # 공통 유틸리티, 에러 클래스
 ├── middleware.ts     # 서브도메인 라우팅, 보안 헤더 (CSP, HSTS)
@@ -49,7 +49,7 @@ src/
 ├── services/        # 비즈니스 로직 계층
 ├── stores/          # Zustand 스토어
 ├── templates/       # 코드 생성 템플릿
-├── types/           # TypeScript 타입 정의
+├── types/           # TypeScript 타입 정의 — schemas.ts (Zod 공용 스키마), project.ts, api.ts, events.ts 등
 ├── __tests__/       # 테스트 파일 (+ 소스 옆 co-located *.test.ts)
 └── test/            # 테스트 헬퍼, 설정
 ```

@@ -1,6 +1,6 @@
 # AI 코드 생성 파이프라인
 
-> **최종 업데이트:** 2026-04-16
+> **최종 업데이트:** 2026-04-17
 
 ## 1. 개요
 
@@ -326,12 +326,19 @@ Avoid: [제외할 요소]
 
 `exampleCall` 흐름: DB JSONB(endpoints 배열) → `catalogRepository.parseEndpoints()` → `ApiEndpoint.exampleCall` → 사용자 프롬프트 `✅ 실제 동작 예제` 블록 → AI Stage 1 생성
 
-핵심 파일: `src/lib/ai/generationPipeline.ts` (공통 파이프라인 — generate/regenerate 양쪽 적용)
+**파이프라인 파일 구조** (`src/lib/ai/`):
 
-`runGenerationPipeline` 내부는 책임별로 분리된 함수로 구성:
-- `runQualityLoop()` — 최대 3회 품질 개선 재시도, 최선 버전 추적
-- `saveGeneratedCode()` — DB 저장, slug 제안, 버전 정리, Deep QC, 프로젝트 상태 갱신, 이벤트 발행
-- `handlePipelineFailure()` — Rate Limit 복구, 실패 이벤트 발행, Tracker 실패 표시
+| 파일 | 역할 |
+|------|------|
+| `generationPipeline.ts` | 오케스트레이터 (~120줄) — generate/regenerate 공통 진입점 |
+| `stageRunner.ts` | `runStage1()` / `runStage2Function()` / `runStage3()` — SSE + AI 호출 + 파싱 |
+| `generationSaver.ts` | DB 저장, slug 제안(fire-and-forget), 버전 정리, Deep QC, 상태 갱신, SSE complete |
+| `qualityLoop.ts` | `shouldRetryGeneration()` + `runQualityLoop()` (최대 3회, best-of-n 반환) |
+| `generationTracker.ts` | 서버 메모리 진행 상태 싱글톤 (모바일 폴링 fallback용) |
+
+`handlePipelineFailure()` (generationPipeline.ts 내부): Rate Limit 복구, 실패 이벤트 발행(`eventBus.emit`), Tracker 실패 표시
+
+**이벤트 흐름**: 생성 성공/실패 시 `eventBus.emit()` → `eventPersister` 구독자가 자동으로 `platform_events` 테이블에 기록 (수동 `persistAsync` 이중 호출 없음)
 
 ---
 

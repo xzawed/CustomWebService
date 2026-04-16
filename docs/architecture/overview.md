@@ -1,6 +1,6 @@
 # 시스템 아키텍처
 
-> **최종 업데이트:** 2026-04-16  
+> **최종 업데이트:** 2026-04-17  
 > **구현 상태:** 운영 중 (433개 테스트 통과)
 
 ---
@@ -219,6 +219,11 @@ src/
 │   │   ├── server.ts             # 서버 클라이언트
 │   │   └── middleware.ts
 │   ├── ai/
+│   │   ├── generationPipeline.ts  # 오케스트레이터 (~120줄) — generate/regenerate 공통
+│   │   ├── stageRunner.ts         # runStage1 / runStage2Function / runStage3
+│   │   ├── generationSaver.ts     # DB 저장 + slug 제안 + 버전 정리 + 이벤트 + SSE complete
+│   │   ├── qualityLoop.ts         # shouldRetryGeneration + runQualityLoop (최대 3회 재시도)
+│   │   ├── generationTracker.ts   # 서버 메모리 진행 상태 싱글톤 (모바일 폴링용)
 │   │   ├── promptBuilder.ts
 │   │   ├── codeParser.ts
 │   │   └── codeValidator.ts
@@ -226,20 +231,27 @@ src/
 │   │   ├── githubService.ts       # ✅ GitHub REST API 연동
 │   │   └── railwayService.ts      # ✅ Railway GraphQL API 연동
 │   ├── config/
-│   │   ├── features.ts           # 설정 기반 비즈니스 규칙│   │   └── featureFlags.ts       # 피처 플래그│   ├── events/
-│   │   ├── eventBus.ts           # 이벤트 버스│   │   └── domainEvents.ts       # 이벤트 타입 정의│   ├── i18n/
-│   │   ├── index.ts              # i18n 기반│   │   └── locales/
-│   │       ├── ko.json
-│   │       └── en.json
+│   │   └── features.ts           # 설정 기반 비즈니스 규칙
+│   ├── events/
+│   │   ├── eventBus.ts           # pub/sub 이벤트 버스 (on/emit, fire-and-forget 에러 격리)
+│   │   └── eventPersister.ts     # registerEventPersister() — 모든 DomainEvent 자동 DB 기록
+│   ├── i18n/
+│   │   ├── index.ts              # t(key, params?) 함수 export
+│   │   ├── ko.ts                 # 한국어 메시지 (35개 — 에러·서비스·배포)
+│   │   └── types.ts              # MessageKey 타입 (자동완성 지원)
+│   ├── qc/
+│   │   └── deepQcRunner.ts       # Deep QC + ICodeRepository로 메타데이터 업데이트
 │   └── utils/
-│       ├── errors.ts             # 커스텀 에러 클래스
+│       ├── errors.ts             # 커스텀 에러 클래스 (t() 기반 한국어 메시지)
 │       └── logger.ts             # 구조적 로깅
 │
 ├── types/                        # 타입 정의
+│   ├── schemas.ts                # Zod 공용 스키마 (generateSchema, createProjectSchema 등 13개)
 │   ├── api.ts
 │   ├── project.ts
-│   ├── generation.ts
-│   ├── organization.ts           #│   └── events.ts                 #│
+│   ├── events.ts                 # DomainEvent 유니온 타입 (12개 이벤트)
+│   └── qc.ts
+│
 └── templates/                    # 코드 생성 템플릿 (11개)
     ├── ICodeTemplate.ts          # 템플릿 인터페이스 (matchScore, generate, promptHint)
     ├── TemplateRegistry.ts       # 템플릿 등록/조회/매칭 (singleton)
@@ -370,8 +382,7 @@ export interface ICodeTemplate {
 ## 5. 이벤트 시스템
 
 ```typescript
-// src/lib/events/domainEvents.ts
-
+// src/types/events.ts — 12개 DomainEvent 유니온 타입
 export type DomainEvent =
   | { type: 'USER_SIGNED_UP'; payload: { userId: string } }
   | { type: 'PROJECT_CREATED'; payload: { projectId: string; userId: string; apiCount: number } }
@@ -381,35 +392,50 @@ export type DomainEvent =
   | { type: 'DEPLOYMENT_COMPLETED'; payload: { projectId: string; url: string; platform: string } }
   | { type: 'DEPLOYMENT_FAILED'; payload: { projectId: string; error: string } }
   | { type: 'PROJECT_DELETED'; payload: { projectId: string } }
-  | { type: 'API_QUOTA_WARNING'; payload: { service: string; usage: number; limit: number } };
+  | { type: 'API_QUOTA_WARNING'; payload: { service: string; usage: number; limit: number } }
+  | { type: 'QC_REPORT_COMPLETED'; payload: { ... } }
+  | { type: 'QC_REPORT_FAILED'; payload: { ... } }
+  | { type: 'PROJECT_UNPUBLISHED'; payload: { projectId: string; userId: string } };
 
-// src/lib/events/eventBus.ts
+// src/lib/events/eventBus.ts — pub/sub 구독자 시스템
+type EventHandler = (event: DomainEvent) => void | Promise<void>;
+
 class EventBus {
-  private handlers = new Map<string, Set<Function>>();
+  private handlers: EventHandler[] = [];
 
+  // 구독 등록 — 반환값(unsubscribe)으로 해제 가능
+  on(handler: EventHandler): () => void { ... }
+
+  // 발행 — 핸들러 에러가 emit 호출자에게 전파되지 않음 (fire-and-forget)
   emit(event: DomainEvent): void { ... }
-  on<T extends DomainEvent['type']>(type: T, handler: (event: Extract<DomainEvent, { type: T }>) => void): void { ... }
-  off(type: string, handler: Function): void { ... }
 }
 
 export const eventBus = new EventBus();
+
+// src/lib/events/eventPersister.ts — 기본 구독자: 모든 이벤트 자동 DB 기록
+export function registerEventPersister(): void { ... }
+// generate/route.ts, regenerate/route.ts, callback/route.ts에서 서버 시작 시 1회 호출 (중복 등록 방지)
 ```
 
-**활용 예시**:
+**발행 지점 (현재 운영 중):**
+
+| 이벤트 | 발행 위치 |
+|--------|----------|
+| `USER_SIGNED_UP` | `callback/route.ts` — 신규 사용자 DB 삽입 성공 시 |
+| `PROJECT_CREATED` / `PROJECT_DELETED` / `PROJECT_UNPUBLISHED` | `projectService.ts` |
+| `CODE_GENERATED` | `generationSaver.ts` |
+| `CODE_GENERATION_FAILED` | `generationPipeline.ts` (handlePipelineFailure) |
+| `DEPLOYMENT_STARTED` / `DEPLOYMENT_COMPLETED` / `DEPLOYMENT_FAILED` | `deployService.ts` |
+| `API_QUOTA_WARNING` | `rateLimitService.ts` — 일일 한도 80% 도달 시 (fire-and-forget) |
+| `QC_REPORT_COMPLETED` / `QC_REPORT_FAILED` | `generationPipeline.ts` |
+
+**확장 예시 (핵심 로직 수정 없이 구독자만 추가):**
 ```typescript
-// 분석 이벤트 구독 (핵심 로직 수정 없이 추가)
-eventBus.on('CODE_GENERATED', (event) => {
-  analytics.track('code_generated', event.payload);
-});
-
-// 알림 구독
-eventBus.on('DEPLOYMENT_FAILED', (event) => {
-  notificationService.send(event.payload.projectId, '배포에 실패했습니다.');
-});
-
-// 모니터링 구독
-eventBus.on('API_QUOTA_WARNING', (event) => {
-  logger.warn('API quota warning', event.payload);
+// Slack 알림 구독
+eventBus.on((event) => {
+  if (event.type === 'DEPLOYMENT_FAILED') {
+    slackClient.send(`배포 실패: ${event.payload.projectId}`);
+  }
 });
 ```
 
