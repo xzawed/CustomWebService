@@ -18,9 +18,7 @@ describe('AiProviderFactory.create()', () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    // 싱글톤 캐시 초기화 (private static 접근)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (AiProviderFactory as any).providers = new Map();
+    AiProviderFactory.clearCache();
   });
 
   afterEach(() => {
@@ -65,7 +63,7 @@ describe('AiProviderFactory.createForTask()', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (AiProviderFactory as any).providers = new Map();
+    AiProviderFactory.clearCache();
   });
 
   afterEach(() => {
@@ -147,7 +145,7 @@ describe('AiProviderFactory.createForTask()', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_MODEL_GENERATION;
     const p1 = AiProviderFactory.createForTask('generation'); // opus (기본값)
-    (AiProviderFactory as any).providers = new Map(); // 캐시 초기화
+    AiProviderFactory.clearCache();
     process.env.AI_MODEL_GENERATION = 'claude-sonnet-4-6';
     const p2 = AiProviderFactory.createForTask('generation'); // sonnet (오버라이드)
     expect(p1.model).not.toBe(p2.model);

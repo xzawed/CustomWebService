@@ -2,6 +2,23 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { getDbProvider } from '@/lib/config/providers';
 import { createCatalogRepository } from '@/repositories/factory';
 import { decryptApiKey } from '@/lib/encryption';
+import { getAuthUser } from '@/lib/auth/index';
+
+// 인메모리 Rate Limit: 사용자당 분당 60회
+const proxyRateLimit = new Map<string, { count: number; resetAt: number }>();
+const PROXY_RATE_LIMIT_PER_MIN = 60;
+
+function checkProxyRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const entry = proxyRateLimit.get(userId);
+  if (!entry || now >= entry.resetAt) {
+    proxyRateLimit.set(userId, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (entry.count >= PROXY_RATE_LIMIT_PER_MIN) return false;
+  entry.count++;
+  return true;
+}
 
 // Hosts/patterns that must never be proxied (SSRF prevention)
 const BLOCKED_HOSTS = new Set([
@@ -44,6 +61,17 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Response> {
+  // 인증 확인
+  const user = await getAuthUser();
+  if (!user) {
+    return errorResponse(401, 'AUTH_REQUIRED', '로그인이 필요합니다.');
+  }
+
+  // Rate Limit 확인
+  if (!checkProxyRateLimit(user.id)) {
+    return errorResponse(429, 'RATE_LIMITED', '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.');
+  }
+
   const { searchParams } = new URL(request.url);
   const apiId = searchParams.get('apiId');
   const proxyPath = searchParams.get('proxyPath');

@@ -1,4 +1,5 @@
-const TTL_MS = 10 * 60 * 1000; // 10분
+const TTL_GENERATING_MS = 30 * 60 * 1000; // 30분 — 생성 중 상태는 더 오래 유지
+const TTL_TERMINAL_MS = 10 * 60 * 1000;  // 10분 — completed/failed
 const CLEANUP_INTERVAL_MS = 60 * 1000; // 60초
 
 export interface TrackerEntry {
@@ -98,7 +99,8 @@ class GenerationTracker {
   private cleanup(): void {
     const now = Date.now();
     for (const [projectId, entry] of this.entries) {
-      if (now - entry.updatedAt > TTL_MS) {
+      const ttl = entry.status === 'generating' ? TTL_GENERATING_MS : TTL_TERMINAL_MS;
+      if (now - entry.updatedAt > ttl) {
         this.entries.delete(projectId);
       }
     }

@@ -15,7 +15,7 @@ export async function POST(request: Request): Promise<Response> {
       verifyAdminKey(request);
 
       if (!isQcEnabled()) {
-        return jsonResponse({ success: false, error: 'ENABLE_RENDERING_QC is not enabled' }, { status: 400 });
+        return jsonResponse({ success: false, error: { code: 'QC_DISABLED', message: 'ENABLE_RENDERING_QC is not enabled' } }, { status: 400 });
       }
 
       const body = await request.json() as { projectId?: string };
@@ -27,7 +27,7 @@ export async function POST(request: Request): Promise<Response> {
       const code = await codeRepo.findByProject(projectId);
 
       if (!code) {
-        return jsonResponse({ success: false, error: '생성된 코드가 없습니다' }, { status: 404 });
+        return jsonResponse({ success: false, error: { code: 'NOT_FOUND', message: '생성된 코드가 없습니다' } }, { status: 404 });
       }
 
       const html = assembleHtml({

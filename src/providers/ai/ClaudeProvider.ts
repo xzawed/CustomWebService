@@ -30,6 +30,30 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** 지수 백오프 재시도 래퍼. 재시도 가능한 에러에 대해 최대 MAX_RETRIES 회 재시도. */
+async function withRetry<T>(fn: (attempt: number) => Promise<T>, logTag: string): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      if (attempt > 0) {
+        const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        logger.warn(`${logTag} retry ${attempt}/${MAX_RETRIES}`, { delay });
+        await sleep(delay);
+      }
+      return await fn(attempt);
+    } catch (error) {
+      lastError = error;
+      if (attempt < MAX_RETRIES && isRetryableError(error)) {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw lastError;
+}
+
 /** Prompt caching: 시스템 프롬프트를 ephemeral 캐시 블록으로 래핑 */
 function buildSystemParam(
   text: string,
@@ -55,58 +79,38 @@ export class ClaudeProvider implements IAiProvider {
 
   async generateCode(prompt: AiPrompt): Promise<AiResponse> {
     const startTime = Date.now();
-    let lastError: unknown;
 
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        if (attempt > 0) {
-          const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
-          logger.warn(`AI generation retry ${attempt}/${MAX_RETRIES}`, {
-            delay,
-            provider: this.name,
-          });
-          await sleep(delay);
-        }
+    return withRetry(async () => {
+      const useThinking = prompt.extendedThinking === true;
 
-        const useThinking = prompt.extendedThinking === true;
+      const result = await this.client.messages.create({
+        model: this.model,
+        system: buildSystemParam(prompt.system),
+        messages: [{ role: 'user', content: prompt.user }],
+        // Extended thinking 활성화 시 temperature 1 필수 (API 요구사항)
+        temperature: useThinking ? 1 : (prompt.temperature ?? 0.7),
+        max_tokens: prompt.maxTokens ?? 32000,
+        ...(useThinking && {
+          thinking: { type: 'enabled' as const, budget_tokens: 32000 },
+        }),
+      });
 
-        const result = await this.client.messages.create({
-          model: this.model,
-          system: buildSystemParam(prompt.system),
-          messages: [{ role: 'user', content: prompt.user }],
-          // Extended thinking 활성화 시 temperature 1 필수 (API 요구사항)
-          temperature: useThinking ? 1 : (prompt.temperature ?? 0.7),
-          max_tokens: prompt.maxTokens ?? 32000,
-          ...(useThinking && {
-            thinking: { type: 'enabled' as const, budget_tokens: 32000 },
-          }),
-        });
+      const textBlock = result.content.find(
+        (b): b is Anthropic.TextBlock => b.type === 'text',
+      );
+      const text = textBlock?.text ?? '';
 
-        const textBlock = result.content.find(
-          (b): b is Anthropic.TextBlock => b.type === 'text',
-        );
-        const text = textBlock?.text ?? '';
-
-        return {
-          content: text,
-          tokensUsed: {
-            input: result.usage.input_tokens,
-            output: result.usage.output_tokens,
-          },
-          model: this.model,
-          provider: this.name,
-          durationMs: Date.now() - startTime,
-        };
-      } catch (error) {
-        lastError = error;
-        if (attempt < MAX_RETRIES && isRetryableError(error)) {
-          continue;
-        }
-        throw error;
-      }
-    }
-
-    throw lastError;
+      return {
+        content: text,
+        tokensUsed: {
+          input: result.usage.input_tokens,
+          output: result.usage.output_tokens,
+        },
+        model: this.model,
+        provider: this.name,
+        durationMs: Date.now() - startTime,
+      };
+    }, 'AI generation');
   }
 
   async generateCodeStream(
@@ -114,61 +118,41 @@ export class ClaudeProvider implements IAiProvider {
     onChunk: (chunk: string, accumulated: string) => void,
   ): Promise<AiStreamResult> {
     const startTime = Date.now();
-    let lastError: unknown;
 
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        if (attempt > 0) {
-          const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
-          logger.warn(`AI stream retry ${attempt}/${MAX_RETRIES}`, {
-            delay,
-            provider: this.name,
-          });
-          await sleep(delay);
-        }
+    return withRetry(async () => {
+      const useThinking = prompt.extendedThinking === true;
 
-        const useThinking = prompt.extendedThinking === true;
+      const stream = this.client.messages.stream({
+        model: this.model,
+        system: buildSystemParam(prompt.system),
+        messages: [{ role: 'user', content: prompt.user }],
+        temperature: useThinking ? 1 : (prompt.temperature ?? 0.7),
+        max_tokens: prompt.maxTokens ?? 32000,
+        ...(useThinking && {
+          thinking: { type: 'enabled' as const, budget_tokens: 32000 },
+        }),
+      });
 
-        const stream = this.client.messages.stream({
-          model: this.model,
-          system: buildSystemParam(prompt.system),
-          messages: [{ role: 'user', content: prompt.user }],
-          temperature: useThinking ? 1 : (prompt.temperature ?? 0.7),
-          max_tokens: prompt.maxTokens ?? 32000,
-          ...(useThinking && {
-            thinking: { type: 'enabled' as const, budget_tokens: 32000 },
-          }),
-        });
+      let accumulated = '';
 
-        let accumulated = '';
+      stream.on('text', (text) => {
+        accumulated += text;
+        onChunk(text, accumulated);
+      });
 
-        stream.on('text', (text) => {
-          accumulated += text;
-          onChunk(text, accumulated);
-        });
+      const finalMessage = await stream.finalMessage();
 
-        const finalMessage = await stream.finalMessage();
-
-        return {
-          content: accumulated,
-          tokensUsed: {
-            input: finalMessage.usage.input_tokens,
-            output: finalMessage.usage.output_tokens,
-          },
-          model: this.model,
-          provider: this.name,
-          durationMs: Date.now() - startTime,
-        };
-      } catch (error) {
-        lastError = error;
-        if (attempt < MAX_RETRIES && isRetryableError(error)) {
-          continue;
-        }
-        throw error;
-      }
-    }
-
-    throw lastError;
+      return {
+        content: accumulated,
+        tokensUsed: {
+          input: finalMessage.usage.input_tokens,
+          output: finalMessage.usage.output_tokens,
+        },
+        model: this.model,
+        provider: this.name,
+        durationMs: Date.now() - startTime,
+      };
+    }, 'AI stream');
   }
 
   async checkAvailability(): Promise<{ available: boolean; remainingQuota?: number }> {

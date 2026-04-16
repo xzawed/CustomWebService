@@ -59,6 +59,11 @@ export class AiProviderFactory {
     return provider;
   }
 
+  /** 테스트에서 캐시된 인스턴스를 초기화할 때 사용 */
+  static clearCache(): void {
+    this.providers.clear();
+  }
+
   static createForTask(task: AiTaskType): IAiProvider {
     const model = resolveTaskModel(task);
     const cacheKey = `claude:${task}:${model}`;

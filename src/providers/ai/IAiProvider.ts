@@ -14,13 +14,8 @@ export interface AiResponse {
   durationMs: number;
 }
 
-export interface AiStreamResult {
-  content: string;
-  tokensUsed: { input: number; output: number };
-  model: string;
-  provider: string;
-  durationMs: number;
-}
+/** generateCodeStream의 반환 타입 — AiResponse와 동일한 구조 */
+export type AiStreamResult = AiResponse;
 
 export interface IAiProvider {
   readonly name: string;

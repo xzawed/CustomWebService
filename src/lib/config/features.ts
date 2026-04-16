@@ -4,6 +4,7 @@ export interface FeatureLimits {
   maxProjectsPerUser: number;
   maxRegenerationsPerProject: number;
   maxCodeVersionsPerProject: number;
+  maxDeployPerDay: number;
   contextMinLength: number;
   contextMaxLength: number;
   generationTimeoutMs: number;
@@ -22,6 +23,7 @@ const DEFAULT_LIMITS: FeatureLimits = {
   maxProjectsPerUser: env('MAX_PROJECTS_PER_USER', 20),
   maxRegenerationsPerProject: env('MAX_REGENERATIONS', 5),
   maxCodeVersionsPerProject: env('MAX_CODE_VERSIONS', 10),
+  maxDeployPerDay: env('MAX_DEPLOY_PER_DAY', 5),
   contextMinLength: env('CONTEXT_MIN_LENGTH', 50),
   contextMaxLength: env('CONTEXT_MAX_LENGTH', 2000),
   generationTimeoutMs: env('GENERATION_TIMEOUT_MS', 120000),

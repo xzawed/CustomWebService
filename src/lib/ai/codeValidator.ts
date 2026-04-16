@@ -6,10 +6,12 @@ export interface ValidationResult {
 
 // Patterns that indicate definite API key hardcoding (very specific formats)
 const DEFINITE_KEY_PATTERNS = [
-  /\bsk-[a-zA-Z0-9]{20,}\b/,           // OpenAI / Anthropic style keys
+  /\bsk-[a-zA-Z0-9]{20,}\b/,            // OpenAI / Anthropic style keys
+  /\bsk_live_[a-zA-Z0-9]{24,}\b/,       // Stripe live secret keys
   /\bAIza[a-zA-Z0-9_-]{35}\b/,          // Google API keys
   /\bghp_[a-zA-Z0-9]{36}\b/,            // GitHub personal access tokens
   /\bxoxb-[0-9]+-[a-zA-Z0-9-]+\b/,      // Slack bot tokens
+  /\bAKIA[0-9A-Z]{16}\b/,               // AWS access key IDs
 ];
 
 // Patterns that suggest possible API key usage (warn, don't block)

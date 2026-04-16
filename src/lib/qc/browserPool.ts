@@ -146,3 +146,7 @@ process.on('exit', () => {
 process.on('SIGTERM', () => {
   void shutdown();
 });
+
+process.on('SIGINT', () => {
+  void shutdown();
+});

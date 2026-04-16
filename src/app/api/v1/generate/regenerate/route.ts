@@ -40,6 +40,9 @@ export async function POST(request: Request): Promise<Response> {
       if (typeof body.feedback !== 'string' || body.feedback.trim().length === 0) {
         throw new ValidationError('feedback은 필수 항목입니다.');
       }
+      if (body.feedback.length > 5000) {
+        throw new ValidationError('feedback은 5,000자를 초과할 수 없습니다.');
+      }
       projectId = body.projectId;
       feedback = body.feedback.trim();
     } catch (err) {
