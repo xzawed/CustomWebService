@@ -1,6 +1,6 @@
 # AI 코드 생성 파이프라인
 
-> **최종 업데이트:** 2026-04-14
+> **최종 업데이트:** 2026-04-16
 
 ## 1. 개요
 
@@ -20,6 +20,7 @@
 
 - DB에는 **Stage 3 결과물만** 저장
 - Stage 2는 **조건부 실행**: `fetchCallCount === 0`, `placeholderCount > 0`, 또는 Fast QC 실패 시에만 수행. 모두 통과 시 Stage 1 코드를 그대로 Stage 3으로 전달 (LLM 호출 절감)
+- Stage 3도 **조건부 실행**: `structuralScore >= 80 && mobileScore >= 70 && fetchCallCount > 0 && placeholderCount === 0 && !needsStage2` 조건 충족 시 스킵. Stage 1/2 결과가 충분히 고품질이면 디자인 폴리시 단계 생략
 
 ### 2.2 데이터 흐름
 
@@ -208,12 +209,34 @@ DB 저장 구조 (code_versions 테이블):
 - **Claude API (Anthropic)** — 기본 Provider
   - 구현: `src/providers/ai/ClaudeProvider.ts`
   - 팩토리: `AiProviderFactory.create()`, `AiProviderFactory.createForTask()`
-  - 모델: `claude-sonnet-4-6` (기본), 태스크별 최적 모델 자동 선택
+  - 모델: **`claude-opus-4-6`** (기본), 태스크별 최적 모델 자동 선택
   - 환경변수 오버라이드: `AI_MODEL_GENERATION` (코드 생성), `AI_MODEL_SUGGESTION` (slug 제안) — 허용 목록(`claude-*`) 검증 후 적용
 
 ### Provider 인터페이스 (`src/providers/ai/IAiProvider.ts`)
 - `generateCode(prompt)` — 단일 응답 생성
 - `generateCodeStream(prompt, onChunk)` — SSE 스트리밍 생성
+- `AiPrompt.extendedThinking?: boolean` — Extended Thinking 활성화 플래그
+
+### 성능 최적화 (현재 적용 중)
+
+**Prompt Caching**
+- 시스템 프롬프트에 `cache_control: { type: 'ephemeral' }` 적용 (`buildSystemParam()` in `ClaudeProvider.ts`)
+- Anthropic 5분 캐시 TTL — 동일 시스템 프롬프트 반복 호출 시 Cache Read 단가($1.50/MTok) 적용
+- Stage 1 시스템 프롬프트(~7K 토큰)가 주로 캐시됨
+
+**Extended Thinking**
+- Stage 1 및 Quality Loop 재시도에서 `extendedThinking: true`로 호출
+- `budget_tokens: 32000` — Thinking 토큰 최대 허용량
+- Thinking 활성화 시 `temperature: 1` 필수 (Anthropic API 요구사항)
+- Thinking 토큰은 출력 단가($75/MTok)로 청구
+
+**조건부 Stage 1 Fast QC 스킵**
+- 정적 분석에서 이미 Stage 2가 필요함이 확정된 경우(`fetchCallCount === 0` 또는 `placeholderCount > 0`) Fast QC를 생략
+- 결과가 어차피 Stage 2로 진행되므로 Playwright 실행 비용 절감
+
+**slug fire-and-forget**
+- `suggestSlugs()` 호출을 `void (async () => { ... })()` 비동기 패턴으로 전환
+- 슬러그 제안 실패가 생성 완료를 블로킹하지 않음
 
 ### 확장 방법
 1. `IAiProvider` 구현 클래스 추가
@@ -289,9 +312,39 @@ Avoid: [제외할 요소]
 생성 흐름:
 1. Stage 1 → `codeValidator.validateAll()` (보안 차단) → `evaluateQuality()` (품질 점수, fetchCallCount 포함)
 2. **조건부**: fetchCallCount=0, placeholderCount>0, 또는 Fast QC 실패 시에만 Stage 2 기능 검증 실행. 통과 시 Stage 1 코드 직행
-3. Stage 3 디자인 폴리시 실행 → DB 저장 → 비동기 Deep QC
-4. **best-effort**: `suggestSlugs()` 호출 (`claude-haiku-4-5`, `src/lib/ai/slugSuggester.ts`) → 성공 시 3개 슬러그 후보를 `projects.suggested_slugs`에 저장, 실패 시 무시
+3. **조건부**: `structuralScore >= 80 && mobileScore >= 70 && fetchCallCount > 0 && placeholderCount === 0 && !needsStage2` 충족 시 Stage 3 스킵
+4. Stage 3 디자인 폴리시 실행 → DB 저장 → 비동기 Deep QC
+5. **best-effort**: `void (async () => { suggestSlugs(...) })()` — slug 제안 실패가 완료를 블로킹하지 않음
 
 `exampleCall` 흐름: DB JSONB(endpoints 배열) → `catalogRepository.parseEndpoints()` → `ApiEndpoint.exampleCall` → 사용자 프롬프트 `✅ 실제 동작 예제` 블록 → AI Stage 1 생성
 
 핵심 파일: `src/lib/ai/generationPipeline.ts` (공통 파이프라인 — generate/regenerate 양쪽 적용)
+
+---
+
+## 10. 모바일 백그라운드 생성 지원
+
+모바일에서 다른 앱으로 전환 시 브라우저가 탭을 백그라운드로 만들어 SSE 연결이 끊어지는 문제를 SSE + 폴링 이중 구조로 해결한다.
+
+### 서버: GenerationTracker (`src/lib/ai/generationTracker.ts`)
+- 싱글톤 Map으로 진행 상태를 메모리에 보관 (10분 TTL 자동 만료)
+- `generationPipeline.ts`에서 SSE 이벤트 전송과 동시에 Tracker도 업데이트
+- SSE가 끊겨도 서버 파이프라인은 계속 실행 (isCancelled 체크 제거)
+
+```typescript
+generationTracker.start(projectId, userId);
+generationTracker.updateProgress(projectId, 30, 'stage1', 'Stage 1 완료');
+generationTracker.complete(projectId, { projectId, version: 1 });
+generationTracker.fail(projectId, '에러 메시지');
+```
+
+### 클라이언트: SSE + 폴링 Fallback
+```
+SSE 스트림 시작
+  → visibilitychange 이벤트 리스너 등록
+  → 탭 복귀 감지 시: reader.cancel() + pollForCompletion() 전환
+  → 스트림 에러 감지 시 (sseErrorEvent=false): pollForCompletion() 전환
+  → SSE error 이벤트 (sseErrorEvent=true): 에러 전파
+```
+
+폴링은 `/api/v1/generate/status/:projectId`를 1초 간격, 최대 120회 호출.

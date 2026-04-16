@@ -307,6 +307,50 @@ event: error
 data: {"message": "코드 생성에 실패했습니다."}
 ```
 
+### GET /api/v1/generate/status/:projectId
+생성 진행 상태 조회 (모바일 백그라운드 폴링용)
+
+**Auth:** 필수
+
+> SSE 스트림이 끊겼을 때(모바일 탭 전환 등) 클라이언트가 1초 간격으로 폴링하여 생성 완료를 확인합니다.
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "status": "generating",
+        "progress": 45,
+        "message": "Stage 2 기능 검증 중..."
+    }
+}
+```
+
+완료 시:
+```json
+{
+    "success": true,
+    "data": {
+        "status": "completed",
+        "result": { "projectId": "uuid", "version": 1 }
+    }
+}
+```
+
+| `status` 값 | 설명 |
+|-------------|------|
+| `generating` | 진행 중 (progress, message 포함) |
+| `completed` | 완료 (result.version 포함) |
+| `failed` | 실패 (error 메시지 포함) |
+| `unknown` | 해당 프로젝트 생성 기록 없음 |
+
+| 상태코드 | 설명 |
+|---------|------|
+| 200 | 성공 |
+| 401 | 인증 필요 |
+
+---
+
 ### POST /api/v1/generate/regenerate
 코드 재생성 (수정 요청)
 

@@ -6,7 +6,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 
 - 서비스 URL: https://xzawed.xyz
 - 배포: Railway (단일 인스턴스, Dockerfile, standalone output)
-- Phase A-2 완료 (공식 템플릿 라이브러리, 10개)
+- Phase A-2 완료 (공식 템플릿 라이브러리, 11개)
 
 ## 기술 스택
 
@@ -18,7 +18,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 | Form | React Hook Form + Zod |
 | Database | Supabase (PostgreSQL + Row Level Security) |
 | Auth | Supabase Auth (Google, GitHub OAuth) |
-| AI | Claude API (Anthropic SDK, claude-sonnet-4-6) |
+| AI | Claude API (Anthropic SDK, claude-opus-4-6 기본, Extended Thinking 32K) |
 | Testing | Vitest, happy-dom, MSW |
 | CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
 | Package Manager | pnpm |
@@ -35,7 +35,7 @@ src/
 ├── components/      # UI 컴포넌트 (builder/, catalog/, dashboard/, gallery/, layout/, settings/, ui/)
 ├── hooks/           # 커스텀 React hooks
 ├── lib/             # 유틸리티
-│   ├── ai/          # AI 프롬프트, 파이프라인
+│   ├── ai/          # AI 프롬프트, 파이프라인, generationTracker
 │   ├── config/      # 환경변수 기반 설정
 │   ├── deploy/      # 배포 관련
 │   ├── events/      # EventBus + EventRepository
@@ -92,6 +92,8 @@ pnpm test:coverage    # 커버리지 리포트
 - **보안 헤더**: middleware에서 CSP, HSTS, X-Frame-Options 설정
 - **코드 생성 결과물**: React가 아닌 순수 HTML/CSS/JS (사용자 서비스용)
 - **설정 기반 제한**: 환경변수로 생성 한도/버전 수 등 비즈니스 규칙 조절
+- **모바일 백그라운드 생성**: SSE + 폴링 이중 구조 — `generationTracker` (서버 메모리, 10분 TTL), 클라이언트 `visibilitychange` 감지 + `/api/v1/generate/status/:projectId` 폴링 fallback
+- **AI 성능 최적화**: Prompt Caching (`ephemeral`), Extended Thinking (`budget_tokens: 32000`), 조건부 Stage 2/3 스킵으로 평균 생성 시간 단축
 
 ## 환경변수 (참고용 — 값 절대 포함 금지)
 
@@ -103,7 +105,8 @@ pnpm test:coverage    # 커버리지 리포트
 - `ENCRYPTION_KEY` — 사용자 API 키 암호화
 - `GITHUB_TOKEN`, `RAILWAY_TOKEN` — 배포용
 - `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
-- `AI_MODEL_SUGGESTION`, `AI_MODEL_GENERATION` — Claude 모델 ID 오버라이드 (선택, 기본값 있음)
+- `AI_MODEL_SUGGESTION` — 추천용 모델 (기본: `claude-haiku-4-5`)
+- `AI_MODEL_GENERATION` — 코드 생성 모델 (기본: `claude-opus-4-6`, Sonnet 폴백: `claude-sonnet-4-6`)
 
 ## 문서 참조
 
@@ -149,8 +152,9 @@ pnpm test:coverage    # 커버리지 리포트
 - QC 파이프라인 핵심 파일: `src/lib/ai/generationPipeline.ts` (공통 파이프라인, Phase 5에서 추출)
 - 생성 파이프라인은 3단계: Stage 1(구조·API 호출, 0→30%) → Stage 2(기능 검증, 조건부, 30→65%) → Stage 3(디자인 폴리시, 65→90%)
 - Stage 2는 조건부 실행: fetchCallCount=0, placeholderCount>0, 또는 Fast QC 실패 시에만 LLM 호출. 통과 시 Stage 1 코드가 Stage 3으로 직행
-- QC·저장은 Stage 3 결과에만 적용; Stage 1/2 출력은 중간 산출물로 DB 저장 안 함
-- 3단계 파이프라인과 **별도로** 품질 루프(Quality Loop)가 최대 3회 재생성을 시도할 수 있음 — 두 메커니즘이 중첩됨
+- Stage 3도 조건부 실행: `structuralScore>=80 && mobileScore>=70 && fetchCallCount>0 && placeholderCount===0 && !needsStage2` 시 스킵
+- QC·저장은 최종 단계(Stage 2 또는 3) 결과에만 적용; 중간 산출물은 DB 저장 안 함
+- 3단계 파이프라인과 **별도로** 품질 루프(Quality Loop)가 최대 3회 재생성을 시도할 수 있음 — 두 메커니즘이 중첩됨. Quality Loop도 Extended Thinking 사용
 - QC 관련 로직 수정 시 `generationPipeline.ts` 중심으로 수정하면 generate/regenerate 양쪽에 동시 반영됨
 
 ### Edge Runtime 호환성 (middleware.ts / proxy.ts 수정 시 필수)
@@ -176,6 +180,8 @@ pnpm test:coverage    # 커버리지 리포트
 - **JSONB 필드명 이중성**: `catalogRepository.parseEndpoints()` 같은 JSONB 매퍼는 snake_case(`example_call`)와 camelCase(`exampleCall`) 둘 다 처리 필요 — DB 직접 삽입 vs 코드 경로 차이
 - **Playwright 병렬 체크 주의**: 단일 `page` 인스턴스에서 `Promise.allSettled` 사용 시 viewport를 변경하는 체크는 반드시 다른 체크 완료 후 순차 실행 (`renderingQc.ts` 참고)
 - **slug 충돌 처리**: `assignUniqueSlug()` in `projectService.ts` — base → base-2 → … → base-10 → timestamp fallback; 23505 unique 위반 시 1회 재시도
+- **generationTracker 단일 인스턴스**: `src/lib/ai/generationTracker.ts`의 `generationTracker`는 모듈 레벨 싱글톤. Railway 단일 인스턴스 환경에서만 동작 — 멀티 인스턴스 배포 시 Redis 등 외부 저장소로 교체 필요
+- **ExtendedThinking + temperature**: `extendedThinking: true` 설정 시 `temperature`는 반드시 `1` (Anthropic API 강제 요구사항). ClaudeProvider 내부에서 자동 처리됨
 
 ## Claude 도움 요청 원칙
 
