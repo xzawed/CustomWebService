@@ -77,6 +77,7 @@ export default function BuilderPage() {
     completeGeneration,
     failGeneration,
     reset: resetGeneration,
+    setGeneratingProjectId,
   } = useGenerationStore();
 
   const steps = mode === 'api-first' ? STEPS_API_FIRST : STEPS_CONTEXT_FIRST;
@@ -166,6 +167,7 @@ export default function BuilderPage() {
       }
 
       const { data: project } = await createRes.json();
+      setGeneratingProjectId(project.id);
 
       updateProgress(10, 'AI 코드 생성 시작...');
       const genRes = await fetch('/api/v1/generate', {
@@ -184,9 +186,58 @@ export default function BuilderPage() {
 
       if (!reader) throw new Error('스트림을 읽을 수 없습니다.');
 
+      const pollForCompletion = async (projectId: string) => {
+        const MAX_ATTEMPTS = 120; // 2 minutes at 1s intervals
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          try {
+            const res = await fetch(`/api/v1/generate/status/${projectId}`);
+            if (!res.ok) break;
+            const { data } = (await res.json()) as {
+              data: {
+                status: 'generating' | 'completed' | 'failed' | 'unknown';
+                progress?: number;
+                message?: string;
+                result?: { projectId: string; version: number };
+                error?: string;
+              };
+            };
+            if (data.status === 'generating') {
+              updateProgress(data.progress ?? 0, data.message ?? '생성 중...');
+            } else if (data.status === 'completed' && data.result) {
+              completeGeneration(data.result.projectId, data.result.version);
+              resetContext();
+              clearApis();
+              return;
+            } else if (data.status === 'failed') {
+              throw new Error(data.error ?? '코드 생성에 실패했습니다.');
+            } else {
+              // 'unknown' — tracker entry expired or server restarted
+              failGeneration('연결이 복구되지 않았습니다. 대시보드에서 결과를 확인해주세요.');
+              return;
+            }
+          } catch (err) {
+            if (attempt === MAX_ATTEMPTS - 1) {
+              failGeneration(err instanceof Error ? err.message : '폴링 중 오류 발생');
+              return;
+            }
+          }
+          await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+        }
+        failGeneration('생성 시간이 초과되었습니다. 대시보드에서 확인해주세요.');
+      };
+
       let buffer = '';
       let done = false;
       let generationCompleted = false;
+      let switchedToPolling = false;
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible' && !generationCompleted && !switchedToPolling) {
+          switchedToPolling = true;
+          reader.cancel().catch(() => {});
+          void pollForCompletion(project.id);
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
 
       try {
         while (!done) {
@@ -237,18 +288,19 @@ export default function BuilderPage() {
           }
         }
 
-        if (!generationCompleted) {
-          completeGeneration(project.id);
-          resetContext();
-          clearApis();
+        if (!generationCompleted && !switchedToPolling) {
+          // SSE stream ended without 'complete' event and we didn't already switch to polling
+          // This can happen on mobile disconnect. Switch to polling to check actual server status.
+          void pollForCompletion(project.id);
         }
       } finally {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
         reader.cancel().catch(() => {});
       }
     } catch (err) {
       failGeneration(err instanceof Error ? err.message : '알 수 없는 오류');
     }
-  }, [selectedIds, context, selectedTemplate, startGeneration, updateProgress, completeGeneration, failGeneration, resetContext, clearApis]);
+  }, [selectedIds, context, selectedTemplate, startGeneration, updateProgress, completeGeneration, failGeneration, resetContext, clearApis, setGeneratingProjectId]);
 
   // === API-first mode: fetch context suggestions ===
   const fetchSuggestions = useCallback(async () => {

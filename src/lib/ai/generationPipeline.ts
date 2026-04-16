@@ -12,6 +12,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/utils/logger';
 import { suggestSlugs } from '@/lib/ai/slugSuggester';
 import { extractTitle } from '@/lib/utils/htmlTitle';
+import { generationTracker } from '@/lib/ai/generationTracker';
 import type { ICodeRepository, IEventRepository, IProjectRepository } from '@/repositories/interfaces';
 import type { ApiCatalogItem } from '@/types/api';
 import type { SseWriter } from '@/lib/ai/sseWriter';
@@ -345,8 +346,11 @@ export async function runGenerationPipeline(
 
   let aiProviderInit: IAiProvider | undefined;
 
+  generationTracker.start(projectId, userId);
+
   try {
     sse.send('progress', { step: 'analyzing', progress: 5, message: '분석 중...' });
+    generationTracker.updateProgress(projectId, 5, 'analyzing', '분석 중...');
 
     try {
       aiProviderInit = AiProviderFactory.createForTask('generation');
@@ -365,8 +369,6 @@ export async function runGenerationPipeline(
       sse,
     );
     const stage1Code = stage1Result.parsed;
-
-    if (sse.isCancelled()) return;
 
     // Stage 1 정적 QC — stage2Function에 전달
     const stage1Validation = validateAll(stage1Code.html, stage1Code.css, stage1Code.js);
@@ -434,15 +436,15 @@ export async function runGenerationPipeline(
     } else {
       // Stage 2 스킵: Stage 1 결과를 그대로 통과시킴
       sse.send('progress', { step: 'stage1_complete', progress: 30, message: '구조 완성. 기능 검증 스킵 (품질 충분).' });
+      generationTracker.updateProgress(projectId, 30, 'stage1_complete', '구조 완성. 기능 검증 스킵 (품질 충분).');
       sse.send('progress', { step: 'stage2_function_complete', progress: 65, message: '기능 검증 완성. 디자인 적용 중...' });
+      generationTracker.updateProgress(projectId, 65, 'stage2_function_complete', '기능 검증 완성. 디자인 적용 중...');
       stage2FunctionResult = {
         parsed: stage1Code,
         durationMs: 0,
         tokensUsed: { input: 0, output: 0 },
       };
     }
-
-    if (sse.isCancelled()) return;
 
     // Stage 3: 디자인·폴리시 적용 (65→90%)
     const stage3Result = await runStage2(
@@ -454,9 +456,8 @@ export async function runGenerationPipeline(
       !needsStage2,
     );
 
-    if (sse.isCancelled()) return;
-
     sse.send('progress', { step: 'validating', progress: 85, message: '코드 검증 중...' });
+    generationTracker.updateProgress(projectId, 85, 'validating', '코드 검증 중...');
 
     let parsed = stage3Result.parsed;
     const stage2Response = {
@@ -528,6 +529,7 @@ export async function runGenerationPipeline(
       });
 
       sse.send('progress', { step: 'quality_improvement', progress: 92, message: '품질 개선 중...' });
+      generationTracker.updateProgress(projectId, 92, 'quality_improvement', '품질 개선 중...');
 
       try {
         const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport);
@@ -576,6 +578,7 @@ export async function runGenerationPipeline(
     const nextVersion = await codeRepo.getNextVersion(projectId);
 
     sse.send('progress', { step: 'saving', progress: 95, message: '저장 중...' });
+    generationTracker.updateProgress(projectId, 95, 'saving', '저장 중...');
 
     const savedCode = await codeRepo.create({
       projectId,
@@ -674,6 +677,20 @@ export async function runGenerationPipeline(
     eventBus.emit(generatedEvent);
     eventRepo.persistAsync(generatedEvent, { userId, projectId, correlationId });
 
+    generationTracker.complete(projectId, {
+      projectId,
+      version: nextVersion,
+      previewUrl: `/api/v1/preview/${projectId}`,
+      ...(qcReport && {
+        qcResult: {
+          score: qcReport.overallScore,
+          passed: qcReport.passed,
+          issues: qcReport.checks
+            .filter((c) => !c.passed)
+            .map((c) => ({ name: c.name, details: c.details })),
+        },
+      }),
+    });
     sse.send('complete', {
       projectId,
       version: nextVersion,
@@ -707,6 +724,7 @@ export async function runGenerationPipeline(
     eventBus.emit(failedEvent);
     eventRepo.persistAsync(failedEvent, { userId, projectId, correlationId });
 
+    generationTracker.fail(projectId, error instanceof Error ? error.message : '코드 생성에 실패했습니다.');
     sse.send('error', {
       message: error instanceof Error ? error.message : '코드 생성에 실패했습니다.',
     });

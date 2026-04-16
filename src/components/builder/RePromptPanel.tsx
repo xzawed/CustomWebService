@@ -66,9 +66,65 @@ export default function RePromptPanel({ projectId, onRegenerationComplete }: ReP
       const decoder = new TextDecoder();
       if (!reader) throw new Error('스트림을 읽을 수 없습니다.');
 
+      const pollForRegeneration = async (projectId: string) => {
+        const MAX_ATTEMPTS = 120;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          try {
+            const res = await fetch(`/api/v1/generate/status/${projectId}`);
+            if (!res.ok) break;
+            const { data } = (await res.json()) as {
+              data: {
+                status: 'generating' | 'completed' | 'failed' | 'unknown';
+                progress?: number;
+                message?: string;
+                result?: { projectId: string; version: number };
+                error?: string;
+              };
+            };
+            if (data.status === 'generating') {
+              setProgress(data.progress ?? 0);
+              setProgressMsg(data.message ?? '재생성 중...');
+            } else if (data.status === 'completed' && data.result) {
+              setProgress(100);
+              setStatus('done');
+              setFeedback('');
+              setSuggestions([]);
+              onRegenerationComplete(data.result.version ?? 1);
+              return;
+            } else if (data.status === 'failed') {
+              throw new Error(data.error ?? '재생성 실패');
+            } else {
+              setStatus('error');
+              setErrorMsg('연결이 복구되지 않았습니다. 대시보드에서 결과를 확인해주세요.');
+              return;
+            }
+          } catch (err) {
+            if (attempt === MAX_ATTEMPTS - 1) {
+              setStatus('error');
+              setErrorMsg(err instanceof Error ? err.message : '폴링 중 오류 발생');
+              return;
+            }
+          }
+          await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+        }
+        setStatus('error');
+        setErrorMsg('재생성 시간이 초과되었습니다. 대시보드에서 확인해주세요.');
+      };
+
+      let switchedToPolling = false;
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible' && !switchedToPolling) {
+          switchedToPolling = true;
+          reader.cancel().catch(() => {});
+          void pollForRegeneration(projectId);
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
       let buffer = '';
       let done = false;
 
+      try {
       while (!done) {
         const { value, done: streamDone } = await reader.read();
         done = streamDone;
@@ -105,6 +161,17 @@ export default function RePromptPanel({ projectId, onRegenerationComplete }: ReP
             }
           }
         }
+      }
+
+      // Stream ended without 'complete' event
+      if (!switchedToPolling) {
+        void pollForRegeneration(projectId);
+      }
+      } catch (err) {
+        setStatus('error');
+        setErrorMsg(err instanceof Error ? err.message : '알 수 없는 오류');
+      } finally {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
       }
     } catch (err) {
       setStatus('error');

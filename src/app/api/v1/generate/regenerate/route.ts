@@ -23,6 +23,7 @@ import { getLimits } from '@/lib/config/features';
 import { createSseWriter } from '@/lib/ai/sseWriter';
 import { runGenerationPipeline } from '@/lib/ai/generationPipeline';
 import { createProjectRepository } from '@/repositories/factory';
+import { generationTracker } from '@/lib/ai/generationTracker';
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -80,6 +81,13 @@ export async function POST(request: Request): Promise<Response> {
       throw new NotFoundError('재생성할 기존 코드가 없습니다. 먼저 코드를 생성해주세요.');
     }
 
+    if (generationTracker.isGenerating(projectId)) {
+      return Response.json(
+        { success: false, error: { code: 'GENERATION_IN_PROGRESS', message: '이미 생성 중입니다.' } },
+        { status: 409 },
+      );
+    }
+
     const stage1SystemPrompt = buildStage1SystemPrompt();
     const stage1UserPrompt = buildStage1RegenerationUserPrompt(
       { html: previousCode.codeHtml, css: previousCode.codeCss, js: previousCode.codeJs },
@@ -118,7 +126,7 @@ export async function POST(request: Request): Promise<Response> {
           },
         );
 
-        controller.close();
+        try { controller.close(); } catch { /* stream already cancelled */ }
       },
       cancel() {
         // isCancelled는 sseWriter가 enqueue 실패 시 내부에서 설정
