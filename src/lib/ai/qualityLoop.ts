@@ -1,6 +1,14 @@
+import { evaluateQuality } from '@/lib/ai/codeValidator';
 import type { QualityMetrics } from '@/lib/ai/codeValidator';
 import type { QcReport } from '@/types/qc';
 import { QC_THRESHOLDS } from '@/lib/config/qc';
+import { runFastQc, isQcEnabled } from '@/lib/qc';
+import { parseGeneratedCode } from '@/lib/ai/codeParser';
+import { assembleHtml } from '@/lib/ai/codeParser';
+import { generationTracker } from '@/lib/ai/generationTracker';
+import { logger } from '@/lib/utils/logger';
+import type { IAiProvider } from '@/providers/ai/IAiProvider';
+import type { SseWriter } from '@/lib/ai/sseWriter';
 
 export function shouldRetryGeneration(
   metrics: QualityMetrics,
@@ -102,4 +110,88 @@ ${qcIssues ? `\n브라우저 렌더링 검증에서 발견된 추가 문제:\n${
 \`\`\`javascript
 (JavaScript 코드)
 \`\`\``;
+}
+
+function safeAssembleHtml(code: { html: string; css: string; js: string }): string | null {
+  try {
+    return assembleHtml(code);
+  } catch {
+    return null;
+  }
+}
+
+export interface QualityLoopResult {
+  parsed: { html: string; css: string; js: string };
+  quality: ReturnType<typeof evaluateQuality>;
+  qcReport: QcReport | null;
+  qualityLoopUsed: boolean;
+}
+
+/** 품질 기준 미달 시 최대 3회 재생성 시도, 최선 버전 반환 */
+export async function runQualityLoop(
+  initialParsed: { html: string; css: string; js: string },
+  initialQuality: ReturnType<typeof evaluateQuality>,
+  initialQcReport: QcReport | null,
+  stage2SystemPrompt: string,
+  aiProvider: IAiProvider,
+  sse: SseWriter,
+  useET: boolean,
+  projectId: string,
+): Promise<QualityLoopResult> {
+  let bestParsed = initialParsed;
+  let bestQuality = initialQuality;
+  let bestQcReport = initialQcReport;
+  let qualityLoopUsed = false;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (!shouldRetryGeneration(bestQuality, bestQcReport)) break;
+
+    logger.info('Quality below threshold, attempting improvement', {
+      projectId,
+      score: bestQuality.structuralScore,
+      attempt: attempt + 1,
+    });
+
+    sse.send('progress', { step: 'quality_improvement', progress: 92, message: '품질 개선 중...' });
+    generationTracker.updateProgress(projectId, 92, 'quality_improvement', '품질 개선 중...');
+
+    try {
+      const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport);
+      const retryResponse = await aiProvider.generateCode({ system: stage2SystemPrompt, user: improvementPrompt, extendedThinking: useET });
+      const retryParsed = parseGeneratedCode(retryResponse.content);
+
+      if (retryParsed.html) {
+        const retryQuality = evaluateQuality(retryParsed.html, retryParsed.css, retryParsed.js);
+        let retryQcReport: QcReport | null = null;
+
+        if (isQcEnabled()) {
+          try {
+            const assembled = safeAssembleHtml(retryParsed);
+            if (assembled) retryQcReport = await runFastQc(assembled);
+          } catch {
+            // QC 실패해도 코드 레벨 비교 진행
+          }
+        }
+
+        const codeImproved =
+          retryQuality.structuralScore > bestQuality.structuralScore ||
+          retryQuality.mobileScore > bestQuality.mobileScore;
+        const qcImproved =
+          retryQcReport && bestQcReport
+            ? retryQcReport.overallScore > bestQcReport.overallScore
+            : false;
+
+        if (codeImproved || qcImproved) {
+          bestParsed = retryParsed;
+          bestQuality = retryQuality;
+          if (retryQcReport) bestQcReport = retryQcReport;
+          qualityLoopUsed = true;
+        }
+      }
+    } catch (retryErr) {
+      logger.warn('Quality improvement retry failed', { projectId, retryErr });
+    }
+  }
+
+  return { parsed: bestParsed, quality: bestQuality, qcReport: bestQcReport, qualityLoopUsed };
 }

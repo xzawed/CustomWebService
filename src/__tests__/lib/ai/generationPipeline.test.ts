@@ -18,6 +18,12 @@ vi.mock('@/lib/ai/codeValidator', () => ({
 vi.mock('@/lib/ai/qualityLoop', () => ({
   shouldRetryGeneration: vi.fn(() => false),
   buildQualityImprovementPrompt: vi.fn(() => 'improve'),
+  runQualityLoop: vi.fn().mockImplementation(async (parsed: unknown, quality: unknown, qcReport: unknown) => ({
+    parsed,
+    quality,
+    qcReport,
+    qualityLoopUsed: false,
+  })),
 }));
 vi.mock('@/lib/ai/categoryDesignMap', () => ({
   inferDesignFromCategories: vi.fn(() => ({ theme: 'light', layout: 'grid', allowedSections: [] })),

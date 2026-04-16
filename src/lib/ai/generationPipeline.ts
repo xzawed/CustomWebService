@@ -1,18 +1,14 @@
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
-import { parseGeneratedCode } from '@/lib/ai/codeParser';
 import { assembleHtml } from '@/lib/ai/codeParser';
 import { validateAll, evaluateQuality } from '@/lib/ai/codeValidator';
-import { shouldRetryGeneration, buildQualityImprovementPrompt } from '@/lib/ai/qualityLoop';
-import { inferDesignFromCategories } from '@/lib/ai/categoryDesignMap';
-import { runFastQc, runDeepQc, isQcEnabled } from '@/lib/qc';
+import { runQualityLoop } from '@/lib/ai/qualityLoop';
+import { runFastQc, isQcEnabled } from '@/lib/qc';
 import { eventBus } from '@/lib/events/eventBus';
-import { getLimits } from '@/lib/config/features';
-import { createServiceClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/utils/logger';
-import { suggestSlugs } from '@/lib/ai/slugSuggester';
-import { extractTitle } from '@/lib/utils/htmlTitle';
 import { generationTracker } from '@/lib/ai/generationTracker';
+import { runStage1, runStage2Function, runStage3 } from '@/lib/ai/stageRunner';
+import { saveGeneratedCode } from '@/lib/ai/generationSaver';
 import type { ICodeRepository, IEventRepository, IProjectRepository } from '@/repositories/interfaces';
 import type { ApiCatalogItem } from '@/types/api';
 import type { SseWriter } from '@/lib/ai/sseWriter';
@@ -34,28 +30,16 @@ export interface PipelineInput {
   apis: ApiCatalogItem[];
   /** 사용자 서비스 설명 (slug 제안 훅에 사용) */
   projectContext?: string;
-  /** Stage 1 (구조·기능) 시스템 프롬프트 */
   stage1SystemPrompt: string;
-  /** Stage 1 (구조·기능) 유저 프롬프트 */
   stage1UserPrompt: string;
-  /** Stage 2 (기능 검증) 시스템 프롬프트 */
   stage2FunctionSystemPrompt: string;
-  /**
-   * Stage 2 기능 검증 유저 프롬프트 빌더.
-   * Receives stage1Code + QC issues.
-   */
   buildStage2FunctionUserPrompt: (
     stage1Code: { html: string; css: string; js: string },
     staticQcIssues: string[],
     fastQcIssues: string[] | null,
   ) => string;
-  /** Stage 3 (디자인·폴리시) 시스템 프롬프트 */
   stage2SystemPrompt: string;
-  /**
-   * Stage 3 유저 프롬프트 빌더.
-   */
   buildStage2UserPrompt: (stage1Code: { html: string; css: string; js: string }) => string;
-  /** 코드 메타데이터에 병합할 추가 필드 */
   extraMetadata?: Record<string, unknown>;
 }
 
@@ -64,11 +48,9 @@ export interface PipelineServices {
   eventRepo: IEventRepository;
   projectService: IProjectStatusUpdater;
   rateLimitService: IRateLimitDecrementer;
-  /** slug 제안 저장용 (선택적 — 없으면 slug 훅 스킵) */
   projectRepo?: IProjectRepository;
 }
 
-// Safe wrapper: assembleHtml() can throw on malformed output
 function safeAssembleHtml(code: { html: string; css: string; js: string }): string | null {
   try {
     return assembleHtml(code);
@@ -77,510 +59,13 @@ function safeAssembleHtml(code: { html: string; css: string; js: string }): stri
   }
 }
 
-async function runDeepQcAndUpdate(
-  projectId: string,
-  codeId: string,
-  parsed: { html: string; css: string; js: string },
-): Promise<void> {
-  const assembledForDeepQc = safeAssembleHtml(parsed);
-  if (!assembledForDeepQc) {
-    logger.warn('safeAssembleHtml returned null for Deep QC, skipping', { projectId });
-    return;
-  }
-
-  runDeepQc(assembledForDeepQc)
-    .then(async (deepReport) => {
-      if (!deepReport) return;
-
-      logger.info('Deep QC completed', {
-        projectId,
-        qcScore: deepReport.overallScore,
-        qcPassed: deepReport.passed,
-        checks: deepReport.checks.map((c) => ({ name: c.name, passed: c.passed, score: c.score })),
-      });
-
-      eventBus.emit({
-        type: 'QC_REPORT_COMPLETED',
-        payload: {
-          projectId,
-          overallScore: deepReport.overallScore,
-          passed: deepReport.passed,
-          checks: deepReport.checks.map((c) => ({ name: c.name, passed: c.passed, score: c.score })),
-          isDeep: true,
-        },
-      });
-
-      try {
-        const serviceClient = await createServiceClient();
-        const { data: current } = await serviceClient
-          .from('generated_codes')
-          .select('metadata')
-          .eq('id', codeId)
-          .single();
-        if (current) {
-          await serviceClient
-            .from('generated_codes')
-            .update({
-              metadata: {
-                ...((current.metadata as Record<string, unknown>) ?? {}),
-                renderingQcScore: deepReport.overallScore,
-                renderingQcPassed: deepReport.passed,
-                renderingQcChecks: deepReport.checks.map((c) => ({
-                  name: c.name,
-                  passed: c.passed,
-                  score: c.score,
-                  details: c.details,
-                })),
-              },
-            })
-            .eq('id', codeId);
-        }
-      } catch (updateErr) {
-        logger.warn('Deep QC metadata update failed', {
-          projectId,
-          codeId,
-          error: updateErr instanceof Error ? updateErr.message : String(updateErr),
-        });
-      }
-    })
-    .catch(async (qcErr) => {
-      logger.warn('Deep QC failed', {
-        projectId,
-        codeId,
-        error: qcErr instanceof Error ? qcErr.stack : String(qcErr),
-      });
-      eventBus.emit({
-        type: 'QC_REPORT_FAILED',
-        payload: {
-          projectId,
-          stage: 'deep' as const,
-          error: qcErr instanceof Error ? qcErr.message : String(qcErr),
-        },
-      });
-      try {
-        const serviceClient = await createServiceClient();
-        const { data: current } = await serviceClient
-          .from('generated_codes')
-          .select('metadata')
-          .eq('id', codeId)
-          .single();
-        if (current) {
-          await serviceClient
-            .from('generated_codes')
-            .update({
-              metadata: {
-                ...((current.metadata as Record<string, unknown>) ?? {}),
-                deepQcFailed: true,
-              },
-            })
-            .eq('id', codeId);
-        }
-      } catch (updateErr) {
-        logger.warn('Deep QC failure metadata update failed', {
-          codeId,
-          error: updateErr instanceof Error ? updateErr.message : String(updateErr),
-        });
-      }
-    });
-}
-
-/** API 개수·컨텍스트 난이도 기반으로 Extended Thinking 사용 여부 결정 */
 function shouldUseExtendedThinking(apis: ApiCatalogItem[], context?: string): boolean {
-  const apiCount = apis.length;
-  const contextLength = context?.length ?? 0;
-  // API 3개 이상이거나 컨텍스트 500자 이상이면 복잡한 요구사항으로 판단
-  return apiCount >= 3 || contextLength >= 500;
+  return apis.length >= 3 || (context?.length ?? 0) >= 500;
 }
 
-async function runStage1(
-  systemPrompt: string,
-  userPrompt: string,
-  aiProvider: IAiProvider,
-  sse: SseWriter,
-  useET: boolean,
-): Promise<{
-  parsed: { html: string; css: string; js: string };
-  durationMs: number;
-  tokensUsed: { input: number; output: number };
-}> {
-  let lastProgressUpdate = Date.now();
-  const streamStartTime = Date.now();
-
-  sse.send('progress', { step: 'stage1_generating', progress: 5, message: `1단계: 구조 및 기능 생성 중...${useET ? ' (심층 분석)' : ''}` });
-
-  const response = await aiProvider.generateCodeStream(
-    { system: systemPrompt, user: userPrompt, extendedThinking: useET },
-    (_chunk: string, accumulated: string) => {
-      if (sse.isCancelled()) return;
-      const now = Date.now();
-      if (now - lastProgressUpdate < 500) return;
-      lastProgressUpdate = now;
-      const estimatedProgress = Math.min(28, 5 + Math.floor((accumulated.length / 15000) * 23));
-      const elapsed = Math.floor((now - streamStartTime) / 1000);
-      sse.send('progress', {
-        step: 'stage1_generating',
-        progress: estimatedProgress,
-        message: `1단계: 구조 및 기능 생성 중... (${elapsed}초 경과, ${(accumulated.length / 1024).toFixed(1)}KB)`,
-      });
-    },
-  );
-
-  return {
-    parsed: parseGeneratedCode(response.content),
-    durationMs: response.durationMs,
-    tokensUsed: response.tokensUsed,
-  };
-}
-
-async function runStage2Function(
-  stage1Code: { html: string; css: string; js: string },
-  systemPrompt: string,
-  buildUserPrompt: (
-    code: { html: string; css: string; js: string },
-    staticIssues: string[],
-    qcIssues: string[] | null,
-  ) => string,
-  staticQcIssues: string[],
-  fastQcIssues: string[] | null,
-  aiProvider: IAiProvider,
-  sse: SseWriter,
-): Promise<{
-  parsed: { html: string; css: string; js: string };
-  durationMs: number;
-  tokensUsed: { input: number; output: number };
-}> {
-  sse.send('progress', { step: 'stage1_complete', progress: 30, message: '구조 완성. 기능 검증 중...' });
-  sse.send('progress', { step: 'stage2_function_generating', progress: 35, message: '2단계: 기능 버그 수정 중...' });
-
-  const userPrompt = buildUserPrompt(stage1Code, staticQcIssues, fastQcIssues);
-  let lastProgressUpdate = Date.now();
-  const streamStartTime = Date.now();
-
-  const response = await aiProvider.generateCodeStream(
-    { system: systemPrompt, user: userPrompt },
-    (_chunk: string, accumulated: string) => {
-      if (sse.isCancelled()) return;
-      const now = Date.now();
-      if (now - lastProgressUpdate < 500) return;
-      lastProgressUpdate = now;
-      const estimatedProgress = Math.min(62, 35 + Math.floor((accumulated.length / 10000) * 27));
-      const elapsed = Math.floor((now - streamStartTime) / 1000);
-      sse.send('progress', {
-        step: 'stage2_function_generating',
-        progress: estimatedProgress,
-        message: `2단계: 기능 버그 수정 중... (${elapsed}초 경과)`,
-      });
-    },
-  );
-
-  return {
-    parsed: parseGeneratedCode(response.content),
-    durationMs: response.durationMs,
-    tokensUsed: response.tokensUsed,
-  };
-}
-
-async function runStage2(
-  stage1Code: { html: string; css: string; js: string },
-  systemPrompt: string,
-  buildUserPrompt: (code: { html: string; css: string; js: string }) => string,
-  aiProvider: IAiProvider,
-  sse: SseWriter,
-  /** Stage 2 스킵 시 이미 stage2_function_complete 이벤트가 발행된 경우 true */
-  stage2FunctionCompleteAlreadySent = false,
-): Promise<{
-  parsed: { html: string; css: string; js: string };
-  provider: string;
-  model: string;
-  durationMs: number;
-  tokensUsed: { input: number; output: number };
-  userPromptUsed: string;
-}> {
-  if (!stage2FunctionCompleteAlreadySent) {
-    sse.send('progress', { step: 'stage2_function_complete', progress: 65, message: '기능 검증 완성. 디자인 적용 중...' });
-  }
-  sse.send('progress', { step: 'stage3_generating', progress: 68, message: '3단계: 디자인 및 인터랙션 적용 중...' });
-
-  const userPrompt = buildUserPrompt(stage1Code);
-
-  let lastProgressUpdate = Date.now();
-  const streamStartTime = Date.now();
-
-  const response = await aiProvider.generateCodeStream(
-    { system: systemPrompt, user: userPrompt },
-    (_chunk: string, accumulated: string) => {
-      if (sse.isCancelled()) return;
-      const now = Date.now();
-      if (now - lastProgressUpdate < 500) return;
-      lastProgressUpdate = now;
-      const estimatedProgress = Math.min(82, 68 + Math.floor((accumulated.length / 15000) * 14));
-      const elapsed = Math.floor((now - streamStartTime) / 1000);
-      sse.send('progress', {
-        step: 'stage3_generating',
-        progress: estimatedProgress,
-        message: `3단계: 디자인 및 인터랙션 적용 중... (${elapsed}초 경과, ${(accumulated.length / 1024).toFixed(1)}KB)`,
-      });
-    },
-  );
-
-  return {
-    parsed: parseGeneratedCode(response.content),
-    provider: response.provider,
-    model: response.model,
-    durationMs: response.durationMs,
-    tokensUsed: response.tokensUsed,
-    userPromptUsed: userPrompt,
-  };
-}
-
-/** 품질 기준 미달 시 최대 3회 재생성 시도, 최선 버전 반환 */
-async function runQualityLoop(
-  initialParsed: { html: string; css: string; js: string },
-  initialQuality: ReturnType<typeof evaluateQuality>,
-  initialQcReport: QcReport | null,
-  stage2SystemPrompt: string,
-  aiProvider: IAiProvider,
-  sse: SseWriter,
-  useET: boolean,
-  projectId: string,
-): Promise<{
-  parsed: { html: string; css: string; js: string };
-  quality: ReturnType<typeof evaluateQuality>;
-  qcReport: QcReport | null;
-  qualityLoopUsed: boolean;
-}> {
-  let bestParsed = initialParsed;
-  let bestQuality = initialQuality;
-  let bestQcReport = initialQcReport;
-  let qualityLoopUsed = false;
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (!shouldRetryGeneration(bestQuality, bestQcReport)) break;
-
-    logger.info('Quality below threshold, attempting improvement', {
-      projectId,
-      score: bestQuality.structuralScore,
-      attempt: attempt + 1,
-    });
-
-    sse.send('progress', { step: 'quality_improvement', progress: 92, message: '품질 개선 중...' });
-    generationTracker.updateProgress(projectId, 92, 'quality_improvement', '품질 개선 중...');
-
-    try {
-      const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport);
-      const retryResponse = await aiProvider.generateCode({ system: stage2SystemPrompt, user: improvementPrompt, extendedThinking: useET });
-      const retryParsed = parseGeneratedCode(retryResponse.content);
-
-      if (retryParsed.html) {
-        const retryQuality = evaluateQuality(retryParsed.html, retryParsed.css, retryParsed.js);
-        let retryQcReport: QcReport | null = null;
-
-        if (isQcEnabled()) {
-          try {
-            const assembled = safeAssembleHtml(retryParsed);
-            if (assembled) retryQcReport = await runFastQc(assembled);
-          } catch {
-            // QC 실패해도 코드 레벨 비교 진행
-          }
-        }
-
-        const codeImproved =
-          retryQuality.structuralScore > bestQuality.structuralScore ||
-          retryQuality.mobileScore > bestQuality.mobileScore;
-        const qcImproved =
-          retryQcReport && bestQcReport
-            ? retryQcReport.overallScore > bestQcReport.overallScore
-            : false;
-
-        if (codeImproved || qcImproved) {
-          bestParsed = retryParsed;
-          bestQuality = retryQuality;
-          if (retryQcReport) bestQcReport = retryQcReport;
-          qualityLoopUsed = true;
-        }
-      }
-    } catch (retryErr) {
-      logger.warn('Quality improvement retry failed', { projectId, retryErr });
-    }
-  }
-
-  return { parsed: bestParsed, quality: bestQuality, qcReport: bestQcReport, qualityLoopUsed };
-}
-
-interface SaveParams {
-  projectId: string;
-  userId: string;
-  correlationId: string | undefined;
-  parsed: { html: string; css: string; js: string };
-  quality: ReturnType<typeof evaluateQuality>;
-  qcReport: QcReport | null;
-  qualityLoopUsed: boolean;
-  validation: ReturnType<typeof validateAll>;
-  apis: ApiCatalogItem[];
-  projectContext?: string;
-  extraMetadata?: Record<string, unknown>;
-  stage2Response: { provider: string; model: string; durationMs: number; tokensUsed: { input: number; output: number } };
-  userPromptUsed: string;
-  codeRepo: ICodeRepository;
-  eventRepo: IEventRepository;
-  projectService: IProjectStatusUpdater;
-  projectRepo?: IProjectRepository;
-}
-
-/** 코드 저장, slug 제안, 버전 정리, Deep QC, 프로젝트 상태 갱신, 이벤트 발행, SSE complete */
-async function saveGeneratedCode(params: SaveParams, sse: SseWriter): Promise<void> {
-  const {
-    projectId, userId, correlationId, parsed, quality, qcReport, qualityLoopUsed,
-    validation, apis, projectContext, extraMetadata, stage2Response, userPromptUsed,
-    codeRepo, eventRepo, projectService, projectRepo,
-  } = params;
-  const limits = getLimits();
-
-  const categories = [...new Set(apis.map((a) => a.category).filter(Boolean))];
-  const inference = inferDesignFromCategories(categories);
-  const nextVersion = await codeRepo.getNextVersion(projectId);
-
-  sse.send('progress', { step: 'saving', progress: 95, message: '저장 중...' });
-  generationTracker.updateProgress(projectId, 95, 'saving', '저장 중...');
-
-  const savedCode = await codeRepo.create({
-    projectId,
-    version: nextVersion,
-    codeHtml: parsed.html,
-    codeCss: parsed.css,
-    codeJs: parsed.js,
-    framework: 'vanilla',
-    aiProvider: stage2Response.provider,
-    aiModel: stage2Response.model,
-    aiPromptUsed: userPromptUsed,
-    generationTimeMs: stage2Response.durationMs,
-    tokenUsage: stage2Response.tokensUsed,
-    dependencies: [],
-    metadata: {
-      securityCheckPassed: validation.passed,
-      validationErrors: [...validation.errors, ...validation.warnings],
-      ...extraMetadata,
-      ...quality,
-      apiCategories: categories,
-      inferredTheme: inference.theme,
-      inferredLayout: inference.layout,
-      qualityLoopUsed,
-      ...(qcReport && {
-        renderingQcScore: qcReport.overallScore,
-        renderingQcPassed: qcReport.passed,
-        renderingQcChecks: qcReport.checks.map((c) => ({
-          name: c.name,
-          passed: c.passed,
-          score: c.score,
-          details: c.details,
-        })),
-      }),
-    },
-  } as Parameters<typeof codeRepo.create>[0]);
-
-  // Slug 제안 — fire-and-forget (완료 대기 안 함, 1-3초 절감)
-  if (projectRepo && projectContext) {
-    void (async () => {
-      try {
-        const pageTitle = extractTitle(parsed.html);
-        const slugs = await suggestSlugs({
-          context: projectContext,
-          pageTitle,
-          categoryHints: apis.map((a) => a.category).filter((c): c is string => Boolean(c)),
-        });
-        if (slugs.length > 0) {
-          await projectRepo.updateSuggestedSlugs(projectId, slugs);
-        }
-      } catch (err) {
-        logger.warn('slug 제안 훅 실패 (무시)', {
-          projectId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    })();
-  }
-
-  try {
-    await codeRepo.pruneOldVersions(projectId, limits.maxCodeVersionsPerProject);
-  } catch (pruneErr) {
-    logger.warn('Failed to prune old code versions', { projectId, pruneErr });
-  }
-
-  // Deep QC — Fast QC 실패 시에만 실행 (비용 최적화)
-  if (isQcEnabled() && qcReport && !qcReport.passed) {
-    void runDeepQcAndUpdate(projectId, savedCode.id, parsed);
-  }
-
-  // Compensating rollback — project status update 실패 시 코드 레코드 삭제
-  try {
-    await projectService.updateStatus(projectId, 'generated');
-  } catch (updateError) {
-    logger.error('Project status update failed, rolling back code record', {
-      codeId: savedCode.id,
-      projectId,
-    });
-    try {
-      await codeRepo.delete(savedCode.id);
-    } catch (deleteErr) {
-      logger.error('Compensating rollback failed — orphaned code record', {
-        codeId: savedCode.id,
-        deleteErr,
-      });
-    }
-    throw updateError;
-  }
-
-  const generatedEvent = {
-    type: 'CODE_GENERATED' as const,
-    payload: {
-      projectId,
-      version: nextVersion,
-      provider: stage2Response.provider,
-      durationMs: stage2Response.durationMs,
-    },
-  };
-  eventBus.emit(generatedEvent);
-  eventRepo.persistAsync(generatedEvent, { userId, projectId, correlationId });
-
-  generationTracker.complete(projectId, {
-    projectId,
-    version: nextVersion,
-    previewUrl: `/api/v1/preview/${projectId}`,
-    ...(qcReport && {
-      qcResult: {
-        score: qcReport.overallScore,
-        passed: qcReport.passed,
-        issues: qcReport.checks
-          .filter((c) => !c.passed)
-          .map((c) => ({ name: c.name, details: c.details })),
-      },
-    }),
-  });
-  sse.send('complete', {
-    projectId,
-    version: nextVersion,
-    previewUrl: `/api/v1/preview/${projectId}`,
-    ...(qcReport && {
-      qcResult: {
-        score: qcReport.overallScore,
-        passed: qcReport.passed,
-        issues: qcReport.checks
-          .filter((c) => !c.passed)
-          .map((c) => ({ name: c.name, details: c.details })),
-      },
-    }),
-  });
-}
-
-/** 파이프라인 실패 처리: rate limit 복구, 이벤트 발행, tracker 실패 표시, SSE error */
 async function handlePipelineFailure(
   error: unknown,
-  context: {
-    projectId: string;
-    userId: string;
-    correlationId: string | undefined;
-    aiProviderName: string | undefined;
-  },
+  context: { projectId: string; userId: string; correlationId: string | undefined; aiProviderName: string | undefined },
   services: { rateLimitService: IRateLimitDecrementer; eventRepo: IEventRepository },
   sse: SseWriter,
 ): Promise<void> {
@@ -622,13 +107,6 @@ export async function runGenerationPipeline(
   const { projectId, userId, correlationId, apis, extraMetadata, projectContext } = input;
   const { codeRepo, eventRepo, projectService, rateLimitService, projectRepo } = services;
 
-  const stage1SystemPrompt = input.stage1SystemPrompt;
-  const stage1UserPrompt = input.stage1UserPrompt;
-  const stage2FunctionSystemPrompt = input.stage2FunctionSystemPrompt;
-  const buildStage2FunctionUserPromptFn = input.buildStage2FunctionUserPrompt;
-  const stage2SystemPrompt = input.stage2SystemPrompt;
-  const buildStage2UserPrompt = input.buildStage2UserPrompt;
-
   let aiProviderInit: IAiProvider | undefined;
 
   generationTracker.start(projectId, userId);
@@ -640,26 +118,17 @@ export async function runGenerationPipeline(
     try {
       aiProviderInit = AiProviderFactory.createForTask('generation');
     } catch (factoryErr) {
-      throw new Error(
-        `AI 서비스 초기화 실패: ${factoryErr instanceof Error ? factoryErr.message : 'Unknown'}`,
-      );
+      throw new Error(`AI 서비스 초기화 실패: ${factoryErr instanceof Error ? factoryErr.message : 'Unknown'}`);
     }
     const aiProvider: IAiProvider = aiProviderInit;
-
-    // Extended Thinking 사용 여부: API 개수·컨텍스트 난이도 기반
     const useET = shouldUseExtendedThinking(apis, projectContext);
+
     if (useET) {
       logger.info('Extended Thinking enabled for generation', { projectId, apiCount: apis.length, contextLength: projectContext?.length ?? 0 });
     }
 
-    // Stage 1: 구조·기능 생성 (0→30%)
-    const stage1Result = await runStage1(
-      stage1SystemPrompt,
-      stage1UserPrompt,
-      aiProvider,
-      sse,
-      useET,
-    );
+    // ── Stage 1: 구조·기능 생성 (5→28%) ───────────────────────────────────────
+    const stage1Result = await runStage1(input.stage1SystemPrompt, input.stage1UserPrompt, aiProvider, sse, useET);
     const stage1Code = stage1Result.parsed;
 
     // Stage 1 정적 QC — stage2Function에 전달
@@ -668,24 +137,16 @@ export async function runGenerationPipeline(
     const staticQcIssues: string[] = [
       ...stage1Validation.warnings,
       ...stage1Quality.details,
-      ...(stage1Quality.fetchCallCount === 0
-        ? ['fetch() 호출이 없습니다 — 반드시 API 호출 추가']
-        : []),
-      ...(stage1Quality.placeholderCount > 0
-        ? [`Placeholder 감지 (${stage1Quality.placeholderCount}개): 홍길동, 준비 중 등 제거 필요`]
-        : []),
+      ...(stage1Quality.fetchCallCount === 0 ? ['fetch() 호출이 없습니다 — 반드시 API 호출 추가'] : []),
+      ...(stage1Quality.placeholderCount > 0 ? [`Placeholder 감지 (${stage1Quality.placeholderCount}개): 홍길동, 준비 중 등 제거 필요`] : []),
     ];
 
-    // Stage 2 필요 여부 판단 — 정적 분석으로 확정 가능하면 Fast QC 스킵 (1-3초 절감)
-    const staticNeedsStage2 =
-      stage1Quality.fetchCallCount === 0 ||
-      stage1Quality.placeholderCount > 0;
+    const staticNeedsStage2 = stage1Quality.fetchCallCount === 0 || stage1Quality.placeholderCount > 0;
 
     let stage1FastQcIssues: string[] | null = null;
     let stage1FastQcPassed: boolean | null = null;
 
     if (!staticNeedsStage2 && isQcEnabled()) {
-      // 정적 분석만으로 Stage 2가 확정되지 않은 경우에만 Fast QC 실행
       const assembled = safeAssembleHtml(stage1Code);
       if (assembled) {
         try {
@@ -702,114 +163,45 @@ export async function runGenerationPipeline(
 
     const needsStage2 = staticNeedsStage2 || stage1FastQcPassed === false;
 
-    logger.info('Stage 2 necessity evaluated', {
-      projectId,
-      needsStage2,
-      fetchCallCount: stage1Quality.fetchCallCount,
-      placeholderCount: stage1Quality.placeholderCount,
-      stage1FastQcPassed,
-    });
+    logger.info('Stage 2 necessity evaluated', { projectId, needsStage2, fetchCallCount: stage1Quality.fetchCallCount, placeholderCount: stage1Quality.placeholderCount, stage1FastQcPassed });
 
-    // Stage 2: 기능 검증 (30→65%) — 품질 부족 시에만 실행
-    let stage2FunctionResult: {
-      parsed: { html: string; css: string; js: string };
-      durationMs: number;
-      tokensUsed: { input: number; output: number };
-    };
-
+    // ── Stage 2: 기능 검증 (30→65%) ─────────────────────────────────────────
+    let stage2Result: typeof stage1Result;
     if (needsStage2) {
-      stage2FunctionResult = await runStage2Function(
-        stage1Code,
-        stage2FunctionSystemPrompt,
-        buildStage2FunctionUserPromptFn,
-        staticQcIssues,
-        stage1FastQcIssues,
-        aiProvider,
-        sse,
-      );
+      stage2Result = await runStage2Function(stage1Code, input.stage2FunctionSystemPrompt, input.buildStage2FunctionUserPrompt, staticQcIssues, stage1FastQcIssues, aiProvider, sse);
     } else {
-      // Stage 2 스킵: Stage 1 결과를 그대로 통과시킴
       sse.send('progress', { step: 'stage1_complete', progress: 30, message: '구조 완성. 기능 검증 스킵 (품질 충분).' });
       generationTracker.updateProgress(projectId, 30, 'stage1_complete', '구조 완성. 기능 검증 스킵 (품질 충분).');
       sse.send('progress', { step: 'stage2_function_complete', progress: 65, message: '기능 검증 완성. 디자인 적용 중...' });
       generationTracker.updateProgress(projectId, 65, 'stage2_function_complete', '기능 검증 완성. 디자인 적용 중...');
-      stage2FunctionResult = {
-        parsed: stage1Code,
-        durationMs: 0,
-        tokensUsed: { input: 0, output: 0 },
-      };
+      stage2Result = { ...stage1Result, durationMs: 0, tokensUsed: { input: 0, output: 0 } };
     }
 
-    // Stage 3 조건부 실행: 이전 단계 품질이 충분히 높으면 스킵 (15-40초 절감)
-    const preStage3Quality = evaluateQuality(
-      stage2FunctionResult.parsed.html,
-      stage2FunctionResult.parsed.css,
-      stage2FunctionResult.parsed.js,
-    );
+    // ── Stage 3: 디자인·폴리시 (65→90%) ────────────────────────────────────
+    const preStage3Quality = evaluateQuality(stage2Result.parsed.html, stage2Result.parsed.css, stage2Result.parsed.js);
     const skipStage3 =
       preStage3Quality.structuralScore >= 80 &&
       preStage3Quality.mobileScore >= 70 &&
       preStage3Quality.fetchCallCount > 0 &&
       preStage3Quality.placeholderCount === 0 &&
-      !needsStage2; // Stage 2가 필요 없었을 정도로 Stage 1이 좋았던 경우만
+      !needsStage2;
 
-    logger.info('Stage 3 necessity evaluated', {
-      projectId,
-      skipStage3,
-      structuralScore: preStage3Quality.structuralScore,
-      mobileScore: preStage3Quality.mobileScore,
-      fetchCallCount: preStage3Quality.fetchCallCount,
-      placeholderCount: preStage3Quality.placeholderCount,
-    });
+    logger.info('Stage 3 necessity evaluated', { projectId, skipStage3, structuralScore: preStage3Quality.structuralScore, mobileScore: preStage3Quality.mobileScore });
 
-    let stage3Result: {
-      parsed: { html: string; css: string; js: string };
-      provider: string;
-      model: string;
-      durationMs: number;
-      tokensUsed: { input: number; output: number };
-      userPromptUsed: string;
-    };
-
+    let stage3Result: typeof stage1Result;
     if (skipStage3) {
-      // Stage 3 스킵 — Stage 1(+2) 결과가 충분히 고품질
       sse.send('progress', { step: 'stage3_skipped', progress: 85, message: '디자인 검증 완료 — 품질 충분, 폴리시 스킵.' });
       generationTracker.updateProgress(projectId, 85, 'stage3_skipped', '디자인 검증 완료 — 품질 충분, 폴리시 스킵.');
-      stage3Result = {
-        parsed: stage2FunctionResult.parsed,
-        provider: aiProvider.name,
-        model: aiProvider.model,
-        durationMs: 0,
-        tokensUsed: { input: 0, output: 0 },
-        userPromptUsed: '',
-      };
+      stage3Result = { ...stage2Result, durationMs: 0, tokensUsed: { input: 0, output: 0 }, userPrompt: '' };
     } else {
-      // Stage 3: 디자인·폴리시 적용 (65→90%)
-      const s3 = await runStage2(
-        stage2FunctionResult.parsed,
-        stage2SystemPrompt,
-        buildStage2UserPrompt,
-        aiProvider,
-        sse,
-        !needsStage2,
-      );
-      stage3Result = s3;
+      stage3Result = await runStage3(stage2Result.parsed, input.stage2SystemPrompt, input.buildStage2UserPrompt, aiProvider, sse, !needsStage2);
     }
 
+    // ── 검증 ────────────────────────────────────────────────────────────────
     sse.send('progress', { step: 'validating', progress: 85, message: '코드 검증 중...' });
     generationTracker.updateProgress(projectId, 85, 'validating', '코드 검증 중...');
 
     const parsed = stage3Result.parsed;
-    const stage2Response = {
-      provider: stage3Result.provider,
-      model: stage3Result.model,
-      durationMs: stage3Result.durationMs + stage2FunctionResult.durationMs + stage1Result.durationMs,
-      tokensUsed: {
-        input: stage3Result.tokensUsed.input + stage2FunctionResult.tokensUsed.input + stage1Result.tokensUsed.input,
-        output: stage3Result.tokensUsed.output + stage2FunctionResult.tokensUsed.output + stage1Result.tokensUsed.output,
-      },
-    };
-
     const validation = validateAll(parsed.html, parsed.css, parsed.js);
     if (validation.errors.length > 0) {
       logger.warn('Generated code failed security validation', { projectId, errors: validation.errors });
@@ -817,60 +209,41 @@ export async function runGenerationPipeline(
     }
 
     const initialQuality = evaluateQuality(parsed.html, parsed.css, parsed.js);
+    const aggregatedDuration = stage3Result.durationMs + stage2Result.durationMs + stage1Result.durationMs;
+    const aggregatedTokens = {
+      input: stage3Result.tokensUsed.input + stage2Result.tokensUsed.input + stage1Result.tokensUsed.input,
+      output: stage3Result.tokensUsed.output + stage2Result.tokensUsed.output + stage1Result.tokensUsed.output,
+    };
 
-    // Fast QC
+    // ── Fast QC ──────────────────────────────────────────────────────────────
     let initialQcReport: QcReport | null = null;
     if (isQcEnabled()) {
       const assembledForFastQc = safeAssembleHtml(parsed);
-      if (!assembledForFastQc) {
-        logger.warn('safeAssembleHtml returned null for Fast QC, skipping', { projectId });
-      }
       try {
         initialQcReport = assembledForFastQc ? await runFastQc(assembledForFastQc) : null;
         if (initialQcReport) {
           logger.info('Fast QC completed', { projectId, qcScore: initialQcReport.overallScore, qcPassed: initialQcReport.passed });
-          eventBus.emit({
-            type: 'QC_REPORT_COMPLETED',
-            payload: {
-              projectId,
-              overallScore: initialQcReport.overallScore,
-              passed: initialQcReport.passed,
-              checks: initialQcReport.checks.map((c) => ({ name: c.name, passed: c.passed, score: c.score })),
-              isDeep: false,
-            },
-          });
+          eventBus.emit({ type: 'QC_REPORT_COMPLETED', payload: { projectId, overallScore: initialQcReport.overallScore, passed: initialQcReport.passed, checks: initialQcReport.checks.map((c) => ({ name: c.name, passed: c.passed, score: c.score })), isDeep: false } });
         }
       } catch (qcErr) {
         logger.warn('Fast QC failed, continuing without', { projectId, qcErr });
-        eventBus.emit({
-          type: 'QC_REPORT_FAILED',
-          payload: {
-            projectId,
-            stage: 'fast' as const,
-            error: qcErr instanceof Error ? qcErr.message : String(qcErr),
-          },
-        });
+        eventBus.emit({ type: 'QC_REPORT_FAILED', payload: { projectId, stage: 'fast' as const, error: qcErr instanceof Error ? qcErr.message : String(qcErr) } });
       }
     }
 
-    // Quality loop (최대 3회 재시도, 최선 버전 추적)
+    // ── Quality Loop ──────────────────────────────────────────────────────────
     const { parsed: finalParsed, quality, qcReport, qualityLoopUsed } = await runQualityLoop(
-      parsed,
-      initialQuality,
-      initialQcReport,
-      stage2SystemPrompt,
-      aiProvider,
-      sse,
-      useET,
-      projectId,
+      parsed, initialQuality, initialQcReport, input.stage2SystemPrompt, aiProvider, sse, useET, projectId,
     );
 
+    // ── 저장 ─────────────────────────────────────────────────────────────────
     await saveGeneratedCode(
       {
         projectId, userId, correlationId,
         parsed: finalParsed, quality, qcReport, qualityLoopUsed,
-        validation, apis, projectContext, extraMetadata, stage2Response,
-        userPromptUsed: stage3Result.userPromptUsed,
+        validation, apis, projectContext, extraMetadata,
+        stage2Response: { provider: stage3Result.provider, model: stage3Result.model, durationMs: aggregatedDuration, tokensUsed: aggregatedTokens },
+        userPromptUsed: stage3Result.userPrompt,
         codeRepo, eventRepo, projectService, projectRepo,
       },
       sse,

@@ -111,6 +111,8 @@ export interface CodeMetadata {
   hasProxyCall?: boolean;
   hasJsonParse?: boolean;
   placeholderCount?: number;
+  // Deep QC state
+  deepQcFailed?: boolean;
 }
 
 export interface CreateProjectInput {
