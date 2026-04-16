@@ -18,7 +18,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 | Form | React Hook Form + Zod |
 | Database | Supabase (PostgreSQL + Row Level Security) |
 | Auth | Supabase Auth (Google, GitHub OAuth) |
-| AI | Claude API (Anthropic SDK, claude-opus-4-6 기본, Extended Thinking 32K) |
+| AI | Claude API (Anthropic SDK, claude-opus-4-6 기본, 조건부 Extended Thinking 32K) |
 | Testing | Vitest, happy-dom, MSW |
 | CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
 | Package Manager | pnpm |
@@ -93,7 +93,7 @@ pnpm test:coverage    # 커버리지 리포트
 - **코드 생성 결과물**: React가 아닌 순수 HTML/CSS/JS (사용자 서비스용)
 - **설정 기반 제한**: 환경변수로 생성 한도/버전 수 등 비즈니스 규칙 조절
 - **모바일 백그라운드 생성**: SSE + 폴링 이중 구조 — `generationTracker` (서버 메모리, 10분 TTL), 클라이언트 `visibilitychange` 감지 + `/api/v1/generate/status/:projectId` 폴링 fallback
-- **AI 성능 최적화**: Prompt Caching (`ephemeral`), Extended Thinking (`budget_tokens: 32000`), 조건부 Stage 2/3 스킵으로 평균 생성 시간 단축
+- **AI 성능 최적화**: Prompt Caching (`ephemeral`), 조건부 Extended Thinking (API≥3 또는 컨텍스트≥500자 시 `budget_tokens: 32000`), 조건부 Stage 2/3 스킵으로 비용·속도 최적화
 
 ## 환경변수 (참고용 — 값 절대 포함 금지)
 
@@ -154,7 +154,7 @@ pnpm test:coverage    # 커버리지 리포트
 - Stage 2는 조건부 실행: fetchCallCount=0, placeholderCount>0, 또는 Fast QC 실패 시에만 LLM 호출. 통과 시 Stage 1 코드가 Stage 3으로 직행
 - Stage 3도 조건부 실행: `structuralScore>=80 && mobileScore>=70 && fetchCallCount>0 && placeholderCount===0 && !needsStage2` 시 스킵
 - QC·저장은 최종 단계(Stage 2 또는 3) 결과에만 적용; 중간 산출물은 DB 저장 안 함
-- 3단계 파이프라인과 **별도로** 품질 루프(Quality Loop)가 최대 3회 재생성을 시도할 수 있음 — 두 메커니즘이 중첩됨. Quality Loop도 Extended Thinking 사용
+- 3단계 파이프라인과 **별도로** 품질 루프(Quality Loop)가 최대 3회 재생성을 시도할 수 있음 — 두 메커니즘이 중첩됨. Quality Loop도 Stage 1과 동일 ET 조건 적용
 - QC 관련 로직 수정 시 `generationPipeline.ts` 중심으로 수정하면 generate/regenerate 양쪽에 동시 반영됨
 
 ### Edge Runtime 호환성 (middleware.ts / proxy.ts 수정 시 필수)

@@ -224,8 +224,11 @@ DB 저장 구조 (code_versions 테이블):
 - Anthropic 5분 캐시 TTL — 동일 시스템 프롬프트 반복 호출 시 Cache Read 단가($1.50/MTok) 적용
 - Stage 1 시스템 프롬프트(~7K 토큰)가 주로 캐시됨
 
-**Extended Thinking**
-- Stage 1 및 Quality Loop 재시도에서 `extendedThinking: true`로 호출
+**Extended Thinking (조건부)**
+- `shouldUseExtendedThinking(apis, context)` 함수로 사용 여부 결정:
+  - **API 3개 이상** 또는 **컨텍스트 500자 이상** → ET 활성화 (복잡한 요구사항)
+  - 그 외 → Opus only (빠르고 저렴)
+- Stage 1 및 Quality Loop에 동일 조건 적용
 - `budget_tokens: 32000` — Thinking 토큰 최대 허용량
 - Thinking 활성화 시 `temperature: 1` 필수 (Anthropic API 요구사항)
 - Thinking 토큰은 출력 단가($75/MTok)로 청구

@@ -184,11 +184,20 @@ async function runDeepQcAndUpdate(
     });
 }
 
+/** API 개수·컨텍스트 난이도 기반으로 Extended Thinking 사용 여부 결정 */
+function shouldUseExtendedThinking(apis: ApiCatalogItem[], context?: string): boolean {
+  const apiCount = apis.length;
+  const contextLength = context?.length ?? 0;
+  // API 3개 이상이거나 컨텍스트 500자 이상이면 복잡한 요구사항으로 판단
+  return apiCount >= 3 || contextLength >= 500;
+}
+
 async function runStage1(
   systemPrompt: string,
   userPrompt: string,
   aiProvider: IAiProvider,
   sse: SseWriter,
+  useET: boolean,
 ): Promise<{
   parsed: { html: string; css: string; js: string };
   durationMs: number;
@@ -197,10 +206,10 @@ async function runStage1(
   let lastProgressUpdate = Date.now();
   const streamStartTime = Date.now();
 
-  sse.send('progress', { step: 'stage1_generating', progress: 5, message: '1단계: 구조 및 기능 생성 중...' });
+  sse.send('progress', { step: 'stage1_generating', progress: 5, message: `1단계: 구조 및 기능 생성 중...${useET ? ' (심층 분석)' : ''}` });
 
   const response = await aiProvider.generateCodeStream(
-    { system: systemPrompt, user: userPrompt, extendedThinking: true },
+    { system: systemPrompt, user: userPrompt, extendedThinking: useET },
     (_chunk: string, accumulated: string) => {
       if (sse.isCancelled()) return;
       const now = Date.now();
@@ -361,12 +370,19 @@ export async function runGenerationPipeline(
     }
     const aiProvider: IAiProvider = aiProviderInit;
 
+    // Extended Thinking 사용 여부: API 개수·컨텍스트 난이도 기반
+    const useET = shouldUseExtendedThinking(apis, projectContext);
+    if (useET) {
+      logger.info('Extended Thinking enabled for generation', { projectId, apiCount: apis.length, contextLength: projectContext?.length ?? 0 });
+    }
+
     // Stage 1: 구조·기능 생성 (0→30%)
     const stage1Result = await runStage1(
       stage1SystemPrompt,
       stage1UserPrompt,
       aiProvider,
       sse,
+      useET,
     );
     const stage1Code = stage1Result.parsed;
 
@@ -581,7 +597,7 @@ export async function runGenerationPipeline(
 
       try {
         const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport);
-        const retryResponse = await aiProvider.generateCode({ system: stage2SystemPrompt, user: improvementPrompt, extendedThinking: true });
+        const retryResponse = await aiProvider.generateCode({ system: stage2SystemPrompt, user: improvementPrompt, extendedThinking: useET });
         const retryParsed = parseGeneratedCode(retryResponse.content);
 
         if (retryParsed.html) {
