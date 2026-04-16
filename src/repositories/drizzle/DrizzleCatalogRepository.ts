@@ -4,6 +4,7 @@ import * as schema from '@/lib/db/schema';
 import type { ApiCatalogItem, CatalogSearchParams, Category } from '@/types/api';
 import type { ICatalogRepository, ProjectStatus } from '@/repositories/interfaces';
 import type { QueryOptions } from '@/repositories/interfaces/IBaseRepository';
+import { toSnake, buildConditions, parseEndpoints, CATEGORY_LABELS, CATEGORY_ICONS } from '@/repositories/utils';
 
 type DrizzleDb = NodePgDatabase<typeof schema>;
 
@@ -27,7 +28,7 @@ export class DrizzleCatalogRepository implements ICatalogRepository {
     const { page = 1, limit = 20, orderDirection = 'desc' } = options;
     const offset = (page - 1) * limit;
 
-    const conditions = this.buildConditions(filter);
+    const conditions = buildConditions(filter);
 
     const [countResult] = await this.db
       .select({ total: drizzleCount() })
@@ -76,7 +77,7 @@ export class DrizzleCatalogRepository implements ICatalogRepository {
   }
 
   async count(filter?: Record<string, unknown>): Promise<number> {
-    const conditions = this.buildConditions(filter);
+    const conditions = buildConditions(filter);
 
     const [result] = await this.db
       .select({ total: drizzleCount() })
@@ -252,7 +253,7 @@ export class DrizzleCatalogRepository implements ICatalogRepository {
       isActive: row.is_active ?? true,
       iconUrl: row.icon_url ?? null,
       docsUrl: row.docs_url ?? null,
-      endpoints: this.parseEndpoints(row.endpoints),
+      endpoints: parseEndpoints(row.endpoints),
       tags: row.tags ?? [],
       apiVersion: row.api_version ?? null,
       deprecatedAt: row.deprecated_at ? String(row.deprecated_at) : null,
@@ -265,108 +266,12 @@ export class DrizzleCatalogRepository implements ICatalogRepository {
     };
   }
 
-  private parseEndpoints(raw: unknown): ApiCatalogItem['endpoints'] {
-    if (!Array.isArray(raw)) return [];
-    return raw.map((ep: Record<string, unknown>) => {
-      let params: ApiCatalogItem['endpoints'][0]['params'] = [];
-      if (Array.isArray(ep.params)) {
-        params = ep.params;
-      } else if (
-        ep.parameters &&
-        typeof ep.parameters === 'object' &&
-        !Array.isArray(ep.parameters)
-      ) {
-        params = Object.entries(ep.parameters as Record<string, string>).map(([name, type]) => ({
-          name,
-          type,
-          required: false,
-          description: '',
-        }));
-      }
-      return {
-        path: (ep.path as string) ?? '',
-        method: (ep.method as 'GET' | 'POST' | 'PUT' | 'DELETE') ?? 'GET',
-        description: (ep.description as string) ?? '',
-        params,
-        responseExample:
-          (ep.response_example as Record<string, unknown>) ??
-          (ep.responseExample as Record<string, unknown>) ??
-          {},
-      };
-    });
-  }
-
   private toDatabase(model: Partial<ApiCatalogItem>): Record<string, unknown> {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(model)) {
       if (key === 'id' || key === 'createdAt' || key === 'updatedAt') continue;
-      result[this.toSnake(key)] = value;
+      result[toSnake(key)] = value;
     }
     return result;
   }
-
-  private toSnake(str: string): string {
-    return str
-      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
-      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-      .toLowerCase();
-  }
-
-  private buildConditions(filter?: Record<string, unknown>) {
-    if (!filter) return undefined;
-
-    const conditions = Object.entries(filter)
-      .filter(([, value]) => value !== undefined && value !== null)
-      .map(([key, value]) => {
-        const col = this.toSnake(key);
-        return sql`${sql.identifier(col)} = ${value}`;
-      });
-
-    if (conditions.length === 0) return undefined;
-    if (conditions.length === 1) return conditions[0];
-
-    return sql.join(conditions, sql` AND `);
-  }
 }
-
-const CATEGORY_LABELS: Record<string, string> = {
-  weather: '날씨/환경',
-  news: '뉴스',
-  finance: '금융/환율',
-  maps: '지도/위치',
-  location: '지도/위치',
-  translation: '번역/언어',
-  dictionary: '사전/번역',
-  image: '이미지',
-  data: '데이터/정보',
-  utility: '유틸리티',
-  entertainment: '엔터테인먼트',
-  fun: '재미/이름분석',
-  social: '소셜',
-  transport: '교통',
-  realestate: '부동산',
-  tourism: '관광/여행',
-  lifestyle: '생활/공공',
-  science: '과학/우주',
-};
-
-const CATEGORY_ICONS: Record<string, string> = {
-  weather: 'Cloud',
-  news: 'Newspaper',
-  finance: 'DollarSign',
-  maps: 'MapPin',
-  location: 'MapPin',
-  translation: 'Languages',
-  dictionary: 'BookOpen',
-  image: 'Image',
-  data: 'Database',
-  utility: 'Wrench',
-  entertainment: 'Film',
-  fun: 'Smile',
-  social: 'Users',
-  transport: 'Bus',
-  realestate: 'Building',
-  tourism: 'Compass',
-  lifestyle: 'Heart',
-  science: 'Telescope',
-};

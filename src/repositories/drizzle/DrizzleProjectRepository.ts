@@ -4,6 +4,7 @@ import * as schema from '@/lib/db/schema';
 import type { Project, ProjectMetadata } from '@/types/project';
 import type { IProjectRepository } from '@/repositories/interfaces';
 import type { QueryOptions } from '@/repositories/interfaces/IBaseRepository';
+import { toSnake, buildConditions } from '@/repositories/utils';
 
 type DrizzleDb = NodePgDatabase<typeof schema>;
 
@@ -27,7 +28,7 @@ export class DrizzleProjectRepository implements IProjectRepository {
     const { page = 1, limit = 20, orderDirection = 'desc' } = options;
     const offset = (page - 1) * limit;
 
-    const conditions = this.buildConditions(filter);
+    const conditions = buildConditions(filter);
 
     const [countResult] = await this.db
       .select({ total: drizzleCount() })
@@ -78,7 +79,7 @@ export class DrizzleProjectRepository implements IProjectRepository {
   }
 
   async count(filter?: Record<string, unknown>): Promise<number> {
-    const conditions = this.buildConditions(filter);
+    const conditions = buildConditions(filter);
 
     const [result] = await this.db
       .select({ total: drizzleCount() })
@@ -185,31 +186,8 @@ export class DrizzleProjectRepository implements IProjectRepository {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(model)) {
       if (key === 'id' || key === 'createdAt' || key === 'updatedAt') continue;
-      result[this.toSnake(key)] = value;
+      result[toSnake(key)] = value;
     }
     return result;
-  }
-
-  private toSnake(str: string): string {
-    return str
-      .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
-      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-      .toLowerCase();
-  }
-
-  private buildConditions(filter?: Record<string, unknown>) {
-    if (!filter) return undefined;
-
-    const conditions = Object.entries(filter)
-      .filter(([, value]) => value !== undefined && value !== null)
-      .map(([key, value]) => {
-        const col = this.toSnake(key);
-        return sql`${sql.identifier(col)} = ${value}`;
-      });
-
-    if (conditions.length === 0) return undefined;
-    if (conditions.length === 1) return conditions[0];
-
-    return sql.join(conditions, sql` AND `);
   }
 }
