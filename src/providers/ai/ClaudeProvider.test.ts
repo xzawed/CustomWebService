@@ -123,11 +123,11 @@ describe('ClaudeProvider', () => {
       expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ max_tokens: 32000 }));
     });
 
-    it('system 프롬프트를 별도 필드로 전달한다', async () => {
+    it('system 프롬프트를 cache_control 블록 배열로 전달한다', async () => {
       await provider.generateCode({ system: 'test-system', user: 'test-user' });
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          system: 'test-system',
+          system: [{ type: 'text', text: 'test-system', cache_control: { type: 'ephemeral' } }],
           messages: [{ role: 'user', content: 'test-user' }],
         })
       );

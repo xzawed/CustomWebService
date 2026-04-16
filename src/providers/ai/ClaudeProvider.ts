@@ -30,6 +30,19 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Prompt caching: 시스템 프롬프트를 ephemeral 캐시 블록으로 래핑 */
+function buildSystemParam(
+  text: string,
+): Anthropic.TextBlockParam[] {
+  return [
+    {
+      type: 'text' as const,
+      text,
+      cache_control: { type: 'ephemeral' as const },
+    },
+  ];
+}
+
 export class ClaudeProvider implements IAiProvider {
   readonly name = 'claude';
   readonly model: string;
@@ -55,12 +68,18 @@ export class ClaudeProvider implements IAiProvider {
           await sleep(delay);
         }
 
+        const useThinking = prompt.extendedThinking === true;
+
         const result = await this.client.messages.create({
           model: this.model,
-          system: prompt.system,
+          system: buildSystemParam(prompt.system),
           messages: [{ role: 'user', content: prompt.user }],
-          temperature: prompt.temperature ?? 0.7,
+          // Extended thinking 활성화 시 temperature 1 필수 (API 요구사항)
+          temperature: useThinking ? 1 : (prompt.temperature ?? 0.7),
           max_tokens: prompt.maxTokens ?? 32000,
+          ...(useThinking && {
+            thinking: { type: 'enabled' as const, budget_tokens: 10000 },
+          }),
         });
 
         const textBlock = result.content.find(
@@ -108,12 +127,17 @@ export class ClaudeProvider implements IAiProvider {
           await sleep(delay);
         }
 
+        const useThinking = prompt.extendedThinking === true;
+
         const stream = this.client.messages.stream({
           model: this.model,
-          system: prompt.system,
+          system: buildSystemParam(prompt.system),
           messages: [{ role: 'user', content: prompt.user }],
-          temperature: prompt.temperature ?? 0.7,
+          temperature: useThinking ? 1 : (prompt.temperature ?? 0.7),
           max_tokens: prompt.maxTokens ?? 32000,
+          ...(useThinking && {
+            thinking: { type: 'enabled' as const, budget_tokens: 10000 },
+          }),
         });
 
         let accumulated = '';

@@ -3,6 +3,7 @@ export interface AiPrompt {
   user: string;
   temperature?: number;
   maxTokens?: number;
+  extendedThinking?: boolean;
 }
 
 export interface AiResponse {

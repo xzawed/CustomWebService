@@ -200,7 +200,7 @@ async function runStage1(
   sse.send('progress', { step: 'stage1_generating', progress: 5, message: '1단계: 구조 및 기능 생성 중...' });
 
   const response = await aiProvider.generateCodeStream(
-    { system: systemPrompt, user: userPrompt },
+    { system: systemPrompt, user: userPrompt, extendedThinking: true },
     (_chunk: string, accumulated: string) => {
       if (sse.isCancelled()) return;
       const now = Date.now();
@@ -384,10 +384,16 @@ export async function runGenerationPipeline(
         : []),
     ];
 
-    // Stage 1 Fast QC (기능 문제 감지용)
+    // Stage 2 필요 여부 판단 — 정적 분석으로 확정 가능하면 Fast QC 스킵 (1-3초 절감)
+    const staticNeedsStage2 =
+      stage1Quality.fetchCallCount === 0 ||
+      stage1Quality.placeholderCount > 0;
+
     let stage1FastQcIssues: string[] | null = null;
     let stage1FastQcPassed: boolean | null = null;
-    if (isQcEnabled()) {
+
+    if (!staticNeedsStage2 && isQcEnabled()) {
+      // 정적 분석만으로 Stage 2가 확정되지 않은 경우에만 Fast QC 실행
       const assembled = safeAssembleHtml(stage1Code);
       if (assembled) {
         try {
@@ -402,11 +408,7 @@ export async function runGenerationPipeline(
       }
     }
 
-    // Stage 2 필요 여부 판단
-    const needsStage2 =
-      stage1Quality.fetchCallCount === 0 ||
-      stage1Quality.placeholderCount > 0 ||
-      stage1FastQcPassed === false;
+    const needsStage2 = staticNeedsStage2 || stage1FastQcPassed === false;
 
     logger.info('Stage 2 necessity evaluated', {
       projectId,
@@ -446,15 +448,61 @@ export async function runGenerationPipeline(
       };
     }
 
-    // Stage 3: 디자인·폴리시 적용 (65→90%)
-    const stage3Result = await runStage2(
-      stage2FunctionResult.parsed,
-      stage2SystemPrompt,
-      buildStage2UserPrompt,
-      aiProvider,
-      sse,
-      !needsStage2,
+    // Stage 3 조건부 실행: 이전 단계 품질이 충분히 높으면 스킵 (15-40초 절감)
+    const preStage3Quality = evaluateQuality(
+      stage2FunctionResult.parsed.html,
+      stage2FunctionResult.parsed.css,
+      stage2FunctionResult.parsed.js,
     );
+    const skipStage3 =
+      preStage3Quality.structuralScore >= 80 &&
+      preStage3Quality.mobileScore >= 70 &&
+      preStage3Quality.fetchCallCount > 0 &&
+      preStage3Quality.placeholderCount === 0 &&
+      !needsStage2; // Stage 2가 필요 없었을 정도로 Stage 1이 좋았던 경우만
+
+    logger.info('Stage 3 necessity evaluated', {
+      projectId,
+      skipStage3,
+      structuralScore: preStage3Quality.structuralScore,
+      mobileScore: preStage3Quality.mobileScore,
+      fetchCallCount: preStage3Quality.fetchCallCount,
+      placeholderCount: preStage3Quality.placeholderCount,
+    });
+
+    let stage3Result: {
+      parsed: { html: string; css: string; js: string };
+      provider: string;
+      model: string;
+      durationMs: number;
+      tokensUsed: { input: number; output: number };
+      userPromptUsed: string;
+    };
+
+    if (skipStage3) {
+      // Stage 3 스킵 — Stage 1(+2) 결과가 충분히 고품질
+      sse.send('progress', { step: 'stage3_skipped', progress: 85, message: '디자인 검증 완료 — 품질 충분, 폴리시 스킵.' });
+      generationTracker.updateProgress(projectId, 85, 'stage3_skipped', '디자인 검증 완료 — 품질 충분, 폴리시 스킵.');
+      stage3Result = {
+        parsed: stage2FunctionResult.parsed,
+        provider: aiProvider.name,
+        model: aiProvider.model,
+        durationMs: 0,
+        tokensUsed: { input: 0, output: 0 },
+        userPromptUsed: '',
+      };
+    } else {
+      // Stage 3: 디자인·폴리시 적용 (65→90%)
+      const s3 = await runStage2(
+        stage2FunctionResult.parsed,
+        stage2SystemPrompt,
+        buildStage2UserPrompt,
+        aiProvider,
+        sse,
+        !needsStage2,
+      );
+      stage3Result = s3;
+    }
 
     sse.send('progress', { step: 'validating', progress: 85, message: '코드 검증 중...' });
     generationTracker.updateProgress(projectId, 85, 'validating', '코드 검증 중...');
@@ -533,7 +581,7 @@ export async function runGenerationPipeline(
 
       try {
         const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport);
-        const retryResponse = await aiProvider.generateCode({ system: stage2SystemPrompt, user: improvementPrompt });
+        const retryResponse = await aiProvider.generateCode({ system: stage2SystemPrompt, user: improvementPrompt, extendedThinking: true });
         const retryParsed = parseGeneratedCode(retryResponse.content);
 
         if (retryParsed.html) {
@@ -615,24 +663,26 @@ export async function runGenerationPipeline(
       },
     } as Parameters<typeof codeRepo.create>[0]);
 
-    // Stage 3 완료 후, best-effort slug 제안 (실패해도 파이프라인 계속)
+    // Slug 제안 — fire-and-forget (완료 대기 안 함, 1-3초 절감)
     if (projectRepo && projectContext) {
-      try {
-        const pageTitle = extractTitle(parsed.html);
-        const slugs = await suggestSlugs({
-          context: projectContext,
-          pageTitle,
-          categoryHints: apis.map((a) => a.category).filter((c): c is string => Boolean(c)),
-        });
-        if (slugs.length > 0) {
-          await projectRepo.updateSuggestedSlugs(projectId, slugs);
+      void (async () => {
+        try {
+          const pageTitle = extractTitle(parsed.html);
+          const slugs = await suggestSlugs({
+            context: projectContext,
+            pageTitle,
+            categoryHints: apis.map((a) => a.category).filter((c): c is string => Boolean(c)),
+          });
+          if (slugs.length > 0) {
+            await projectRepo.updateSuggestedSlugs(projectId, slugs);
+          }
+        } catch (err) {
+          logger.warn('slug 제안 훅 실패 (무시)', {
+            projectId,
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
-      } catch (err) {
-        logger.warn('slug 제안 훅 실패 (무시)', {
-          projectId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
+      })();
     }
 
     try {
