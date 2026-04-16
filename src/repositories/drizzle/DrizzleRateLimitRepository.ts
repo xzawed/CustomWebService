@@ -36,4 +36,12 @@ export class DrizzleRateLimitRepository implements IRateLimitRepository {
     const row = result.rows[0] as { count: number } | undefined;
     return row?.count ?? 0;
   }
+
+  async checkAndIncrementDailyDeployLimit(userId: string, limit: number): Promise<boolean> {
+    const result = await this.db.execute(
+      sql`SELECT try_increment_daily_deploy(${userId}::uuid, ${limit}) AS result`
+    );
+    const row = result.rows[0] as { result: boolean } | undefined;
+    return row?.result ?? false;
+  }
 }

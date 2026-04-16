@@ -207,6 +207,7 @@ export const userDailyLimits = pgTable(
       .references(() => users.id),
     usage_date: date('usage_date').defaultNow(),
     generation_count: integer('generation_count').default(0),
+    deploy_count: integer('deploy_count').default(0),
   },
   (t) => [primaryKey({ columns: [t.user_id, t.usage_date] })],
 );

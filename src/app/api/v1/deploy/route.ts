@@ -2,6 +2,7 @@ import { getDbProvider } from '@/lib/config/providers';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createDeployService } from '@/services/factory';
+import { createRateLimitRepository } from '@/repositories/factory';
 import { DeployProviderFactory } from '@/providers/deploy/DeployProviderFactory';
 import type { DeployPlatform } from '@/providers/deploy/DeployProviderFactory';
 import { eventBus } from '@/lib/events/eventBus';
@@ -9,33 +10,18 @@ import { AuthRequiredError, RateLimitError, ValidationError, handleApiError } fr
 import { logger } from '@/lib/utils/logger';
 import { getLimits } from '@/lib/config/features';
 
-// 인메모리 일일 배포 횟수 추적
-const deployCountMap = new Map<string, { count: number; resetAt: number }>();
-
-function checkAndIncrementDeployLimit(userId: string, maxPerDay: number): void {
-  const now = Date.now();
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const resetAt = todayStart.getTime() + 86_400_000; // 다음 자정
-
-  const entry = deployCountMap.get(userId);
-  if (!entry || now >= entry.resetAt) {
-    deployCountMap.set(userId, { count: 1, resetAt });
-    return;
-  }
-  if (entry.count >= maxPerDay) {
-    throw new RateLimitError(`일일 배포 한도(${maxPerDay}회)를 초과했습니다.`);
-  }
-  entry.count++;
-}
-
 export async function POST(request: Request): Promise<Response> {
   try {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
     const limits = getLimits();
-    checkAndIncrementDeployLimit(user.id, limits.maxDeployPerDay);
+    const supabaseForLimit = await createClient();
+    const rateLimitRepo = createRateLimitRepository(supabaseForLimit);
+    const allowed = await rateLimitRepo.checkAndIncrementDailyDeployLimit(user.id, limits.maxDeployPerDay);
+    if (!allowed) {
+      throw new RateLimitError(`일일 배포 한도(${limits.maxDeployPerDay}회)를 초과했습니다.`);
+    }
 
     let projectId: string;
     let platform: DeployPlatform;

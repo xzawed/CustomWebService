@@ -44,6 +44,12 @@ vi.mock('@/lib/config/features', () => ({
   }),
 }));
 
+vi.mock('@/repositories/factory', () => ({
+  createRateLimitRepository: vi.fn().mockReturnValue({
+    checkAndIncrementDailyDeployLimit: vi.fn().mockResolvedValue(true),
+  }),
+}));
+
 // ---------- Test data ----------
 const mockUser = { id: 'user-1', email: 'test@test.com', name: null, avatarUrl: null };
 
@@ -122,6 +128,11 @@ describe('POST /api/v1/deploy', () => {
     const { getAuthUser } = await import('@/lib/auth/index');
     vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
+    const { createRateLimitRepository } = await import('@/repositories/factory');
+    vi.mocked(createRateLimitRepository).mockReturnValue({
+      checkAndIncrementDailyDeployLimit: vi.fn().mockResolvedValue(true),
+    } as never);
+
     const deployMock = vi.fn().mockImplementation(
       async (_projectId: string, _userId: string, _platform: string, onProgress: (p: number, msg: string) => void) => {
         onProgress(50, '배포 중...');
@@ -149,10 +160,10 @@ describe('POST /api/v1/deploy', () => {
       const { getAuthUser } = await import('@/lib/auth/index');
       vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
-      // getLimits mock
-      vi.doMock('@/lib/config/features', () => ({
-        getLimits: vi.fn().mockReturnValue({ maxDeployPerDay: 5 }),
-      }));
+      const { createRateLimitRepository } = await import('@/repositories/factory');
+      vi.mocked(createRateLimitRepository).mockReturnValue({
+        checkAndIncrementDailyDeployLimit: vi.fn().mockResolvedValue(true),
+      } as never);
 
       const { createDeployService } = await import('@/services/factory');
       vi.mocked(createDeployService).mockReturnValue({
@@ -168,32 +179,25 @@ describe('POST /api/v1/deploy', () => {
       const { getAuthUser } = await import('@/lib/auth/index');
       vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
-      vi.doMock('@/lib/config/features', () => ({
-        getLimits: vi.fn().mockReturnValue({ maxDeployPerDay: 2 }),
-      }));
-
-      const { createDeployService } = await import('@/services/factory');
-      vi.mocked(createDeployService).mockReturnValue({
-        deploy: vi.fn().mockResolvedValue({ deployUrl: 'https://example.com', repoUrl: '' }),
+      const { createRateLimitRepository } = await import('@/repositories/factory');
+      vi.mocked(createRateLimitRepository).mockReturnValue({
+        checkAndIncrementDailyDeployLimit: vi.fn().mockResolvedValue(false),
       } as never);
 
       const { POST } = await import('@/app/api/v1/deploy/route');
-
-      // 2회 성공
-      for (let i = 0; i < 2; i++) {
-        const res = await POST(makeRequest({ projectId: 'proj-1', platform: 'railway' }));
-        expect(res.status).toBe(200);
-      }
-
-      // 3번째 → 429
-      const res = await POST(makeRequest({ projectId: 'proj-1', platform: 'railway' }));
-      expect(res.status).toBe(429);
+      const response = await POST(makeRequest({ projectId: 'proj-1', platform: 'railway' }));
+      expect(response.status).toBe(429);
     });
   });
 
   it('배포 실패 시 SSE error 이벤트와 DEPLOYMENT_FAILED 이벤트가 발생한다', async () => {
     const { getAuthUser } = await import('@/lib/auth/index');
     vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+    const { createRateLimitRepository } = await import('@/repositories/factory');
+    vi.mocked(createRateLimitRepository).mockReturnValue({
+      checkAndIncrementDailyDeployLimit: vi.fn().mockResolvedValue(true),
+    } as never);
 
     const { createDeployService } = await import('@/services/factory');
     vi.mocked(createDeployService).mockReturnValue({
