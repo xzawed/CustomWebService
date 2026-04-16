@@ -3,12 +3,12 @@ import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createDeployService } from '@/services/factory';
 import { createRateLimitRepository } from '@/repositories/factory';
-import { DeployProviderFactory } from '@/providers/deploy/DeployProviderFactory';
 import type { DeployPlatform } from '@/providers/deploy/DeployProviderFactory';
 import { eventBus } from '@/lib/events/eventBus';
 import { AuthRequiredError, RateLimitError, ValidationError, handleApiError } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 import { getLimits } from '@/lib/config/features';
+import { deploySchema } from '@/types/schemas';
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -27,18 +27,9 @@ export async function POST(request: Request): Promise<Response> {
     let platform: DeployPlatform;
     try {
       const body = await request.json();
-      if (typeof body.projectId !== 'string' || !body.projectId) {
-        throw new ValidationError('projectId는 필수 항목입니다.');
-      }
-      projectId = body.projectId;
-      const requestedPlatform = (body.platform as string) ?? 'railway';
-      const supported = DeployProviderFactory.getSupportedPlatforms();
-      if (!supported.includes(requestedPlatform as DeployPlatform)) {
-        throw new ValidationError(
-          `지원하지 않는 배포 플랫폼입니다: "${requestedPlatform}". 지원 플랫폼: ${supported.join(', ')}`
-        );
-      }
-      platform = requestedPlatform as DeployPlatform;
+      const parsed = deploySchema.parse(body);
+      projectId = parsed.projectId;
+      platform = parsed.platform as DeployPlatform;
     } catch (err) {
       if (err instanceof SyntaxError) {
         return handleApiError(new ValidationError('잘못된 요청 형식입니다.'));

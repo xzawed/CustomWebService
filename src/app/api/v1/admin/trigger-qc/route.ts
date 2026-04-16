@@ -4,6 +4,7 @@ import { assembleHtml } from '@/lib/ai/codeParser';
 import { runFastQc, runDeepQc, isQcEnabled } from '@/lib/qc';
 import { adminCorsHeaders, verifyAdminKey, withAdminCors } from '@/lib/utils/adminAuth';
 import { handleApiError, jsonResponse, ValidationError } from '@/lib/utils/errors';
+import { triggerQcSchema } from '@/types/schemas';
 
 export async function OPTIONS(): Promise<Response> {
   return new Response(null, { status: 204, headers: adminCorsHeaders });
@@ -18,9 +19,8 @@ export async function POST(request: Request): Promise<Response> {
         return jsonResponse({ success: false, error: { code: 'QC_DISABLED', message: 'ENABLE_RENDERING_QC is not enabled' } }, { status: 400 });
       }
 
-      const body = await request.json() as { projectId?: string };
-      const { projectId } = body;
-      if (!projectId) throw new ValidationError('projectId는 필수입니다');
+      const body = await request.json();
+      const { projectId } = triggerQcSchema.parse(body);
 
       const supabase = await createServiceClient();
       const codeRepo = new CodeRepository(supabase);

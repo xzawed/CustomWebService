@@ -14,6 +14,7 @@ import {
 } from '@/lib/ai/promptBuilder';
 import { getCorrelationId } from '@/lib/utils/correlationId';
 import { AuthRequiredError, ValidationError, handleApiError } from '@/lib/utils/errors';
+import { generateSchema } from '@/types/schemas';
 import { templateRegistry } from '@/templates/TemplateRegistry';
 import { createSseWriter } from '@/lib/ai/sseWriter';
 import { runGenerationPipeline } from '@/lib/ai/generationPipeline';
@@ -29,11 +30,9 @@ export async function POST(request: Request): Promise<Response> {
     let templateId: string | undefined;
     try {
       const body = await request.json();
-      if (typeof body.projectId !== 'string' || !body.projectId) {
-        throw new ValidationError('projectId는 필수 항목입니다.');
-      }
-      projectId = body.projectId;
-      templateId = typeof body.templateId === 'string' ? body.templateId : undefined;
+      const parsed = generateSchema.parse(body);
+      projectId = parsed.projectId;
+      templateId = parsed.templateId;
     } catch (err) {
       if (err instanceof SyntaxError) return handleApiError(new ValidationError('잘못된 요청 형식입니다.'));
       throw err;

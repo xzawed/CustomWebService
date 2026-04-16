@@ -10,6 +10,7 @@ import {
   handleApiError,
   jsonResponse,
 } from '@/lib/utils/errors';
+import { slugCheckSchema } from '@/types/schemas';
 import { isValidSlug, RESERVED_SLUGS } from '@/lib/utils/slugify';
 
 export async function POST(
@@ -22,20 +23,16 @@ export async function POST(
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    let body: unknown;
+    let slug: string;
     try {
-      body = await request.json();
-    } catch {
-      throw new ValidationError('요청 본문을 파싱할 수 없습니다.');
-    }
-
-    const slug =
-      body && typeof body === 'object' && 'slug' in body
-        ? (body as Record<string, unknown>).slug
-        : undefined;
-
-    if (!slug || typeof slug !== 'string') {
-      throw new ValidationError('slug가 필요합니다.');
+      const body = await request.json();
+      const parsed = slugCheckSchema.parse(body);
+      slug = parsed.slug;
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        throw new ValidationError('요청 본문을 파싱할 수 없습니다.');
+      }
+      throw err;
     }
 
     const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;

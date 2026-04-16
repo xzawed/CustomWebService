@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth/index';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { createRateLimitService } from '@/services/factory';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
+import { suggestContextSchema } from '@/types/schemas';
 import { logger } from '@/lib/utils/logger';
 
 interface SuggestApiItem {
@@ -25,21 +26,8 @@ export async function POST(request: Request): Promise<Response> {
     let apis: SuggestApiItem[];
     try {
       const body = await request.json();
-      if (!Array.isArray(body.apis) || body.apis.length === 0) {
-        throw new ValidationError('apis 목록이 필요합니다.');
-      }
-      if (body.apis.length > 5) {
-        throw new ValidationError('최대 5개 API까지 허용됩니다.');
-      }
-      apis = (body.apis as unknown[]).map((a) => {
-        if (typeof a !== 'object' || a === null) throw new ValidationError('잘못된 API 형식입니다.');
-        const api = a as Record<string, unknown>;
-        return {
-          name: String(api.name ?? '').slice(0, 100),
-          description: String(api.description ?? '').slice(0, 300),
-          category: String(api.category ?? '').slice(0, 50),
-        };
-      });
+      const parsed = suggestContextSchema.parse(body);
+      apis = parsed.apis;
     } catch (err) {
       if (err instanceof SyntaxError) {
         return handleApiError(new ValidationError('잘못된 요청 형식입니다.'));

@@ -20,6 +20,7 @@ import {
   handleApiError,
 } from '@/lib/utils/errors';
 import { getLimits } from '@/lib/config/features';
+import { regenerateSchema } from '@/types/schemas';
 import { createSseWriter } from '@/lib/ai/sseWriter';
 import { runGenerationPipeline } from '@/lib/ai/generationPipeline';
 import { createProjectRepository } from '@/repositories/factory';
@@ -34,17 +35,9 @@ export async function POST(request: Request): Promise<Response> {
     let feedback: string;
     try {
       const body = await request.json();
-      if (typeof body.projectId !== 'string' || !body.projectId) {
-        throw new ValidationError('projectId는 필수 항목입니다.');
-      }
-      if (typeof body.feedback !== 'string' || body.feedback.trim().length === 0) {
-        throw new ValidationError('feedback은 필수 항목입니다.');
-      }
-      if (body.feedback.length > 5000) {
-        throw new ValidationError('feedback은 5,000자를 초과할 수 없습니다.');
-      }
-      projectId = body.projectId;
-      feedback = body.feedback.trim();
+      const parsed = regenerateSchema.parse(body);
+      projectId = parsed.projectId;
+      feedback = parsed.feedback;
     } catch (err) {
       if (err instanceof SyntaxError) return handleApiError(new ValidationError('잘못된 요청 형식입니다.'));
       throw err;

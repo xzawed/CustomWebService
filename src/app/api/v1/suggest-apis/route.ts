@@ -3,8 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { createCatalogService, createRateLimitService } from '@/services/factory';
-import { LIMITS } from '@/lib/config/features';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
+import { suggestApisSchema } from '@/types/schemas';
 import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
@@ -20,13 +20,8 @@ export async function POST(request: Request): Promise<Response> {
     let context: string;
     try {
       const body = await request.json();
-      context = String(body.context ?? '').trim();
-      if (context.length < LIMITS.contextMinLength) {
-        throw new ValidationError(`서비스 설명은 최소 ${LIMITS.contextMinLength}자 이상이어야 합니다.`);
-      }
-      if (context.length > LIMITS.contextMaxLength) {
-        throw new ValidationError(`서비스 설명은 최대 ${LIMITS.contextMaxLength}자까지 허용됩니다.`);
-      }
+      const parsed = suggestApisSchema.parse(body);
+      context = parsed.context;
     } catch (err) {
       if (err instanceof SyntaxError) {
         return handleApiError(new ValidationError('잘못된 요청 형식입니다.'));

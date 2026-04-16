@@ -9,6 +9,7 @@ import {
   ValidationError,
   handleApiError,
 } from '@/lib/utils/errors';
+import { rollbackSchema } from '@/types/schemas';
 import { logger } from '@/lib/utils/logger';
 
 export async function POST(
@@ -33,10 +34,8 @@ export async function POST(
     let targetVersion: number;
     try {
       const body = await request.json();
-      if (typeof body.version !== 'number' || body.version < 1) {
-        throw new ValidationError('유효한 버전 번호를 입력해주세요.');
-      }
-      targetVersion = body.version;
+      const parsed = rollbackSchema.parse(body);
+      targetVersion = parsed.version;
     } catch (err) {
       if (err instanceof SyntaxError) {
         return handleApiError(new ValidationError('잘못된 요청 형식입니다.'));

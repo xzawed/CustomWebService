@@ -119,7 +119,7 @@ vi.mock('@/lib/utils/correlationId', () => ({
 // ---------- Test data ----------
 const mockUser = { id: 'user-1', email: 'test@test.com', name: null, avatarUrl: null };
 const mockProject = {
-  id: 'proj-1',
+  id: '11111111-1111-4111-a111-111111111111',
   name: '테스트 프로젝트',
   userId: 'user-1',
   context: 'a'.repeat(100),
@@ -156,7 +156,7 @@ const mockAiResponse = {
   durationMs: 1500,
   tokensUsed: { input: 100, output: 200 },
 };
-const mockSavedCode = { id: 'code-1', projectId: 'proj-1', version: 1 };
+const mockSavedCode = { id: 'code-1', projectId: '11111111-1111-4111-a111-111111111111', version: 1 };
 
 function makeRequest(body: unknown) {
   return new Request('http://localhost/api/v1/generate', {
@@ -220,7 +220,7 @@ describe('POST /api/v1/generate', () => {
     vi.mocked(getAuthUser).mockResolvedValue(null);
 
     const { POST } = await import('@/app/api/v1/generate/route');
-    const response = await POST(makeRequest({ projectId: 'proj-1' }));
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
     expect(response.status).toBe(401);
   });
 
@@ -257,7 +257,7 @@ describe('POST /api/v1/generate', () => {
     await setupHappyPath();
 
     const { POST } = await import('@/app/api/v1/generate/route');
-    const response = await POST(makeRequest({ projectId: 'proj-1' }));
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('text/event-stream; charset=utf-8');
@@ -268,7 +268,7 @@ describe('POST /api/v1/generate', () => {
     await setupHappyPath();
 
     const { POST } = await import('@/app/api/v1/generate/route');
-    const response = await POST(makeRequest({ projectId: 'proj-1' }));
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
 
     const text = await response.text();
     expect(text).toContain('event: complete');
@@ -288,7 +288,7 @@ describe('POST /api/v1/generate', () => {
     } as never);
 
     const { POST } = await import('@/app/api/v1/generate/route');
-    const response = await POST(makeRequest({ projectId: 'proj-1' }));
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
     expect(response.status).toBe(429);
   });
 
@@ -309,7 +309,7 @@ describe('POST /api/v1/generate', () => {
     } as never);
 
     const { POST } = await import('@/app/api/v1/generate/route');
-    const response = await POST(makeRequest({ projectId: 'proj-1' }));
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
 
     const text = await response.text();
     expect(text).toContain('event: error');
@@ -327,7 +327,7 @@ describe('POST /api/v1/generate', () => {
     });
 
     const { POST } = await import('@/app/api/v1/generate/route');
-    const response = await POST(makeRequest({ projectId: 'proj-1' }));
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
 
     const text = await response.text();
     expect(text).toContain('event: error');
@@ -340,7 +340,7 @@ describe('POST /api/v1/generate', () => {
     const { buildStage1SystemPrompt } = await import('@/lib/ai/promptBuilder');
 
     const { POST } = await import('@/app/api/v1/generate/route');
-    await POST(makeRequest({ projectId: 'proj-1', templateId: 'dashboard' }));
+    await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111', templateId: 'dashboard' }));
 
     // 'dashboard' template은 TemplateRegistry에 등록되어 있으며 promptHint에 'Chart.js'를 포함함
     expect(vi.mocked(buildStage1SystemPrompt)).toHaveBeenCalledWith(

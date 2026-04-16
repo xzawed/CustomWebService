@@ -85,7 +85,7 @@ describe('POST /api/v1/deploy', () => {
     vi.mocked(getAuthUser).mockResolvedValue(null);
 
     const { POST } = await import('@/app/api/v1/deploy/route');
-    const response = await POST(makeRequest({ projectId: 'proj-1' }));
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
     expect(response.status).toBe(401);
   });
 
@@ -120,7 +120,7 @@ describe('POST /api/v1/deploy', () => {
     vi.mocked(DeployProviderFactory.getSupportedPlatforms).mockReturnValue(['railway', 'github_pages']);
 
     const { POST } = await import('@/app/api/v1/deploy/route');
-    const response = await POST(makeRequest({ projectId: 'proj-1', platform: 'vercel' }));
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111', platform: 'vercel' }));
     expect(response.status).toBe(400);
   });
 
@@ -143,7 +143,7 @@ describe('POST /api/v1/deploy', () => {
     vi.mocked(createDeployService).mockReturnValue({ deploy: deployMock } as never);
 
     const { POST } = await import('@/app/api/v1/deploy/route');
-    const response = await POST(makeRequest({ projectId: 'proj-1', platform: 'railway' }));
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111', platform: 'railway' }));
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('text/event-stream; charset=utf-8');
@@ -151,8 +151,8 @@ describe('POST /api/v1/deploy', () => {
     const text = await readSseText(response);
     expect(text).toContain('event: progress');
     expect(text).toContain('event: complete');
-    expect(text).toContain('proj-1');
-    expect(deployMock).toHaveBeenCalledWith('proj-1', 'user-1', 'railway', expect.any(Function));
+    expect(text).toContain('11111111-1111-4111-a111-111111111111');
+    expect(deployMock).toHaveBeenCalledWith('11111111-1111-4111-a111-111111111111', 'user-1', 'railway', expect.any(Function));
   });
 
   describe('일일 배포 rate limit', () => {
@@ -171,7 +171,7 @@ describe('POST /api/v1/deploy', () => {
       } as never);
 
       const { POST } = await import('@/app/api/v1/deploy/route');
-      const response = await POST(makeRequest({ projectId: 'proj-1', platform: 'railway' }));
+      const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111', platform: 'railway' }));
       expect(response.status).toBe(200);
     });
 
@@ -185,7 +185,7 @@ describe('POST /api/v1/deploy', () => {
       } as never);
 
       const { POST } = await import('@/app/api/v1/deploy/route');
-      const response = await POST(makeRequest({ projectId: 'proj-1', platform: 'railway' }));
+      const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111', platform: 'railway' }));
       expect(response.status).toBe(429);
     });
   });
@@ -207,7 +207,7 @@ describe('POST /api/v1/deploy', () => {
     const { eventBus } = await import('@/lib/events/eventBus');
 
     const { POST } = await import('@/app/api/v1/deploy/route');
-    const response = await POST(makeRequest({ projectId: 'proj-1', platform: 'railway' }));
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111', platform: 'railway' }));
 
     expect(response.status).toBe(200);
     const text = await readSseText(response);

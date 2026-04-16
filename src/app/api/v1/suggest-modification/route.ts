@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth/index';
 import { createProjectRepository, createCatalogRepository } from '@/repositories/factory';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { AuthRequiredError, NotFoundError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
+import { suggestModificationSchema } from '@/types/schemas';
 import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
@@ -15,11 +16,9 @@ export async function POST(request: Request): Promise<Response> {
     let prompt: string;
     try {
       const body = await request.json();
-      if (typeof body.projectId !== 'string' || !body.projectId) {
-        throw new ValidationError('projectId는 필수 항목입니다.');
-      }
-      projectId = body.projectId;
-      prompt = typeof body.prompt === 'string' ? body.prompt.trim().slice(0, 500) : '';
+      const parsed = suggestModificationSchema.parse(body);
+      projectId = parsed.projectId;
+      prompt = parsed.prompt ?? '';
     } catch (err) {
       if (err instanceof SyntaxError) {
         return handleApiError(new ValidationError('잘못된 요청 형식입니다.'));

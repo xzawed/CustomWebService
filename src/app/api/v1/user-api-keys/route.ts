@@ -4,14 +4,7 @@ import { encryptApiKey, maskApiKey, decryptApiKey } from '@/lib/encryption';
 import { createUserApiKeyRepository, createCatalogRepository } from '@/repositories/factory';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { getDbProvider } from '@/lib/config/providers';
-import { z } from 'zod/v4';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const SaveKeySchema = z.object({
-  apiId: z.string().uuid(),
-  apiKey: z.string().min(1).max(500),
-});
+import { saveKeySchema, projectIdSchema } from '@/types/schemas';
 
 /** GET /api/v1/user-api-keys — 내가 등록한 API 키 목록 (마스킹) */
 export async function GET(): Promise<Response> {
@@ -62,7 +55,7 @@ export async function POST(request: Request): Promise<Response> {
       throw new ValidationError('요청 형식이 올바르지 않습니다.');
     }
 
-    const parsed = SaveKeySchema.safeParse(body);
+    const parsed = saveKeySchema.safeParse(body);
     if (!parsed.success) {
       throw new ValidationError('입력값이 올바르지 않습니다.');
     }
@@ -103,9 +96,9 @@ export async function DELETE(request: Request): Promise<Response> {
 
     const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
 
-    const apiId = new URL(request.url).searchParams.get('apiId');
-    if (!apiId) throw new ValidationError('apiId가 필요합니다.');
-    if (!UUID_RE.test(apiId)) throw new ValidationError('유효하지 않은 API ID 형식입니다.');
+    const apiIdRaw = new URL(request.url).searchParams.get('apiId');
+    if (!apiIdRaw) throw new ValidationError('apiId가 필요합니다.');
+    const apiId = projectIdSchema.parse(apiIdRaw);
 
     const repo = createUserApiKeyRepository(supabase);
     await repo.delete(user.id, apiId);
