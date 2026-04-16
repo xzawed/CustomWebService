@@ -230,6 +230,7 @@ export default function BuilderPage() {
       let done = false;
       let generationCompleted = false;
       let switchedToPolling = false;
+      let sseErrorEvent = false;
       const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible' && !generationCompleted && !switchedToPolling) {
           switchedToPolling = true;
@@ -282,6 +283,7 @@ export default function BuilderPage() {
                 generationCompleted = true;
                 return;
               } else if (eventType === 'error') {
+                sseErrorEvent = true;
                 throw new Error((parsed.message as string) ?? '코드 생성에 실패했습니다.');
               }
             }
@@ -291,6 +293,16 @@ export default function BuilderPage() {
         if (!generationCompleted && !switchedToPolling) {
           // SSE stream ended without 'complete' event and we didn't already switch to polling
           // This can happen on mobile disconnect. Switch to polling to check actual server status.
+          void pollForCompletion(project.id);
+        }
+      } catch (streamErr) {
+        if (sseErrorEvent) {
+          // 서버가 보낸 SSE error 이벤트 — 외부 catch로 전파
+          throw streamErr;
+        }
+        // 스트림 읽기 에러 (모바일 백그라운드 전환으로 연결 끊김 등) — 폴링으로 전환
+        if (!generationCompleted && !switchedToPolling) {
+          switchedToPolling = true;
           void pollForCompletion(project.id);
         }
       } finally {

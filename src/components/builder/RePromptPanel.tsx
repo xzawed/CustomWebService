@@ -123,6 +123,7 @@ export default function RePromptPanel({ projectId, onRegenerationComplete }: ReP
 
       let buffer = '';
       let done = false;
+      let sseErrorEvent = false;
 
       try {
       while (!done) {
@@ -157,6 +158,7 @@ export default function RePromptPanel({ projectId, onRegenerationComplete }: ReP
               onRegenerationComplete((parsed.version as number) ?? 1);
               return;
             } else if (eventType === 'error') {
+              sseErrorEvent = true;
               throw new Error((parsed.message as string) ?? '재생성 실패');
             }
           }
@@ -167,9 +169,16 @@ export default function RePromptPanel({ projectId, onRegenerationComplete }: ReP
       if (!switchedToPolling) {
         void pollForRegeneration(projectId);
       }
-      } catch (err) {
-        setStatus('error');
-        setErrorMsg(err instanceof Error ? err.message : '알 수 없는 오류');
+      } catch (streamErr) {
+        if (sseErrorEvent) {
+          // 서버가 보낸 SSE error 이벤트 — 외부 catch로 전파
+          throw streamErr;
+        }
+        // 스트림 읽기 에러 (모바일 백그라운드 전환 등) — 폴링으로 전환
+        if (!switchedToPolling) {
+          switchedToPolling = true;
+          void pollForRegeneration(projectId);
+        }
       } finally {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
       }
