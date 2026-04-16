@@ -83,7 +83,6 @@ const makeServices = (): PipelineServices => ({
     delete: vi.fn().mockResolvedValue(undefined),
     findByProject: vi.fn().mockResolvedValue(null),
   } as unknown as PipelineServices['codeRepo'],
-  eventRepo: { persistAsync: vi.fn() } as unknown as PipelineServices['eventRepo'],
   projectService: { updateStatus: vi.fn().mockResolvedValue(undefined) } as unknown as PipelineServices['projectService'],
   rateLimitService: { decrementDailyLimit: vi.fn().mockResolvedValue(undefined) } as unknown as PipelineServices['rateLimitService'],
 });

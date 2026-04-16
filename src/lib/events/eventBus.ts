@@ -1,8 +1,25 @@
 import type { DomainEvent } from '@/types/events';
+import { logger } from '@/lib/utils/logger';
+
+type EventHandler = (event: DomainEvent) => void | Promise<void>;
 
 class EventBus {
-  // pub/sub 구독자 제거됨 — emit은 하위 호환을 위해 유지
-  emit(_event: DomainEvent): void {}
+  private handlers: EventHandler[] = [];
+
+  on(handler: EventHandler): () => void {
+    this.handlers.push(handler);
+    return () => {
+      this.handlers = this.handlers.filter(h => h !== handler);
+    };
+  }
+
+  emit(event: DomainEvent): void {
+    for (const handler of this.handlers) {
+      Promise.resolve(handler(event)).catch((err) => {
+        logger.warn('EventBus handler error', { type: event.type, error: err });
+      });
+    }
+  }
 }
 
 export const eventBus = new EventBus();

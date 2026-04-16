@@ -2,7 +2,10 @@ import { getDbProvider } from '@/lib/config/providers';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createProjectService, createCatalogService, createRateLimitService } from '@/services/factory';
-import { createCodeRepository, createEventRepository } from '@/repositories/factory';
+import { createCodeRepository } from '@/repositories/factory';
+import { registerEventPersister } from '@/lib/events/eventPersister';
+
+registerEventPersister();
 import type { DesignPreferences } from '@/types/project';
 import {
   buildStage1SystemPrompt,
@@ -105,7 +108,6 @@ export async function POST(request: Request): Promise<Response> {
           writer,
           {
             codeRepo: createCodeRepository(supabase),
-            eventRepo: createEventRepository(serviceSupabase),
             projectService,
             rateLimitService,
             projectRepo: createProjectRepository(supabase),

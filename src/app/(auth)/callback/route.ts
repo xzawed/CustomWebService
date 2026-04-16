@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { logger } from '@/lib/utils/logger';
+import { eventBus } from '@/lib/events/eventBus';
+import { registerEventPersister } from '@/lib/events/eventPersister';
+
+registerEventPersister();
 
 export async function GET(request: Request) {
   const { searchParams, origin: requestOrigin } = new URL(request.url);
@@ -75,6 +79,8 @@ export async function GET(request: Request) {
                 error: insertError.message,
                 code: insertError.code,
               });
+            } else {
+              eventBus.emit({ type: 'USER_SIGNED_UP', payload: { userId: authUser.id } });
             }
           }
         }

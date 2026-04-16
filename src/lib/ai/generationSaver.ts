@@ -8,7 +8,7 @@ import { generationTracker } from '@/lib/ai/generationTracker';
 import { runDeepQcAndUpdate } from '@/lib/qc/deepQcRunner';
 import { logger } from '@/lib/utils/logger';
 import { validateAll, evaluateQuality } from '@/lib/ai/codeValidator';
-import type { ICodeRepository, IEventRepository, IProjectRepository } from '@/repositories/interfaces';
+import type { ICodeRepository, IProjectRepository } from '@/repositories/interfaces';
 import type { ApiCatalogItem } from '@/types/api';
 import type { SseWriter } from '@/lib/ai/sseWriter';
 import type { QcReport } from '@/types/qc';
@@ -32,7 +32,6 @@ export interface SaveParams {
   stage2Response: { provider: string; model: string; durationMs: number; tokensUsed: { input: number; output: number } };
   userPromptUsed: string;
   codeRepo: ICodeRepository;
-  eventRepo: IEventRepository;
   projectService: IProjectStatusUpdater;
   projectRepo?: IProjectRepository;
 }
@@ -45,7 +44,7 @@ export async function saveGeneratedCode(params: SaveParams, sse: SseWriter): Pro
   const {
     projectId, userId, correlationId, parsed, quality, qcReport, qualityLoopUsed,
     validation, apis, projectContext, extraMetadata, stage2Response, userPromptUsed,
-    codeRepo, eventRepo, projectService, projectRepo,
+    codeRepo, projectService, projectRepo,
   } = params;
   const limits = getLimits();
 
@@ -153,7 +152,6 @@ export async function saveGeneratedCode(params: SaveParams, sse: SseWriter): Pro
     },
   };
   eventBus.emit(generatedEvent);
-  eventRepo.persistAsync(generatedEvent, { userId, projectId, correlationId });
 
   generationTracker.complete(projectId, {
     projectId,

@@ -1,5 +1,6 @@
 import { logger } from './logger';
 import { isDbConnectionError, reportFailure } from '@/lib/db/failover';
+import { t } from '@/lib/i18n';
 
 export class AppError extends Error {
   constructor(
@@ -14,7 +15,7 @@ export class AppError extends Error {
 
 export class NotFoundError extends AppError {
   constructor(resource: string, id?: string) {
-    super('NOT_FOUND', `${resource}${id ? ` (${id})` : ''}을(를) 찾을 수 없습니다.`, 404);
+    super('NOT_FOUND', t('error.notFound', { resource, id: id ? ` (${id})` : '' }), 404);
     this.name = 'NotFoundError';
   }
 }
@@ -28,34 +29,34 @@ export class ValidationError extends AppError {
 
 export class AuthRequiredError extends AppError {
   constructor() {
-    super('AUTH_REQUIRED', '로그인이 필요합니다.', 401);
+    super('AUTH_REQUIRED', t('error.authRequired'), 401);
     this.name = 'AuthRequiredError';
   }
 }
 
 export class ForbiddenError extends AppError {
-  constructor(message = '접근 권한이 없습니다.') {
+  constructor(message = t('error.forbidden')) {
     super('FORBIDDEN', message, 403);
     this.name = 'ForbiddenError';
   }
 }
 
 export class RateLimitError extends AppError {
-  constructor(message = '요청 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.') {
+  constructor(message = t('error.rateLimit')) {
     super('RATE_LIMITED', message, 429);
     this.name = 'RateLimitError';
   }
 }
 
 export class GenerationError extends AppError {
-  constructor(message = '코드 생성에 실패했습니다.') {
+  constructor(message = t('error.generation')) {
     super('GENERATION_FAILED', message, 500);
     this.name = 'GenerationError';
   }
 }
 
 export class DeployError extends AppError {
-  constructor(message = '배포에 실패했습니다.') {
+  constructor(message = t('error.deploy')) {
     super('DEPLOY_FAILED', message, 500);
     this.name = 'DeployError';
   }
@@ -87,7 +88,7 @@ export function handleApiError(error: unknown): Response {
   // ZodError → 400 Bad Request
   if (error instanceof Error && error.name === 'ZodError') {
     return jsonResponse(
-      { success: false, error: { code: 'INVALID_INPUT', message: '입력값이 올바르지 않습니다.' } },
+      { success: false, error: { code: 'INVALID_INPUT', message: t('error.validation') } },
       { status: 400 }
     );
   }
@@ -111,7 +112,7 @@ export function handleApiError(error: unknown): Response {
     return jsonResponse(
       {
         success: false,
-        error: { code: 'DATABASE_ERROR', message: `데이터베이스 오류: ${pgError.message}` },
+        error: { code: 'DATABASE_ERROR', message: t('error.database', { message: pgError.message }) },
       },
       { status: 500 }
     );
@@ -128,8 +129,8 @@ export function handleApiError(error: unknown): Response {
   // Never expose internal error details in production
   const clientMessage =
     process.env.NODE_ENV === 'production'
-      ? '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
-      : errMessage || '서버 오류가 발생했습니다.';
+      ? t('error.server')
+      : errMessage || t('error.server');
 
   return jsonResponse(
     { success: false, error: { code: 'INTERNAL_ERROR', message: clientMessage } },

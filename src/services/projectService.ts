@@ -7,6 +7,7 @@ import { generateSlug, isValidSlug } from '@/lib/utils/slugify';
 import { isUniqueViolation } from '@/lib/db/errors';
 import type { Project, ProjectMetadata, CreateProjectInput } from '@/types/project';
 import type { ApiCatalogItem } from '@/types/api';
+import { t } from '@/lib/i18n';
 
 export class ProjectService {
   constructor(
@@ -18,33 +19,27 @@ export class ProjectService {
     const limits = getLimits();
 
     if (input.apiIds.length === 0) {
-      throw new ValidationError('최소 1개의 API를 선택해주세요.');
+      throw new ValidationError(t('project.validation.minApis'));
     }
     if (input.apiIds.length > limits.maxApisPerProject) {
-      throw new ValidationError(`API는 최대 ${limits.maxApisPerProject}개까지 선택 가능합니다.`);
+      throw new ValidationError(t('project.validation.maxApis', { max: limits.maxApisPerProject }));
     }
 
     if (input.context.length < limits.contextMinLength) {
-      throw new ValidationError(
-        `서비스 설명은 최소 ${limits.contextMinLength}자 이상 입력해주세요.`
-      );
+      throw new ValidationError(t('project.validation.contextMin', { min: limits.contextMinLength }));
     }
     if (input.context.length > limits.contextMaxLength) {
-      throw new ValidationError(
-        `서비스 설명은 최대 ${limits.contextMaxLength}자까지 입력 가능합니다.`
-      );
+      throw new ValidationError(t('project.validation.contextMax', { max: limits.contextMaxLength }));
     }
 
     const apis = await this.catalogRepo.findByIds(input.apiIds);
     if (apis.length !== input.apiIds.length) {
-      throw new ValidationError('존재하지 않는 API가 포함되어 있습니다.');
+      throw new ValidationError(t('project.validation.invalidApis'));
     }
 
     const userProjects = await this.projectRepo.findByUserId(userId);
     if (userProjects.length >= limits.maxProjectsPerUser) {
-      throw new ValidationError(
-        `프로젝트는 최대 ${limits.maxProjectsPerUser}개까지 생성 가능합니다.`
-      );
+      throw new ValidationError(t('project.validation.maxProjects', { max: limits.maxProjectsPerUser }));
     }
 
     const createData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -84,7 +79,7 @@ export class ProjectService {
 
   async getById(id: string, userId: string): Promise<Project> {
     const project = await this.projectRepo.findById(id);
-    if (!project) throw new NotFoundError('프로젝트', id);
+    if (!project) throw new NotFoundError(t('project.notFound'), id);
     assertOwner(project, userId);
     return project;
   }
@@ -107,7 +102,7 @@ export class ProjectService {
     const project = await this.getById(id, userId);
     const publishable: Project['status'][] = ['generated', 'deployed', 'unpublished'];
     if (!publishable.includes(project.status)) {
-      throw new ValidationError('생성이 완료된 프로젝트만 게시할 수 있습니다.');
+      throw new ValidationError(t('project.validation.notGenerated'));
     }
 
     // 재게시: 기존 slug 유지 (현행 정책)
@@ -161,7 +156,7 @@ export class ProjectService {
     const project = await this.getById(id, userId);
 
     if (project.status !== 'published') {
-      throw new ValidationError('게시된 프로젝트만 게시 취소할 수 있습니다.');
+      throw new ValidationError(t('project.validation.notPublished'));
     }
 
     const updated = await this.projectRepo.update(id, {

@@ -2,6 +2,8 @@ import type { IRateLimitRepository } from '@/repositories/interfaces';
 import { getLimits } from '@/lib/config/features';
 import { RateLimitError } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
+import { eventBus } from '@/lib/events/eventBus';
+import { t } from '@/lib/i18n';
 
 /**
  * Atomic rate limiting service.
@@ -40,10 +42,17 @@ export class RateLimitService {
         limits.maxDailyGenerations
       );
       if (!allowed) {
-        throw new RateLimitError(
-          `일일 생성 한도(${limits.maxDailyGenerations}회)를 초과했습니다. 내일 다시 시도해주세요.`
-        );
+        throw new RateLimitError(t('rateLimit.exceeded', { limit: limits.maxDailyGenerations }));
       }
+      // 80% 도달 시 경고 이벤트 발행 (fire-and-forget)
+      void this.rateLimitRepo.getCurrentUsage(userId).then((usage) => {
+        if (usage / limits.maxDailyGenerations >= 0.8) {
+          eventBus.emit({
+            type: 'API_QUOTA_WARNING',
+            payload: { service: 'daily_generations', usage, limit: limits.maxDailyGenerations },
+          });
+        }
+      }).catch(() => { /* 경고 실패는 무시 */ });
     } catch (err) {
       if (err instanceof RateLimitError) throw err;
       // Fail open: DB error — allow the request to proceed

@@ -9,7 +9,7 @@ import { logger } from '@/lib/utils/logger';
 import { generationTracker } from '@/lib/ai/generationTracker';
 import { runStage1, runStage2Function, runStage3 } from '@/lib/ai/stageRunner';
 import { saveGeneratedCode } from '@/lib/ai/generationSaver';
-import type { ICodeRepository, IEventRepository, IProjectRepository } from '@/repositories/interfaces';
+import type { ICodeRepository, IProjectRepository } from '@/repositories/interfaces';
 import type { ApiCatalogItem } from '@/types/api';
 import type { SseWriter } from '@/lib/ai/sseWriter';
 import type { QcReport } from '@/types/qc';
@@ -45,7 +45,6 @@ export interface PipelineInput {
 
 export interface PipelineServices {
   codeRepo: ICodeRepository;
-  eventRepo: IEventRepository;
   projectService: IProjectStatusUpdater;
   rateLimitService: IRateLimitDecrementer;
   projectRepo?: IProjectRepository;
@@ -65,11 +64,11 @@ function shouldUseExtendedThinking(apis: ApiCatalogItem[], context?: string): bo
 
 async function handlePipelineFailure(
   error: unknown,
-  context: { projectId: string; userId: string; correlationId: string | undefined; aiProviderName: string | undefined },
-  services: { rateLimitService: IRateLimitDecrementer; eventRepo: IEventRepository },
+  context: { projectId: string; userId: string; aiProviderName: string | undefined },
+  services: { rateLimitService: IRateLimitDecrementer },
   sse: SseWriter,
 ): Promise<void> {
-  const { projectId, userId, correlationId, aiProviderName } = context;
+  const { projectId, userId, aiProviderName } = context;
 
   logger.error('Code generation pipeline failed', {
     projectId,
@@ -78,16 +77,14 @@ async function handlePipelineFailure(
 
   await services.rateLimitService.decrementDailyLimit(userId);
 
-  const failedEvent = {
-    type: 'CODE_GENERATION_FAILED' as const,
+  eventBus.emit({
+    type: 'CODE_GENERATION_FAILED',
     payload: {
       projectId,
       error: error instanceof Error ? error.message : 'Unknown error',
       provider: aiProviderName ?? 'unknown',
     },
-  };
-  eventBus.emit(failedEvent);
-  services.eventRepo.persistAsync(failedEvent, { userId, projectId, correlationId });
+  });
 
   generationTracker.fail(projectId, error instanceof Error ? error.message : '코드 생성에 실패했습니다.');
   sse.send('error', {
@@ -105,7 +102,7 @@ export async function runGenerationPipeline(
   services: PipelineServices,
 ): Promise<void> {
   const { projectId, userId, correlationId, apis, extraMetadata, projectContext } = input;
-  const { codeRepo, eventRepo, projectService, rateLimitService, projectRepo } = services;
+  const { codeRepo, projectService, rateLimitService, projectRepo } = services;
 
   let aiProviderInit: IAiProvider | undefined;
 
@@ -244,15 +241,15 @@ export async function runGenerationPipeline(
         validation, apis, projectContext, extraMetadata,
         stage2Response: { provider: stage3Result.provider, model: stage3Result.model, durationMs: aggregatedDuration, tokensUsed: aggregatedTokens },
         userPromptUsed: stage3Result.userPrompt,
-        codeRepo, eventRepo, projectService, projectRepo,
+        codeRepo, projectService, projectRepo,
       },
       sse,
     );
   } catch (error) {
     await handlePipelineFailure(
       error,
-      { projectId, userId, correlationId, aiProviderName: aiProviderInit?.name },
-      { rateLimitService, eventRepo },
+      { projectId, userId, aiProviderName: aiProviderInit?.name },
+      { rateLimitService },
       sse,
     );
   }

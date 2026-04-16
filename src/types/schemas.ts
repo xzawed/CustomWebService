@@ -1,7 +1,8 @@
 import { z } from 'zod/v4';
+import { t } from '@/lib/i18n';
 
 // ── 재사용 단위 ──────────────────────────────────────────────────────────────
-export const projectIdSchema = z.string().uuid();
+export const projectIdSchema = z.string().uuid({ error: t('error.validation') });
 export const slugSchema = z.string().min(1).max(63);
 
 // ── 프로젝트 ─────────────────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ export const generateSchema = z.object({
 });
 
 export const regenerateSchema = z.object({
-  projectId: z.string().uuid(),
+  projectId: z.string().uuid({ error: t('error.validation') }),
   feedback: z.string().trim().min(1).max(5000),
 });
 

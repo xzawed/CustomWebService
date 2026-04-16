@@ -18,8 +18,11 @@ vi.mock('@/services/factory', () => ({
 
 vi.mock('@/repositories/factory', () => ({
   createCodeRepository: vi.fn(),
-  createEventRepository: vi.fn(),
   createProjectRepository: vi.fn(),
+}));
+
+vi.mock('@/lib/events/eventPersister', () => ({
+  registerEventPersister: vi.fn(),
 }));
 
 vi.mock('@/providers/ai/AiProviderFactory', () => ({
@@ -190,15 +193,12 @@ async function setupHappyPath() {
     decrementDailyLimit: vi.fn().mockResolvedValue(undefined),
   } as never);
 
-  const { createCodeRepository, createEventRepository, createProjectRepository } = await import('@/repositories/factory');
+  const { createCodeRepository, createProjectRepository } = await import('@/repositories/factory');
   vi.mocked(createCodeRepository).mockReturnValue({
     getNextVersion: vi.fn().mockResolvedValue(1),
     create: vi.fn().mockResolvedValue(mockSavedCode),
     delete: vi.fn().mockResolvedValue(undefined),
     pruneOldVersions: vi.fn().mockResolvedValue(undefined),
-  } as never);
-  vi.mocked(createEventRepository).mockReturnValue({
-    persistAsync: vi.fn(),
   } as never);
   vi.mocked(createProjectRepository).mockReturnValue({
     updateSuggestedSlugs: vi.fn().mockResolvedValue(undefined),
