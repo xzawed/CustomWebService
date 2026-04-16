@@ -1,7 +1,7 @@
 # 시스템 아키텍처
 
-> **최종 업데이트:** 2026-04-12  
-> **구현 상태:** 운영 중 (287개 테스트 통과)
+> **최종 업데이트:** 2026-04-16  
+> **구현 상태:** 운영 중 (433개 테스트 통과)
 
 ---
 
@@ -192,6 +192,7 @@ src/
 │   ├── base/
 │   │   └── BaseRepository.ts     # 공통 CRUD 추상 클래스
 │   ├── drizzle/                  # Drizzle ORM 구현체 (DB_PROVIDER=postgres 시 사용)
+│   ├── utils/                    # 공통 유틸 (toSnake, buildConditions, parseEndpoints, CATEGORY 상수)
 │   ├── factory.ts                # createProjectRepository, createCodeRepository 등 팩토리 함수
 │   ├── userRepository.ts
 │   ├── projectRepository.ts

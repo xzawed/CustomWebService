@@ -78,7 +78,7 @@ pnpm test:coverage    # 커버리지 리포트
 - **아키텍처 레이어**: Route Handler → Service → Repository → Supabase
 - **AI Provider**: `IAiProvider` 인터페이스 — Provider 전용 로직은 Provider 내부에만
 - **이벤트 시스템**: `EventBus` + `EventRepository` (감사 로그)
-- **레이트리밋**: 혼합 패턴 — generate/regenerate는 PostgreSQL 원자적 (`UPDATE WHERE count < limit RETURNING`), proxy/deploy는 인메모리 Map (단일 인스턴스 전제)
+- **레이트리밋**: 혼합 패턴 — generate/regenerate/deploy는 PostgreSQL 원자적 (`UPDATE WHERE count < limit RETURNING`), proxy는 인메모리 Map (단일 인스턴스 전제)
 - **요청 추적**: `X-Correlation-Id` 헤더
 - **i18n**: `@/lib/i18n`의 `t()` 함수 사용, 한국어 기본
 - **스토어**: 관심사별 분리된 Zustand 스토어 (단일 mega store 금지)
@@ -184,7 +184,7 @@ pnpm test:coverage    # 커버리지 리포트
 - **slug 충돌 처리**: `assignUniqueSlug()` in `projectService.ts` — base → base-2 → … → base-10 → timestamp fallback; 23505 unique 위반 시 1회 재시도
 - **generationTracker 단일 인스턴스**: `src/lib/ai/generationTracker.ts`의 `generationTracker`는 모듈 레벨 싱글톤. TTL 차등: `generating` 30분, `completed`/`failed` 10분. Railway 단일 인스턴스 환경에서만 동작 — 멀티 인스턴스 배포 시 Redis 등 외부 저장소로 교체 필요
 - **ExtendedThinking + temperature**: `extendedThinking: true` 설정 시 `temperature`는 반드시 `1` (Anthropic API 강제 요구사항). ClaudeProvider 내부에서 자동 처리됨
-- **인메모리 rate limit 한계**: proxy/deploy의 Map 기반 리밋은 서버 재시작 시 초기화됨. Railway 단일 인스턴스 전제 — 멀티 인스턴스 전환 시 Redis 등 외부 저장소 필요 (generationTracker와 동일 제약)
+- **인메모리 rate limit 한계**: proxy의 Map 기반 리밋은 서버 재시작 시 초기화됨 (분당 카운터라 보안 영향 낮음). Railway 단일 인스턴스 전제 — 멀티 인스턴스 전환 시 Redis 등 외부 저장소 필요 (generationTracker와 동일 제약)
 
 ## Claude 도움 요청 원칙
 
