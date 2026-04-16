@@ -10,7 +10,7 @@ type AllowedClaudeModel = (typeof ALLOWED_CLAUDE_MODELS)[number];
 
 const TASK_DEFAULTS: Record<AiTaskType, AllowedClaudeModel> = {
   suggestion: 'claude-haiku-4-5',
-  generation: 'claude-sonnet-4-6',
+  generation: 'claude-opus-4-6',
 };
 
 const TASK_ENV_VARS: Record<AiTaskType, string> = {

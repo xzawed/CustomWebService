@@ -78,7 +78,7 @@ export class ClaudeProvider implements IAiProvider {
           temperature: useThinking ? 1 : (prompt.temperature ?? 0.7),
           max_tokens: prompt.maxTokens ?? 32000,
           ...(useThinking && {
-            thinking: { type: 'enabled' as const, budget_tokens: 10000 },
+            thinking: { type: 'enabled' as const, budget_tokens: 32000 },
           }),
         });
 
@@ -136,7 +136,7 @@ export class ClaudeProvider implements IAiProvider {
           temperature: useThinking ? 1 : (prompt.temperature ?? 0.7),
           max_tokens: prompt.maxTokens ?? 32000,
           ...(useThinking && {
-            thinking: { type: 'enabled' as const, budget_tokens: 10000 },
+            thinking: { type: 'enabled' as const, budget_tokens: 32000 },
           }),
         });
 

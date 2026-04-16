@@ -6,7 +6,7 @@ import { ClaudeProvider } from './ClaudeProvider';
 vi.mock('./ClaudeProvider', () => ({
   ClaudeProvider: vi.fn().mockImplementation((_apiKey: string, model?: string) => ({
     name: 'claude',
-    model: model ?? 'claude-sonnet-4-6',
+    model: model ?? 'claude-opus-4-6',
     generateCode: vi.fn(),
     generateCodeStream: vi.fn(),
     checkAvailability: vi.fn().mockResolvedValue({ available: true }),
@@ -72,11 +72,11 @@ describe('AiProviderFactory.createForTask()', () => {
     process.env = originalEnv;
   });
 
-  it('generation 태스크는 Sonnet 모델을 사용한다', () => {
+  it('generation 태스크는 Opus 모델을 사용한다', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_PROVIDER;
     const provider = AiProviderFactory.createForTask('generation');
-    expect(provider.model).toBe('claude-sonnet-4-6');
+    expect(provider.model).toBe('claude-opus-4-6');
   });
 
   it('suggestion 태스크는 Haiku 모델을 사용한다', () => {
@@ -136,20 +136,20 @@ describe('AiProviderFactory.createForTask()', () => {
     expect(provider.model).toBe('claude-haiku-4-5');
   });
 
-  it('AI_MODEL_GENERATION 미설정 시 기본값 Sonnet을 사용한다', () => {
+  it('AI_MODEL_GENERATION 미설정 시 기본값 Opus를 사용한다', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_MODEL_GENERATION;
     const provider = AiProviderFactory.createForTask('generation');
-    expect(provider.model).toBe('claude-sonnet-4-6');
+    expect(provider.model).toBe('claude-opus-4-6');
   });
 
   it('모델이 다르면 다른 인스턴스를 반환한다', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_MODEL_GENERATION;
-    const p1 = AiProviderFactory.createForTask('generation'); // sonnet (기본값)
+    const p1 = AiProviderFactory.createForTask('generation'); // opus (기본값)
     (AiProviderFactory as any).providers = new Map(); // 캐시 초기화
-    process.env.AI_MODEL_GENERATION = 'claude-opus-4-6';
-    const p2 = AiProviderFactory.createForTask('generation'); // opus
+    process.env.AI_MODEL_GENERATION = 'claude-sonnet-4-6';
+    const p2 = AiProviderFactory.createForTask('generation'); // sonnet (오버라이드)
     expect(p1.model).not.toBe(p2.model);
   });
 });
