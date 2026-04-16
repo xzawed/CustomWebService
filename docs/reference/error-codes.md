@@ -25,6 +25,15 @@
 | PostgREST/Supabase DB 오류 | `DATABASE_ERROR` | 500 | `code`+`message` 형태의 plain object |
 | 미처리 `Error` / 기타 | `INTERNAL_ERROR` | 500 | 프로덕션에서는 내부 상세 정보 노출 안 함 |
 
+### Admin API 전용 에러 코드 (직접 반환, `handleApiError` 미경유)
+
+| 에러 코드 | HTTP Status | 발생 위치 | 설명 |
+|----------|-------------|----------|------|
+| `QC_DISABLED` | 400 | `trigger-qc` | `ENABLE_RENDERING_QC` 환경변수 미설정 |
+| `NOT_FOUND` | 404 | `trigger-qc` | 해당 프로젝트의 생성된 코드 없음 |
+| `UPSTREAM_ERROR` | 502 | `proxy` | 외부 API 서버 연결 실패 또는 타임아웃 |
+| `FORBIDDEN` | 403 | `proxy` | SSRF 방지 — 허용되지 않은 대상 호스트 |
+
 ---
 
 ## Route Handler 에러 처리 패턴

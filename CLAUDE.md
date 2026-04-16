@@ -92,7 +92,7 @@ pnpm test:coverage    # 커버리지 리포트
 - **보안 헤더**: middleware에서 CSP, HSTS, X-Frame-Options 설정
 - **코드 생성 결과물**: React가 아닌 순수 HTML/CSS/JS (사용자 서비스용)
 - **설정 기반 제한**: 환경변수로 생성 한도/버전 수 등 비즈니스 규칙 조절
-- **모바일 백그라운드 생성**: SSE + 폴링 이중 구조 — `generationTracker` (서버 메모리, 10분 TTL), 클라이언트 `visibilitychange` 감지 + `/api/v1/generate/status/:projectId` 폴링 fallback
+- **모바일 백그라운드 생성**: SSE + 폴링 이중 구조 — `generationTracker` (서버 메모리, `generating` 30분 / `completed`·`failed` 10분 차등 TTL), 클라이언트 `visibilitychange` 감지 + `/api/v1/generate/status/:projectId` 폴링 fallback
 - **AI 성능 최적화**: Prompt Caching (`ephemeral`), 조건부 Extended Thinking (API≥3 또는 컨텍스트≥500자 시 `budget_tokens: 32000`), 조건부 Stage 2/3 스킵으로 비용·속도 최적화
 
 ## 환경변수 (참고용 — 값 절대 포함 금지)
@@ -180,7 +180,7 @@ pnpm test:coverage    # 커버리지 리포트
 - **JSONB 필드명 이중성**: `catalogRepository.parseEndpoints()` 같은 JSONB 매퍼는 snake_case(`example_call`)와 camelCase(`exampleCall`) 둘 다 처리 필요 — DB 직접 삽입 vs 코드 경로 차이
 - **Playwright 병렬 체크 주의**: 단일 `page` 인스턴스에서 `Promise.allSettled` 사용 시 viewport를 변경하는 체크는 반드시 다른 체크 완료 후 순차 실행 (`renderingQc.ts` 참고)
 - **slug 충돌 처리**: `assignUniqueSlug()` in `projectService.ts` — base → base-2 → … → base-10 → timestamp fallback; 23505 unique 위반 시 1회 재시도
-- **generationTracker 단일 인스턴스**: `src/lib/ai/generationTracker.ts`의 `generationTracker`는 모듈 레벨 싱글톤. Railway 단일 인스턴스 환경에서만 동작 — 멀티 인스턴스 배포 시 Redis 등 외부 저장소로 교체 필요
+- **generationTracker 단일 인스턴스**: `src/lib/ai/generationTracker.ts`의 `generationTracker`는 모듈 레벨 싱글톤. TTL 차등: `generating` 30분, `completed`/`failed` 10분. Railway 단일 인스턴스 환경에서만 동작 — 멀티 인스턴스 배포 시 Redis 등 외부 저장소로 교체 필요
 - **ExtendedThinking + temperature**: `extendedThinking: true` 설정 시 `temperature`는 반드시 `1` (Anthropic API 강제 요구사항). ClaudeProvider 내부에서 자동 처리됨
 
 ## Claude 도움 요청 원칙

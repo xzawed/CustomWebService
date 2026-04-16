@@ -23,6 +23,8 @@
 | innerHTML 할당 | 경고 | 기록 후 진행 |
 | document.write() | 경고 | 기록 후 진행 |
 
+**탐지 키 패턴 (`DEFINITE_KEY_PATTERNS`)**: OpenAI/Anthropic `sk-*`, Stripe `sk_live_*`, Google `AIza*`, GitHub `ghp_*`, Slack `xoxb-*`, AWS `AKIA*`
+
 **담당**: `codeValidator.validateAll()` → `validateSecurity()`  
 **파일**: `src/lib/ai/codeValidator.ts`
 

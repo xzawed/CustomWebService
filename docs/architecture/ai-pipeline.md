@@ -214,8 +214,13 @@ DB 저장 구조 (code_versions 테이블):
 
 ### Provider 인터페이스 (`src/providers/ai/IAiProvider.ts`)
 - `generateCode(prompt)` — 단일 응답 생성
-- `generateCodeStream(prompt, onChunk)` — SSE 스트리밍 생성
+- `generateCodeStream(prompt, onChunk)` — SSE 스트리밍 생성 (`AiStreamResult = AiResponse`)
 - `AiPrompt.extendedThinking?: boolean` — Extended Thinking 활성화 플래그
+
+### ClaudeProvider 재시도 전략 (`withRetry`)
+- `generateCode` / `generateCodeStream` 모두 `withRetry()` 헬퍼로 래핑
+- HTTP 429·500·502·503·504 또는 네트워크 에러 시 최대 2회 지수 백오프 재시도 (1초→2초)
+- 재시도 불가 에러는 즉시 throw
 
 ### 성능 최적화 (현재 적용 중)
 
@@ -323,6 +328,11 @@ Avoid: [제외할 요소]
 
 핵심 파일: `src/lib/ai/generationPipeline.ts` (공통 파이프라인 — generate/regenerate 양쪽 적용)
 
+`runGenerationPipeline` 내부는 책임별로 분리된 함수로 구성:
+- `runQualityLoop()` — 최대 3회 품질 개선 재시도, 최선 버전 추적
+- `saveGeneratedCode()` — DB 저장, slug 제안, 버전 정리, Deep QC, 프로젝트 상태 갱신, 이벤트 발행
+- `handlePipelineFailure()` — Rate Limit 복구, 실패 이벤트 발행, Tracker 실패 표시
+
 ---
 
 ## 10. 모바일 백그라운드 생성 지원
@@ -330,7 +340,7 @@ Avoid: [제외할 요소]
 모바일에서 다른 앱으로 전환 시 브라우저가 탭을 백그라운드로 만들어 SSE 연결이 끊어지는 문제를 SSE + 폴링 이중 구조로 해결한다.
 
 ### 서버: GenerationTracker (`src/lib/ai/generationTracker.ts`)
-- 싱글톤 Map으로 진행 상태를 메모리에 보관 (10분 TTL 자동 만료)
+- 싱글톤 Map으로 진행 상태를 메모리에 보관 (**상태별 차등 TTL**: `generating` 30분 / `completed`·`failed` 10분 자동 만료)
 - `generationPipeline.ts`에서 SSE 이벤트 전송과 동시에 Tracker도 업데이트
 - SSE가 끊겨도 서버 파이프라인은 계속 실행 (isCancelled 체크 제거)
 

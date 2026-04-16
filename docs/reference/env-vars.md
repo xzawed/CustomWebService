@@ -78,6 +78,7 @@
 | `MAX_DAILY_GENERATIONS` | `10` | ➖ | 사용자당 일일 생성 횟수 |
 | `MAX_PROJECTS_PER_USER` | `20` | ➖ | 사용자당 최대 프로젝트 수 |
 | `MAX_REGENERATIONS` | `5` | ➖ | 프로젝트당 재생성 횟수 |
+| `MAX_DEPLOY_PER_DAY` | `5` | ➖ | 사용자당 일일 최대 배포 횟수 |
 | `CONTEXT_MIN_LENGTH` | `50` | ➖ | 컨텍스트 최소 길이 (자) |
 | `CONTEXT_MAX_LENGTH` | `2000` | ➖ | 컨텍스트 최대 길이 (자) |
 | `GENERATION_TIMEOUT_MS` | `120000` | ➖ | 생성 타임아웃 (ms) |

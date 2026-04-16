@@ -269,6 +269,7 @@ export interface AiPrompt {
   user: string;
   temperature?: number;
   maxTokens?: number;
+  extendedThinking?: boolean;
 }
 
 export interface AiResponse {
@@ -279,15 +280,23 @@ export interface AiResponse {
   durationMs: number;
 }
 
+// generateCodeStream의 반환 타입 — AiResponse와 동일한 구조
+export type AiStreamResult = AiResponse;
+
 export interface IAiProvider {
   readonly name: string;
   readonly model: string;
 
   generateCode(prompt: AiPrompt): Promise<AiResponse>;
-  generateCodeStream(prompt: AiPrompt, onChunk: (chunk: string, accumulated: string) => void): Promise<AiResponse>;
+  generateCodeStream(prompt: AiPrompt, onChunk: (chunk: string, accumulated: string) => void): Promise<AiStreamResult>;
   checkAvailability(): Promise<{ available: boolean; remainingQuota?: number }>;
 }
 ```
+
+**AiProviderFactory 주요 메서드:**
+- `createForTask(task: 'generation' | 'suggestion')` — 태스크별 모델 자동 선택 및 인스턴스 캐싱
+- `create(type?)` — provider 타입으로 생성
+- `clearCache()` — 테스트 등에서 캐시 초기화 시 사용
 
 **확장 방법**: 새 AI 제공자 추가 시
 1. `IAiProvider`를 구현하는 새 클래스 생성
@@ -415,6 +424,7 @@ export interface FeatureLimits {
   maxDailyGenerations: number;
   maxProjectsPerUser: number;
   maxRegenerationsPerProject: number;
+  maxDeployPerDay: number;       // 사용자당 일일 최대 배포 횟수
   contextMinLength: number;
   contextMaxLength: number;
   generationTimeoutMs: number;
@@ -426,6 +436,7 @@ const DEFAULT_LIMITS: FeatureLimits = {
   maxDailyGenerations: Number(process.env.MAX_DAILY_GENERATIONS ?? 10),
   maxProjectsPerUser: Number(process.env.MAX_PROJECTS_PER_USER ?? 20),
   maxRegenerationsPerProject: Number(process.env.MAX_REGENERATIONS ?? 5),
+  maxDeployPerDay: Number(process.env.MAX_DEPLOY_PER_DAY ?? 5),
   contextMinLength: Number(process.env.CONTEXT_MIN_LENGTH ?? 50),
   contextMaxLength: Number(process.env.CONTEXT_MAX_LENGTH ?? 2000),
   generationTimeoutMs: Number(process.env.GENERATION_TIMEOUT_MS ?? 120000),

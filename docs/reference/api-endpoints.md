@@ -364,6 +364,11 @@ data: {"message": "코드 생성에 실패했습니다."}
 }
 ```
 
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `projectId` | string | Y | 재생성 대상 프로젝트 UUID |
+| `feedback` | string | Y | 수정 요청 내용 (1~5,000자) |
+
 **Response (SSE):**
 ```
 event: progress
@@ -473,6 +478,8 @@ data: {"projectId": "uuid", "deployUrl": "https://svc-abc12345.up.railway.app", 
 event: error
 data: {"message": "배포에 실패했습니다."}
 ```
+
+> **Rate Limit**: 사용자당 일일 `MAX_DEPLOY_PER_DAY`회 (기본 5회). 초과 시 429 `RATE_LIMITED` 반환.
 
 > **참고**: `GET /api/v1/deploy/:projectId/status`는 미구현 상태입니다. 프로젝트 상태는 `GET /api/v1/projects/:id`로 확인하세요.
 
@@ -760,7 +767,9 @@ API 키 삭제
 
 > **보안:** SSRF 방지를 위해 등록된 `baseUrl` 범위 내에서만 요청 허용. 사설 IP 및 루프백 주소 차단.
 
-**Auth required**: No (단, API 키는 서버에서 주입)
+**Auth required**: Yes (`getAuthUser()` — 미인증 시 401 반환)
+
+**Rate Limit**: 사용자당 분당 60회 (인메모리, 초과 시 429)
 
 **Query Parameters:**
 | 파라미터 | 타입 | 필수 | 설명 |
@@ -812,3 +821,11 @@ QC 통계 조회
     "projectId": "project-uuid"
 }
 ```
+
+**에러 응답 형식:** 표준 `{ success: false, error: { code, message } }`
+
+| 에러 코드 | HTTP | 설명 |
+|-----------|------|------|
+| `QC_DISABLED` | 400 | `ENABLE_RENDERING_QC`가 활성화되지 않음 |
+| `NOT_FOUND` | 404 | 해당 프로젝트의 생성된 코드 없음 |
+| `INVALID_INPUT` | 400 | `projectId` 누락 |
