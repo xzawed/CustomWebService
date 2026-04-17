@@ -31,15 +31,18 @@ Grok 사용 시 태스크 구분 없이 동일 인스턴스 반환.
 
 | 파일 | 메서드 | 태스크 |
 |------|--------|--------|
-| `app/api/v1/generate/route.ts` | `createForTask('generation')` | 코드 생성 |
-| `app/api/v1/suggest-context/route.ts` | `createForTask('suggestion')` | 아이디어 제안 |
-| `services/generationService.ts` | `createForTask('generation')` | 서비스 레이어 생성 |
+| `lib/ai/generationPipeline.ts` | `createForTask('generation')` | 코드 생성 파이프라인 |
+| `app/api/v1/suggest-context/route.ts` | `createForTask('suggestion')` | 컨텍스트 아이디어 제안 |
+| `app/api/v1/suggest-apis/route.ts` | `createForTask('suggestion')` | API 추천 |
+| `app/api/v1/health/route.ts` | `createForTask('suggestion')` | 헬스체크 AI 가용성 확인 |
+| `lib/ai/slugSuggester.ts` | `createForTask('suggestion')` | slug 추천 |
 
 ## 환경변수
 
 - `ANTHROPIC_API_KEY` — Claude 사용 시 필수
-- `XAI_API_KEY` — Grok 사용 시 필수
-- `AI_PROVIDER` — `claude` (기본) | `grok`
+- `AI_PROVIDER` — `claude` (기본, 현재 유일한 활성 provider)
+- `AI_MODEL_GENERATION` — 코드 생성 모델 오버라이드 (기본: `claude-opus-4-7`)
+- `AI_MODEL_SUGGESTION` — 추천 모델 오버라이드 (기본: `claude-haiku-4-5`)
 
 ## 리트라이 정책
 

@@ -37,13 +37,13 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 |------|------|
 | Framework | Next.js 16+ (App Router, TypeScript strict) |
 | UI | React 19, Tailwind CSS 4, Lucide React |
-| State | Zustand |
-| Validation | Zod |
+| State | Zustand (분리 스토어 + persist middleware) |
+| Form | React Hook Form + Zod |
 | Database | Supabase (기본) / 온프레미스 PostgreSQL + Drizzle ORM (선택) |
 | Auth | Supabase Auth (기본) / Auth.js v5 + NextAuth (선택) |
-| AI | Claude API (Anthropic SDK) |
-| Testing | Vitest |
-| CI/CD | GitHub Actions |
+| AI | Claude API (Anthropic SDK, claude-opus-4-7 기본) |
+| Testing | Vitest, happy-dom, MSW |
+| CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
 | Package Manager | pnpm |
 
 ---

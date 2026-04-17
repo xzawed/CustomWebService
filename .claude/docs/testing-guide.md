@@ -4,28 +4,56 @@
 
 ```
 src/
-├── __tests__/           # 통합 테스트 (API routes, services)
-│   ├── api/             # API 라우트 테스트
+├── __tests__/           # 통합 테스트 (API routes, services, lib)
+│   ├── api/             # API 라우트 테스트 (11개 파일)
 │   │   ├── generate.test.ts
+│   │   ├── deploy.test.ts
+│   │   ├── preview.test.ts
 │   │   ├── projects.test.ts
+│   │   ├── projects-publish.test.ts
+│   │   ├── projects-rollback.test.ts
+│   │   ├── projects-slug-check.test.ts
+│   │   ├── suggest-apis.test.ts
+│   │   ├── suggest-context.test.ts
+│   │   ├── proxy.test.ts
+│   │   ├── admin.test.ts
 │   │   └── health.test.ts
 │   ├── repositories/    # 리포지토리 테스트
-│   └── services/        # 서비스 테스트
+│   │   ├── codeRepository.test.ts
+│   │   ├── eventRepository.test.ts
+│   │   └── catalogRepository.test.ts
+│   ├── services/        # 서비스 테스트
+│   │   └── rateLimitService.test.ts
+│   └── lib/
+│       ├── ai/
+│       │   ├── generationPipeline.test.ts
+│       │   └── promptBuilder.test.ts
+│       ├── correlationId.test.ts
+│       └── db/
+│           └── failover.test.ts
 ├── providers/ai/        # Co-located 단위 테스트
 │   ├── ClaudeProvider.test.ts
-│   ├── GrokProvider.test.ts
 │   └── AiProviderFactory.test.ts
-├── services/
-│   ├── generationService.test.ts
-│   └── projectService.test.ts
+├── services/            # Co-located 단위 테스트
+│   ├── projectService.test.ts
+│   └── deployService.test.ts
 └── lib/
-    ├── ai/              # AI 관련 단위 테스트
+    ├── ai/
     │   ├── codeParser.test.ts
     │   ├── codeValidator.test.ts
+    │   ├── qualityLoop.test.ts
+    │   ├── categoryDesignMap.test.ts
+    │   ├── slugSuggester.test.ts
     │   └── promptBuilder.test.ts
+    ├── auth/
+    │   └── authorize.test.ts
+    ├── config/
+    │   └── providers.test.ts
+    ├── qc/
+    │   └── renderingQc.test.ts
     └── utils/
         ├── errors.test.ts
-        └── correlationId.test.ts
+        └── encryption.test.ts
 ```
 
 ## 명령어
@@ -55,7 +83,10 @@ afterEach(() => { process.env = originalEnv; });
 ### 싱글톤 캐시 초기화
 ```typescript
 // AiProviderFactory의 static Map 초기화
-(AiProviderFactory as any).providers = new Map();
+AiProviderFactory.clearCache();
+
+// DB/Auth provider 감지 캐시 초기화
+_resetProviderCache();
 ```
 
 ## 검증 파이프라인

@@ -7,10 +7,7 @@
 
 ## 도메인 이벤트 타입
 
-> **주의:** 설계 문서(`01-system-overview.md`)에는 `src/lib/events/domainEvents.ts`로 기재되어 있으나,
-> 실제 코드에는 해당 파일이 존재하지 않습니다.
-> `DomainEvent` 타입은 **`src/types/events.ts`** 에 정의되어 있으며,
-> `eventBus.ts`가 `@/types/events`에서 임포트합니다.
+`DomainEvent` 타입은 **`src/types/events.ts`** 에 정의되어 있으며, `eventBus.ts`가 `@/types/events`에서 임포트합니다.
 
 ```typescript
 // src/types/events.ts
