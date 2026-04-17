@@ -127,42 +127,7 @@ const service = new ProjectService(supabase);
 
 ## 4. 테스트 작성 가이드
 
-### 통합 테스트 (API Routes) — 모킹 패턴
-
-```typescript
-// vi.mock을 파일 상단에 선언 (호이스팅됨)
-vi.mock('@/services/factory', () => ({
-  createProjectService: vi.fn(),
-  createRateLimitService: vi.fn(),
-}));
-vi.mock('@/repositories/factory', () => ({
-  createCodeRepository: vi.fn(),
-}));
-vi.mock('@/lib/auth/index', () => ({
-  getAuthUser: vi.fn(),
-}));
-
-// 각 테스트에서 동적 import 사용
-const { POST } = await import('@/app/api/v1/your-route/route');
-```
-
-### 테스트 파일 위치
-
-- 소스 파일 옆 co-located: `src/lib/foo/bar.test.ts`
-- 통합 테스트: `src/__tests__/api/`
-- 테스트 헬퍼/설정: `src/test/`
-
-### 품질 채점 기준 (코드 생성 테스트 시)
-
-| 점수 | 기준 |
-|------|------|
-| 5 | 코드 복사 → 바로 동작, 디자인 우수, 에러 처리 완벽 |
-| 4 | 경미한 수정으로 동작, 디자인 양호 |
-| 3 | 일부 수정 필요하지만 구조는 올바름 |
-| 2 | 상당한 수정 필요, 일부 기능 누락 |
-| 1 | 동작하지 않거나 요청과 무관한 결과 |
-
-**최소 합격 기준: 평균 3.5점 이상**
+테스트 전략·분류별 검증 항목·모킹 패턴·실행 명령어 전체는 [testing.md](testing.md) 참조.
 
 ---
 
