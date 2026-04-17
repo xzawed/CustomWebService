@@ -81,4 +81,4 @@ AUTH_GITHUB_SECRET=
 
 ## 라이선스
 
-All rights reserved.
+Copyright © 2026 xzawed. All rights reserved.
