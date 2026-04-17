@@ -209,7 +209,7 @@ DB 저장 구조 (code_versions 테이블):
 - **Claude API (Anthropic)** — 기본 Provider
   - 구현: `src/providers/ai/ClaudeProvider.ts`
   - 팩토리: `AiProviderFactory.create()`, `AiProviderFactory.createForTask()`
-  - 모델: **`claude-opus-4-6`** (기본), 태스크별 최적 모델 자동 선택
+  - 모델: **`claude-opus-4-7`** (기본), 태스크별 최적 모델 자동 선택
   - 환경변수 오버라이드: `AI_MODEL_GENERATION` (코드 생성), `AI_MODEL_SUGGESTION` (slug 제안) — 허용 목록(`claude-*`) 검증 후 적용
 
 ### Provider 인터페이스 (`src/providers/ai/IAiProvider.ts`)

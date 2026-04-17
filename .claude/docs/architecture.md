@@ -28,7 +28,7 @@ POST /api/v1/generate (SSE 스트리밍)
   ├── CatalogService.getByIds()
   ├── buildSystemPrompt() + buildUserPrompt()
   ├── AiProviderFactory.createForTask('generation')
-  │   └── ClaudeProvider.generateCodeStream() [Sonnet 4.6]
+  │   └── ClaudeProvider.generateCodeStream() [Opus 4.7]
   ├── parseGeneratedCode()
   ├── validateAll() (보안 검증)
   ├── CodeRepository.create()
@@ -48,7 +48,7 @@ POST /api/v1/generate (SSE 스트리밍)
 ```
 IAiProvider (인터페이스)
   ├── ClaudeProvider (기본) — @anthropic-ai/sdk
-  │   ├── generation: claude-sonnet-4-6
+  │   ├── generation: claude-opus-4-7
   │   └── suggestion: claude-haiku-4-5
   └── GrokProvider (롤백용) — OpenAI SDK (xAI baseURL)
 

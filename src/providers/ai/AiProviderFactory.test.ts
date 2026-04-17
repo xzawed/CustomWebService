@@ -6,7 +6,7 @@ import { ClaudeProvider } from './ClaudeProvider';
 vi.mock('./ClaudeProvider', () => ({
   ClaudeProvider: vi.fn().mockImplementation((_apiKey: string, model?: string) => ({
     name: 'claude',
-    model: model ?? 'claude-opus-4-6',
+    model: model ?? 'claude-opus-4-7',
     generateCode: vi.fn(),
     generateCodeStream: vi.fn(),
     checkAvailability: vi.fn().mockResolvedValue({ available: true }),
@@ -74,7 +74,7 @@ describe('AiProviderFactory.createForTask()', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_PROVIDER;
     const provider = AiProviderFactory.createForTask('generation');
-    expect(provider.model).toBe('claude-opus-4-6');
+    expect(provider.model).toBe('claude-opus-4-7');
   });
 
   it('suggestion 태스크는 Haiku 모델을 사용한다', () => {
@@ -138,7 +138,7 @@ describe('AiProviderFactory.createForTask()', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_MODEL_GENERATION;
     const provider = AiProviderFactory.createForTask('generation');
-    expect(provider.model).toBe('claude-opus-4-6');
+    expect(provider.model).toBe('claude-opus-4-7');
   });
 
   it('모델이 다르면 다른 인스턴스를 반환한다', () => {

@@ -5,12 +5,12 @@ import { ClaudeProvider } from './ClaudeProvider';
 export type AiProviderType = 'claude';
 export type AiTaskType = 'generation' | 'suggestion';
 
-const ALLOWED_CLAUDE_MODELS = ['claude-haiku-4-5', 'claude-sonnet-4-6', 'claude-opus-4-6'] as const;
+const ALLOWED_CLAUDE_MODELS = ['claude-haiku-4-5', 'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-7'] as const;
 type AllowedClaudeModel = (typeof ALLOWED_CLAUDE_MODELS)[number];
 
 const TASK_DEFAULTS: Record<AiTaskType, AllowedClaudeModel> = {
   suggestion: 'claude-haiku-4-5',
-  generation: 'claude-opus-4-6',
+  generation: 'claude-opus-4-7',
 };
 
 const TASK_ENV_VARS: Record<AiTaskType, string> = {

@@ -13,7 +13,7 @@ IAiProvider (인터페이스)
 
 | Provider | SDK | 모델 | 상태 |
 |----------|-----|------|------|
-| ClaudeProvider | @anthropic-ai/sdk | claude-sonnet-4-6, claude-haiku-4-5 | 기본 |
+| ClaudeProvider | @anthropic-ai/sdk | claude-opus-4-7, claude-haiku-4-5 | 기본 |
 | GrokProvider | OpenAI SDK (xAI baseURL) | grok-4 | 롤백용 |
 
 ## 용도별 모델 분리
@@ -22,7 +22,7 @@ IAiProvider (인터페이스)
 
 | 태스크 | 모델 | 용도 |
 |--------|------|------|
-| `generation` | Claude Sonnet 4.6 | 웹페이지 코드 생성 |
+| `generation` | Claude Opus 4.7 | 웹페이지 코드 생성 |
 | `suggestion` | Claude Haiku 4.5 | 컨텍스트 아이디어 제안 |
 
 Grok 사용 시 태스크 구분 없이 동일 인스턴스 반환.
