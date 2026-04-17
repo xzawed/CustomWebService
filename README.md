@@ -31,6 +31,58 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 
 ---
 
+## 아키텍처 하이라이트
+
+### AI 코드 생성 파이프라인
+
+```
+Stage 0 (기능 추출)  — Claude Haiku, tool use로 기능 사양 자동 추출 → Stage 1 프롬프트 주입
+      ↓
+Stage 1 (구조·기능)  — 실제 API fetch 호출 코드 생성, 모바일 퍼스트, 보안 규칙 적용 (0→30%)
+      ↓ (조건부: fetch 미호출 또는 placeholder 존재 시)
+Stage 2 (기능 검증)  — Stage 1 결과를 AI가 자체 검증·수정 (30→65%)
+      ↓ (조건부: 품질 점수 80 미만 시)
+Stage 3 (디자인)     — 카테고리별 테마 적용 (금융→modern-dark, 날씨→ocean-blue 등) (65→90%)
+      ↓
+Quality Loop         — 최대 3회 재시도, best-of-n 품질 비교 선택
+      ↓
+Fast QC              — Playwright 브라우저 렌더링 검증 (콘솔 에러·가로 스크롤·터치 타겟)
+      ↓
+Deep QC              — 상호작용·네트워크·접근성·반응형 심층 검증 (비동기, 선택적)
+```
+
+### 주요 설계 패턴
+
+| 패턴 | 구현 | 목적 |
+|------|------|------|
+| **모델 분리** | Opus 4.7 (생성) / Haiku 4.5 (추천·제안) | 비용 최적화 |
+| **Prompt Caching** | `cache_control: ephemeral` | 반복 호출 입력 토큰 절감 |
+| **조건부 Extended Thinking** | API ≥ 3개 또는 컨텍스트 ≥ 500자 시 활성화 | 복잡한 요청에만 추론 비용 투입 |
+| **EventBus** | 12개 도메인 이벤트, pub/sub + 자동 DB 감사 로그 | 관심사 분리 |
+| **원자적 레이트리밋** | `UPDATE WHERE count < limit RETURNING` | 동시 요청 경쟁 조건 방지 |
+| **Circuit Breaker** | 3회 실패 → TRIPPED, 60초 후 복구 프로브 | DB 장애 전파 차단 |
+| **SSE + 폴링 이중 구조** | `visibilitychange` 감지 → 폴링 전환 | 모바일 백그라운드 탭 대응 |
+
+---
+
+## 보안
+
+AI가 생성한 코드는 신뢰할 수 없습니다. 모든 출력물을 의심하고 서버에서 검증합니다.
+
+**AI 생성 코드 정적 검증**
+- `eval()`, `document.write()`, `innerHTML` 직접 할당 차단
+- OpenAI·Stripe·Google·GitHub·Slack·AWS API 키 하드코딩 패턴 감지
+- CSS `expression()`, `url(javascript:)`, `-moz-binding:` 등 XSS 벡터 차단
+
+**인프라 보안**
+- Proxy SSRF 방지: loopback(127.0.0.1/::1), RFC1918 사설 IP(10.x/172.16-31.x/192.168.x), AWS 메타데이터 서버(169.254.169.254) 6종 패턴 차단
+- `middleware.ts`에서 CSP, HSTS, X-Frame-Options 일괄 적용
+- 사용자 API 키 AES-256-GCM 암호화 저장
+- OAuth PKCE 플로우 (Google, GitHub)
+- `X-Correlation-Id` 헤더로 요청 추적
+
+---
+
 ## 기술 스택
 
 | 영역 | 기술 |
@@ -42,9 +94,66 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 | Database | Supabase (기본) / 온프레미스 PostgreSQL + Drizzle ORM (선택) |
 | Auth | Supabase Auth (기본) / Auth.js v5 + NextAuth (선택) |
 | AI | Claude API (Anthropic SDK, claude-opus-4-7 기본) |
-| Testing | Vitest, happy-dom, MSW |
+| Testing | Vitest, happy-dom, MSW, Playwright |
 | CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
 | Package Manager | pnpm |
+
+---
+
+## 프로젝트 구조
+
+```
+src/
+├── app/
+│   ├── api/v1/          # REST API 엔드포인트 (~30개)
+│   ├── (auth)/          # 인증 페이지
+│   ├── (main)/          # 메인 페이지 (빌더, 카탈로그, 대시보드)
+│   └── site/[slug]/     # 서브도메인 서빙
+├── components/          # UI 컴포넌트 (builder, catalog, dashboard, gallery)
+├── lib/
+│   ├── ai/              # 파이프라인 오케스트레이터, stageRunner, qualityLoop, featureExtractor
+│   ├── events/          # EventBus (pub/sub) + eventPersister (자동 DB 감사 로그)
+│   ├── qc/              # Playwright 렌더링 QC (Fast/Deep), browserPool
+│   ├── config/          # 환경변수 기반 비즈니스 규칙
+│   └── utils/           # 에러 클래스, 암호화, 로거
+├── providers/ai/        # IAiProvider → ClaudeProvider (교체 가능 인터페이스)
+├── repositories/        # 데이터 접근 계층 (BaseRepository 패턴)
+├── services/            # 비즈니스 로직 계층
+├── templates/           # 11개 코드 생성 템플릿 + TemplateRegistry
+└── types/               # Zod 공용 스키마, 도메인 타입, 이벤트 타입
+```
+
+---
+
+## 테스트
+
+| 항목 | 내용 |
+|------|------|
+| 총 테스트 수 | **464개** (단위 · 통합 · 컴포넌트 · E2E) |
+| 단위 테스트 | Vitest + happy-dom — AI 파이프라인, 보안 검증, 레이트리밋, Circuit Breaker 등 |
+| 통합 테스트 | Vitest + MSW — API 라우트 인증·입력·권한·비즈니스 로직 전 경로 |
+| E2E 테스트 | Playwright — 3종 디바이스(모바일·태블릿·데스크톱) |
+| 커버리지 임계값 | branches 50% · functions/lines/statements 60% |
+
+```bash
+pnpm test              # 전체 테스트
+pnpm test:coverage     # 커버리지 리포트
+pnpm test:e2e          # Playwright E2E
+```
+
+---
+
+## 개발 명령어
+
+```bash
+pnpm dev               # 개발 서버 (Turbopack)
+pnpm build             # 프로덕션 빌드
+pnpm type-check        # TypeScript 타입 검사
+pnpm lint              # ESLint 검사
+pnpm lint:fix          # ESLint 자동 수정
+pnpm test              # 전체 테스트
+pnpm test:coverage     # 커버리지 리포트
+```
 
 ---
 
@@ -52,30 +161,13 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 
 | 항목 | 구성 |
 |------|------|
-| 호스팅 | Railway (서브도메인 가상 호스팅) |
+| 호스팅 | Railway (서브도메인 가상 호스팅, Docker standalone) |
 | 데이터베이스 | Supabase (기본, PostgreSQL + RLS) / 온프레미스 PostgreSQL (환경변수 전환) |
 | 인증 | Supabase Auth (기본, OAuth 2.0) / Auth.js v5 (환경변수 전환) |
 | AI | Claude API (서버사이드 전용) |
 | 도메인 | Railway 커스텀 도메인 |
 
-### DB / Auth Provider 전환
-
-환경변수 하나로 Supabase ↔ 온프레미스 PostgreSQL을 전환할 수 있습니다.
-
-```env
-# DB Provider: supabase(기본) | postgres
-DB_PROVIDER=supabase
-DATABASE_URL=postgresql://user:pass@host:5432/dbname   # postgres 모드 필수
-
-# Auth Provider: supabase(기본) | authjs
-AUTH_PROVIDER=supabase
-NEXT_PUBLIC_AUTH_PROVIDER=supabase
-AUTH_SECRET=                  # authjs 모드 필수
-AUTH_GOOGLE_ID=
-AUTH_GOOGLE_SECRET=
-AUTH_GITHUB_ID=
-AUTH_GITHUB_SECRET=
-```
+DB / Auth Provider 환경변수 전환 방법: [docs/decisions/provider-migration.md](docs/decisions/provider-migration.md)
 
 ---
 
