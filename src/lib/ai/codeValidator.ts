@@ -108,6 +108,7 @@ export interface QualityMetrics {
   hasProxyCall: boolean;
   hasJsonParse: boolean;
   placeholderCount: number;
+  hardcodedArrayCount: number;
   details: string[];
 }
 
@@ -117,7 +118,8 @@ export interface QualityMetrics {
  * These are informational — they do not block code storage.
  */
 export function evaluateQuality(html: string, _css: string, js: string): QualityMetrics {
-  const fullCode = `${html}\n${js}`;
+  const combinedCode = `${html}\n${js}`;
+  const fullCode = combinedCode;
   const details: string[] = [];
   let score = 0;
   const maxScore = 16; // number of checks
@@ -151,16 +153,21 @@ export function evaluateQuality(html: string, _css: string, js: string): Quality
   }
 
   // 2c. No placeholder strings
-  const PLACEHOLDER_PATTERN = /홍길동|김철수|이영희|test@example\.com|user@test\.com|Loading\.\.\.|준비 중|구현 예정|Sample Data|Lorem ipsum/g;
-  const placeholderCount = (fullCode.match(PLACEHOLDER_PATTERN) ?? []).length;
+  const PLACEHOLDER_PATTERN = /홍길동|김철수|이영희|test@example\.com|user@test\.com|Loading\.\.\.|준비 중|구현 예정|곧 출시|추후 업데이트|Sample Data|Lorem ipsum|Lorem|Coming soon|John Doe|Jane Smith|TBD|Placeholder|dummy|\$99\.99|\b0[1-9]\/0[1-9]\/20\d{2}\b/g;
+  const hrefPlaceholderCount = (combinedCode.match(/href\s*=\s*["']#["']/g) ?? []).length;
+  const placeholderCount = (fullCode.match(PLACEHOLDER_PATTERN) ?? []).length + hrefPlaceholderCount;
   if (placeholderCount === 0) {
     score++;
   } else {
-    details.push(`Placeholder 문자열 감지 (${placeholderCount}개): 홍길동, 준비 중 등 제거 필요`);
+    details.push(`Placeholder 문자열 감지 (${placeholderCount}개): 홍길동, 준비 중, href="#" 등 제거 필요`);
   }
 
-  // deprecated — always false
-  const hasMockData = false;
+  // 하드코딩 배열 탐지: const foo = [{...}, ...] 패턴
+  const hardcodedArrayMatches = combinedCode.match(
+    /const\s+[A-Z]?\w+\s*=\s*\[\s*\{[\s\S]*?\}\s*(,\s*\{[\s\S]*?\}\s*)?\]/gm
+  ) ?? [];
+  const hardcodedArrayCount = hardcodedArrayMatches.length;
+  const hasMockData = hardcodedArrayCount > 0;
 
   // 3. DOMContentLoaded listener
   const hasDomReady = /DOMContentLoaded|addEventListener\s*\(\s*['"]load['"]/i.test(js);
@@ -274,7 +281,7 @@ export function evaluateQuality(html: string, _css: string, js: string): Quality
     structuralScore,
     mobileScore,
     hasSemanticHtml,
-    hasMockData, // deprecated — always false, use fetchCallCount instead
+    hasMockData, // true if hardcodedArrayCount > 0
     hasInteraction,
     hasResponsiveClasses,
     hasAdequateResponsive,
@@ -287,6 +294,7 @@ export function evaluateQuality(html: string, _css: string, js: string): Quality
     hasProxyCall,
     hasJsonParse,
     placeholderCount,
+    hardcodedArrayCount,
     details,
   };
 }

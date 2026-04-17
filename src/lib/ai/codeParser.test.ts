@@ -125,4 +125,27 @@ describe('assembleHtml', () => {
     const viewportCount = (result.match(/name="viewport"/g) ?? []).length;
     expect(viewportCount).toBe(1);
   });
+
+  it('Alpine.js CDN 태그를 </head> 앞에 주입한다', () => {
+    const html = '<html><head></head><body></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    expect(result).toContain('alpinejs@3.14.8/dist/cdn.min.js');
+    // Alpine tag must appear before </head>
+    const alpineIdx = result.indexOf('alpinejs');
+    const headCloseIdx = result.indexOf('</head>');
+    expect(alpineIdx).toBeGreaterThan(-1);
+    expect(alpineIdx).toBeLessThan(headCloseIdx);
+  });
+
+  it('HTML에 이미 alpinejs가 있으면 중복 주입하지 않는다', () => {
+    const html = '<html><head><script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script></head><body></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    const alpineCount = (result.match(/alpinejs/g) ?? []).length;
+    expect(alpineCount).toBe(1);
+  });
+
+  it('완전한 문서 구조 생성 시에도 Alpine.js를 주입한다', () => {
+    const result = assembleHtml({ html: '<p>content</p>', css: '', js: '' });
+    expect(result).toContain('alpinejs@3.14.8/dist/cdn.min.js');
+  });
 });

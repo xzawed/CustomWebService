@@ -11,16 +11,25 @@ export function clearPromptCache(): void {
   cachedStage2FunctionSystemPrompt = null; // declared further below; accessible via closure at call time
 }
 
+/**
+ * Stage 1 시스템 프롬프트를 빌드합니다.
+ * @param templateHint - 템플릿 가이던스 힌트 (선택)
+ */
 export function buildStage1SystemPrompt(templateHint?: string): string {
   const base = cachedStage1SystemPrompt ?? (cachedStage1SystemPrompt = _buildStage1SystemPrompt());
-  if (!templateHint) return base;
 
-  const safeHint = templateHint.slice(0, 2000);
-  return `${base}
+  let result = base;
+
+  if (templateHint) {
+    const safeHint = templateHint.slice(0, 2000);
+    result = `${result}
 
 [템플릿 가이던스]
 ${safeHint}
 위의 레이아웃 구조를 반드시 따르세요. 위에 명시된 섹션 구성과 UI 패턴은 필수 사항입니다. 이 구조 안에서 콘텐츠와 API 통합 내용을 채워주세요.`;
+  }
+
+  return result;
 }
 
 function _buildStage1SystemPrompt(): string {
@@ -326,15 +335,17 @@ function openModal(item) {
 }
 \`\`\`
 
-### Chart.js (반드시 데이터 포함)
+### Chart.js (반드시 API 응답 데이터로 구성)
 \`\`\`javascript
+// API에서 차트 데이터를 가져온 후 렌더링
+const chartData = await fetchChartData(); // fetch()로 받은 응답을 가공
 new Chart(ctx, {
   type: 'bar', // 또는 line, doughnut, radar 등
   data: {
-    labels: ['1월', '2월', '3월', '4월', '5월', '6월'],
+    labels: chartData.labels,
     datasets: [{
-      label: '월별 방문자',
-      data: [4200, 5100, 4800, 6200, 7100, 8500], // ★ 반드시 실제 숫자
+      label: chartData.label,
+      data: chartData.values, // ★ 반드시 API 응답 데이터 — 하드코딩 숫자 절대 금지
       backgroundColor: 'rgba(59, 130, 246, 0.8)',
       borderRadius: 8,
     }]
@@ -459,13 +470,17 @@ document.querySelectorAll('.animate-on-scroll').forEach(el => {
 섹션별 데이터 갱신 중에는 해당 영역에 로딩 표시자를 표시하세요. 스켈레톤 UI 디자인은 2단계에서 적용됩니다.
 
 ### API 실패 시
-목 데이터를 유지하고, 상단에 비침습적 배너 표시:
+에러 카드를 표시하고 재시도 버튼을 제공하라. **mock data로 대체하는 것은 절대 금지**:
 \`\`\`javascript
-function showApiBanner() {
-  const banner = document.createElement('div');
-  banner.className = 'bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-sm text-amber-700';
-  banner.innerHTML = '<i class="fas fa-info-circle mr-2"></i>실시간 데이터를 불러오지 못했습니다. 샘플 데이터를 표시합니다.';
-  document.body.prepend(banner);
+function showError(container, message) {
+  container.innerHTML = \\\`
+    <div class="error-card flex flex-col items-center justify-center py-16 text-center">
+      <i class="fas fa-exclamation-circle text-4xl text-red-400 mb-4"></i>
+      <p class="text-gray-600 mb-4">\\\${message}</p>
+      <button onclick="fetchApiData()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+        다시 시도
+      </button>
+    </div>\\\`;
 }
 \`\`\`
 
@@ -474,6 +489,56 @@ function showApiBanner() {
   \`fetch('/api/v1/proxy?apiId=<ID>&proxyPath=<경로>&파라미터=값')\`
 - auth_type이 'none'인 API → base_url로 직접 fetch()
 - 'YOUR_API_KEY' 절대 사용 금지
+
+## Alpine.js 상태 관리 (필수)
+
+모든 UI는 Alpine.js \`x-data\`로 상태를 관리한다. Alpine.js CDN은 자동으로 주입된다.
+
+### 기본 패턴
+\`\`\`html
+<div x-data="{ items: [], loading: true, error: null, filter: '' }" x-init="loadData()">
+  <!-- 로딩 상태 -->
+  <div x-show="loading" class="loading-spinner">
+    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+  </div>
+
+  <!-- 에러 상태 -->
+  <div x-show="error && !loading" class="error-card bg-red-50 border border-red-200 rounded-lg p-4">
+    <i class="fas fa-exclamation-circle text-red-500 mr-2"></i>
+    <span x-text="error" class="text-red-700"></span>
+    <button @click="loadData()" class="ml-4 px-3 py-1 bg-red-100 hover:bg-red-200 rounded text-red-700 text-sm">다시 시도</button>
+  </div>
+
+  <!-- 콘텐츠 -->
+  <div x-show="!loading && !error">
+    <template x-for="item in filteredItems" :key="item.id">
+      <div x-text="item.title" class="..."></div>
+    </template>
+  </div>
+</div>
+\`\`\`
+
+### 핵심 Alpine.js 규칙
+1. \`x-data\` — 컴포넌트 최상위에서 상태 선언. \`{ items: [], loading: true, error: null }\`
+2. \`x-init="loadData()"\` — 마운트 시 API 호출 자동 실행
+3. \`x-show\` — 조건부 표시 (DOM 유지, CSS display 토글)
+4. \`x-if\` — 조건부 렌더링 (DOM 추가/제거 — 성능 주의)
+5. \`x-for\` — 리스트 렌더링, 반드시 \`:key\` 설정
+6. \`@click\`, \`@input.debounce.300ms\` — 이벤트 바인딩
+7. \`x-model\` — 양방향 바인딩 (검색 필드, 필터)
+8. \`:class\`, \`:style\` — 동적 바인딩
+9. \`x-text\`, \`x-html\` — 텍스트 바인딩 (x-html은 신뢰된 데이터만)
+
+### computed 패턴
+\`\`\`javascript
+// x-data에서 getter 정의
+// x-data="{ items: [], filter: '', get filteredItems() { return this.filter ? this.items.filter(i => i.title.includes(this.filter)) : this.items; } }"
+\`\`\`
+
+### 금지 패턴
+- \`document.getElementById()\` — Alpine.js가 있으면 불필요
+- \`element.innerHTML = ...\` — x-html 또는 x-text 사용
+- 전역 변수로 상태 관리 — x-data로 캡슐화
 
 ## 최종 품질 체크리스트 (코드 반환 전 자가 검증)
 
@@ -545,7 +610,198 @@ function showApiBanner() {
 - 버튼 로딩 상태·리플 효과
 - Empty State UI (아이콘·액션 버튼 포함)
 
-지금은 기본 Tailwind 유틸리티(bg-white, text-gray-900 등)로 구조만 완성하세요.`;
+지금은 기본 Tailwind 유틸리티(bg-white, text-gray-900 등)로 구조만 완성하세요.
+
+## 예시: 올바른 코드 생성 패턴 (Alpine.js)
+
+### 예시 1: JSONPlaceholder + 할 일 목록 (Alpine.js)
+**사용자 요청:** "할 일 목록 관리 앱"
+**선택된 API:** JSONPlaceholder — GET /todos (auth_type: none, base_url: https://jsonplaceholder.typicode.com)
+
+**올바른 구현 패턴:**
+
+\`\`\`html
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-8"
+      x-data="{
+        items: [],
+        loading: true,
+        error: null,
+        filter: '',
+        get filteredItems() {
+          return this.filter
+            ? this.items.filter(i => i.title.includes(this.filter))
+            : this.items;
+        },
+        async loadTodos() {
+          this.loading = true;
+          this.error = null;
+          try {
+            const res = await fetch('https://jsonplaceholder.typicode.com/todos?_limit=20');
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            this.items = await res.json();
+          } catch (err) {
+            this.error = '데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
+            console.error(err);
+          } finally {
+            this.loading = false;
+          }
+        }
+      }"
+      x-init="loadTodos()">
+
+  <!-- 검색 필터 -->
+  <div class="mb-6">
+    <input type="text" x-model="filter" @input.debounce.300ms=""
+           placeholder="할 일 검색..."
+           class="w-full max-w-sm px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500">
+  </div>
+
+  <!-- 로딩 -->
+  <div x-show="loading" class="flex justify-center py-20">
+    <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+  </div>
+
+  <!-- 에러 -->
+  <div x-show="error && !loading" class="flex flex-col items-center justify-center py-16 text-center">
+    <i class="fas fa-exclamation-circle text-4xl text-red-400 mb-4"></i>
+    <p x-text="error" class="text-gray-600 mb-4"></p>
+    <button @click="loadTodos()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+      다시 시도
+    </button>
+  </div>
+
+  <!-- 콘텐츠 -->
+  <div x-show="!loading && !error" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <template x-for="item in filteredItems" :key="item.id">
+      <div class="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 p-5"
+           :class="item.completed ? 'opacity-60' : ''">
+        <div class="flex items-start gap-3">
+          <span class="mt-1 w-5 h-5 rounded-full flex-shrink-0"
+                :class="item.completed ? 'bg-green-500' : 'border-2 border-gray-300'"></span>
+          <p x-text="item.title" class="text-sm font-medium text-gray-800 line-clamp-2"></p>
+        </div>
+        <p class="text-xs text-gray-400 mt-3">사용자 #<span x-text="item.userId"></span></p>
+      </div>
+    </template>
+  </div>
+</main>
+\`\`\`
+
+// ✅ 핵심 원칙 (이 예시):
+// - x-data로 모든 상태 (items, loading, error, filter) 캡슐화
+// - x-init="loadTodos()" 으로 마운트 시 자동 API 호출
+// - get filteredItems() computed getter로 검색 필터링
+// - @input.debounce.300ms 로 디바운스 검색
+// - x-show로 로딩/에러/콘텐츠 상태 전환 (DOM 유지)
+// - x-for + :key 로 리스트 렌더링
+// - document.getElementById() 전혀 없음
+
+---
+
+### 예시 2: Spaceflight News + 뉴스 피드 (Alpine.js + 프록시)
+**사용자 요청:** "우주 뉴스 피드"
+**선택된 API:** Spaceflight News — GET /v4/articles/ (auth_type: api_key, apiId: 8461e4de-ba6d-4a4d-ae24-35bd7c47c0c7)
+
+**올바른 구현 패턴:**
+
+\`\`\`html
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-8"
+      x-data="{
+        articles: [],
+        loading: true,
+        error: null,
+        category: 'all',
+        page: 1,
+        get filteredArticles() {
+          return this.category === 'all'
+            ? this.articles
+            : this.articles.filter(a => a.news_site === this.category);
+        },
+        get newsSites() {
+          return [...new Set(this.articles.map(a => a.news_site))];
+        },
+        async loadArticles() {
+          this.loading = true;
+          this.error = null;
+          try {
+            const res = await fetch('/api/v1/proxy?apiId=8461e4de-ba6d-4a4d-ae24-35bd7c47c0c7&proxyPath=%2Fv4%2Farticles%2F&limit=12&offset=' + ((this.page - 1) * 12));
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            this.articles = data.results ?? data.articles ?? data ?? [];
+          } catch (err) {
+            this.error = '뉴스를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
+            console.error(err);
+          } finally {
+            this.loading = false;
+          }
+        },
+        prevPage() { if (this.page > 1) { this.page--; this.loadArticles(); } },
+        nextPage() { this.page++; this.loadArticles(); }
+      }"
+      x-init="loadArticles()">
+
+  <!-- 카테고리 필터 -->
+  <div x-show="!loading && !error" class="flex flex-wrap gap-2 mb-6">
+    <button @click="category = 'all'"
+            :class="category === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+            class="px-4 py-2 rounded-full text-sm font-medium transition-colors">전체</button>
+    <template x-for="site in newsSites" :key="site">
+      <button @click="category = site"
+              :class="category === site ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+              class="px-4 py-2 rounded-full text-sm font-medium transition-colors"
+              x-text="site"></button>
+    </template>
+  </div>
+
+  <!-- 로딩 -->
+  <div x-show="loading" class="flex justify-center py-20">
+    <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+  </div>
+
+  <!-- 에러 -->
+  <div x-show="error && !loading" class="flex flex-col items-center justify-center py-16 text-center">
+    <i class="fas fa-exclamation-circle text-4xl text-red-400 mb-4"></i>
+    <p x-text="error" class="text-gray-600 mb-4"></p>
+    <button @click="loadArticles()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+      다시 시도
+    </button>
+  </div>
+
+  <!-- 기사 그리드 -->
+  <div x-show="!loading && !error" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <template x-for="article in filteredArticles" :key="article.id">
+      <article class="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer"
+               @click="window.open(article.url, '_blank')">
+        <img :src="article.image_url || 'https://source.unsplash.com/600x400/?space,rocket'"
+             :alt="article.title + ' 관련 이미지'"
+             class="w-full aspect-video object-cover">
+        <div class="p-5">
+          <h3 x-text="article.title" class="text-lg font-semibold line-clamp-2"></h3>
+          <p x-text="article.summary" class="text-sm text-gray-500 mt-2 line-clamp-3"></p>
+          <p x-text="new Date(article.published_at).toLocaleDateString('ko-KR')" class="text-xs text-gray-400 mt-3"></p>
+        </div>
+      </article>
+    </template>
+  </div>
+
+  <!-- 페이지네이션 -->
+  <div x-show="!loading && !error" class="flex justify-center gap-3 mt-8">
+    <button @click="prevPage()" :disabled="page === 1"
+            class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm disabled:opacity-40 transition-colors">이전</button>
+    <span class="px-4 py-2 text-sm text-gray-600"><span x-text="page"></span> 페이지</span>
+    <button @click="nextPage()"
+            class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-sm transition-colors">다음</button>
+  </div>
+</main>
+\`\`\`
+
+// ✅ 핵심 원칙 (이 예시):
+// - auth_type: api_key → /api/v1/proxy?apiId=...&proxyPath=... 사용 (직접 외부 URL 금지)
+// - 'YOUR_API_KEY' 절대 사용 안 함 — 프록시가 키를 서버에서 처리
+// - get filteredArticles() / get newsSites() computed getter로 동적 필터링
+// - page 상태로 페이지네이션 구현 — offset 계산
+// - :src, :alt 로 동적 이미지 바인딩
+// - <article> 시맨틱 태그 + 한국어 alt 속성`;
 }
 
 export function buildStage1UserPrompt(
@@ -755,7 +1011,7 @@ function _buildStage2SystemPrompt(): string {
 
 ## 핵심 규칙 (위반 시 실패)
 
-1. **기능과 목 데이터는 절대 변경하지 말 것.** JavaScript 로직, API 호출, 목 데이터 배열, 이벤트 핸들러는 그대로 유지.
+1. **기능은 절대 변경하지 말 것.** JavaScript 로직, API 호출, 이벤트 핸들러는 그대로 유지. 단, 하드코딩된 mock 배열이 있다면 API fetch로 대체하라.
 2. **HTML 시맨틱 구조는 유지.** 섹션 재설계 금지 — CSS 클래스 추가·변경만 허용.
 3. **전체 코드를 HTML / CSS / JavaScript 형식으로 반환.**
 4. **모든 텍스트는 한국어 유지.**
@@ -888,10 +1144,7 @@ DOMContentLoaded 직후 300ms 동안 스켈레톤을 먼저 표시하라:
 \`\`\`javascript
 document.addEventListener('DOMContentLoaded', () => {
   renderSkeletons(8);
-  setTimeout(() => {
-    renderCards(mockData);
-    fetchApiData();
-  }, 300);
+  fetchApiData(); // API 응답 후 renderCards(apiData)로 실제 데이터 렌더링
 });
 \`\`\`
 
@@ -964,8 +1217,8 @@ function showToast(message, type = 'success') {
 
 ## 절대 금지
 
-- JavaScript 로직·이벤트 핸들러 변경
-- 목 데이터 배열 수정
+- JavaScript 로직·이벤트 핸들러 변경 (API 호출 개선 목적 제외)
+- 하드코딩 mock 배열을 그대로 유지하는 것 (API fetch로 대체 필수)
 - 기존 기능 제거
 - HTML 섹션 재설계
 - @keyframes 없는 CSS 반환
@@ -981,7 +1234,7 @@ export function buildStage2UserPrompt(stage1Code: {
   js: string;
 }): string {
   return `다음은 1단계에서 생성된 구조 코드입니다.
-기능과 목 데이터는 완성되어 있으므로 수정하지 마세요.
+기능과 API 호출 구조는 유지하세요. 하드코딩된 mock 배열이 있다면 API fetch로 대체하세요.
 디자인 시스템, 애니메이션, 마이크로 인터랙션을 강화하여 전체 코드를 반환하세요.
 
 ### HTML (1단계)

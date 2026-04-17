@@ -51,6 +51,13 @@ vi.mock('@/lib/ai/slugSuggester', () => ({
 vi.mock('@/lib/utils/htmlTitle', () => ({
   extractTitle: vi.fn().mockReturnValue(undefined),
 }));
+vi.mock('@/lib/ai/featureExtractor', () => ({
+  extractFeatures: vi.fn().mockResolvedValue({
+    features: [{ id: 'main-content', description: '메인 콘텐츠 표시', verifiableBy: 'list' }],
+    stateNeeds: ['data'],
+    apiUsage: [],
+  }),
+}));
 
 const makeAiProvider = () => ({
   name: 'claude',
@@ -118,7 +125,7 @@ describe('runGenerationPipeline (3-stage)', () => {
     await runGenerationPipeline(makeInput(), makeSse(), makeServices());
     expect(mockAiProvider.generateCodeStream).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ system: 'stage1-system', user: 'stage1-user' }),
+      expect.objectContaining({ system: expect.stringContaining('stage1-system'), user: 'stage1-user' }),
       expect.any(Function),
     );
   });

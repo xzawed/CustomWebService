@@ -99,7 +99,11 @@ setInterval(refreshAll, 60000);`,
         `Layout: data-dashboard
 Required sections (in order): 제목/부제목 헤더, 지표 카드 행(4개), 메인 차트 영역, 보조 데이터 테이블
 UI patterns: 미묘한 그림자의 카드 기반 레이아웃, 실시간 업데이트 버튼, 스켈레톤 로딩 상태
-Must include: Chart.js CDN 차트 최소 1개, 새로고침 버튼, 마지막 업데이트 타임스탬프, DOMContentLoaded API fetch(), no hardcoded data arrays
+State management: x-data="{ stats: [], chart: null, loading: true, error: null }" x-init="loadData()"
+Loading: x-show="loading" skeleton cards
+Error: x-show="error" error card with @click="loadData()" retry button
+Content: x-show="!loading && !error" stat cards and chart rendered from fetched data
+Must include: Chart.js CDN 차트 최소 1개, 새로고침 버튼(@click="loadData()"), 마지막 업데이트 타임스탬프, Alpine.js CDN, DOMContentLoaded API fetch(), no hardcoded data arrays
 Avoid: 히어로 이미지, 마케팅 문구, 장식용 일러스트`,
     };
   }

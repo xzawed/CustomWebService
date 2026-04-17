@@ -190,6 +190,18 @@ export function assembleHtml(parsed: ParsedCode): string {
       }
     }
 
+    // Inject Alpine.js CDN before </head> (skip if already present)
+    if (!assembled.includes('alpinejs')) {
+      const alpineTag =
+        '  <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>';
+      const headCloseForAlpine = assembled.lastIndexOf('</head>');
+      assembled =
+        assembled.slice(0, headCloseForAlpine) +
+        alpineTag +
+        '\n' +
+        assembled.slice(headCloseForAlpine);
+    }
+
     // Inject favicon, OG tags, CSS variables, and print stylesheet before </head>
     const headCloseIdx = assembled.lastIndexOf('</head>');
     assembled =
@@ -219,6 +231,9 @@ export function assembleHtml(parsed: ParsedCode): string {
   // Build complete HTML document
   const title = extractTitle(parsed.html) || 'Generated Service';
   const headInjections = buildHeadInjections('', safeCss);
+  const alpineScript = parsed.html.includes('alpinejs')
+    ? ''
+    : '  <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>\n';
 
   let doc = `<!DOCTYPE html>
 <html lang="ko">
@@ -227,7 +242,7 @@ export function assembleHtml(parsed: ParsedCode): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
   ${headInjections}
-</head>
+${alpineScript}</head>
 <body>
 ${parsed.html}
   <script>

@@ -136,7 +136,11 @@ loadMore();`,
       promptHint: `Layout: vertical-feed
 Required sections (in order): 제목/설명 헤더, 카테고리 필터 탭, 카드 리스트, 무한 스크롤 센티넬
 UI patterns: 세로 단일 컬럼(최대 720px), 가로형 카드(썸네일 좌측 + 텍스트 우측), 상단 고정 탭
-Must include: IntersectionObserver 무한 스크롤, 카테고리 필터, 카드당 카테고리 배지 + 출처 + 시간, DOMContentLoaded API fetch(), no hardcoded data arrays, no picsum.photos
+State management: x-data="{ items: [], currentCat: 'all', page: 1, loading: false, hasMore: true }" x-init="loadMore()"
+Filter tabs: @click="currentCat = cat; resetFeed()" with :class="{ active: currentCat === cat }" binding
+Loading: x-show="loading" spinner sentinel at bottom
+Content: x-for="item in items" :key="item.id" card list with x-transition
+Must include: Alpine.js CDN, IntersectionObserver 무한 스크롤, 카테고리 필터, 카드당 카테고리 배지 + 출처 + 시간, DOMContentLoaded API fetch(), no hardcoded data arrays, no picsum.photos
 Avoid: 마소닉 그리드, 지도, 차트`,
     };
   }

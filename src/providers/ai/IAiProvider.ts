@@ -3,6 +3,7 @@ export interface AiPrompt {
   user: string;
   temperature?: number;
   maxTokens?: number;
+  /** Stage 1 구조 생성 시 확장 사고(extended thinking) 활성화 */
   extendedThinking?: boolean;
 }
 

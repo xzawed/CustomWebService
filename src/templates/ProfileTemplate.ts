@@ -149,7 +149,11 @@ loadProfile();`,
       promptHint: `Layout: profile-portfolio
 Required sections (in order): 헤더 배너(그라디언트 + 아바타 + 이름/바이오), 스탯 카드 행, 탭(활동/프로젝트/스킬), 탭 컨텐츠
 UI patterns: 배너 그라디언트(남색→파랑), 원형 아바타, 그리드 스탯 카드, 언더라인 탭
-Must include: 아바타(이미지 또는 이니셜 폴백), 스탯 카드 최소 3개, 탭 전환, 활동 피드, DOMContentLoaded API fetch(), no hardcoded data
+State management: x-data="{ profile: null, stats: [], activeTab: 'activity', tabData: { activity: [], projects: [], skills: [] }, loading: true }" x-init="loadProfile()"
+Tabs: tab buttons with @click="activeTab = tab" and :class="{ active: activeTab === tab }"
+Tab content: x-show="activeTab === 'activity'" / 'projects' / 'skills' panels each with x-transition
+Loading: x-show="loading" skeleton banner and stat cards
+Must include: Alpine.js CDN, 아바타(이미지 또는 이니셜 폴백), 스탯 카드 최소 3개, 탭 전환, 활동 피드, DOMContentLoaded API fetch(), no hardcoded data
 Avoid: 전체 페이지 스크롤 없는 단일 카드, 차트, 지도`,
     };
   }

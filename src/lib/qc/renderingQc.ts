@@ -1,6 +1,6 @@
 import type { QcReport, QcCheckResult } from '@/types/qc';
 import { logger } from '@/lib/utils/logger';
-import { QC_THRESHOLDS, QC_TIMEOUTS, QC_VIEWPORTS } from '@/lib/config/qc';
+import { QC_THRESHOLDS, QC_TIMEOUTS, QC_VIEWPORTS, QC_WEIGHTS } from '@/lib/config/qc';
 import { isQcEnabled, getPage, releasePage } from './browserPool';
 import {
   checkConsoleErrors,
@@ -24,16 +24,29 @@ export { isQcEnabled } from './browserPool';
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * 체크 결과 배열에서 가중 평균 점수를 계산한다.
+ * QC_WEIGHTS에 없는 체크명은 기본 가중치 1을 사용한다.
+ */
+function calculateWeightedScore(checks: QcCheckResult[]): number {
+  if (checks.length === 0) return 0;
+  let weightedSum = 0;
+  let totalWeight = 0;
+  for (const check of checks) {
+    const weight = QC_WEIGHTS[check.name] ?? 1;
+    weightedSum += check.score * weight;
+    totalWeight += weight;
+  }
+  return totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
+}
+
 function buildReport(
   checks: QcCheckResult[],
   viewportsTested: number[],
   startTime: number,
   passThreshold: number
 ): QcReport {
-  const overallScore =
-    checks.length > 0
-      ? Math.round(checks.reduce((sum, c) => sum + c.score, 0) / checks.length)
-      : 0;
+  const overallScore = calculateWeightedScore(checks);
   return {
     overallScore,
     passed: overallScore >= passThreshold,
@@ -166,6 +179,7 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
       imageResult,
       touchResult,
       a11yResult,
+      placeholderResult,
     ] = settledResults(
       await Promise.allSettled([
         withCheckTimeout(() => checkHorizontalScroll(page, 375), 'horizontalScroll'),
@@ -174,6 +188,7 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
         withCheckTimeout(() => checkImageLoading(page), 'imageLoading'),
         withCheckTimeout(() => checkTouchTargets(page), 'touchTargets'),
         withCheckTimeout(() => checkAccessibility(page), 'accessibility'),
+        withCheckTimeout(() => checkNoRuntimePlaceholder(page), 'noRuntimePlaceholder'),
       ]),
       [
         'horizontalScroll',
@@ -182,6 +197,7 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
         'imageLoading',
         'touchTargets',
         'accessibility',
+        'noRuntimePlaceholder',
       ]
     );
 
@@ -216,6 +232,7 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
       networkResult,
       interactResult,
       loadingResult,
+      placeholderResult,
     ];
     return buildReport(checks, QC_VIEWPORTS.DEEP, startTime, QC_THRESHOLDS.DEEP_PASS);
   } finally {

@@ -113,6 +113,8 @@ export interface CodeMetadata {
   placeholderCount?: number;
   // Deep QC state
   deepQcFailed?: boolean;
+  // Framework used for generation
+  framework?: 'vanilla' | 'alpine';
 }
 
 export interface CreateProjectInput {

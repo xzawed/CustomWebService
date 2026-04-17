@@ -9,6 +9,8 @@ import { logger } from '@/lib/utils/logger';
 import { generationTracker } from '@/lib/ai/generationTracker';
 import { runStage1, runStage2Function, runStage3 } from '@/lib/ai/stageRunner';
 import { saveGeneratedCode } from '@/lib/ai/generationSaver';
+import { extractFeatures } from '@/lib/ai/featureExtractor';
+import type { FeatureSpec } from '@/lib/ai/featureExtractor';
 import type { ICodeRepository, IProjectRepository } from '@/repositories/interfaces';
 import type { ApiCatalogItem } from '@/types/api';
 import type { SseWriter } from '@/lib/ai/sseWriter';
@@ -111,6 +113,33 @@ export async function runGenerationPipeline(
   try {
     sse.send('progress', { step: 'analyzing', progress: 5, message: '분석 중...' });
     generationTracker.updateProgress(projectId, 5, 'analyzing', '분석 중...');
+
+    // Stage 0: 기능 사양 추출 (best-effort — 실패해도 파이프라인 계속)
+    let featureSpec: FeatureSpec | null = null;
+    try {
+      const apiNames = apis.map((api) => api.name);
+      featureSpec = await extractFeatures(projectContext ?? '', apiNames);
+      logger.info('Stage 0 완료: 기능 사양 추출', { features: featureSpec.features.length });
+    } catch (error) {
+      logger.warn('Stage 0 실패 — 기능 사양 없이 계속', { error });
+    }
+
+    // featureSpec이 있으면 Stage 1 시스템 프롬프트에 기능 체크리스트를 주입
+    let stage1SystemPrompt = input.stage1SystemPrompt;
+    if (featureSpec && featureSpec.features.length > 0) {
+      const featureList = featureSpec.features
+        .map((f) => `- [${f.id}] ${f.description} (검증: ${f.verifiableBy})`)
+        .join('\n');
+      stage1SystemPrompt = `${stage1SystemPrompt}
+
+## 필수 구현 기능 목록
+
+아래 기능들은 반드시 구현되어야 합니다. 각 기능에 맞는 DOM 요소와 Alpine.js 상태를 포함하세요:
+
+${featureList}
+
+생성 후 이 목록을 기준으로 모든 기능이 구현되었는지 자체 검토하세요.`;
+    }
 
     try {
       aiProviderInit = AiProviderFactory.createForTask('generation');
@@ -239,6 +268,7 @@ export async function runGenerationPipeline(
         projectId, userId, correlationId,
         parsed: finalParsed, quality, qcReport, qualityLoopUsed,
         validation, apis, projectContext, extraMetadata,
+        featureSpec,
         stage2Response: { provider: stage3Result.provider, model: stage3Result.model, durationMs: aggregatedDuration, tokensUsed: aggregatedTokens },
         userPromptUsed: stage3Result.userPrompt,
         codeRepo, projectService, projectRepo,

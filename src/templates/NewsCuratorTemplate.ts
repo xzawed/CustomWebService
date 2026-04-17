@@ -139,7 +139,12 @@ loadNews();`,
       promptHint: `Layout: news-grid-curator
 Required sections (in order): 제목/설명 헤더, 소스 필터 버튼, 태그 클라우드, 뉴스 카드 그리드
 UI patterns: auto-fill 그리드(minmax 300px), 카드(이미지 상단+텍스트 하단), 태그 토글
-Must include: 소스별 필터, 태그 클라우드 토글, 카드당 소스+제목+시간, DOMContentLoaded API fetch(), no hardcoded data arrays, no picsum.photos
+State management: x-data="{ allNews: [], tags: [], activeSource: 'all', activeTag: null, loading: true, error: null }" x-init="loadNews()"
+Filters: source buttons with @click="activeSource = src" and :class="{ active: activeSource === src }"
+Tags: x-for="tag in tags" with @click="activeTag = activeTag === tag ? null : tag" and :class="{ active: activeTag === tag }"
+Grid: x-for="item in filteredNews" :key="item.id" card with x-show="!loading" x-transition
+Loading: x-show="loading" spinner, x-show="error" error message
+Must include: Alpine.js CDN, 소스별 필터, 태그 클라우드 토글, 카드당 소스+제목+시간, DOMContentLoaded API fetch(), no hardcoded data arrays, no picsum.photos
 Avoid: 단일 컬럼, 무한 스크롤, 지도`,
     };
   }

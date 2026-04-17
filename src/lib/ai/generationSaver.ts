@@ -12,6 +12,7 @@ import type { ICodeRepository, IProjectRepository } from '@/repositories/interfa
 import type { ApiCatalogItem } from '@/types/api';
 import type { SseWriter } from '@/lib/ai/sseWriter';
 import type { QcReport } from '@/types/qc';
+import type { FeatureSpec } from '@/lib/ai/featureExtractor';
 
 interface IProjectStatusUpdater {
   updateStatus(id: string, status: 'generated'): Promise<unknown>;
@@ -29,6 +30,7 @@ export interface SaveParams {
   apis: ApiCatalogItem[];
   projectContext?: string;
   extraMetadata?: Record<string, unknown>;
+  featureSpec?: FeatureSpec | null;
   stage2Response: { provider: string; model: string; durationMs: number; tokensUsed: { input: number; output: number } };
   userPromptUsed: string;
   codeRepo: ICodeRepository;
@@ -43,7 +45,7 @@ export interface SaveParams {
 export async function saveGeneratedCode(params: SaveParams, sse: SseWriter): Promise<void> {
   const {
     projectId, userId, correlationId, parsed, quality, qcReport, qualityLoopUsed,
-    validation, apis, projectContext, extraMetadata, stage2Response, userPromptUsed,
+    validation, apis, projectContext, extraMetadata, featureSpec, stage2Response, userPromptUsed,
     codeRepo, projectService, projectRepo,
   } = params;
   const limits = getLimits();
@@ -87,6 +89,7 @@ export async function saveGeneratedCode(params: SaveParams, sse: SseWriter): Pro
           details: c.details,
         })),
       }),
+      ...(featureSpec && { featureSpec }),
     },
   } as Parameters<typeof codeRepo.create>[0]);
 

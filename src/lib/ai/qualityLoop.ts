@@ -29,6 +29,10 @@ export function shouldRetryGeneration(
   // New: retry if no fetch calls or placeholder strings present
   if (metrics.fetchCallCount === 0) return true;
   if (metrics.placeholderCount > 0) return true;
+  // Retry if fetch calls exist but none use the proxy (likely CORS-failing direct API calls)
+  if (!metrics.hasProxyCall && metrics.fetchCallCount > 0) return true;
+  // Retry if hardcoded array data is present (mock data instead of real API calls)
+  if (metrics.hardcodedArrayCount > 0) return true;
   return false;
 }
 
@@ -48,17 +52,11 @@ export function buildQualityImprovementPrompt(
         .join('\n')
     : '';
 
-  // 토큰 최적화: 전체 코드 대신 앞부분만 전송 (50-70% 절감)
-  const htmlLines = previousCode.html.split('\n');
-  const jsLines = previousCode.js.split('\n');
-  const htmlPreview = htmlLines.slice(0, 200).join('\n');
-  const jsPreview = jsLines.slice(0, 100).join('\n');
+  return `## 이전 생성 코드 (전체)
 
-  return `## 이전 생성 코드 (요약)
-
-### HTML${htmlLines.length > 200 ? ' (처음 200줄)' : ''}
+### HTML
 \`\`\`html
-${htmlPreview}
+${previousCode.html}
 \`\`\`
 
 ### CSS
@@ -66,9 +64,9 @@ ${htmlPreview}
 ${previousCode.css}
 \`\`\`
 
-### JavaScript${jsLines.length > 100 ? ' (처음 100줄)' : ''}
+### JavaScript
 \`\`\`javascript
-${jsPreview}
+${previousCode.js}
 \`\`\`
 
 ## 품질 개선 요청
@@ -83,6 +81,8 @@ ${qcIssues ? `\n브라우저 렌더링 검증에서 발견된 추가 문제:\n${
 - 시맨틱 HTML 태그(<main>, <nav>, <footer>, <article>) 사용
 - 모든 <img>에 한국어 alt 속성 추가
 - fetch() 호출이 없다면 반드시 추가하라
+- 모든 fetch() 호출은 반드시 /api/v1/proxy 경로를 통해야 한다 — 외부 URL 직접 호출은 CORS 오류 발생
+- 하드코딩된 배열 데이터(const items = [...])는 제거하고 /api/v1/proxy를 통한 실제 API 호출로 교체
 - placeholder 문자열을 제거하라: 홍길동, test@example.com, Loading..., 준비 중, 구현 예정
 - <footer> 태그로 서비스명 + 저작권 + 링크 포함
 - 반응형 클래스(sm:/md:/lg:)를 최소 8곳 이상 사용

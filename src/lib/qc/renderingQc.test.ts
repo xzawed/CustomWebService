@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { checkConsoleErrors, checkHorizontalScroll, checkFooterVisible, checkTouchTargets } from './qcChecks';
+import { checkConsoleErrors, checkHorizontalScroll, checkFooterVisible, checkTouchTargets, checkInteractiveBehavior } from './qcChecks';
 import { isQcEnabled } from './browserPool';
 import { shouldRetryGeneration } from '@/lib/ai/qualityLoop';
 import type { QualityMetrics } from '@/lib/ai/codeValidator';
@@ -38,9 +38,10 @@ function makeHighQualityMetrics(overrides: Partial<QualityMetrics> = {}): Qualit
     hasFooter: true,
     hasImgAlt: true,
     fetchCallCount: 1,
-    hasProxyCall: false,
+    hasProxyCall: true,
     hasJsonParse: true,
     placeholderCount: 0,
+    hardcodedArrayCount: 0,
     details: [],
     ...overrides,
   };
@@ -376,5 +377,232 @@ describe('checkNoRuntimePlaceholder — export check', () => {
   it('is exported from qcChecks', async () => {
     const { checkNoRuntimePlaceholder } = await import('./qcChecks');
     expect(typeof checkNoRuntimePlaceholder).toBe('function');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. checkInteractiveBehavior — 재설계된 입력+버튼 / 필터·탭 서브체크
+// ---------------------------------------------------------------------------
+
+/**
+ * 인터랙티브 행동 QC 체크 테스트 — 두 서브체크의 다양한 조합을 검증한다.
+ *
+ * createMockInteractivePage() 팩토리: 실제 Page API를 흉내내는 mock을 생성.
+ * sub-check 1 (입력+버튼): $$, fill, click, waitForTimeout, evaluate (innerText, querySelectorAll)
+ * sub-check 2 (필터/탭): $$, evaluateHandle, asElement, click, waitForTimeout, evaluate
+ */
+
+type MockElement = {
+  isVisible: ReturnType<typeof vi.fn>;
+  fill?: ReturnType<typeof vi.fn>;
+  click?: ReturnType<typeof vi.fn>;
+};
+
+function createInteractivePage({
+  inputsVisible = false,
+  buttonVisible = true,
+  beforeText = 'initial content',
+  afterText = 'changed content with much more text added here to trigger threshold',
+  beforeCount = 10,
+  afterCount = 15,
+  tabsVisible = false,
+  beforeListCount = 3,
+  afterListCount = 5,
+  beforeActiveClass = 'tab-a active',
+  afterActiveClass = 'tab-b active',
+}: {
+  inputsVisible?: boolean;
+  buttonVisible?: boolean;
+  beforeText?: string;
+  afterText?: string;
+  beforeCount?: number;
+  afterCount?: number;
+  tabsVisible?: boolean;
+  beforeListCount?: number;
+  afterListCount?: number;
+  beforeActiveClass?: string;
+  afterActiveClass?: string;
+} = {}) {
+  const inputElement: MockElement = {
+    isVisible: vi.fn().mockResolvedValue(inputsVisible),
+    fill: vi.fn().mockResolvedValue(undefined),
+    click: vi.fn().mockResolvedValue(undefined),
+  };
+
+  const buttonElement: MockElement = {
+    isVisible: vi.fn().mockResolvedValue(buttonVisible),
+    click: vi.fn().mockResolvedValue(undefined),
+  };
+
+  const tabElement: MockElement = {
+    isVisible: vi.fn().mockResolvedValue(tabsVisible),
+    click: vi.fn().mockResolvedValue(undefined),
+  };
+
+  let evaluateCallCount = 0;
+
+  const page = {
+    $$: vi.fn().mockImplementation((selector: string) => {
+      if (selector.includes('input')) return Promise.resolve(inputsVisible ? [inputElement] : []);
+      if (selector.includes('tab') || selector.includes('@click') || selector.includes('x-on')) {
+        return Promise.resolve(tabsVisible ? [tabElement, tabElement] : []);
+      }
+      return Promise.resolve([]);
+    }),
+    $: vi.fn().mockImplementation((selector: string) => {
+      if (selector.includes('button')) return Promise.resolve(buttonVisible ? buttonElement : null);
+      return Promise.resolve(null);
+    }),
+    evaluate: vi.fn().mockImplementation((fn: unknown) => {
+      const fnStr = fn?.toString() ?? '';
+      if (fnStr.includes('innerText')) {
+        evaluateCallCount++;
+        return Promise.resolve(evaluateCallCount === 1 ? beforeText : afterText);
+      }
+      if (fnStr.includes('querySelectorAll') && fnStr.includes('*').valueOf() && !fnStr.includes('li')) {
+        evaluateCallCount++;
+        return Promise.resolve(evaluateCallCount <= 2 ? beforeCount : afterCount);
+      }
+      if (fnStr.includes('li') || fnStr.includes('card') || fnStr.includes('item')) {
+        return Promise.resolve(afterListCount); // for filter tab sub-check
+      }
+      if (fnStr.includes('active') || fnStr.includes('aria-selected')) {
+        return Promise.resolve(afterActiveClass);
+      }
+      return Promise.resolve(undefined);
+    }),
+    evaluateHandle: vi.fn().mockResolvedValue({
+      asElement: vi.fn().mockReturnValue(tabsVisible ? tabElement : null),
+    }),
+    waitForTimeout: vi.fn().mockResolvedValue(undefined),
+  };
+
+  return page as unknown as import('playwright-core').Page;
+}
+
+describe('checkInteractiveBehavior', () => {
+  it('입력 필드 없음 + 필터/탭 없음 → 표시 전용 페이지, score: 70, passed: true', async () => {
+    const page = createInteractivePage({ inputsVisible: false, tabsVisible: false });
+    const result = await checkInteractiveBehavior(page);
+    expect(result.name).toBe('interactiveBehavior');
+    expect(result.passed).toBe(true);
+    expect(result.score).toBe(70);
+    expect(result.details.some(d => d.includes('없음'))).toBe(true);
+  });
+
+  it('입력 필드 있고 DOM 변화 있음, 필터/탭 없음 → score: 80, passed: true', async () => {
+    // sub-check 1: found + passed, sub-check 2: not found
+    let evaluateCallCount = 0;
+    const inputEl = {
+      isVisible: vi.fn().mockResolvedValue(true),
+      fill: vi.fn().mockResolvedValue(undefined),
+      click: vi.fn().mockResolvedValue(undefined),
+    };
+    const buttonEl = {
+      isVisible: vi.fn().mockResolvedValue(true),
+      click: vi.fn().mockResolvedValue(undefined),
+    };
+    const page = {
+      $$: vi.fn().mockImplementation((sel: string) => {
+        if (sel.includes('input')) return Promise.resolve([inputEl]);
+        return Promise.resolve([]);
+      }),
+      $: vi.fn().mockResolvedValue(buttonEl),
+      evaluate: vi.fn().mockImplementation((fn: unknown) => {
+        const fnStr = fn?.toString() ?? '';
+        evaluateCallCount++;
+        if (fnStr.includes('innerText')) {
+          return Promise.resolve(evaluateCallCount === 1 ? 'short text' : 'much longer text after interaction wow yes');
+        }
+        if (fnStr.includes('querySelectorAll')) {
+          return Promise.resolve(evaluateCallCount <= 2 ? 5 : 8);
+        }
+        return Promise.resolve(0);
+      }),
+      evaluateHandle: vi.fn().mockResolvedValue({ asElement: vi.fn().mockReturnValue(null) }),
+      waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import('playwright-core').Page;
+
+    const result = await checkInteractiveBehavior(page);
+    expect(result.name).toBe('interactiveBehavior');
+    expect(result.passed).toBe(true);
+    expect(result.score).toBe(80);
+  });
+
+  it('입력 필드 있고 DOM 변화 없음 (버튼만), 필터/탭 없음 → score: 40, passed: false', async () => {
+    const inputEl = {
+      isVisible: vi.fn().mockResolvedValue(true),
+      fill: vi.fn().mockResolvedValue(undefined),
+    };
+    const buttonEl = {
+      isVisible: vi.fn().mockResolvedValue(true),
+      click: vi.fn().mockResolvedValue(undefined),
+    };
+    const page = {
+      $$: vi.fn().mockImplementation((sel: string) => {
+        if (sel.includes('input')) return Promise.resolve([inputEl]);
+        return Promise.resolve([]);
+      }),
+      $: vi.fn().mockResolvedValue(buttonEl),
+      // innerText same before/after; element count same
+      evaluate: vi.fn().mockResolvedValue('same text no change'),
+      evaluateHandle: vi.fn().mockResolvedValue({ asElement: vi.fn().mockReturnValue(null) }),
+      waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import('playwright-core').Page;
+
+    const result = await checkInteractiveBehavior(page);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(40);
+    expect(result.details.some(d => d.includes('DOM 변화 없음') || d.includes('없음'))).toBe(true);
+  });
+
+  it('입력 필드 없음 + 필터/탭 있고 변화 있음 → score: 80, passed: true', async () => {
+    const tabEl = {
+      isVisible: vi.fn().mockResolvedValue(true),
+      click: vi.fn().mockResolvedValue(undefined),
+    };
+    let evaluateCallCount = 0;
+    const page = {
+      $$: vi.fn().mockImplementation((sel: string) => {
+        if (sel.includes('input')) return Promise.resolve([]);
+        // role=tab selector returns 2 elements
+        return Promise.resolve([tabEl, tabEl]);
+      }),
+      $: vi.fn().mockResolvedValue(null),
+      evaluate: vi.fn().mockImplementation((fn: unknown) => {
+        const fnStr = fn?.toString() ?? '';
+        evaluateCallCount++;
+        if (fnStr.includes('li') || fnStr.includes('card')) {
+          return Promise.resolve(evaluateCallCount === 1 ? 3 : 6);
+        }
+        if (fnStr.includes('active') || fnStr.includes('aria-selected')) {
+          return Promise.resolve(evaluateCallCount === 2 ? 'tab-a active' : 'tab-b active');
+        }
+        return Promise.resolve('unchanged text');
+      }),
+      evaluateHandle: vi.fn().mockResolvedValue({ asElement: vi.fn().mockReturnValue(null) }),
+      waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import('playwright-core').Page;
+
+    const result = await checkInteractiveBehavior(page);
+    expect(result.name).toBe('interactiveBehavior');
+    expect(result.passed).toBe(true);
+    expect(result.score).toBe(80);
+  });
+
+  it('evaluate 오류 → passed: false, score: 0, details에 에러 메시지', async () => {
+    const page = {
+      $$: vi.fn().mockRejectedValue(new Error('context destroyed')),
+      $: vi.fn().mockResolvedValue(null),
+      evaluate: vi.fn().mockRejectedValue(new Error('context destroyed')),
+      evaluateHandle: vi.fn().mockRejectedValue(new Error('context destroyed')),
+      waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import('playwright-core').Page;
+
+    const result = await checkInteractiveBehavior(page);
+    expect(result.name).toBe('interactiveBehavior');
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.details[0]).toContain('Evaluation error');
   });
 });
