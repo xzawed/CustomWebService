@@ -20,7 +20,7 @@
     ──────────────────
 ```
 
-**총 38개 Vitest 파일, 433개 테스트 + 3개 Playwright E2E 파일**
+**총 40개 Vitest 파일, 464개 테스트 + 3개 Playwright E2E 파일**
 
 ### 핵심 원칙
 
@@ -288,7 +288,7 @@ lint (ESLint)
   ↓
 type-check (tsc --noEmit)
   ↓
-test (pnpm test — 433개)
+test (pnpm test — 464개)
   ↓
 build (Next.js standalone)
   ↓

@@ -114,7 +114,7 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 | **로딩 상태 해소** | 전체 | 로딩 스켈레톤이 3초 이내 사라짐 |
 
 **결과**: DB 메타데이터 업데이트 (Fast QC 결과를 덮어씀)  
-**통과 기준**: overallScore ≥ 50
+**통과 기준**: overallScore ≥ 70  (`QC_DEEP_PASS_THRESHOLD` 환경변수로 조정 가능)
 
 ### Step 8: 사용자 알림
 
@@ -140,7 +140,7 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 | 구조 품질 임계값 | 60 | — | structuralScore 미달 시 재생성 |
 | 모바일 품질 임계값 | 60 | — | mobileScore 미달 시 재생성 |
 | Fast QC 통과 | 60 | — | 4개 체크 평균 60점 이상 |
-| Deep QC 통과 | 50 | — | 8개 체크 평균 50점 이상 (Fast QC 실패 시에만 실행) |
+| Deep QC 통과 | 70 | `QC_DEEP_PASS_THRESHOLD` | 8개 체크 평균 70점 이상 (Fast QC 실패 시에만 실행) |
 | Fast QC 타임아웃 | 3초 | — | 초과 시 null 반환, 진행 |
 | Deep QC 타임아웃 | 10초 | — | 초과 시 null 반환, 진행 |
 | 렌더링 QC 활성화 | **true** | `ENABLE_RENDERING_QC` | Railway에서 활성화됨 (2026-04-15) |
