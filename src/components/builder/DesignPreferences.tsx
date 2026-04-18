@@ -32,11 +32,13 @@ function ChipGroup<T extends string>({
   options,
   value,
   onChange,
+  aiSuggestedValue,
 }: {
   label: string;
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
+  aiSuggestedValue?: T;
 }) {
   return (
     <div>
@@ -57,6 +59,11 @@ function ChipGroup<T extends string>({
             }}
           >
             {opt.label}
+            {opt.value === aiSuggestedValue && (
+              <span className="ml-1 text-xs" style={{ color: value === opt.value ? 'white' : '#7c3aed' }}>
+                ★
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -65,8 +72,18 @@ function ChipGroup<T extends string>({
 }
 
 export default function DesignPreferences() {
-  const { mood, audience, layoutPreference, setMood, setAudience, setLayoutPreference } =
-    useContextStore();
+  const {
+    mood,
+    audience,
+    layoutPreference,
+    setMood,
+    setAudience,
+    setLayoutPreference,
+    aiSuggestion,
+    gateResolved,
+  } = useContextStore();
+
+  const hasSuggestion = gateResolved && aiSuggestion !== null;
 
   return (
     <details className="group">
@@ -84,23 +101,45 @@ export default function DesignPreferences() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
         디자인 선호도 설정 (선택사항)
+        {hasSuggestion && (
+          <span
+            className="ml-2 rounded-full px-2 py-0.5 text-xs"
+            style={{ background: '#ede9fe', color: '#7c3aed' }}
+          >
+            AI 추천 적용됨
+          </span>
+        )}
       </summary>
       <div
         className="mt-4 space-y-4 rounded-lg p-4"
         style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
       >
-        <ChipGroup label="분위기" options={MOOD_OPTIONS} value={mood} onChange={setMood} />
+        <ChipGroup
+          label="분위기"
+          options={MOOD_OPTIONS}
+          value={mood}
+          onChange={setMood}
+          aiSuggestedValue={aiSuggestion?.mood !== 'auto' ? aiSuggestion?.mood : undefined}
+        />
         <ChipGroup
           label="대상 고객"
           options={AUDIENCE_OPTIONS}
           value={audience}
           onChange={setAudience}
+          aiSuggestedValue={
+            aiSuggestion?.audience !== 'general' ? aiSuggestion?.audience : undefined
+          }
         />
         <ChipGroup
           label="레이아웃"
           options={LAYOUT_OPTIONS}
           value={layoutPreference}
           onChange={setLayoutPreference}
+          aiSuggestedValue={
+            aiSuggestion?.layoutPreference !== 'auto'
+              ? aiSuggestion?.layoutPreference
+              : undefined
+          }
         />
       </div>
     </details>

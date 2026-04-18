@@ -66,21 +66,42 @@ const TEMPLATES: Template[] = [
 
 interface TemplateSelectorProps {
   onSelect: (template: Template) => void;
+  aiSuggestedId?: string | null;
+  isLoadingAi?: boolean;
 }
 
-export default function TemplateSelector({ onSelect }: TemplateSelectorProps) {
+export default function TemplateSelector({
+  onSelect,
+  aiSuggestedId,
+  isLoadingAi,
+}: TemplateSelectorProps) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {TEMPLATES.map((tmpl) => (
-        <button
-          key={tmpl.id}
-          type="button"
-          onClick={() => onSelect(tmpl)}
-          className="btn-secondary px-3 py-1.5 text-sm"
-        >
-          {tmpl.label}
-        </button>
-      ))}
+    <div>
+      {isLoadingAi && (
+        <p className="mb-1 text-xs" style={{ color: 'var(--accent-primary)' }}>
+          ✦ AI 추천 준비 중...
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {TEMPLATES.map((tmpl) => (
+          <button
+            key={tmpl.id}
+            type="button"
+            onClick={() => onSelect(tmpl)}
+            className="btn-secondary relative px-3 py-1.5 text-sm"
+          >
+            {tmpl.label}
+            {tmpl.id === aiSuggestedId && (
+              <span
+                className="absolute -right-1 -top-1 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium"
+                style={{ background: '#7c3aed', color: 'white', fontSize: '10px' }}
+              >
+                ★ AI
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -124,3 +124,37 @@ export interface CreateProjectInput {
   organizationId?: string;
   designPreferences?: DesignPreferences;
 }
+
+// TemplateSelector UI의 template id 목록 (TemplateSelector.tsx의 TEMPLATES 배열과 동기화)
+export type TemplateId =
+  | 'dashboard'
+  | 'calculator'
+  | 'info-lookup'
+  | 'gallery'
+  | 'map-service'
+  | 'content-feed'
+  | 'comparison'
+  | 'timeline'
+  | 'news-curator'
+  | 'quiz'
+  | 'profile';
+
+export interface PreferenceSuggestion {
+  template: TemplateId | null;
+  mood: DesignMood;
+  audience: DesignAudience;
+  layoutPreference: DesignLayout;
+  reason: string;
+}
+
+export interface ResolutionOptions {
+  suggestedContexts: string[]; // APIs 기준 컨텍스트 제안 2~3개
+  suggestedApis: { category: string; reason: string }[]; // 컨텍스트 기준 API 카테고리 제안
+  creativeMerges: string[]; // 창의적 병합 해석 2~3개
+}
+
+export interface RelevanceGateResult {
+  relevanceScore: number | null; // 0~100, null이면 Haiku 실패(폴백)
+  suggestion: PreferenceSuggestion | null;
+  resolutionOptions: ResolutionOptions | null; // relevanceScore < 70 일 때만 채워짐
+}

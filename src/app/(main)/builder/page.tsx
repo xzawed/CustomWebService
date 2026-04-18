@@ -12,6 +12,7 @@ import ContextSuggestions from '@/components/builder/ContextSuggestions';
 import GuideQuestions from '@/components/builder/GuideQuestions';
 import TemplateSelector from '@/components/builder/TemplateSelector';
 import DesignPreferences from '@/components/builder/DesignPreferences';
+import RelevanceGate from '@/components/builder/RelevanceGate';
 import type { Template } from '@/components/builder/TemplateSelector';
 import GenerationProgress from '@/components/builder/GenerationProgress';
 import PreviewFrame from '@/components/builder/PreviewFrame';
@@ -27,6 +28,7 @@ import { useBuilderModeStore } from '@/stores/builderModeStore';
 import type { BuilderMode } from '@/stores/builderModeStore';
 import { LIMITS } from '@/lib/config/features';
 import type { ApiCatalogItem, Category } from '@/types/api';
+import type { RelevanceGateResult, ResolutionOptions } from '@/types/project';
 import { ChevronLeft, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
 
 const STEPS_API_FIRST = [{ label: 'API 선택' }, { label: '서비스 설명' }, { label: '생성' }];
@@ -52,6 +54,12 @@ export default function BuilderPage() {
   const [recommendationsError, setRecommendationsError] = useState(false);
   const [lastRecommendedContext, setLastRecommendedContext] = useState<string | null>(null);
 
+  // Relevance Gate state
+  const [isPreferenceLoading, setIsPreferenceLoading] = useState(false);
+  const [gateResolutionOptions, setGateResolutionOptions] = useState<ResolutionOptions | null>(
+    null
+  );
+
   const { mode, setMode } = useBuilderModeStore();
   const { selectedApis, addApi, removeApi, clearApis } = useApiSelectionStore();
 
@@ -63,6 +71,17 @@ export default function BuilderPage() {
     isValid: isContextValid,
     getDesignPreferences,
     reset: resetContext,
+    aiSuggestion,
+    relevanceScore,
+    gateResolved,
+    setAiSuggestion,
+    setRelevanceScore,
+    setSuggestionSource,
+    markGateResolved,
+    clearSuggestion,
+    setMood,
+    setAudience,
+    setLayoutPreference,
   } = useContextStore();
 
   const {
@@ -314,6 +333,57 @@ export default function BuilderPage() {
     }
   }, [selectedIds, context, selectedTemplate, startGeneration, updateProgress, completeGeneration, failGeneration, resetContext, clearApis, setGeneratingProjectId]);
 
+  // === Relevance Gate: preference recommendation trigger ===
+  useEffect(() => {
+    if (context.length < 20 || selectedIds.length === 0) {
+      clearSuggestion();
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsPreferenceLoading(true);
+      try {
+        const res = await fetch('/api/v1/suggest-preferences', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ context, apiIds: selectedIds }),
+        });
+        if (!res.ok) return;
+        const { data } = (await res.json()) as { data: RelevanceGateResult };
+        if (!data) return;
+
+        setRelevanceScore(data.relevanceScore);
+
+        if (data.suggestion) {
+          setAiSuggestion(data.suggestion);
+        }
+
+        if (data.resolutionOptions) {
+          setGateResolutionOptions(data.resolutionOptions);
+        }
+
+        if (data.relevanceScore !== null && data.relevanceScore >= 70) {
+          if (data.suggestion) {
+            if (data.suggestion.mood !== 'auto') setMood(data.suggestion.mood);
+            if (data.suggestion.audience !== 'general') setAudience(data.suggestion.audience);
+            if (data.suggestion.layoutPreference !== 'auto')
+              setLayoutPreference(data.suggestion.layoutPreference);
+            setSuggestionSource('ai');
+          }
+          markGateResolved();
+        }
+        // relevanceScore < 70 이면 gateResolved = false 유지 (store 초기값)
+      } catch {
+        // 폴백: 현재 UX 유지
+      } finally {
+        setIsPreferenceLoading(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [context, selectedIds.join(',')]);
+
   // === API-first mode: fetch context suggestions ===
   const fetchSuggestions = useCallback(async () => {
     if (selectedApis.length === 0) return;
@@ -434,6 +504,34 @@ export default function BuilderPage() {
     },
     [setContext, context]
   );
+
+  // === Relevance Gate handlers ===
+  const handleGateSelectContext = useCallback(
+    (ctx: string) => {
+      setContext(ctx);
+      clearSuggestion();
+    },
+    [setContext, clearSuggestion]
+  );
+
+  const handleGateSelectApiCategory = useCallback(
+    (category: string) => {
+      router.push(`/catalog?category=${encodeURIComponent(category)}`);
+    },
+    [router]
+  );
+
+  const handleGateSelectCreativeMerge = useCallback(
+    (merge: string) => {
+      setContext(merge);
+      markGateResolved();
+    },
+    [setContext, markGateResolved]
+  );
+
+  const handleGateSkip = useCallback(() => {
+    markGateResolved();
+  }, [markGateResolved]);
 
   // === Context-first mode: select popular service ===
   const handleSelectPopularService = useCallback(
@@ -556,7 +654,26 @@ export default function BuilderPage() {
               </div>
 
               <GuideQuestions onInsert={handleInsertGuide} />
-              <TemplateSelector onSelect={handleApplyTemplate} />
+              {relevanceScore !== null &&
+                relevanceScore < 70 &&
+                !gateResolved &&
+                aiSuggestion &&
+                gateResolutionOptions && (
+                  <RelevanceGate
+                    relevanceScore={relevanceScore}
+                    reason={aiSuggestion.reason}
+                    resolutionOptions={gateResolutionOptions}
+                    onSelectContext={handleGateSelectContext}
+                    onSelectApiCategory={handleGateSelectApiCategory}
+                    onSelectCreativeMerge={handleGateSelectCreativeMerge}
+                    onSkip={handleGateSkip}
+                  />
+                )}
+              <TemplateSelector
+                onSelect={handleApplyTemplate}
+                aiSuggestedId={aiSuggestion?.template}
+                isLoadingAi={isPreferenceLoading}
+              />
               <DesignPreferences />
             </div>
           )}
@@ -618,7 +735,26 @@ export default function BuilderPage() {
               </div>
 
               <GuideQuestions onInsert={handleInsertGuide} />
-              <TemplateSelector onSelect={handleApplyTemplate} />
+              {relevanceScore !== null &&
+                relevanceScore < 70 &&
+                !gateResolved &&
+                aiSuggestion &&
+                gateResolutionOptions && (
+                  <RelevanceGate
+                    relevanceScore={relevanceScore}
+                    reason={aiSuggestion.reason}
+                    resolutionOptions={gateResolutionOptions}
+                    onSelectContext={handleGateSelectContext}
+                    onSelectApiCategory={handleGateSelectApiCategory}
+                    onSelectCreativeMerge={handleGateSelectCreativeMerge}
+                    onSkip={handleGateSkip}
+                  />
+                )}
+              <TemplateSelector
+                onSelect={handleApplyTemplate}
+                aiSuggestedId={aiSuggestion?.template}
+                isLoadingAi={isPreferenceLoading}
+              />
               <DesignPreferences />
             </div>
           )}

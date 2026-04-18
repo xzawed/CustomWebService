@@ -79,6 +79,12 @@ export const saveKeySchema = z.object({
   apiKey: z.string().min(1).max(500),
 });
 
+// ── 생성 옵션 추천 ─────────────────────────────────────────────────────────────
+export const suggestPreferencesSchema = z.object({
+  context: z.string().trim().min(20).max(2000),
+  apiIds: z.array(z.string().uuid()).min(1).max(5),
+});
+
 // ── 관리자 ────────────────────────────────────────────────────────────────────
 export const triggerQcSchema = z.object({
   projectId: z.string().min(1),
