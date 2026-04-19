@@ -9,6 +9,8 @@ import type {
   DesignLayout,
 } from '@/types/project';
 
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
 interface ApiInfo {
   name: string;
   category: string;
@@ -26,8 +28,8 @@ const SYSTEM_PROMPT = `당신은 웹서비스 생성 전문가입니다.
 
 판단 기준:
 - 80~100점: API가 컨텍스트에 자연스럽게 활용 가능
-- 60~79점: 일부 연관성 있으나 억지 해석 필요
-- 0~59점: API와 컨텍스트가 거의 무관 (resolutionOptions 반드시 포함)
+- 70~79점: 연관성 있으나 일부 억지 해석 필요
+- 0~69점: API와 컨텍스트가 거의 무관 (resolutionOptions 반드시 포함)
 
 resolutionOptions는 점수 < 70 일 때만 채우세요.`;
 
@@ -117,8 +119,6 @@ const FALLBACK_RESULT: RelevanceGateResult = {
 
 export async function recommendPreferences(input: RecommendInput): Promise<RelevanceGateResult> {
   try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
     const apiList = input.apis
       .map((a) => `- ${a.name} (${a.category}): ${a.description}`)
       .join('\n');

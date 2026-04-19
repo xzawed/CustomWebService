@@ -60,7 +60,7 @@ function ChipGroup<T extends string>({
           >
             {opt.label}
             {opt.value === aiSuggestedValue && (
-              <span className="ml-1 text-xs" style={{ color: value === opt.value ? 'white' : '#7c3aed' }}>
+              <span className="ml-1 text-xs" style={{ color: value === opt.value ? 'white' : 'var(--accent-primary)' }}>
                 ★
               </span>
             )}
@@ -104,7 +104,7 @@ export default function DesignPreferences() {
         {hasSuggestion && (
           <span
             className="ml-2 rounded-full px-2 py-0.5 text-xs"
-            style={{ background: '#ede9fe', color: '#7c3aed' }}
+            style={{ background: '#ede9fe', color: 'var(--accent-primary)' }}
           >
             AI 추천 적용됨
           </span>

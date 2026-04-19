@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { CatalogView } from '@/components/catalog/CatalogView';
 import StepIndicator from '@/components/builder/StepIndicator';
@@ -28,7 +28,7 @@ import { useBuilderModeStore } from '@/stores/builderModeStore';
 import type { BuilderMode } from '@/stores/builderModeStore';
 import { LIMITS } from '@/lib/config/features';
 import type { ApiCatalogItem, Category } from '@/types/api';
-import type { RelevanceGateResult, ResolutionOptions } from '@/types/project';
+import type { RelevanceGateResult } from '@/types/project';
 import { ChevronLeft, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
 
 const STEPS_API_FIRST = [{ label: 'API 선택' }, { label: '서비스 설명' }, { label: '생성' }];
@@ -56,9 +56,6 @@ export default function BuilderPage() {
 
   // Relevance Gate state
   const [isPreferenceLoading, setIsPreferenceLoading] = useState(false);
-  const [gateResolutionOptions, setGateResolutionOptions] = useState<ResolutionOptions | null>(
-    null
-  );
 
   const { mode, setMode } = useBuilderModeStore();
   const { selectedApis, addApi, removeApi, clearApis } = useApiSelectionStore();
@@ -74,9 +71,11 @@ export default function BuilderPage() {
     aiSuggestion,
     relevanceScore,
     gateResolved,
+    resolutionOptions,
     setAiSuggestion,
     setRelevanceScore,
     setSuggestionSource,
+    setResolutionOptions,
     markGateResolved,
     clearSuggestion,
     setMood,
@@ -100,7 +99,7 @@ export default function BuilderPage() {
   } = useGenerationStore();
 
   const steps = mode === 'api-first' ? STEPS_API_FIRST : STEPS_CONTEXT_FIRST;
-  const selectedIds = selectedApis.map((a) => a.id);
+  const selectedIds = useMemo(() => selectedApis.map((a) => a.id), [selectedApis]);
 
   useEffect(() => {
     const abortCtrl = new AbortController();
@@ -340,6 +339,7 @@ export default function BuilderPage() {
       return;
     }
 
+    const abortCtrl = new AbortController();
     const timer = setTimeout(async () => {
       setIsPreferenceLoading(true);
       try {
@@ -347,20 +347,15 @@ export default function BuilderPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ context, apiIds: selectedIds }),
+          signal: abortCtrl.signal,
         });
         if (!res.ok) return;
         const { data } = (await res.json()) as { data: RelevanceGateResult };
         if (!data) return;
 
         setRelevanceScore(data.relevanceScore);
-
-        if (data.suggestion) {
-          setAiSuggestion(data.suggestion);
-        }
-
-        if (data.resolutionOptions) {
-          setGateResolutionOptions(data.resolutionOptions);
-        }
+        if (data.suggestion) setAiSuggestion(data.suggestion);
+        if (data.resolutionOptions) setResolutionOptions(data.resolutionOptions);
 
         if (data.relevanceScore !== null && data.relevanceScore >= 70) {
           if (data.suggestion) {
@@ -372,15 +367,19 @@ export default function BuilderPage() {
           }
           markGateResolved();
         }
-        // relevanceScore < 70 이면 gateResolved = false 유지 (store 초기값)
-      } catch {
-        // 폴백: 현재 UX 유지
+      } catch (err) {
+        if ((err as { name?: string }).name !== 'AbortError') {
+          // 폴백: 현재 UX 유지
+        }
       } finally {
-        setIsPreferenceLoading(false);
+        if (!abortCtrl.signal.aborted) setIsPreferenceLoading(false);
       }
     }, 600);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      abortCtrl.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context, selectedIds.join(',')]);
 
@@ -564,6 +563,19 @@ export default function BuilderPage() {
   const canProceedStep2 =
     mode === 'api-first' ? isContextValid() : selectedApis.length > 0;
 
+  const relevanceGateNode =
+    relevanceScore !== null && relevanceScore < 70 && !gateResolved && aiSuggestion && resolutionOptions ? (
+      <RelevanceGate
+        relevanceScore={relevanceScore}
+        reason={aiSuggestion.reason}
+        resolutionOptions={resolutionOptions}
+        onSelectContext={handleGateSelectContext}
+        onSelectApiCategory={handleGateSelectApiCategory}
+        onSelectCreativeMerge={handleGateSelectCreativeMerge}
+        onSkip={handleGateSkip}
+      />
+    ) : null;
+
   // ======================================================
   // MODE SELECTION SCREEN (entry point)
   // ======================================================
@@ -654,21 +666,7 @@ export default function BuilderPage() {
               </div>
 
               <GuideQuestions onInsert={handleInsertGuide} />
-              {relevanceScore !== null &&
-                relevanceScore < 70 &&
-                !gateResolved &&
-                aiSuggestion &&
-                gateResolutionOptions && (
-                  <RelevanceGate
-                    relevanceScore={relevanceScore}
-                    reason={aiSuggestion.reason}
-                    resolutionOptions={gateResolutionOptions}
-                    onSelectContext={handleGateSelectContext}
-                    onSelectApiCategory={handleGateSelectApiCategory}
-                    onSelectCreativeMerge={handleGateSelectCreativeMerge}
-                    onSkip={handleGateSkip}
-                  />
-                )}
+              {relevanceGateNode}
               <TemplateSelector
                 onSelect={handleApplyTemplate}
                 aiSuggestedId={aiSuggestion?.template}
@@ -735,21 +733,7 @@ export default function BuilderPage() {
               </div>
 
               <GuideQuestions onInsert={handleInsertGuide} />
-              {relevanceScore !== null &&
-                relevanceScore < 70 &&
-                !gateResolved &&
-                aiSuggestion &&
-                gateResolutionOptions && (
-                  <RelevanceGate
-                    relevanceScore={relevanceScore}
-                    reason={aiSuggestion.reason}
-                    resolutionOptions={gateResolutionOptions}
-                    onSelectContext={handleGateSelectContext}
-                    onSelectApiCategory={handleGateSelectApiCategory}
-                    onSelectCreativeMerge={handleGateSelectCreativeMerge}
-                    onSkip={handleGateSkip}
-                  />
-                )}
+              {relevanceGateNode}
               <TemplateSelector
                 onSelect={handleApplyTemplate}
                 aiSuggestedId={aiSuggestion?.template}

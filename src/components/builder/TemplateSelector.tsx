@@ -94,7 +94,7 @@ export default function TemplateSelector({
             {tmpl.id === aiSuggestedId && (
               <span
                 className="absolute -right-1 -top-1 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium"
-                style={{ background: '#7c3aed', color: 'white', fontSize: '10px' }}
+                style={{ background: 'var(--accent-primary)', color: 'white', fontSize: '10px' }}
               >
                 ★ AI
               </span>

@@ -7,6 +7,7 @@ import type {
   DesignLayout,
   DesignPreferences,
   PreferenceSuggestion,
+  ResolutionOptions,
 } from '@/types/project';
 
 interface ContextState {
@@ -31,10 +32,12 @@ interface ContextState {
   relevanceScore: number | null;
   suggestionSource: 'ai' | 'user' | null;
   gateResolved: boolean;
+  resolutionOptions: ResolutionOptions | null;
 
   setAiSuggestion: (suggestion: PreferenceSuggestion | null) => void;
   setRelevanceScore: (score: number | null) => void;
   setSuggestionSource: (source: 'ai' | 'user' | null) => void;
+  setResolutionOptions: (options: ResolutionOptions | null) => void;
   markGateResolved: () => void;
   clearSuggestion: () => void;
 }
@@ -53,6 +56,7 @@ export const useContextStore = create<ContextState>()(
       relevanceScore: null,
       suggestionSource: null,
       gateResolved: false,
+      resolutionOptions: null,
 
       setContext: (context) => {
         if (context.length <= LIMITS.contextMaxLength) {
@@ -68,9 +72,13 @@ export const useContextStore = create<ContextState>()(
       setAiSuggestion: (aiSuggestion) => set({ aiSuggestion }),
       setRelevanceScore: (relevanceScore) => set({ relevanceScore }),
       setSuggestionSource: (suggestionSource) => set({ suggestionSource }),
+      setResolutionOptions: (resolutionOptions) => set({ resolutionOptions }),
       markGateResolved: () => set({ gateResolved: true }),
-      clearSuggestion: () =>
-        set({ aiSuggestion: null, relevanceScore: null, suggestionSource: null, gateResolved: false }),
+      clearSuggestion: () => {
+        const { aiSuggestion, relevanceScore, suggestionSource, gateResolved, resolutionOptions } = get();
+        if (aiSuggestion === null && relevanceScore === null && suggestionSource === null && !gateResolved && resolutionOptions === null) return;
+        set({ aiSuggestion: null, relevanceScore: null, suggestionSource: null, gateResolved: false, resolutionOptions: null });
+      },
 
       getDesignPreferences: () => {
         const { mood, audience, layoutPreference } = get();
@@ -97,6 +105,7 @@ export const useContextStore = create<ContextState>()(
           relevanceScore: null,
           suggestionSource: null,
           gateResolved: false,
+          resolutionOptions: null,
         }),
     }),
     {
