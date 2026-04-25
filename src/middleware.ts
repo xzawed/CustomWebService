@@ -101,6 +101,7 @@ export async function middleware(request: NextRequest) {
       "form-action 'self'",
     ].join('; ');
     response.headers.set('Content-Security-Policy', csp);
+    response.headers.set('Cross-Origin-Resource-Policy', 'same-origin');
   }
 
   return response;

@@ -79,6 +79,9 @@ export function handleApiError(error: unknown): Response {
   }
 
   if (error instanceof AppError) {
+    if (error.statusCode === 401 || error.statusCode === 403 || error.statusCode === 429) {
+      logger.warn('Access control event', { code: error.code, status: error.statusCode });
+    }
     return jsonResponse(
       { success: false, error: { code: error.code, message: error.message } },
       { status: error.statusCode }
