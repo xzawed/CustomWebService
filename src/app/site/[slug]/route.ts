@@ -77,6 +77,8 @@ export async function GET(
       'X-Robots-Tag': 'index, follow',
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
+      // Prevent window.opener access between AI-generated site and main app
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
     },
   });
 }

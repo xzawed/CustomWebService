@@ -1,7 +1,11 @@
 #!/bin/bash
 # SCAManager Hook 설치 스크립트 — 한 번만 실행하면 됩니다
+# 설치되는 훅:
+#   - .git/hooks/pre-commit : gitleaks 기반 시크릿 감지
+#   - .git/hooks/pre-push   : SCAManager AI 코드리뷰
 set -e
 HOOK=".git/hooks/pre-push"
+PRE_COMMIT_HOOK=".git/hooks/pre-commit"
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
 
 cat > "$ROOT/$HOOK" << 'HOOK_SCRIPT'
@@ -93,3 +97,18 @@ HOOK_SCRIPT
 
 chmod +x "$ROOT/$HOOK"
 echo "✅ SCAManager pre-push 훅 설치 완료: $ROOT/$HOOK"
+
+# ── pre-commit: 시크릿 감지 훅 설치 ──────────────────────────────
+SECRETS_SCRIPT="$ROOT/.scamanager/pre-commit-secrets.sh"
+if [ -f "$SECRETS_SCRIPT" ]; then
+  cat > "$ROOT/$PRE_COMMIT_HOOK" << 'PRECOMMIT_SCRIPT'
+#!/bin/bash
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
+SCRIPT="$ROOT/.scamanager/pre-commit-secrets.sh"
+[ -f "$SCRIPT" ] && bash "$SCRIPT" || true
+PRECOMMIT_SCRIPT
+
+  chmod +x "$ROOT/$PRE_COMMIT_HOOK"
+  echo "✅ 시크릿 감지 pre-commit 훅 설치 완료: $ROOT/$PRE_COMMIT_HOOK"
+  echo "   gitleaks 설치 필요: https://github.com/gitleaks/gitleaks#installation"
+fi

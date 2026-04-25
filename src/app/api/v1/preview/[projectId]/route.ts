@@ -55,6 +55,7 @@ export async function GET(
         'X-Frame-Options': 'SAMEORIGIN',
         'Cache-Control': 'no-cache',
         'X-Content-Type-Options': 'nosniff',
+        'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
         'Content-Security-Policy': [
           "default-src 'self'",
           // Allow inline scripts + common CDNs used by AI-generated pages (Tailwind, Chart.js, Font Awesome, etc.)

@@ -8,6 +8,11 @@ concurrency:
   group: claude-automation
   cancel-in-progress: true  # Issue 4.5: 동시 실행 방지 — 이전 작업 취소
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 jobs:
   claude-task:
     name: Claude CLI Task

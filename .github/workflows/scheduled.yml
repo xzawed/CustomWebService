@@ -6,6 +6,8 @@ on:
     - cron: '0 21 * * *'
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   api-health-check:
     name: API Health Check
