@@ -25,9 +25,35 @@ function makeDbMock(dbError: Error | null = null) {
   };
 }
 
+const TEST_ADMIN_KEY = 'test-admin-key-12345';
+
+function makePublicRequest(): Request {
+  return new Request('http://localhost/api/v1/health');
+}
+
+function makeDetailedRequest(): Request {
+  return new Request('http://localhost/api/v1/health?detailed=true', {
+    headers: { Authorization: `Bearer ${TEST_ADMIN_KEY}` },
+  });
+}
+
 describe('GET /api/v1/health', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.ADMIN_API_KEY = TEST_ADMIN_KEY;
+  });
+
+  it('미인증 요청은 최소 상태만 반환한다 (정보 노출 차단)', async () => {
+    const { GET } = await import('@/app/api/v1/health/route');
+    const response = await GET(makePublicRequest());
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.status).toBe('ok');
+    expect(body.timestamp).toBeDefined();
+    // 상세 정보는 노출되지 않아야 함
+    expect(body.checks).toBeUndefined();
+    expect(body.usage).toBeUndefined();
   });
 
   it('DB 연결 정상 시 healthy 또는 degraded 상태를 반환한다', async () => {
@@ -35,7 +61,7 @@ describe('GET /api/v1/health', () => {
     vi.mocked(createServiceClient).mockResolvedValue(makeDbMock() as never);
 
     const { GET } = await import('@/app/api/v1/health/route');
-    const response = await GET();
+    const response = await GET(makeDetailedRequest());
     const body = await response.json();
 
     // DB ok이면 healthy 또는 degraded (AI/Deploy env vars 설정 여부에 따라 다름)
@@ -53,7 +79,7 @@ describe('GET /api/v1/health', () => {
     vi.mocked(createServiceClient).mockResolvedValue(makeDbMock(new Error('connection failed')) as never);
 
     const { GET } = await import('@/app/api/v1/health/route');
-    const response = await GET();
+    const response = await GET(makeDetailedRequest());
     const body = await response.json();
 
     expect(body.status).toBe('unhealthy');
@@ -65,7 +91,7 @@ describe('GET /api/v1/health', () => {
     vi.mocked(createServiceClient).mockRejectedValue(new Error('cannot connect'));
 
     const { GET } = await import('@/app/api/v1/health/route');
-    const response = await GET();
+    const response = await GET(makeDetailedRequest());
     const body = await response.json();
 
     expect(body.status).toBe('unhealthy');
@@ -77,7 +103,7 @@ describe('GET /api/v1/health', () => {
     vi.mocked(createServiceClient).mockResolvedValue(makeDbMock() as never);
 
     const { GET } = await import('@/app/api/v1/health/route');
-    const response = await GET();
+    const response = await GET(makeDetailedRequest());
     const body = await response.json();
 
     // usage 필드가 있어야 함 (stats 조회 실패 시 error 필드)

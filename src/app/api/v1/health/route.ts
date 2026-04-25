@@ -6,7 +6,18 @@ import { createCatalogRepository } from '@/repositories/factory';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const wantsDetailed = url.searchParams.get('detailed') === 'true';
+  const adminKey = process.env.ADMIN_API_KEY;
+  const isAuthorized =
+    adminKey && request.headers.get('authorization') === `Bearer ${adminKey}`;
+
+  // Public endpoint — returns minimal status only (no infrastructure details)
+  if (!wantsDetailed || !isAuthorized) {
+    return Response.json({ status: 'ok', timestamp: new Date().toISOString() });
+  }
+
   const checks: Record<string, string> = {};
   const usage: Record<string, unknown> = {};
   let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';

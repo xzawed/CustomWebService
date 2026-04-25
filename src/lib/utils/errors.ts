@@ -112,7 +112,7 @@ export function handleApiError(error: unknown): Response {
     return jsonResponse(
       {
         success: false,
-        error: { code: 'DATABASE_ERROR', message: t('error.database', { message: pgError.message }) },
+        error: { code: 'DATABASE_ERROR', message: t('error.database') },
       },
       { status: 500 }
     );

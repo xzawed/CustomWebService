@@ -15,18 +15,18 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 9
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: pnpm
@@ -53,8 +53,10 @@ jobs:
         continue-on-error: true  # Issue 4.1: 실패해도 워크플로우 계속
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_TASK: ${{ github.event.client_payload.task_description }}
+          CLAUDE_COMMIT_MSG: ${{ github.event.client_payload.commit_message }}
         run: |
-          claude --print "${{ github.event.client_payload.task_description }}" \
+          claude --print "$CLAUDE_TASK" \
             --allowedTools "Edit,Write,Bash,Read,Glob,Grep" \
             --max-turns 20
 
@@ -136,26 +138,32 @@ jobs:
       - name: Commit and push
         if: steps.changes.outputs.has_changes == 'true'
         run: |
-          git commit -m "${{ github.event.client_payload.commit_message || 'fix: Claude CLI 자동 수정' }}"
+          git commit -m "${CLAUDE_COMMIT_MSG:-fix: Claude CLI 자동 수정}"
           git push origin "$BRANCH"
 
       - name: Create Pull Request
         if: steps.changes.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TITLE: ${{ github.event.client_payload.pr_title }}
+          PR_BODY: ${{ github.event.client_payload.pr_body }}
+          RUN_ID: ${{ github.run_id }}
+          ACTION: ${{ github.event.action }}
         run: |
-          gh pr create \
-            --title "${{ github.event.client_payload.pr_title || '[Auto] Claude CLI Fix' }}" \
-            --body "$(cat <<'PREOF'
+          cat > /tmp/pr-body.md <<'EOF'
           ## Summary
-          ${{ github.event.client_payload.pr_body || 'Automated fix by Claude CLI triggered via n8n' }}
+          EOF
+          echo "${PR_BODY:-Automated fix by Claude CLI triggered via n8n}" >> /tmp/pr-body.md
+          cat >> /tmp/pr-body.md <<EOF
 
           ## Triggered by
-          - Workflow: `${{ github.event.action }}`
-          - Run ID: `${{ github.run_id }}`
+          - Workflow: \`${ACTION}\`
+          - Run ID: \`${RUN_ID}\`
 
           🤖 Generated with [Claude Code](https://claude.ai/claude-code)
-          PREOF
-          )" \
+          EOF
+          gh pr create \
+            --title "${PR_TITLE:-[Auto] Claude CLI Fix}" \
+            --body-file /tmp/pr-body.md \
             --base main \
             --head "$BRANCH"

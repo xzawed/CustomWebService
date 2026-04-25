@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ---------- Module mocks ----------
+vi.mock('dns/promises', () => ({
+  default: {
+    lookup: vi.fn().mockResolvedValue({ address: '93.184.216.34', family: 4 }),
+  },
+}));
+
 vi.mock('@/lib/auth/index', () => ({
   getAuthUser: vi.fn(),
 }));

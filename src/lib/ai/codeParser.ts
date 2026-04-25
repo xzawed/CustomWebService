@@ -1,3 +1,10 @@
+import DOMPurify from 'isomorphic-dompurify';
+
+// Allow Alpine.js (x-*), Vue binding shorthand (:*), and event shorthand (@*) attributes
+DOMPurify.addHook('uponSanitizeAttribute', (_el, data) => {
+  if (/^(x-|:|@)/.test(data.attrName)) data.forceKeepAttr = true;
+});
+
 export interface ParsedCode {
   html: string;
   css: string;
@@ -151,9 +158,19 @@ function optimizeImages(html: string): string {
 export function assembleHtml(parsed: ParsedCode): string {
   const safeCss = parsed.css ? sanitizeCss(parsed.css) : '';
 
+  // Sanitize AI-generated HTML: strip event handlers and javascript: URIs while
+  // preserving <script>/<style>/<link> (already validated by securityValidator)
+  // and Alpine.js custom attributes (x-*, :*, @*).
+  const isFullDoc = parsed.html.includes('</head>');
+  const safeHtml = DOMPurify.sanitize(parsed.html, {
+    WHOLE_DOCUMENT: isFullDoc,
+    FORCE_BODY: !isFullDoc,
+    ADD_TAGS: ['script', 'style', 'link'],
+  });
+
   // If HTML is a full document, inject additional CSS and JS
-  if (parsed.html.includes('</head>')) {
-    let assembled = parsed.html;
+  if (safeHtml.includes('</head>')) {
+    let assembled = safeHtml;
 
     // Ensure charset=UTF-8 is declared — AI sometimes omits it or uses a different encoding
     const hasCharset =
@@ -229,9 +246,9 @@ export function assembleHtml(parsed: ParsedCode): string {
   }
 
   // Build complete HTML document
-  const title = extractTitle(parsed.html) || 'Generated Service';
+  const title = extractTitle(safeHtml) || 'Generated Service';
   const headInjections = buildHeadInjections('', safeCss);
-  const alpineScript = parsed.html.includes('alpinejs')
+  const alpineScript = safeHtml.includes('alpinejs')
     ? ''
     : '  <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>\n';
 
@@ -244,7 +261,7 @@ export function assembleHtml(parsed: ParsedCode): string {
   ${headInjections}
 ${alpineScript}</head>
 <body>
-${parsed.html}
+${safeHtml}
   <script>
 ${parsed.js}
   </script>

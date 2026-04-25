@@ -1,3 +1,4 @@
+import dns from 'dns/promises';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getDbProvider } from '@/lib/config/providers';
 import { createCatalogRepository } from '@/repositories/factory';
@@ -116,6 +117,18 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
   // Enforce same host as registered base URL and block private networks
   const allowedHost = new URL(api.baseUrl).hostname;
   if (targetUrl.hostname !== allowedHost || isPrivateHost(targetUrl.hostname)) {
+    return errorResponse(403, 'FORBIDDEN', '허용되지 않은 대상입니다.');
+  }
+
+  // DNS rebinding defense: resolve hostname and verify the resolved IP is not private.
+  // Prevents an attacker from registering a public hostname that later DNS-rebinds to
+  // an internal address (e.g. 169.254.169.254 AWS metadata service).
+  try {
+    const { address: resolvedIp } = await dns.lookup(allowedHost, { verbatim: false });
+    if (isPrivateHost(resolvedIp)) {
+      return errorResponse(403, 'FORBIDDEN', '허용되지 않은 대상입니다.');
+    }
+  } catch {
     return errorResponse(403, 'FORBIDDEN', '허용되지 않은 대상입니다.');
   }
 

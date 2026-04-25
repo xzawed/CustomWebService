@@ -18,8 +18,20 @@ out/
 .railway
 
 # IDE
-.vscode/settings.json
+.vscode/
 .idea/
+
+# Secret files — never commit credentials
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
+.env.production
+.env.staging
+.env.test*
+*.tfstate*
 
 # OS
 .DS_Store

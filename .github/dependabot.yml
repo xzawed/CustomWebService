@@ -1,5 +1,13 @@
 version: 2
 updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - security
+
   - package-ecosystem: npm
     directory: /
     schedule:

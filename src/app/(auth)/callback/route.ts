@@ -7,10 +7,18 @@ import { registerEventPersister } from '@/lib/events/eventPersister';
 
 registerEventPersister();
 
+function safeRedirect(next: string | null): string {
+  if (!next) return '/dashboard';
+  // Block external URLs, protocol-relative (//) and any scheme (javascript:, data:, etc.)
+  if (/^(\/\/|[a-z][a-z0-9+\-.]*:)/i.test(next)) return '/dashboard';
+  const ALLOWED = ['/dashboard', '/builder', '/settings', '/projects', '/catalog'];
+  return ALLOWED.some((p) => next.startsWith(p)) ? next : '/dashboard';
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin: requestOrigin } = new URL(request.url);
   const code = searchParams.get('code');
-  const next = searchParams.get('next') ?? '/dashboard';
+  const next = safeRedirect(searchParams.get('next'));
 
   // Use NEXT_PUBLIC_APP_URL if set to avoid 0.0.0.0 binding address issues
   const origin = process.env.NEXT_PUBLIC_APP_URL ?? requestOrigin;
@@ -47,10 +55,17 @@ export async function GET(request: Request) {
           data: { user: authUser },
         } = await supabase.auth.getUser();
         if (authUser) {
+          const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+          if (!serviceRoleKey) {
+            logger.error('SUPABASE_SERVICE_ROLE_KEY not configured — skipping user record creation', {
+              userId: authUser.id,
+            });
+            return NextResponse.redirect(`${origin}${next}`);
+          }
           // Use service role client to bypass RLS for user record creation
           const serviceClient = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            serviceRoleKey,
             { cookies: { getAll: () => [], setAll: () => {} } }
           );
 

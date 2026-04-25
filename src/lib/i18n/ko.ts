@@ -8,7 +8,7 @@ const ko = {
   'error.deploy': '배포에 실패했습니다.',
   'error.server': '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
   'error.validation': '입력값이 올바르지 않습니다.',
-  'error.database': '데이터베이스 오류: {message}',
+  'error.database': '데이터베이스 오류가 발생했습니다.',
   // Project service validation
   'project.validation.minApis': '최소 1개의 API를 선택해주세요.',
   'project.validation.maxApis': 'API는 최대 {max}개까지 선택 가능합니다.',
