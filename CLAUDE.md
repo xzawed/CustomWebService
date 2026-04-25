@@ -118,6 +118,7 @@ pnpm test:coverage    # 커버리지 리포트
 | 테스트 전략·검증 항목 | [docs/guides/testing.md](docs/guides/testing.md) |
 | API 엔드포인트 목록 | [docs/reference/api-endpoints.md](docs/reference/api-endpoints.md) |
 | 골든셋 API 목록 (검증된 6개) | [docs/reference/golden-api-set.md](docs/reference/golden-api-set.md) |
+| 보안 인시던트 대응 절차 | [docs/security/incident-response.md](docs/security/incident-response.md) |
 | 환경변수 목록 | [docs/reference/env-vars.md](docs/reference/env-vars.md) |
 | 에러 클래스 참조 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
 | 배포/운영 작업 | [docs/guides/deployment.md](docs/guides/deployment.md) |
