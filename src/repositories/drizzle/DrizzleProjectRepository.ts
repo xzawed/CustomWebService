@@ -8,6 +8,29 @@ import { toDatabaseRow, normalizePagination, buildConditions } from '@/repositor
 
 type DrizzleDb = NodePgDatabase<typeof schema>;
 
+export function projectRowToDomain(row: typeof schema.projects.$inferSelect): Project {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    organizationId: row.organization_id ?? null,
+    name: row.name,
+    context: row.context ?? '',
+    status: row.status as Project['status'],
+    deployUrl: row.deploy_url ?? null,
+    deployPlatform: row.deploy_platform ?? null,
+    repoUrl: row.repo_url ?? null,
+    previewUrl: row.preview_url ?? null,
+    metadata: (row.metadata as ProjectMetadata) ?? {},
+    currentVersion: row.current_version ?? 0,
+    apis: [],
+    slug: row.slug ?? null,
+    suggestedSlugs: row.suggested_slugs ?? undefined,
+    publishedAt: row.published_at ? String(row.published_at) : null,
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
 export class DrizzleProjectRepository implements IProjectRepository {
   constructor(private readonly db: DrizzleDb) {}
 
@@ -160,26 +183,7 @@ export class DrizzleProjectRepository implements IProjectRepository {
   }
 
   private toDomain(row: typeof schema.projects.$inferSelect): Project {
-    return {
-      id: row.id,
-      userId: row.user_id,
-      organizationId: row.organization_id ?? null,
-      name: row.name,
-      context: row.context ?? '',
-      status: row.status as Project['status'],
-      deployUrl: row.deploy_url ?? null,
-      deployPlatform: row.deploy_platform ?? null,
-      repoUrl: row.repo_url ?? null,
-      previewUrl: row.preview_url ?? null,
-      metadata: (row.metadata as ProjectMetadata) ?? {},
-      currentVersion: row.current_version ?? 0,
-      apis: [],
-      slug: row.slug ?? null,
-      suggestedSlugs: row.suggested_slugs ?? undefined,
-      publishedAt: row.published_at ? String(row.published_at) : null,
-      createdAt: String(row.created_at),
-      updatedAt: String(row.updated_at),
-    };
+    return projectRowToDomain(row);
   }
 
 }
