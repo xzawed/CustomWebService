@@ -5,11 +5,13 @@ import type { RelevanceGateResult } from '@/types/project';
 const mockCreate = vi.fn();
 
 vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: {
-      create: mockCreate,
-    },
-  })),
+  default: vi.fn(function() {
+    return {
+      messages: {
+        create: mockCreate,
+      },
+    };
+  }),
 }));
 
 // ---------- Helpers ----------

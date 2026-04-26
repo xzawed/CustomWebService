@@ -42,12 +42,14 @@ vi.mock('@anthropic-ai/sdk', () => {
   };
 
   return {
-    default: vi.fn().mockImplementation(() => ({
-      messages: {
-        create: mockCreate,
-        stream: mockStream,
-      },
-    })),
+    default: vi.fn(function() {
+      return {
+        messages: {
+          create: mockCreate,
+          stream: mockStream,
+        },
+      };
+    }),
     Anthropic: {
       RateLimitError,
       InternalServerError,

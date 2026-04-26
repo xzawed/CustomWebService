@@ -6,10 +6,12 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 vi.mock('@/repositories/codeRepository', () => ({
-  CodeRepository: vi.fn().mockImplementation(() => ({
-    findMetadataByDateRange: vi.fn().mockResolvedValue([]),
-    findByProject: vi.fn().mockResolvedValue(null),
-  })),
+  CodeRepository: vi.fn(function() {
+    return {
+      findMetadataByDateRange: vi.fn().mockResolvedValue([]),
+      findByProject: vi.fn().mockResolvedValue(null),
+    };
+  }),
 }));
 
 vi.mock('@/lib/qc', () => ({
@@ -129,10 +131,12 @@ describe('Admin API 인증', () => {
       vi.mocked(isQcEnabled).mockReturnValue(true);
 
       const { CodeRepository } = await import('@/repositories/codeRepository');
-      vi.mocked(CodeRepository).mockImplementation(() => ({
-        findByProject: vi.fn().mockResolvedValue(null),
-        findMetadataByDateRange: vi.fn().mockResolvedValue([]),
-      }) as never);
+      vi.mocked(CodeRepository).mockImplementation(function() {
+        return {
+          findByProject: vi.fn().mockResolvedValue(null),
+          findMetadataByDateRange: vi.fn().mockResolvedValue([]),
+        };
+      } as never);
 
       const { POST } = await import('@/app/api/v1/admin/trigger-qc/route');
       const res = await POST(makeAdminRequest('/api/v1/admin/trigger-qc', 'POST', VALID_ADMIN_KEY, { projectId: 'nonexistent' }));
@@ -149,10 +153,12 @@ describe('Admin API 인증', () => {
 
       const mockCode = { codeHtml: '<div/>', codeCss: 'div{}', codeJs: '', version: 1 };
       const { CodeRepository } = await import('@/repositories/codeRepository');
-      vi.mocked(CodeRepository).mockImplementation(() => ({
-        findByProject: vi.fn().mockResolvedValue(mockCode),
-        findMetadataByDateRange: vi.fn().mockResolvedValue([]),
-      }) as never);
+      vi.mocked(CodeRepository).mockImplementation(function() {
+        return {
+          findByProject: vi.fn().mockResolvedValue(mockCode),
+          findMetadataByDateRange: vi.fn().mockResolvedValue([]),
+        };
+      } as never);
 
       const { POST } = await import('@/app/api/v1/admin/trigger-qc/route');
       const res = await POST(makeAdminRequest('/api/v1/admin/trigger-qc', 'POST', VALID_ADMIN_KEY, { projectId: 'proj-1' }));

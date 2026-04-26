@@ -4,13 +4,15 @@ import { ClaudeProvider } from './ClaudeProvider';
 
 // ClaudeProvider mock
 vi.mock('./ClaudeProvider', () => ({
-  ClaudeProvider: vi.fn().mockImplementation((_apiKey: string, model?: string) => ({
-    name: 'claude',
-    model: model ?? 'claude-opus-4-7',
-    generateCode: vi.fn(),
-    generateCodeStream: vi.fn(),
-    checkAvailability: vi.fn().mockResolvedValue({ available: true }),
-  })),
+  ClaudeProvider: vi.fn(function(_apiKey: string, model?: string) {
+    return {
+      name: 'claude',
+      model: model ?? 'claude-opus-4-7',
+      generateCode: vi.fn(),
+      generateCodeStream: vi.fn(),
+      checkAvailability: vi.fn().mockResolvedValue({ available: true }),
+    };
+  }),
 }));
 
 describe('AiProviderFactory.create()', () => {
