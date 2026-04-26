@@ -6,7 +6,7 @@
 [![status](https://img.shields.io/badge/status-v1.0.0%20Live-brightgreen?style=flat-square)](https://xzawed.xyz)
 [![Next.js](https://img.shields.io/badge/Next.js-16+-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![AI](https://img.shields.io/badge/AI-Claude%20Opus%204.7-blueviolet?style=flat-square)](https://anthropic.com)
-[![Tests](https://img.shields.io/badge/Tests-475%20passed-success?style=flat-square)](./docs/guides/testing.md)
+[![Tests](https://img.shields.io/badge/Tests-529%20passed-success?style=flat-square)](./docs/guides/testing.md)
 [![Deploy](https://img.shields.io/badge/Deploy-Railway-8A2BE2?style=flat-square&logo=railway)](https://railway.app)
 
 **🌐 서비스 URL**: [xzawed.xyz](https://xzawed.xyz) &nbsp;|&nbsp; 🇺🇸 [English](./README.en.md)
@@ -65,7 +65,7 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 |------|------|------|
 | 🧠 **모델 분리** | Opus 4.7 (생성) / Haiku 4.5 (추천·제안) | 비용 최적화 |
 | 💾 **Prompt Caching** | `cache_control: ephemeral` | 반복 호출 입력 토큰 절감 |
-| 🤔 **조건부 Extended Thinking** | API ≥ 3개 또는 컨텍스트 ≥ 500자 시 활성화 | 복잡한 요청에만 추론 비용 투입 |
+| 🤔 **조건부 Extended Thinking** | 복잡도 스코어링(API 수·인증 방식·엔드포인트·컨텍스트·결제 등 5종 신호, 35pt 임계값) | 복잡한 요청에만 추론 비용 투입 |
 | 📡 **EventBus** | 12개 도메인 이벤트, pub/sub + 자동 DB 감사 로그 | 관심사 분리 |
 | ⚛️ **원자적 레이트리밋** | `UPDATE WHERE count < limit RETURNING` | 동시 요청 경쟁 조건 방지 |
 | 🔌 **Circuit Breaker** | 3회 실패 → TRIPPED, 60초 후 복구 프로브 | DB 장애 전파 차단 |
@@ -80,7 +80,7 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 **🛡️ AI 생성 코드 정적 검증**
 - `eval()`, `document.write()`, `innerHTML` 직접 할당 차단
 - OpenAI · Stripe · Google · GitHub · Slack · AWS API 키 하드코딩 패턴 감지
-- CSS `expression()`, `url(javascript:)`, `-moz-binding:` 등 XSS 벡터 차단
+- CSS `expression()`, `url(javascript:)`, `url(data:)`, `-moz-binding:`, `-webkit-binding:`, `@import` 등 XSS 벡터 차단
 
 **🏰 인프라 보안**
 - Proxy SSRF 방지: loopback(127.0.0.1/::1), RFC1918 사설 IP(10.x/172.16-31.x/192.168.x), AWS 메타데이터 서버(169.254.169.254) 6종 패턴 차단
@@ -103,7 +103,7 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 | 🔐 Auth | Supabase Auth (기본) / Auth.js v5 + NextAuth (선택) |
 | 🤖 AI | Claude API (Anthropic SDK, claude-opus-4-7 기본) |
 | 🧪 Testing | Vitest, happy-dom, MSW, Playwright |
-| ⚙️ CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
+| ⚙️ CI/CD | GitHub Actions → lint → type-check → test → build (Railway 자동 배포) |
 | 📦 Package Manager | pnpm |
 
 ---
@@ -137,7 +137,7 @@ src/
 
 | 항목 | 내용 |
 |------|------|
-| ✅ 총 테스트 수 | **475개** (단위 · 통합 · 컴포넌트 · E2E) |
+| ✅ 총 테스트 수 | **529개** (단위 · 통합 · 컴포넌트 · E2E) |
 | 🔬 단위 테스트 | Vitest + happy-dom — AI 파이프라인, 보안 검증, 레이트리밋, Circuit Breaker 등 |
 | 🔗 통합 테스트 | Vitest + MSW — API 라우트 인증·입력·권한·비즈니스 로직 전 경로 |
 | 🌐 E2E 테스트 | Playwright — 3종 디바이스 (모바일 · 태블릿 · 데스크톱) |
