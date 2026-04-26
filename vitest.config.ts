@@ -10,7 +10,7 @@ export default defineConfig({
     exclude: ['node_modules/**', 'e2e/**'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'html', 'lcov'],
       include: ['src/lib/**', 'src/services/**', 'src/providers/**', 'src/repositories/**'],
       exclude: ['src/test/**'],
       thresholds: {
