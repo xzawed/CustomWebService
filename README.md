@@ -6,7 +6,8 @@
 [![status](https://img.shields.io/badge/status-v1.0.0%20Live-brightgreen?style=flat-square)](https://xzawed.xyz)
 [![Next.js](https://img.shields.io/badge/Next.js-16+-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![AI](https://img.shields.io/badge/AI-Claude%20Opus%204.7-blueviolet?style=flat-square)](https://anthropic.com)
-[![Tests](https://img.shields.io/badge/Tests-581%20passed-success?style=flat-square)](./docs/guides/testing.md)
+[![Tests](https://img.shields.io/badge/Tests-1078%20passed-success?style=flat-square)](./docs/guides/testing.md)
+[![Coverage](https://img.shields.io/badge/Coverage-71%25-yellow?style=flat-square)](./docs/guides/testing.md)
 [![Deploy](https://img.shields.io/badge/Deploy-Railway-8A2BE2?style=flat-square&logo=railway)](https://railway.app)
 
 **🌐 서비스 URL**: [xzawed.xyz](https://xzawed.xyz) &nbsp;|&nbsp; 🇺🇸 [English](./README.en.md)
@@ -137,11 +138,11 @@ src/
 
 | 항목 | 내용 |
 |------|------|
-| ✅ 총 테스트 수 | **581개** (단위 · 통합 · 컴포넌트 · E2E) |
-| 🔬 단위 테스트 | Vitest + happy-dom — AI 파이프라인, 보안 검증, 레이트리밋, Circuit Breaker 등 |
+| ✅ 총 테스트 수 | **1,078개** (단위 · 통합 · 컴포넌트 · E2E) |
+| 🔬 단위 테스트 | Vitest + happy-dom — AI 파이프라인, 보안 검증, 레이트리밋, Circuit Breaker, 배포 서비스 등 |
 | 🔗 통합 테스트 | Vitest + MSW — API 라우트 인증·입력·권한·비즈니스 로직 전 경로 |
 | 🌐 E2E 테스트 | Playwright — 3종 디바이스 (모바일 · 태블릿 · 데스크톱) |
-| 📊 커버리지 임계값 | branches 50% · functions/lines/statements 60% |
+| 📊 커버리지 | **71% lines** (lib/services/providers/repositories 대상) · Codecov + SonarCloud 연동 |
 
 ```bash
 pnpm test              # 전체 테스트
