@@ -59,14 +59,14 @@ describe('encryptApiKey — 환경변수 검증', () => {
     vi.stubEnv('ENCRYPTION_KEY', '');
     vi.resetModules();
     const { encryptApiKey } = await import('./encryption');
-    expect(() => encryptApiKey('test')).toThrow('ENCRYPTION_KEY 환경변수가 32자 이상이어야 합니다.');
+    expect(() => encryptApiKey('test')).toThrow('ENCRYPTION_KEY 환경변수가 32바이트 이상이어야 합니다.');
   });
 
   it('ENCRYPTION_KEY 32자 미만 시 에러를 던진다', async () => {
     vi.stubEnv('ENCRYPTION_KEY', 'short');
     vi.resetModules();
     const { encryptApiKey } = await import('./encryption');
-    expect(() => encryptApiKey('test')).toThrow('ENCRYPTION_KEY 환경변수가 32자 이상이어야 합니다.');
+    expect(() => encryptApiKey('test')).toThrow('ENCRYPTION_KEY 환경변수가 32바이트 이상이어야 합니다.');
   });
 });
 

@@ -4,10 +4,11 @@ const ALGORITHM = 'aes-256-gcm';
 
 function getKey(): Buffer {
   const raw = process.env.ENCRYPTION_KEY ?? '';
-  if (raw.length < 32) {
-    throw new Error('ENCRYPTION_KEY 환경변수가 32자 이상이어야 합니다.');
+  const buf = Buffer.from(raw, 'utf8');
+  if (buf.byteLength < 32) {
+    throw new Error('ENCRYPTION_KEY 환경변수가 32바이트 이상이어야 합니다.');
   }
-  return Buffer.from(raw.slice(0, 32), 'utf8');
+  return buf.subarray(0, 32);
 }
 
 /** 평문 API 키를 암호화하여 저장용 문자열로 반환 */

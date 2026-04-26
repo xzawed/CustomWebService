@@ -300,3 +300,133 @@ describe('ProjectService.publish()', () => {
     await expect(service.publish('proj-1', 'user-1')).rejects.toThrow(ValidationError);
   });
 });
+
+describe('ProjectService.unpublish()', () => {
+  let service: ProjectService;
+  let projectRepo: IProjectRepository;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    projectRepo = makeProjectRepo();
+    service = new ProjectService(projectRepo, makeCatalogRepo());
+  });
+
+  it('게시되지 않은 프로젝트는 ValidationError를 던진다', async () => {
+    (projectRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'proj-1',
+      userId: 'user-1',
+      status: 'draft',
+    });
+
+    await expect(service.unpublish('proj-1', 'user-1')).rejects.toThrow(ValidationError);
+  });
+
+  it('게시된 프로젝트를 unpublished로 변경한다', async () => {
+    (projectRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'proj-1',
+      userId: 'user-1',
+      status: 'published',
+    });
+    (projectRepo.update as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'proj-1',
+      userId: 'user-1',
+      status: 'unpublished',
+    });
+
+    const result = await service.unpublish('proj-1', 'user-1');
+
+    expect(projectRepo.update).toHaveBeenCalledWith('proj-1', { status: 'unpublished' });
+    expect(result.status).toBe('unpublished');
+  });
+
+  it('소유자가 아니면 ForbiddenError를 던진다', async () => {
+    (projectRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'proj-1',
+      userId: 'user-2',
+      status: 'published',
+    });
+
+    await expect(service.unpublish('proj-1', 'user-1')).rejects.toThrow(ForbiddenError);
+  });
+});
+
+describe('ProjectService.getByUserId()', () => {
+  let service: ProjectService;
+  let projectRepo: IProjectRepository;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    projectRepo = makeProjectRepo();
+    service = new ProjectService(projectRepo, makeCatalogRepo());
+  });
+
+  it('사용자의 프로젝트 목록을 반환한다', async () => {
+    const projects = [
+      { id: 'proj-1', userId: 'user-1' },
+      { id: 'proj-2', userId: 'user-1' },
+    ];
+    (projectRepo.findByUserId as ReturnType<typeof vi.fn>).mockResolvedValue(projects);
+
+    const result = await service.getByUserId('user-1');
+
+    expect(result).toHaveLength(2);
+    expect(projectRepo.findByUserId).toHaveBeenCalledWith('user-1');
+  });
+
+  it('프로젝트가 없으면 빈 배열을 반환한다', async () => {
+    (projectRepo.findByUserId as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    const result = await service.getByUserId('user-no-projects');
+
+    expect(result).toEqual([]);
+  });
+});
+
+describe('ProjectService.getProjectApiIds()', () => {
+  let service: ProjectService;
+  let projectRepo: IProjectRepository;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    projectRepo = makeProjectRepo();
+    service = new ProjectService(projectRepo, makeCatalogRepo());
+  });
+
+  it('프로젝트의 API ID 목록을 반환한다', async () => {
+    (projectRepo.getProjectApiIds as ReturnType<typeof vi.fn>).mockResolvedValue(['api-1', 'api-2']);
+
+    const result = await service.getProjectApiIds('proj-1');
+
+    expect(result).toEqual(['api-1', 'api-2']);
+    expect(projectRepo.getProjectApiIds).toHaveBeenCalledWith('proj-1');
+  });
+
+  it('API가 없으면 빈 배열을 반환한다', async () => {
+    (projectRepo.getProjectApiIds as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    const result = await service.getProjectApiIds('proj-no-apis');
+
+    expect(result).toEqual([]);
+  });
+});
+
+describe('ProjectService.updateStatus()', () => {
+  let service: ProjectService;
+  let projectRepo: IProjectRepository;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    projectRepo = makeProjectRepo();
+    service = new ProjectService(projectRepo, makeCatalogRepo());
+  });
+
+  it('프로젝트 상태를 업데이트하고 반환한다', async () => {
+    const updated = { id: 'proj-1', userId: 'user-1', status: 'generated' as const };
+    (projectRepo.update as ReturnType<typeof vi.fn>).mockResolvedValue(updated);
+
+    const result = await service.updateStatus('proj-1', 'generated');
+
+    expect(projectRepo.update).toHaveBeenCalledWith('proj-1', { status: 'generated' });
+    expect(result.status).toBe('generated');
+  });
+});
