@@ -195,6 +195,15 @@ pnpm test:coverage    # 커버리지 리포트
 - **temperature deprecated (Claude 4.x)**: Claude 4.x 모델(`claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`)은 `temperature` 파라미터를 지원하지 않음. ClaudeProvider에서 완전히 제거됨 (Extended Thinking 포함). `IAiPrompt.temperature` 필드는 legacy 호환용으로 유지하나 실제 API 호출에 사용하지 않음
 - **인메모리 rate limit 한계**: proxy의 Map 기반 리밋은 서버 재시작 시 초기화됨 (분당 카운터라 보안 영향 낮음). Railway 단일 인스턴스 전제 — 멀티 인스턴스 전환 시 Redis 등 외부 저장소 필요 (generationTracker와 동일 제약)
 
+## 세션 시작 체크리스트 (필수)
+
+작업 세션을 시작할 때 아래 두 가지를 반드시 먼저 확인한다.
+
+1. **Railway 배포 상태** — `railway deployment list --json` (최신 배포 status·커밋 확인)
+2. **SonarCloud 품질 상태** — SonarQube MCP 도구로 `xzawed_CustomWebService` 프로젝트 이슈·품질 게이트 조회
+
+이상 징후(배포 실패, 품질 게이트 FAILED, 신규 버그/취약점)가 있으면 작업 시작 전에 사용자에게 보고한다.
+
 ## Claude 도움 요청 원칙
 
 업무 수행 중 다음 상황이 발생하면 Claude는 **즉시 사용자에게 도움을 요청**합니다:
