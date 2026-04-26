@@ -229,14 +229,24 @@ DB 저장 구조 (code_versions 테이블):
 - Anthropic 5분 캐시 TTL — 동일 시스템 프롬프트 반복 호출 시 Cache Read 단가($1.50/MTok) 적용
 - Stage 1 시스템 프롬프트(~7K 토큰)가 주로 캐시됨
 
-**Extended Thinking (조건부)**
-- `shouldUseExtendedThinking(apis, context)` 함수로 사용 여부 결정:
-  - **API 3개 이상** 또는 **컨텍스트 500자 이상** → ET 활성화 (복잡한 요구사항)
-  - 그 외 → Opus only (빠르고 저렴)
+**Extended Thinking (조건부 — 복잡도 스코어링)**
+- `evaluateComplexityScore(apis, context)` 함수로 0~100점 복잡도 점수 산출 후, `shouldUseExtendedThinking()` 로 활성화 여부 결정
+- 임계값: `ET_COMPLEXITY_THRESHOLD` 환경변수 (기본 **45점**)
+- **스코어링 신호 (5종):**
+
+  | 신호 | 기여 점수 |
+  |------|-----------|
+  | API 수 (2개 초과 시 초과분 × 5pt) | 최대 20pt |
+  | 인증 방식 (oauth: 15pt, api_key: 8pt, 복수 중 최대값) | 최대 15pt |
+  | 엔드포인트 수 (4개↑: 10pt, 2개↑: 5pt) + 변이 메서드 포함 시 +8pt | 최대 18pt |
+  | 컨텍스트 품질 (500자↑: 15pt, 100자↑: 8pt, 1자↑: 10pt) | 최대 15pt |
+  | 의존성 복잡도 (동일 카테고리 다중 API 또는 결제 키워드) | 10pt |
+
 - Stage 1 및 Quality Loop에 동일 조건 적용
 - `budget_tokens: 32000` — Thinking 토큰 최대 허용량
 - Thinking 활성화 시 `temperature: 1` 필수 (Anthropic API 요구사항)
 - Thinking 토큰은 출력 단가($75/MTok)로 청구
+- 구현: `src/lib/ai/generationPipeline.ts` — `evaluateComplexityScore()` (export), `shouldUseExtendedThinking()` (내부)
 
 **조건부 Stage 1 Fast QC 스킵**
 - 정적 분석에서 이미 Stage 2가 필요함이 확정된 경우(`fetchCallCount === 0` 또는 `placeholderCount > 0`) Fast QC를 생략

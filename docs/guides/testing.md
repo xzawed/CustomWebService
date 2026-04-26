@@ -14,13 +14,13 @@
          ─┼─────────┼─
         │ 컴포넌트  │  ~10개 (React, happy-dom)
        ──┼──────────┼──
-      │    통합     │  ~109개 (API Routes, Vitest)
+      │    통합     │  ~113개 (API Routes, Vitest)
      ────┼──────────┼────
-    │       단위    │  ~314개 (lib, providers, services, repositories)
+    │       단위    │  ~376개 (lib, providers, services, repositories)
     ──────────────────
 ```
 
-**총 40개 Vitest 파일, 464개 테스트 + 3개 Playwright E2E 파일**
+**총 46개 Vitest 파일, 526개 테스트 + 3개 Playwright E2E 파일**
 
 ### 핵심 원칙
 
