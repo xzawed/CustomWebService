@@ -40,9 +40,11 @@ export function ApiCard({ api, isSelected, onSelect, onDetail }: ApiCardProps) {
   const catStyle = categoryBadgeStyle[api.category] ?? categoryBadgeStyle.utility;
 
   return (
-    <div
+    <button
+      type="button"
       onClick={onSelect}
-      className="card group relative cursor-pointer p-5"
+      aria-pressed={isSelected}
+      className="card group relative w-full cursor-pointer p-5 text-left"
       style={isSelected ? { borderColor: 'var(--accent-primary)', boxShadow: 'var(--shadow-glow)' } : undefined}
     >
       {/* Selection indicator */}
@@ -104,6 +106,6 @@ export function ApiCard({ api, isSelected, onSelect, onDetail }: ApiCardProps) {
       >
         <ExternalLink className="h-4 w-4" />
       </button>
-    </div>
+    </button>
   );
 }

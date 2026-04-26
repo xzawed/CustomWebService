@@ -247,6 +247,8 @@ export function PublishDialog({ project, onClose, onPublished }: PublishDialogPr
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       onClick={handleBackdropClick}
+      onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+      tabIndex={0}
     >
       <div
         ref={dialogRef}

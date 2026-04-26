@@ -148,4 +148,19 @@ describe('assembleHtml', () => {
     const result = assembleHtml({ html: '<p>content</p>', css: '', js: '' });
     expect(result).toContain('alpinejs@3.14.8/dist/cdn.min.js');
   });
+
+  it('인라인 script 태그를 sanitize로 제거한다', () => {
+    const result = assembleHtml({
+      html: '<div><script>alert("xss")</script><p>Hello</p></div>',
+      css: '',
+      js: '',
+    });
+    expect(result).not.toContain('<script>alert');
+    expect(result).toContain('<p>Hello</p>');
+  });
+
+  it('Alpine.js CDN script 태그는 buildHeadInjections로 포함한다', () => {
+    const result = assembleHtml({ html: '<p>Hello</p>', css: '', js: '' });
+    expect(result).toContain('alpinejs');
+  });
 });
