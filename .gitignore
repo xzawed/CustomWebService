@@ -28,6 +28,7 @@ out/
 *.pfx
 secrets/
 credentials/
+.mcp.json
 .env.production
 .env.staging
 .env.test*

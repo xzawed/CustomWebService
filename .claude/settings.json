@@ -19,7 +19,10 @@
       "Bash(git diff*)",
       "Bash(git status*)",
       "Bash(git tag*)",
-      "Bash(git push origin --tags)"
+      "Bash(git push origin --tags)",
+      "Bash(railway status *)",
+      "Bash(railway list *)",
+      "Bash(railway link *)"
     ],
     "deny": []
   },
