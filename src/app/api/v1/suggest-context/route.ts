@@ -1,8 +1,5 @@
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
-import { createRateLimitService } from '@/services/factory';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { suggestContextSchema } from '@/types/schemas';
 import { logger } from '@/lib/utils/logger';
@@ -17,11 +14,6 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
-
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-
-    const rateLimitService = createRateLimitService(supabase);
-    await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
     let apis: SuggestApiItem[];
     try {
