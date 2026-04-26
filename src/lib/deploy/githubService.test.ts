@@ -4,6 +4,17 @@ vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('libsodium-wrappers', () => ({
+  default: {
+    ready: Promise.resolve(),
+    from_base64: vi.fn().mockReturnValue(new Uint8Array([1, 2, 3])),
+    from_string: vi.fn().mockReturnValue(new Uint8Array([4, 5, 6])),
+    crypto_box_seal: vi.fn().mockReturnValue(new Uint8Array([7, 8, 9])),
+    to_base64: vi.fn().mockReturnValue('encrypted-base64=='),
+    base64_variants: { ORIGINAL: 1 },
+  },
+}));
+
 const mockFetch = vi.fn();
 
 beforeEach(() => {
@@ -220,34 +231,51 @@ describe('pushCode()', () => {
 // ── setSecrets ────────────────────────────────────────────────────────────────
 
 describe('setSecrets()', () => {
-  it('빈 secrets {} → public-key 호출 후 logger.info 호출', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({ key: 'base64key==', key_id: 'kid1' }),
-    );
-
+  it('빈 secrets {} → fetch 호출 없이 logger.info 호출 (early return)', async () => {
     const { setSecrets } = await import('./githubService');
     const { logger } = await import('@/lib/utils/logger');
 
     await expect(setSecrets('test-org/my-repo', {})).resolves.toBeUndefined();
-    expect(mockFetch).toHaveBeenCalledOnce();
-    expect(logger.info).toHaveBeenCalledWith('Secrets configured', expect.any(Object));
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith('Secrets configured', expect.objectContaining({ secretCount: 0 }));
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
-  it('non-empty secrets → logger.warn(libsodium 미구현) + logger.info 호출', async () => {
-    mockFetch.mockResolvedValueOnce(
-      mockResponse({ key: 'base64key==', key_id: 'kid1' }),
-    );
+  it('non-empty secrets → public-key 조회 + PUT /actions/secrets/:name 호출', async () => {
+    mockFetch
+      .mockResolvedValueOnce(mockResponse({ key: 'base64key==', key_id: 'kid1' }))  // GET public-key
+      .mockResolvedValueOnce({ ok: true, status: 204, json: vi.fn() })                // PUT API_KEY
+      .mockResolvedValueOnce({ ok: true, status: 204, json: vi.fn() });               // PUT DB_URL
 
     const { setSecrets } = await import('./githubService');
     const { logger } = await import('@/lib/utils/logger');
 
     await setSecrets('test-org/my-repo', { API_KEY: 'secret-value', DB_URL: 'postgres://...' });
 
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('libsodium encryption not yet implemented'),
-      expect.objectContaining({ secretNames: ['API_KEY', 'DB_URL'] }),
+    // GET public-key + PUT 2개 = 3회 fetch
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://api.github.com/repos/test-org/my-repo/actions/secrets/public-key',
+      expect.any(Object),
     );
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/actions/secrets/API_KEY'),
+      expect.objectContaining({ method: 'PUT' }),
+    );
+    expect(logger.warn).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith('Secrets configured', expect.objectContaining({ secretCount: 2 }));
+  });
+
+  it('PUT 응답 400 → logger.warn 기록 후 나머지 계속 진행', async () => {
+    mockFetch
+      .mockResolvedValueOnce(mockResponse({ key: 'base64key==', key_id: 'kid1' }))
+      .mockResolvedValueOnce({ ok: false, status: 400, json: vi.fn() });
+
+    const { setSecrets } = await import('./githubService');
+    const { logger } = await import('@/lib/utils/logger');
+
+    await expect(setSecrets('test-org/my-repo', { BAD_SECRET: 'val' })).resolves.toBeUndefined();
+    expect(logger.warn).toHaveBeenCalledWith('Failed to set secret', expect.objectContaining({ status: 400 }));
     expect(logger.info).toHaveBeenCalledWith('Secrets configured', expect.any(Object));
   });
 
@@ -262,7 +290,6 @@ describe('setSecrets()', () => {
       'Failed to get public key for secrets',
       expect.objectContaining({ status: 403 }),
     );
-    // info는 호출되지 않음 (early return)
     expect(logger.info).not.toHaveBeenCalled();
   });
 });

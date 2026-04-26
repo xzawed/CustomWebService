@@ -1,11 +1,13 @@
 import { getDbProvider } from '@/lib/config/providers';
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createProjectService, createCatalogService, createRateLimitService } from '@/services/factory';
-import { createCodeRepository } from '@/repositories/factory';
+import { createCodeRepository, createProjectRepository } from '@/repositories/factory';
 import { registerEventPersister } from '@/lib/events/eventPersister';
+import { registerErrorRateMonitor } from '@/lib/monitoring/errorRateMonitor';
 
 registerEventPersister();
+registerErrorRateMonitor();
 import type { DesignPreferences } from '@/types/project';
 import {
   buildStage1SystemPrompt,
@@ -21,7 +23,6 @@ import { generateSchema } from '@/types/schemas';
 import { templateRegistry } from '@/templates/TemplateRegistry';
 import { createSseWriter } from '@/lib/ai/sseWriter';
 import { runGenerationPipeline } from '@/lib/ai/generationPipeline';
-import { createProjectRepository } from '@/repositories/factory';
 import { generationTracker } from '@/lib/ai/generationTracker';
 
 export async function POST(request: Request): Promise<Response> {
@@ -44,7 +45,6 @@ export async function POST(request: Request): Promise<Response> {
     const correlationId = getCorrelationId(request);
     const provider = getDbProvider();
     const supabase = provider === 'supabase' ? await createClient() : undefined;
-    const serviceSupabase = provider === 'supabase' ? await createServiceClient() : undefined;
 
     const rateLimitService = createRateLimitService(supabase);
     await rateLimitService.checkAndIncrementDailyLimit(user.id);

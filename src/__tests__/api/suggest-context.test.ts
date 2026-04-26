@@ -1,16 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------- Module mocks ----------
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(),
-}));
-
 vi.mock('@/lib/auth/index', () => ({
   getAuthUser: vi.fn(),
-}));
-
-vi.mock('@/services/factory', () => ({
-  createRateLimitService: vi.fn(),
 }));
 
 vi.mock('@/providers/ai/AiProviderFactory', () => ({
@@ -22,10 +14,6 @@ vi.mock('@/providers/ai/AiProviderFactory', () => ({
 
 vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
-vi.mock('@/lib/config/providers', () => ({
-  getDbProvider: vi.fn().mockReturnValue('supabase'),
 }));
 
 // ---------- Test data ----------
@@ -54,12 +42,6 @@ function makeRawRequest(rawBody: string) {
 async function setupAuth(user: typeof mockUser | null = mockUser) {
   const { getAuthUser } = await import('@/lib/auth/index');
   vi.mocked(getAuthUser).mockResolvedValue(user);
-
-  const { createRateLimitService } = await import('@/services/factory');
-  vi.mocked(createRateLimitService).mockReturnValue({
-    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
-    decrementDailyLimit: vi.fn().mockResolvedValue(undefined),
-  } as never);
 }
 
 // ---------- Tests ----------
@@ -168,5 +150,33 @@ describe('POST /api/v1/suggest-context', () => {
     const json = await response.json();
     expect(json.success).toBe(true);
     expect(json.data.suggestions).toEqual([]);
+  });
+
+  it('일일 생성 한도를 소비하지 않는다', async () => {
+    // suggest-context는 코드 생성 한도와 무관하게 동작해야 한다.
+    // createRateLimitService가 임포트되지 않으므로, 이 테스트는
+    // 정상 요청이 rate limit 없이 통과되는지 확인한다.
+    await setupAuth();
+
+    const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
+    vi.mocked(AiProviderFactory.createForTask).mockReturnValue({
+      name: 'claude',
+      generateCode: vi.fn().mockResolvedValue({
+        content: '["제안1", "제안2", "제안3"]',
+        provider: 'claude',
+        model: 'claude-haiku-4-5',
+        durationMs: 300,
+        tokensUsed: { input: 30, output: 60 },
+      }),
+    } as never);
+
+    const { POST } = await import('@/app/api/v1/suggest-context/route');
+    const response = await POST(makeRequest({ apis: mockApis }));
+
+    // rate limit 없이 성공해야 한다
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.success).toBe(true);
+    expect(json.data.suggestions).toHaveLength(3);
   });
 });

@@ -196,7 +196,7 @@ ${featureList}
     }
 
     // ── Stage 1: 구조·기능 생성 (5→28%) ───────────────────────────────────────
-    const stage1Result = await runStage1(input.stage1SystemPrompt, input.stage1UserPrompt, aiProvider, sse, useET);
+    const stage1Result = await runStage1(stage1SystemPrompt, input.stage1UserPrompt, aiProvider, sse, useET);
     const stage1Code = stage1Result.parsed;
 
     // Stage 1 정적 QC — stage2Function에 전달
