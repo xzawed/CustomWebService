@@ -172,15 +172,15 @@ pnpm test:coverage    # 커버리지 리포트
 
 ## 개발 워크플로우
 
-- **브랜치 전략**: 모든 변경은 main에서 파생된 단기 브랜치에서 작업 후 PR → main 병합. `feat/` 접두사는 사용하지 않는다.
-- **브랜치 네이밍**: `fix/`, `refactor/`, `chore/`, `docs/`, `test/`, `ci/` 접두사 사용
+- **브랜치 전략**: 모든 변경은 main에서 파생된 단기 브랜치에서 작업 후 PR → main 병합.
+- **브랜치 네이밍**: `feat/`, `fix/`, `refactor/`, `chore/`, `docs/`, `test/`, `ci/` 접두사 사용
 - **"커밋 푸쉬 PR"** = main 파생 브랜치 커밋 → push → PR 생성 → main 병합
 - 대규모 변경 시 Phase 단위로 나누어 각 Phase를 하나의 커밋으로 묶는 것을 선호
 - **PR 병합 타이밍**: 여러 커밋이 예정된 작업은 모든 커밋이 완료된 후에 병합한다. 중간에 병합하면 cherry-pick 등 복구 작업이 필요해짐
 
 ## 커밋 메시지 규칙
 
-한국어 커밋 메시지 사용. prefix 패턴: `fix:`, `refactor:`, `ci:`, `docs:`, `test:`, `chore:`
+한국어 커밋 메시지 사용. prefix 패턴: `feat:`, `fix:`, `refactor:`, `ci:`, `docs:`, `test:`, `chore:`
 - 코드 변경과 관련 문서 변경은 동일 커밋에 포함 (코드-문서 동기화 보장)
 
 ## 타입 주의사항
