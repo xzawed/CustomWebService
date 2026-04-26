@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { eventBus } from '@/lib/events/eventBus';
 import { getLimits } from '@/lib/config/features';
 import { isQcEnabled } from '@/lib/qc';
@@ -8,6 +9,12 @@ import { generationTracker } from '@/lib/ai/generationTracker';
 import { runDeepQcAndUpdate } from '@/lib/qc/deepQcRunner';
 import { logger } from '@/lib/utils/logger';
 import { validateAll, evaluateQuality } from '@/lib/ai/codeValidator';
+import { getDbProvider } from '@/lib/config/providers';
+import { getDb } from '@/lib/db/connection';
+import * as schema from '@/lib/db/schema';
+import { toDatabaseRow } from '@/repositories/utils';
+import { codeRowToDomain } from '@/repositories/drizzle/DrizzleCodeRepository';
+import type { GeneratedCode } from '@/types/project';
 import type { ICodeRepository, IProjectRepository } from '@/repositories/interfaces';
 import type { ApiCatalogItem } from '@/types/api';
 import type { SseWriter } from '@/lib/ai/sseWriter';
@@ -40,7 +47,8 @@ export interface SaveParams {
 
 /**
  * 코드 저장 + slug 제안 + 버전 정리 + Deep QC 트리거 + 프로젝트 상태 갱신 + 이벤트 발행 + SSE complete.
- * 보상 롤백: projectService.updateStatus 실패 시 코드 레코드 삭제.
+ * Drizzle 경로: INSERT + UPDATE 단일 트랜잭션 (고아 레코드 불가).
+ * Supabase 경로: 보상 롤백 (best-effort).
  */
 export async function saveGeneratedCode(params: SaveParams, sse: SseWriter): Promise<void> {
   const {
@@ -57,7 +65,7 @@ export async function saveGeneratedCode(params: SaveParams, sse: SseWriter): Pro
   sse.send('progress', { step: 'saving', progress: 95, message: '저장 중...' });
   generationTracker.updateProgress(projectId, 95, 'saving', '저장 중...');
 
-  const savedCode = await codeRepo.create({
+  const codeInput = {
     projectId,
     version: nextVersion,
     codeHtml: parsed.html,
@@ -91,7 +99,45 @@ export async function saveGeneratedCode(params: SaveParams, sse: SseWriter): Pro
       }),
       ...(featureSpec && { featureSpec }),
     },
-  } as Parameters<typeof codeRepo.create>[0]);
+  } as Parameters<typeof codeRepo.create>[0];
+
+  let savedCode: GeneratedCode;
+  if (getDbProvider() === 'postgres') {
+    // Drizzle: INSERT generated_codes + UPDATE projects.status in one transaction (no orphan risk)
+    const db = getDb();
+    savedCode = await db.transaction(async (tx) => {
+      const dbData = toDatabaseRow(codeInput as Partial<Record<string, unknown>>);
+      const [codeRow] = await tx
+        .insert(schema.generatedCodes)
+        .values(dbData as typeof schema.generatedCodes.$inferInsert)
+        .returning();
+      await tx
+        .update(schema.projects)
+        .set({ status: 'generated', updated_at: new Date() })
+        .where(eq(schema.projects.id, projectId));
+      return codeRowToDomain(codeRow);
+    });
+  } else {
+    // Supabase: compensating rollback on updateStatus failure (best-effort)
+    savedCode = await codeRepo.create(codeInput);
+    try {
+      await projectService.updateStatus(projectId, 'generated');
+    } catch (updateError) {
+      logger.error('Project status update failed, rolling back code record', {
+        codeId: savedCode.id,
+        projectId,
+      });
+      try {
+        await codeRepo.delete(savedCode.id);
+      } catch (deleteErr) {
+        logger.error('Compensating rollback failed — orphaned code record', {
+          codeId: savedCode.id,
+          deleteErr,
+        });
+      }
+      throw updateError;
+    }
+  }
 
   // Slug 제안 — fire-and-forget
   if (projectRepo && projectContext) {
@@ -126,30 +172,11 @@ export async function saveGeneratedCode(params: SaveParams, sse: SseWriter): Pro
     runDeepQcAndUpdate(projectId, savedCode.id, parsed, codeRepo);
   }
 
-  // Compensating rollback — project status update 실패 시 코드 레코드 삭제
-  try {
-    await projectService.updateStatus(projectId, 'generated');
-  } catch (updateError) {
-    logger.error('Project status update failed, rolling back code record', {
-      codeId: savedCode.id,
-      projectId,
-    });
-    try {
-      await codeRepo.delete(savedCode.id);
-    } catch (deleteErr) {
-      logger.error('Compensating rollback failed — orphaned code record', {
-        codeId: savedCode.id,
-        deleteErr,
-      });
-    }
-    throw updateError;
-  }
-
   const generatedEvent = {
     type: 'CODE_GENERATED' as const,
     payload: {
       projectId,
-      version: nextVersion,
+      version: savedCode.version,
       provider: stage2Response.provider,
       durationMs: stage2Response.durationMs,
     },
@@ -158,7 +185,7 @@ export async function saveGeneratedCode(params: SaveParams, sse: SseWriter): Pro
 
   generationTracker.complete(projectId, {
     projectId,
-    version: nextVersion,
+    version: savedCode.version,
     previewUrl: `/api/v1/preview/${projectId}`,
     ...(qcReport && {
       qcResult: {
@@ -172,7 +199,7 @@ export async function saveGeneratedCode(params: SaveParams, sse: SseWriter): Pro
   });
   sse.send('complete', {
     projectId,
-    version: nextVersion,
+    version: savedCode.version,
     previewUrl: `/api/v1/preview/${projectId}`,
     ...(qcReport && {
       qcResult: {

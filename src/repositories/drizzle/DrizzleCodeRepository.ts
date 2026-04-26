@@ -8,6 +8,26 @@ import { toDatabaseRow, normalizePagination, buildConditions } from '@/repositor
 
 type DrizzleDb = NodePgDatabase<typeof schema>;
 
+export function codeRowToDomain(row: typeof schema.generatedCodes.$inferSelect): GeneratedCode {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    version: row.version,
+    codeHtml: row.code_html ?? '',
+    codeCss: row.code_css ?? '',
+    codeJs: row.code_js ?? '',
+    framework: (row.framework as GeneratedCode['framework']) ?? 'vanilla',
+    aiProvider: row.ai_provider ?? null,
+    aiModel: row.ai_model ?? null,
+    aiPromptUsed: row.ai_prompt_used ?? null,
+    generationTimeMs: row.generation_time_ms ?? null,
+    tokenUsage: (row.token_usage as GeneratedCode['tokenUsage']) ?? null,
+    dependencies: row.dependencies ?? [],
+    metadata: (row.metadata as CodeMetadata) ?? {},
+    createdAt: String(row.created_at),
+  };
+}
+
 export class DrizzleCodeRepository implements ICodeRepository {
   constructor(private readonly db: DrizzleDb) {}
 
@@ -154,23 +174,7 @@ export class DrizzleCodeRepository implements ICodeRepository {
   }
 
   private toDomain(row: typeof schema.generatedCodes.$inferSelect): GeneratedCode {
-    return {
-      id: row.id,
-      projectId: row.project_id,
-      version: row.version,
-      codeHtml: row.code_html ?? '',
-      codeCss: row.code_css ?? '',
-      codeJs: row.code_js ?? '',
-      framework: (row.framework as GeneratedCode['framework']) ?? 'vanilla',
-      aiProvider: row.ai_provider ?? null,
-      aiModel: row.ai_model ?? null,
-      aiPromptUsed: row.ai_prompt_used ?? null,
-      generationTimeMs: row.generation_time_ms ?? null,
-      tokenUsage: (row.token_usage as GeneratedCode['tokenUsage']) ?? null,
-      dependencies: row.dependencies ?? [],
-      metadata: (row.metadata as CodeMetadata) ?? {},
-      createdAt: String(row.created_at),
-    };
+    return codeRowToDomain(row);
   }
 
 }

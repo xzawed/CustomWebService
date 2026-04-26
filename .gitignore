@@ -53,7 +53,7 @@ playwright-report/
 test-results/
 
 # drizzle-kit output (regenerated via drizzle-kit generate)
-drizzle/
+/drizzle/
 
 # claude — settings.local.json(시크릿)만 제외, settings.json(훅/권한)은 버전 관리
 .claude/settings.local.json
