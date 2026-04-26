@@ -33,7 +33,7 @@
     "@supabase/supabase-js": "^2.104.1",
     "drizzle-orm": "^0.45.2",
     "isomorphic-dompurify": "^3.10.0",
-    "lucide-react": "^0.577.0",
+    "lucide-react": "^1.11.0",
     "next": "^16.2.4",
     "next-auth": "5.0.0-beta.30",
     "pg": "^8.20.0",
