@@ -169,8 +169,9 @@ pnpm test:coverage    # 커버리지 리포트
 
 ## 개발 워크플로우
 
-- **Solo 개발**: main 브랜치 직접 커밋·푸시 (feature branch 불필요)
-- **"커밋 푸쉬 병합"** = main에 커밋 후 push (별도 PR/merge 과정 없음)
+- **브랜치 전략**: 모든 변경은 feature 브랜치에서 작업 후 PR → main 병합
+- **브랜치 네이밍**: `feat/`, `fix/`, `refactor/`, `chore/`, `docs/` 접두사 사용
+- **"커밋 푸쉬 병합"** = feature 브랜치 커밋 → push → PR 생성 → main 병합
 - 대규모 변경 시 Phase 단위로 나누어 각 Phase를 하나의 커밋으로 묶는 것을 선호
 
 ## 커밋 메시지 규칙
