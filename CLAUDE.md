@@ -192,7 +192,7 @@ pnpm test:coverage    # 커버리지 리포트
 - **generationTracker 단일 인스턴스**: `src/lib/ai/generationTracker.ts`의 `generationTracker`는 모듈 레벨 싱글톤. TTL 차등: `generating` 30분, `completed`/`failed` 10분. Railway 단일 인스턴스 환경에서만 동작 — 멀티 인스턴스 배포 시 Redis 등 외부 저장소로 교체 필요
 - **모듈 레벨 상태가 있는 파일 테스트**: `let registered = false` 같은 모듈 레벨 플래그가 있는 파일은 테스트 간 상태 누출이 발생한다. `vi.resetModules()` + 매 테스트마다 `await import(...)` 동적 임포트로 격리한다 (`eventPersister.ts` 참고)
 - **SonarCloud vs Codecov 지표 불일치**: Codecov는 `vitest.config.ts`의 `coverage.include` 범위(lib/services/providers/repositories, ~10,601 lines)만 측정. SonarCloud는 전체 TypeScript(~21,980 lines) 측정. 두 숫자는 구조적으로 차이가 날 수밖에 없으며, 이는 설정 문제가 아님
-- **ExtendedThinking + temperature**: `extendedThinking: true` 설정 시 `temperature`는 반드시 `1` (Anthropic API 강제 요구사항). ClaudeProvider 내부에서 자동 처리됨
+- **temperature deprecated (Claude 4.x)**: Claude 4.x 모델(`claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`)은 `temperature` 파라미터를 지원하지 않음. ClaudeProvider에서 완전히 제거됨 (Extended Thinking 포함). `IAiPrompt.temperature` 필드는 legacy 호환용으로 유지하나 실제 API 호출에 사용하지 않음
 - **인메모리 rate limit 한계**: proxy의 Map 기반 리밋은 서버 재시작 시 초기화됨 (분당 카운터라 보안 영향 낮음). Railway 단일 인스턴스 전제 — 멀티 인스턴스 전환 시 Redis 등 외부 저장소 필요 (generationTracker와 동일 제약)
 
 ## Claude 도움 요청 원칙

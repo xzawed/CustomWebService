@@ -115,9 +115,10 @@ describe('ClaudeProvider', () => {
       );
     });
 
-    it('기본 temperature는 0.7이다', async () => {
+    it('temperature를 API에 전달하지 않는다 (Claude 4.x deprecated)', async () => {
       await provider.generateCode({ system: 'sys', user: 'user' });
-      expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ temperature: 0.7 }));
+      const callArg = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArg).not.toHaveProperty('temperature');
     });
 
     it('기본 max_tokens는 48000이다', async () => {
@@ -135,19 +136,13 @@ describe('ClaudeProvider', () => {
       );
     });
 
-    it('extendedThinking 활성화 시 thinking 파라미터와 temperature 1이 전달된다', async () => {
+    it('extendedThinking 활성화 시 thinking 파라미터가 전달된다', async () => {
       await provider.generateCode({ system: 'sys', user: 'user', extendedThinking: true });
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          thinking: { type: 'enabled', budget_tokens: 32000 },
-          temperature: 1,
-        })
-      );
-    });
-
-    it('extendedThinking 비활성화 시 기본 temperature 0.7이 전달된다', async () => {
-      await provider.generateCode({ system: 'sys', user: 'user' });
-      expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ temperature: 0.7 }));
+      const callArg = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArg).toMatchObject({
+        thinking: { type: 'enabled', budget_tokens: 32000 },
+      });
+      expect(callArg).not.toHaveProperty('temperature');
     });
   });
 

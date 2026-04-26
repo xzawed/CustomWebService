@@ -87,8 +87,6 @@ export class ClaudeProvider implements IAiProvider {
         model: this.model,
         system: buildSystemParam(prompt.system),
         messages: [{ role: 'user', content: prompt.user }],
-        // Extended thinking 활성화 시 temperature 1 필수 (API 요구사항)
-        temperature: useThinking ? 1 : (prompt.temperature ?? 0.7),
         max_tokens: prompt.maxTokens ?? 48000,
         ...(useThinking && {
           thinking: { type: 'enabled' as const, budget_tokens: 32000 },
@@ -126,7 +124,6 @@ export class ClaudeProvider implements IAiProvider {
         model: this.model,
         system: buildSystemParam(prompt.system),
         messages: [{ role: 'user', content: prompt.user }],
-        temperature: useThinking ? 1 : (prompt.temperature ?? 0.7),
         max_tokens: prompt.maxTokens ?? 48000,
         ...(useThinking && {
           thinking: { type: 'enabled' as const, budget_tokens: 32000 },
