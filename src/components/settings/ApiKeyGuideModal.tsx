@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { X, ExternalLink, CheckCircle, Clock } from 'lucide-react';
 import type { ApiKeyGuide } from '@/lib/apiKeyGuides';
 
@@ -10,14 +11,22 @@ interface Props {
 }
 
 export function ApiKeyGuideModal({ apiName, guide, onClose }: Props) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.7)' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
+      {/* Backdrop button — click outside to close */}
+      <button type="button" className="absolute inset-0" onClick={onClose} aria-label="닫기" />
+
       <div
-        className="glass relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6"
+        className="glass relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6"
         style={{ background: 'var(--bg-card)' }}
       >
         {/* 헤더 */}
@@ -54,7 +63,7 @@ export function ApiKeyGuideModal({ apiName, guide, onClose }: Props) {
         {/* 단계별 안내 */}
         <ol className="mb-5 space-y-4">
           {guide.steps.map((step, i) => (
-            <li key={i} className="flex gap-4">
+            <li key={step.title} className="flex gap-4">
               <div
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
                 style={{ background: 'linear-gradient(135deg, #06b6d4, #8b5cf6)' }}
@@ -84,8 +93,8 @@ export function ApiKeyGuideModal({ apiName, guide, onClose }: Props) {
         {/* 팁 */}
         {guide.tips && guide.tips.length > 0 && (
           <div className="mb-5 space-y-2">
-            {guide.tips.map((tip, i) => (
-              <div key={i} className="flex items-start gap-2 text-sm text-slate-400">
+            {guide.tips.map((tip) => (
+              <div key={tip} className="flex items-start gap-2 text-sm text-slate-400">
                 <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
                 <span>{tip}</span>
               </div>
