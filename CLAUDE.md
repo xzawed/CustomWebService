@@ -202,7 +202,7 @@ pnpm test:coverage    # 커버리지 리포트
 1. **Railway 배포 상태** — `railway deployment list --json` (최신 배포 status·커밋 확인)
 2. **SonarCloud 품질 상태** — SonarQube MCP 도구로 `xzawed_CustomWebService` 프로젝트 이슈·품질 게이트 조회
 
-이상 징후(배포 실패, 품질 게이트 FAILED, 신규 버그/취약점)가 있으면 작업 시작 전에 사용자에게 보고한다.
+이상 징후(배포 실패, 품질 게이트 FAILED, 신규 버그/취약점)가 있을 때만 사용자에게 보고한다. 정상이면 별도 보고 없이 작업을 진행한다.
 
 ## Claude 도움 요청 원칙
 
