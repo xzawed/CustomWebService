@@ -30,6 +30,22 @@ describe('validateSecurity', () => {
     expect(result.passed).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
+
+  it('인라인 script 태그가 있으면 에러를 반환한다', () => {
+    const result = validateSecurity('<script>alert(1)</script>');
+    expect(result.passed).toBe(false);
+    expect(result.errors.some((e) => e.includes('인라인 스크립트'))).toBe(true);
+  });
+
+  it('src 속성이 있는 script 태그는 차단하지 않는다', () => {
+    const result = validateSecurity('<script src="https://cdn.example.com/lib.js"></script>');
+    expect(result.errors.some((e) => e.includes('인라인 스크립트'))).toBe(false);
+  });
+
+  it('script 없는 정상 HTML은 인라인 스크립트 에러 없음', () => {
+    const result = validateSecurity('<div class="app"><h1>Hello</h1></div>');
+    expect(result.errors.some((e) => e.includes('인라인 스크립트'))).toBe(false);
+  });
 });
 
 describe('validateFunctionality', () => {

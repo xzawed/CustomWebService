@@ -30,6 +30,11 @@ export function validateSecurity(code: string): ValidationResult {
     errors.push('eval() 사용이 감지되었습니다. 보안상 허용되지 않습니다.');
   }
 
+  // Block: inline script tags (src= 속성 없는 경우만 — CDN 태그는 허용)
+  if (/<script(?!\s[^>]*\bsrc\s*=)[^>]*>/i.test(code)) {
+    errors.push('AI 생성 코드에 인라인 스크립트는 허용되지 않습니다.');
+  }
+
   // Block: definite hardcoded key formats
   for (const pattern of DEFINITE_KEY_PATTERNS) {
     if (pattern.test(code)) {

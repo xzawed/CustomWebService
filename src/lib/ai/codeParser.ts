@@ -168,14 +168,13 @@ function optimizeImages(html: string): string {
 export function assembleHtml(parsed: ParsedCode): string {
   const safeCss = parsed.css ? sanitizeCss(parsed.css) : '';
 
-  // Sanitize AI-generated HTML: strip event handlers and javascript: URIs while
-  // preserving <script>/<style>/<link> (already validated by securityValidator)
-  // and Alpine.js custom attributes (x-*, :*, @*).
+  // Sanitize AI-generated HTML. ADD_TAGS is intentionally empty: script/style/link are
+  // all omitted to prevent DOM-based attacks (SonarQube S8479). CSS comes from parsed.css
+  // and Alpine.js is injected by buildHeadInjections() after sanitization.
   const isFullDoc = parsed.html.includes('</head>');
   const safeHtml = DOMPurify.sanitize(parsed.html, {
     WHOLE_DOCUMENT: isFullDoc,
     FORCE_BODY: !isFullDoc,
-    ADD_TAGS: ['script', 'style', 'link'],
   });
 
   // If HTML is a full document, inject additional CSS and JS
