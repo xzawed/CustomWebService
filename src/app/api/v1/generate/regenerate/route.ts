@@ -4,8 +4,10 @@ import { getAuthUser } from '@/lib/auth/index';
 import { createProjectService, createCatalogService, createRateLimitService } from '@/services/factory';
 import { createCodeRepository } from '@/repositories/factory';
 import { registerEventPersister } from '@/lib/events/eventPersister';
+import { registerErrorRateMonitor } from '@/lib/monitoring/errorRateMonitor';
 
 registerEventPersister();
+registerErrorRateMonitor();
 import {
   buildStage1SystemPrompt,
   buildStage1RegenerationUserPrompt,

@@ -1,3 +1,4 @@
+import sodium from 'libsodium-wrappers';
 import { logger } from '@/lib/utils/logger';
 import type { FileEntry } from '@/providers/deploy/IDeployProvider';
 
@@ -150,7 +151,12 @@ export async function setSecrets(
 ): Promise<void> {
   const headers = getHeaders();
 
-  // Get public key for encrypting secrets
+  if (Object.keys(secrets).length === 0) {
+    logger.info('Secrets configured', { repoFullName, secretCount: 0 });
+    return;
+  }
+
+  // Get repo public key for sealed-box encryption (GitHub Actions requires this)
   const keyRes = await fetch(`${GITHUB_API}/repos/${repoFullName}/actions/secrets/public-key`, {
     headers,
   });
@@ -160,24 +166,28 @@ export async function setSecrets(
   }
   const keyData = await keyRes.json();
 
-  // TODO(secrets): libsodium(tweetnacl)으로 Actions secret 암호화 후 주입 필요.
-  // 현재 이 함수는 no-op로 동작하며, 배포 시 secret은 수동 설정을 전제로 함.
-  // 구현 방법:
-  //   npm install tweetnacl tweetnacl-util
-  //   import nacl from 'tweetnacl';
-  //   import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
-  //   const keyBytes = decodeBase64(keyData.key);
-  //   const valueBytes = new TextEncoder().encode(value);
-  //   const encrypted = nacl.box.seal(valueBytes, keyBytes);
-  //   const encrypted_value = encodeBase64(encrypted);
-  //   PUT /repos/{owner}/{repo}/actions/secrets/{secret_name} with { encrypted_value, key_id }
-  if (Object.keys(secrets).length > 0) {
-    logger.warn(
-      'GitHub Actions secret injection skipped: libsodium encryption not yet implemented. ' +
-      'Secrets must be set manually in the repository settings.',
-      { repoFullName, secretNames: Object.keys(secrets) }
-    );
-  }
+  await sodium.ready;
+  const repoPublicKey = sodium.from_base64(keyData.key as string, sodium.base64_variants.ORIGINAL);
+
+  await Promise.all(
+    Object.entries(secrets).map(async ([name, value]) => {
+      const valueBytes = sodium.from_string(value);
+      const encryptedBytes = sodium.crypto_box_seal(valueBytes, repoPublicKey);
+      const encryptedValue = sodium.to_base64(encryptedBytes, sodium.base64_variants.ORIGINAL);
+
+      const res = await fetch(
+        `${GITHUB_API}/repos/${repoFullName}/actions/secrets/${name}`,
+        {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ encrypted_value: encryptedValue, key_id: keyData.key_id }),
+        }
+      );
+      if (!res.ok && res.status !== 204) {
+        logger.warn('Failed to set secret', { repoFullName, name, status: res.status });
+      }
+    })
+  );
 
   logger.info('Secrets configured', { repoFullName, secretCount: Object.keys(secrets).length });
 }

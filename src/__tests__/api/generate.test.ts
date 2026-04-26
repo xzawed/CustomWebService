@@ -25,6 +25,10 @@ vi.mock('@/lib/events/eventPersister', () => ({
   registerEventPersister: vi.fn(),
 }));
 
+vi.mock('@/lib/monitoring/errorRateMonitor', () => ({
+  registerErrorRateMonitor: vi.fn(),
+}));
+
 vi.mock('@/providers/ai/AiProviderFactory', () => ({
   AiProviderFactory: {
     create: vi.fn(),
