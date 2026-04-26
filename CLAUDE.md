@@ -200,7 +200,17 @@ pnpm test:coverage    # 커버리지 리포트
 작업 세션을 시작할 때 아래 두 가지를 반드시 먼저 확인한다.
 
 1. **Railway 배포 상태** — `railway deployment list --json` (최신 배포 status·커밋 확인)
-2. **SonarCloud 품질 상태** — SonarQube MCP 도구로 `xzawed_CustomWebService` 프로젝트 이슈·품질 게이트 조회
+2. **SonarCloud 품질 상태** — 아래 우선순위로 확인:
+   - **(기본)** SonarQube MCP 도구로 `xzawed_CustomWebService` 프로젝트 이슈·품질 게이트 조회
+   - **(차선 — MCP 미로드 시)** SonarCloud REST API로 대체:
+     ```bash
+     # 품질 게이트
+     curl -s -u "d9298987059a0e9855b0876cf17e2ad5357b9cb6:" \
+       "https://sonarcloud.io/api/qualitygates/project_status?projectKey=xzawed_CustomWebService"
+     # 신규 이슈
+     curl -s -u "d9298987059a0e9855b0876cf17e2ad5357b9cb6:" \
+       "https://sonarcloud.io/api/issues/search?projectKeys=xzawed_CustomWebService&resolved=false&ps=5"
+     ```
 
 이상 징후(배포 실패, 품질 게이트 FAILED, 신규 버그/취약점)가 있을 때만 사용자에게 보고한다. 정상이면 별도 보고 없이 작업을 진행한다.
 
