@@ -330,7 +330,7 @@ export default function BuilderPage() {
     } catch (err) {
       failGeneration(err instanceof Error ? err.message : '알 수 없는 오류');
     }
-  }, [selectedIds, context, selectedTemplate, startGeneration, updateProgress, completeGeneration, failGeneration, resetContext, clearApis, setGeneratingProjectId]);
+  }, [selectedIds, context, selectedTemplate, getDesignPreferences, startGeneration, updateProgress, completeGeneration, failGeneration, resetContext, clearApis, setGeneratingProjectId]);
 
   // === Relevance Gate: preference recommendation trigger ===
   useEffect(() => {

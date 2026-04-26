@@ -60,7 +60,7 @@ function safeAssembleHtml(code: { html: string; css: string; js: string }): stri
   }
 }
 
-const ET_THRESHOLD = Number(process.env.ET_COMPLEXITY_THRESHOLD ?? 45);
+const ET_THRESHOLD = Number(process.env.ET_COMPLEXITY_THRESHOLD ?? 35);
 
 export function evaluateComplexityScore(apis: ApiCatalogItem[], context?: string): number {
   let score = 0;
@@ -85,11 +85,11 @@ export function evaluateComplexityScore(apis: ApiCatalogItem[], context?: string
   );
   if (hasMutations) score += 8;
 
-  // Context quality signal
+  // Context quality signal (단조 증가: 길수록 높은 점수)
   const ctxLen = context?.length ?? 0;
   if (ctxLen >= 500) score += 15;
   else if (ctxLen >= 100) score += 8;
-  else if (ctxLen > 0) score += 10;
+  else if (ctxLen > 0) score += 3;
 
   // Dependency complexity: payment domain or same-category multi-API
   const categories = new Set(apis.map((api) => api.category));

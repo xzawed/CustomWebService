@@ -100,14 +100,14 @@ function FloatingParticles() {
 }
 
 /* ─── 단계 표시 인디케이터 ─── */
-function StepIndicator({ currentStep, progress }: { currentStep: string; progress: number }) {
-  const steps = ['analyzing', 'generating_code', 'styling', 'validating'];
-  const stepLabels = ['분석', '생성', '디자인', '검증'];
+const GENERATION_STEPS = ['analyzing', 'generating_code', 'styling', 'validating'];
+const GENERATION_STEP_LABELS = ['분석', '생성', '디자인', '검증'];
 
+function StepIndicator({ currentStep, progress }: { currentStep: string; progress: number }) {
   const getStepStatus = useCallback(
     (step: string) => {
-      const stepIndex = steps.indexOf(step);
-      const currentIndex = steps.indexOf(currentStep);
+      const stepIndex = GENERATION_STEPS.indexOf(step);
+      const currentIndex = GENERATION_STEPS.indexOf(currentStep);
       if (currentIndex === -1) {
         if (progress < 10) return 'pending';
         if (progress < 85) return step === 'generating_code' ? 'active' : stepIndex < 1 ? 'done' : 'pending';
@@ -123,7 +123,7 @@ function StepIndicator({ currentStep, progress }: { currentStep: string; progres
 
   return (
     <div className="flex items-center justify-center gap-1">
-      {steps.map((step, i) => {
+      {GENERATION_STEPS.map((step, i) => {
         const s = getStepStatus(step);
         return (
           <div key={step} className="flex items-center gap-1">
@@ -153,10 +153,10 @@ function StepIndicator({ currentStep, progress }: { currentStep: string; progres
                   color: s === 'active' ? 'var(--accent-primary)' : s === 'done' ? 'var(--success)' : 'var(--text-muted)',
                 }}
               >
-                {stepLabels[i]}
+                {GENERATION_STEP_LABELS[i]}
               </span>
             </div>
-            {i < steps.length - 1 && (
+            {i < GENERATION_STEPS.length - 1 && (
               <div
                 className="mb-4 h-0.5 w-8 rounded-full transition-all duration-500"
                 style={{

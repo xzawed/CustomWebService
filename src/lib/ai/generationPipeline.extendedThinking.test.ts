@@ -120,9 +120,9 @@ describe('evaluateComplexityScore()', () => {
       expect(evaluateComplexityScore([makeApi()])).toBe(0);
     });
 
-    it('짧은 컨텍스트 (1~99자) → +10점', () => {
+    it('짧은 컨텍스트 (1~99자) → +3점 (100자↑보다 낮은 단조 증가)', () => {
       const score = evaluateComplexityScore([makeApi()], '짧은 설명');
-      expect(score).toBe(10);
+      expect(score).toBe(3);
     });
 
     it('중간 컨텍스트 (100~499자) → +8점', () => {
@@ -163,13 +163,51 @@ describe('evaluateComplexityScore()', () => {
     });
   });
 
-  describe('임계값 45 — shouldUseExtendedThinking 등가 검증', () => {
-    it('단순 단일 API + 짧은 컨텍스트 → 45 미만', () => {
+  describe('임계값 35 — shouldUseExtendedThinking 등가 검증', () => {
+    it('단순 단일 API + 짧은 컨텍스트 → 35 미만', () => {
       const score = evaluateComplexityScore([makeApi({ authType: 'none' })], '간단한 서비스');
-      expect(score).toBeLessThan(45);
+      expect(score).toBeLessThan(35);
     });
 
-    it('3개 API + oauth + 4개 엔드포인트(POST 포함) + 긴 컨텍스트 → 45 이상', () => {
+    it('보통 (2개 API, api_key, 3개 엔드포인트+POST, 150자) → 35 미만', () => {
+      // api_key: +8, endpoints≥2: +5, mutation: +8, context≥100: +8 = 29
+      const apis = [
+        makeApi({ authType: 'api_key', endpoints: [makeEndpoint('GET'), makeEndpoint('POST'), makeEndpoint('GET')] }),
+        makeApi({ authType: 'none' }),
+      ];
+      const score = evaluateComplexityScore(apis, 'a'.repeat(150));
+      expect(score).toBeLessThan(35);
+    });
+
+    it('중간 (3개 API, api_key, 5개 엔드포인트+변이, 300자) → 35 이상', () => {
+      // API count: +5, api_key: +8, endpoints≥4: +10, mutation: +8, context≥100: +8 = 39
+      const apis = [
+        makeApi({
+          authType: 'api_key',
+          endpoints: [makeEndpoint('GET'), makeEndpoint('POST'), makeEndpoint('DELETE'), makeEndpoint('GET'), makeEndpoint('GET')],
+        }),
+        makeApi({ authType: 'none' }),
+        makeApi({ authType: 'none' }),
+      ];
+      const score = evaluateComplexityScore(apis, 'a'.repeat(300));
+      expect(score).toBeGreaterThanOrEqual(35);
+    });
+
+    it('결제 포함 (2개, api_key, 4개 엔드포인트+POST, 200자) → 35 이상', () => {
+      // api_key: +8, endpoints≥4: +10, mutation: +8, context≥100: +8, payment: +10 = 44
+      const apis = [
+        makeApi({
+          name: 'Stripe 결제 API',
+          authType: 'api_key',
+          endpoints: [makeEndpoint('GET'), makeEndpoint('POST'), makeEndpoint('PUT'), makeEndpoint('DELETE')],
+        }),
+        makeApi({ authType: 'none' }),
+      ];
+      const score = evaluateComplexityScore(apis, 'a'.repeat(200));
+      expect(score).toBeGreaterThanOrEqual(35);
+    });
+
+    it('3개 API + oauth + 4개 엔드포인트(POST 포함) + 긴 컨텍스트 → 35 이상', () => {
       // API count: +5, oauth: +15, endpoints≥4: +10, mutation: +8, context≥500: +15 = 53
       const apis = [
         makeApi({
@@ -184,7 +222,7 @@ describe('evaluateComplexityScore()', () => {
       ];
       const ctx = 'a'.repeat(500);
       const score = evaluateComplexityScore(apis, ctx);
-      expect(score).toBeGreaterThanOrEqual(45);
+      expect(score).toBeGreaterThanOrEqual(35);
     });
   });
 });
