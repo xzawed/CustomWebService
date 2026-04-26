@@ -54,6 +54,7 @@ export default function PopularServiceSuggestions({ onSelect }: PopularServiceSu
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPopular();
   }, [fetchPopular]);
 

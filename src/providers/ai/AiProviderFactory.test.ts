@@ -47,8 +47,7 @@ describe('AiProviderFactory.create()', () => {
   });
 
   it('알 수 없는 provider 타입은 에러를 던진다', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(() => AiProviderFactory.create('unknown' as any)).toThrow('Unknown AI provider');
+    expect(() => AiProviderFactory.create('unknown' as never)).toThrow('Unknown AI provider');
   });
 
   it('기본 provider가 claude이다', () => {
@@ -64,7 +63,6 @@ describe('AiProviderFactory.createForTask()', () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     AiProviderFactory.clearCache();
   });
 

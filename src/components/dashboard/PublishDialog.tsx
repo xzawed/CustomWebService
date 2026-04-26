@@ -133,6 +133,7 @@ export function PublishDialog({ project, onClose, onPublished }: PublishDialogPr
 
   useEffect(() => {
     if (selectedMode !== 'custom') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCheckResult('idle');
       if (debounceTimer.current) {
         clearTimeout(debounceTimer.current);
