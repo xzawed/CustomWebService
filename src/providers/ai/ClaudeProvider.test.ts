@@ -294,6 +294,201 @@ describe('ClaudeProvider', () => {
     });
   });
 
+  describe('추가 재시도 시나리오', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('502 Bad Gateway → 재시도 후 성공', async () => {
+      mockCreate
+        .mockRejectedValueOnce({ status: 502 })
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'ok after 502' }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      expect(result.content).toBe('ok after 502');
+    });
+
+    it('504 Gateway Timeout → 재시도 후 성공', async () => {
+      mockCreate
+        .mockRejectedValueOnce({ status: 504 })
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'ok after 504' }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      expect(result.content).toBe('ok after 504');
+    });
+
+    it('네트워크 에러 ECONNRESET → 재시도 후 성공', async () => {
+      const networkError = Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' });
+      mockCreate
+        .mockRejectedValueOnce(networkError)
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'ok after ECONNRESET' }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      expect(result.content).toBe('ok after ECONNRESET');
+    });
+
+    it('네트워크 에러 ETIMEDOUT → 재시도 후 성공', async () => {
+      const networkError = Object.assign(new Error('connection timed out'), { code: 'ETIMEDOUT' });
+      mockCreate
+        .mockRejectedValueOnce(networkError)
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'ok after ETIMEDOUT' }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      expect(result.content).toBe('ok after ETIMEDOUT');
+    });
+
+    it('지수 백오프: 1차 1000ms, 2차 2000ms 대기', async () => {
+      const retryableError = { status: 500 };
+      mockCreate
+        .mockRejectedValueOnce(retryableError) // attempt 0 → 실패
+        .mockRejectedValueOnce(retryableError) // attempt 1 (1000ms 후) → 실패
+        .mockResolvedValueOnce({               // attempt 2 (2000ms 후) → 성공
+          content: [{ type: 'text', text: 'ok after backoff' }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+
+      // 999ms 진행 — 1차 재시도 아직 실행 안 됨
+      await vi.advanceTimersByTimeAsync(999);
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+
+      // 1000ms 진행 — 1차 재시도 실행
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+
+      // 추가 1999ms 진행 — 2차 재시도 아직 안 됨 (총 2999ms)
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+
+      // 1ms 더 진행 — 2차 재시도 실행 (총 3000ms = 1000+2000)
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mockCreate).toHaveBeenCalledTimes(3);
+
+      const result = await promise;
+      expect(result.content).toBe('ok after backoff');
+    });
+
+    it('MAX_RETRIES 초과 후 마지막 에러를 throw', async () => {
+      const err502 = { status: 502, message: 'bad gateway' };
+      mockCreate
+        .mockRejectedValueOnce(err502)
+        .mockRejectedValueOnce(err502)
+        .mockRejectedValueOnce(err502);
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      const assertRejection = expect(promise).rejects.toMatchObject({ status: 502 });
+      await vi.runAllTimersAsync();
+      await assertRejection;
+
+      expect(mockCreate).toHaveBeenCalledTimes(3); // 초기 1회 + 재시도 2회
+    });
+
+    it('4xx (400) 에러 → 즉시 throw — 재시도 없음 (추가 검증)', async () => {
+      // 기존 테스트 보완: 400은 RETRYABLE_STATUS_CODES에 없으므로 즉시 throw
+      mockCreate
+        .mockRejectedValueOnce({ status: 400, message: 'bad request' })
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'should not reach' }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      const assertRejection = expect(promise).rejects.toMatchObject({ status: 400 });
+      await vi.runAllTimersAsync();
+      await assertRejection;
+
+      // 재시도 없이 1회만 호출
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('generateCodeStream 성공 후 finalMessage 실패 → 에러 전파', async () => {
+      // finalMessage 에러는 status/code 없는 일반 Error → isRetryableError false → 즉시 throw
+      mockStreamOn.mockImplementation((event: string, callback: (text: string) => void) => {
+        if (event === 'text') {
+          callback('partial content');
+        }
+      });
+      mockFinalMessage.mockRejectedValueOnce(new Error('finalMessage network error'));
+
+      await expect(
+        provider.generateCodeStream({ system: 'sys', user: 'user' }, () => {})
+      ).rejects.toThrow('finalMessage network error');
+    });
+
+    it('재시도 중 첫 번째 성공 시 즉시 반환 (나머지 시도 없음)', async () => {
+      // 503 → sleep(1000ms) → 성공 → 이후 추가 시도 없이 종료
+      // mockReset으로 이전 테스트의 잔여 Once 큐를 완전히 비우고 재설정
+      mockCreate.mockReset();
+      mockCreate
+        .mockRejectedValueOnce({ status: 503 })
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'first success' }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      // 총 2회만 호출 (3번째 시도 없이 종료)
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      expect(result.content).toBe('first success');
+    });
+
+    it('status 없는 일반 Error → 재시도 (network error 취급)', async () => {
+      // isRetryableError: status 없는 Error 중 'code' 속성이 있으면 재시도
+      // mockReset으로 이전 테스트의 잔여 Once 큐를 완전히 비우고 재설정
+      mockCreate.mockReset();
+      const plainNetworkError = Object.assign(new Error('fetch failed'), { code: 'ENOTFOUND' });
+      mockCreate
+        .mockRejectedValueOnce(plainNetworkError)
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'ok after plain error' }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      expect(result.content).toBe('ok after plain error');
+    });
+  });
+
   describe('checkAvailability()', () => {
     it('API 성공 시 available: true를 반환한다', async () => {
       const result = await provider.checkAvailability();

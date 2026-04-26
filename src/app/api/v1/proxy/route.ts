@@ -14,6 +14,11 @@ function checkProxyRateLimit(userId: string): boolean {
   const entry = proxyRateLimit.get(userId);
   if (!entry || now >= entry.resetAt) {
     proxyRateLimit.set(userId, { count: 1, resetAt: now + 60_000 });
+    if (proxyRateLimit.size > 1000) {
+      for (const [k, v] of proxyRateLimit) {
+        if (now >= v.resetAt) proxyRateLimit.delete(k);
+      }
+    }
     return true;
   }
   if (entry.count >= PROXY_RATE_LIMIT_PER_MIN) return false;
@@ -46,7 +51,11 @@ const PRIVATE_IP_PATTERNS = [
 
 function isPrivateHost(hostname: string): boolean {
   if (BLOCKED_HOSTS.has(hostname)) return true;
-  return PRIVATE_IP_PATTERNS.some((p) => p.test(hostname));
+  // URL 표준에서 IPv6는 대괄호로 감싸짐 (e.g. [fe80::1]) — 패턴 검사 전 제거
+  const bare = hostname.startsWith('[') && hostname.endsWith(']')
+    ? hostname.slice(1, -1)
+    : hostname;
+  return PRIVATE_IP_PATTERNS.some((p) => p.test(bare));
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
