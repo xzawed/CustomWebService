@@ -1,6 +1,9 @@
 import crypto from 'crypto';
 import { ForbiddenError } from '@/lib/utils/errors';
 
+// One-time random key for HMAC-based timing-safe string comparison (never exported)
+const _HMAC_KEY = crypto.randomBytes(32);
+
 // In-memory rate limit: max 60 requests per minute per IP
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -61,12 +64,8 @@ export function verifyAdminKey(request: Request): void {
   if (!expected) {
     throw new ForbiddenError('ADMIN_API_KEY가 설정되지 않았습니다');
   }
-  const keyBuffer = Buffer.from(key);
-  const expectedBuffer = Buffer.from(expected);
-  if (
-    keyBuffer.length !== expectedBuffer.length ||
-    !crypto.timingSafeEqual(keyBuffer, expectedBuffer)
-  ) {
+  const hmac = (b: Buffer) => crypto.createHmac('sha256', _HMAC_KEY).update(b).digest();
+  if (!crypto.timingSafeEqual(hmac(Buffer.from(key)), hmac(Buffer.from(expected)))) {
     throw new ForbiddenError('유효하지 않은 관리자 키입니다');
   }
 }

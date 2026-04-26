@@ -90,7 +90,6 @@ export async function GET(request: Request) {
             if (insertError) {
               logger.error('Failed to create user record in callback', {
                 userId: authUser.id,
-                email: authUser.email,
                 error: insertError.message,
                 code: insertError.code,
               });
