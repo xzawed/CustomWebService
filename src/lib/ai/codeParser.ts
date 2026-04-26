@@ -31,14 +31,13 @@ function extractCodeBlock(text: string, language: string): string {
  */
 export function sanitizeCss(css: string): string {
   return css
-    // IE CSS expression injection: expression(...)
     .replace(/expression\s*\(/gi, '/* removed */(')
-    // CSS url(javascript:...) XSS
     .replace(/url\s*\(\s*(['"]?\s*)javascript:/gi, 'url($1#')
-    // IE behavior property
+    .replace(/url\s*\(\s*(['"]?\s*)data:/gi, 'url($1#')
     .replace(/behavior\s*:/gi, '/* removed */:')
-    // Firefox -moz-binding XSS
-    .replace(/-moz-binding\s*:/gi, '/* removed */:');
+    .replace(/-moz-binding\s*:/gi, '/* removed */:')
+    .replace(/-webkit-binding\s*:/gi, '/* removed */:')
+    .replace(/@import\b/gi, '/* removed */');
 }
 
 /**

@@ -201,6 +201,83 @@ describe('GET /api/v1/proxy', () => {
     expect(mockFetch).toHaveBeenCalledTimes(60); // 61번째는 fetch 호출 전 차단
   });
 
+  describe('DNS 리바인딩 방어', () => {
+    it('DNS가 RFC 1918 10.x.x.x로 해석되면 → 403', async () => {
+      const { default: dnsDefault } = await import('dns/promises');
+      vi.mocked(dnsDefault.lookup).mockResolvedValueOnce({ address: '10.0.0.1', family: 4 } as never);
+
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+      const { createCatalogRepository } = await import('@/repositories/factory');
+      vi.mocked(createCatalogRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue({ ...mockPublicApi, baseUrl: 'https://legit.example.com' }),
+      } as never);
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+      const res = await GET(makeRequest(VALID_API_ID, '/data'));
+      expect(res.status).toBe(403);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('DNS가 IPv6 루프백 ::1로 해석되면 → 403', async () => {
+      const { default: dnsDefault } = await import('dns/promises');
+      vi.mocked(dnsDefault.lookup).mockResolvedValueOnce({ address: '::1', family: 6 } as never);
+
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+      const { createCatalogRepository } = await import('@/repositories/factory');
+      vi.mocked(createCatalogRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue({ ...mockPublicApi, baseUrl: 'https://legit.example.com' }),
+      } as never);
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+      const res = await GET(makeRequest(VALID_API_ID, '/data'));
+      expect(res.status).toBe(403);
+    });
+
+    it('DNS lookup 실패(ENOTFOUND) → 안전 실패 403', async () => {
+      const { default: dnsDefault } = await import('dns/promises');
+      vi.mocked(dnsDefault.lookup).mockRejectedValueOnce(new Error('ENOTFOUND legit.example.com'));
+
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+      const { createCatalogRepository } = await import('@/repositories/factory');
+      vi.mocked(createCatalogRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue({ ...mockPublicApi, baseUrl: 'https://legit.example.com' }),
+      } as never);
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+      const res = await GET(makeRequest(VALID_API_ID, '/data'));
+      expect(res.status).toBe(403);
+    });
+  });
+
+  it('POST 요청 — body를 upstream에 전달', async () => {
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+    const { createCatalogRepository } = await import('@/repositories/factory');
+    vi.mocked(createCatalogRepository).mockReturnValue({
+      findById: vi.fn().mockResolvedValue(mockPublicApi),
+    } as never);
+
+    const url = new URL('http://localhost/api/v1/proxy');
+    url.searchParams.set('apiId', VALID_API_ID);
+    url.searchParams.set('proxyPath', '/search');
+    const req = new Request(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: 'test' }),
+    });
+
+    const { POST } = await import('@/app/api/v1/proxy/route');
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('api.example.com'),
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
   it('비활성 API → 404', async () => {
     const { getAuthUser } = await import('@/lib/auth/index');
     vi.mocked(getAuthUser).mockResolvedValue(mockUser);

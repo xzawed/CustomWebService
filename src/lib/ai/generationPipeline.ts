@@ -60,8 +60,50 @@ function safeAssembleHtml(code: { html: string; css: string; js: string }): stri
   }
 }
 
+const ET_THRESHOLD = Number(process.env.ET_COMPLEXITY_THRESHOLD ?? 45);
+
+export function evaluateComplexityScore(apis: ApiCatalogItem[], context?: string): number {
+  let score = 0;
+
+  // API count signal: +5pts per API beyond 2, capped at 20pts
+  score += Math.min(Math.max(0, apis.length - 2) * 5, 20);
+
+  // Auth complexity: highest auth type among all APIs wins
+  const maxAuth = apis.reduce((max, api) => {
+    if (api.authType === 'oauth') return Math.max(max, 15);
+    if (api.authType === 'api_key') return Math.max(max, 8);
+    return max;
+  }, 0);
+  score += maxAuth;
+
+  // Endpoint diversity: breadth and mutations
+  const totalEndpoints = apis.reduce((sum, api) => sum + (api.endpoints?.length ?? 0), 0);
+  if (totalEndpoints >= 4) score += 10;
+  else if (totalEndpoints >= 2) score += 5;
+  const hasMutations = apis.some((api) =>
+    api.endpoints?.some((ep) => ep.method === 'POST' || ep.method === 'PUT' || ep.method === 'DELETE')
+  );
+  if (hasMutations) score += 8;
+
+  // Context quality signal
+  const ctxLen = context?.length ?? 0;
+  if (ctxLen >= 500) score += 15;
+  else if (ctxLen >= 100) score += 8;
+  else if (ctxLen > 0) score += 10;
+
+  // Dependency complexity: payment domain or same-category multi-API
+  const categories = new Set(apis.map((api) => api.category));
+  const sameCategoryMultiple = apis.length >= 2 && categories.size === 1;
+  const hasPaymentKeyword = apis.some((api) =>
+    /payment|stripe|결제|pay/i.test(api.name)
+  );
+  if (sameCategoryMultiple || hasPaymentKeyword) score += 10;
+
+  return score;
+}
+
 function shouldUseExtendedThinking(apis: ApiCatalogItem[], context?: string): boolean {
-  return apis.length >= 3 || (context?.length ?? 0) >= 500;
+  return evaluateComplexityScore(apis, context) >= ET_THRESHOLD;
 }
 
 async function handlePipelineFailure(
