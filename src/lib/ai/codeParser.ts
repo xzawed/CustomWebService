@@ -29,11 +29,22 @@ function extractCodeBlock(text: string, language: string): string {
  * Sanitize AI-generated CSS to remove known injection attack patterns.
  * JS validation is handled separately by codeValidator.validateAll().
  */
+// CSS 유니코드 이스케이프 디코딩 (\00006a → 'j' 등)
+// 이스케이프 우회 공격 방지: \00006a\000061\000076... = "javascript" 패턴 전처리
+function decodeCssUnicodeEscapes(css: string): string {
+  return css.replaceAll(/\\([0-9a-fA-F]{1,6}) ?/g, (_, hex) =>
+    String.fromCodePoint(Number.parseInt(hex, 16))
+  );
+}
+
 export function sanitizeCss(css: string): string {
-  return css
+  // 유니코드 이스케이프를 먼저 디코딩한 후 패턴 검사 (우회 공격 차단)
+  const decoded = decodeCssUnicodeEscapes(css);
+  return decoded
     .replace(/expression\s*\(/gi, '/* removed */(')
     .replace(/url\s*\(\s*(['"]?\s*)javascript:/gi, 'url($1#')
     .replace(/url\s*\(\s*(['"]?\s*)data:/gi, 'url($1#')
+    .replace(/url\s*\(\s*(['"]?\s*)\/\//gi, 'url($1#')  // 프로토콜 상대 URL (//evil.com/)
     .replace(/behavior\s*:/gi, '/* removed */:')
     .replace(/-moz-binding\s*:/gi, '/* removed */:')
     .replace(/-webkit-binding\s*:/gi, '/* removed */:')
