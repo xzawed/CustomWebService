@@ -4,7 +4,7 @@ import * as schema from '@/lib/db/schema';
 import type { Project, ProjectMetadata } from '@/types/project';
 import type { IProjectRepository } from '@/repositories/interfaces';
 import type { QueryOptions } from '@/repositories/interfaces/IBaseRepository';
-import { toSnake, buildConditions } from '@/repositories/utils';
+import { toDatabaseRow, normalizePagination, buildConditions } from '@/repositories/utils';
 
 type DrizzleDb = NodePgDatabase<typeof schema>;
 
@@ -25,8 +25,8 @@ export class DrizzleProjectRepository implements IProjectRepository {
     filter?: Record<string, unknown>,
     options: QueryOptions = {}
   ): Promise<{ items: Project[]; total: number }> {
-    const { page = 1, limit = 20, orderDirection = 'desc' } = options;
-    const offset = (page - 1) * limit;
+    const { orderDirection = 'desc' } = options;
+    const { offset, limit } = normalizePagination(options);
 
     const conditions = buildConditions(filter);
 
@@ -51,7 +51,7 @@ export class DrizzleProjectRepository implements IProjectRepository {
 
   async create(input: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project> {
     const { apis: _apis, ...rest } = input;
-    const dbData = this.toDatabase(rest);
+    const dbData = toDatabaseRow(rest);
 
     const [row] = await this.db
       .insert(schema.projects)
@@ -63,7 +63,7 @@ export class DrizzleProjectRepository implements IProjectRepository {
 
   async update(id: string, input: Partial<Project>): Promise<Project> {
     const { apis: _apis, ...rest } = input;
-    const dbData = this.toDatabase(rest);
+    const dbData = toDatabaseRow(rest);
 
     const [row] = await this.db
       .update(schema.projects)
@@ -182,12 +182,4 @@ export class DrizzleProjectRepository implements IProjectRepository {
     };
   }
 
-  private toDatabase(model: Partial<Project>): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(model)) {
-      if (key === 'id' || key === 'createdAt' || key === 'updatedAt') continue;
-      result[toSnake(key)] = value;
-    }
-    return result;
-  }
 }

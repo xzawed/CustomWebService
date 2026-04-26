@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { IBaseRepository, QueryOptions } from '@/repositories/interfaces/IBaseRepository';
-import { toSnake as toSnakeUtil } from '@/repositories/utils';
+import { toSnake as toSnakeUtil, isNotFound, toDatabaseRow, normalizePagination } from '@/repositories/utils';
 
 // Re-export for backwards compatibility
 export type { QueryOptions };
@@ -19,7 +19,7 @@ export abstract class BaseRepository<T extends { id: string }> implements IBaseR
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') return null;
+      if (isNotFound(error)) return null;
       throw error;
     }
     return this.toDomain(data);
@@ -29,8 +29,8 @@ export abstract class BaseRepository<T extends { id: string }> implements IBaseR
     filter?: Record<string, unknown>,
     options: QueryOptions = {}
   ): Promise<{ items: T[]; total: number }> {
-    const { page = 1, limit = 20, orderBy = 'created_at', orderDirection = 'desc' } = options;
-    const offset = (page - 1) * limit;
+    const { orderBy = 'created_at', orderDirection = 'desc' } = options;
+    const { offset, limit } = normalizePagination(options);
 
     let query = this.supabase.from(this.tableName).select('*', { count: 'exact' });
 
@@ -105,12 +105,7 @@ export abstract class BaseRepository<T extends { id: string }> implements IBaseR
 
   // Convert domain model (camelCase) to DB row (snake_case)
   protected toDatabase(model: Partial<T>): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(model)) {
-      if (key === 'id' || key === 'createdAt' || key === 'updatedAt') continue;
-      result[this.toSnake(key)] = value;
-    }
-    return result;
+    return toDatabaseRow(model as Partial<Record<string, unknown>>);
   }
 
   protected toSnake(str: string): string {

@@ -4,7 +4,7 @@ import * as schema from '@/lib/db/schema';
 import type { GeneratedCode, CodeMetadata } from '@/types/project';
 import type { ICodeRepository } from '@/repositories/interfaces';
 import type { QueryOptions } from '@/repositories/interfaces/IBaseRepository';
-import { toSnake, buildConditions } from '@/repositories/utils';
+import { toDatabaseRow, normalizePagination, buildConditions } from '@/repositories/utils';
 
 type DrizzleDb = NodePgDatabase<typeof schema>;
 
@@ -25,8 +25,8 @@ export class DrizzleCodeRepository implements ICodeRepository {
     filter?: Record<string, unknown>,
     options: QueryOptions = {}
   ): Promise<{ items: GeneratedCode[]; total: number }> {
-    const { page = 1, limit = 20, orderDirection = 'desc' } = options;
-    const offset = (page - 1) * limit;
+    const { orderDirection = 'desc' } = options;
+    const { offset, limit } = normalizePagination(options);
 
     const conditions = buildConditions(filter);
 
@@ -50,7 +50,7 @@ export class DrizzleCodeRepository implements ICodeRepository {
   }
 
   async create(input: Omit<GeneratedCode, 'id' | 'createdAt' | 'updatedAt'>): Promise<GeneratedCode> {
-    const dbData = this.toDatabase(input);
+    const dbData = toDatabaseRow(input);
 
     const [row] = await this.db
       .insert(schema.generatedCodes)
@@ -61,7 +61,7 @@ export class DrizzleCodeRepository implements ICodeRepository {
   }
 
   async update(id: string, input: Partial<GeneratedCode>): Promise<GeneratedCode> {
-    const dbData = this.toDatabase(input);
+    const dbData = toDatabaseRow(input);
 
     // generated_codes has no updated_at column, so we don't add it
     const [row] = await this.db
@@ -173,12 +173,4 @@ export class DrizzleCodeRepository implements ICodeRepository {
     };
   }
 
-  private toDatabase(model: Partial<GeneratedCode>): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(model)) {
-      if (key === 'id' || key === 'createdAt' || key === 'updatedAt') continue;
-      result[toSnake(key)] = value;
-    }
-    return result;
-  }
 }

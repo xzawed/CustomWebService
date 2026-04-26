@@ -4,7 +4,7 @@ import * as schema from '@/lib/db/schema';
 import type { ApiCatalogItem, CatalogSearchParams, Category } from '@/types/api';
 import type { ICatalogRepository, ProjectStatus } from '@/repositories/interfaces';
 import type { QueryOptions } from '@/repositories/interfaces/IBaseRepository';
-import { toSnake, buildConditions, parseEndpoints, CATEGORY_LABELS, CATEGORY_ICONS } from '@/repositories/utils';
+import { toDatabaseRow, normalizePagination, buildConditions, parseEndpoints, CATEGORY_LABELS, CATEGORY_ICONS } from '@/repositories/utils';
 
 type DrizzleDb = NodePgDatabase<typeof schema>;
 
@@ -25,8 +25,8 @@ export class DrizzleCatalogRepository implements ICatalogRepository {
     filter?: Record<string, unknown>,
     options: QueryOptions = {}
   ): Promise<{ items: ApiCatalogItem[]; total: number }> {
-    const { page = 1, limit = 20, orderDirection = 'desc' } = options;
-    const offset = (page - 1) * limit;
+    const { orderDirection = 'desc' } = options;
+    const { offset, limit } = normalizePagination(options);
 
     const conditions = buildConditions(filter);
 
@@ -50,7 +50,7 @@ export class DrizzleCatalogRepository implements ICatalogRepository {
   }
 
   async create(input: Omit<ApiCatalogItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiCatalogItem> {
-    const dbData = this.toDatabase(input);
+    const dbData = toDatabaseRow(input);
 
     const [row] = await this.db
       .insert(schema.apiCatalog)
@@ -61,7 +61,7 @@ export class DrizzleCatalogRepository implements ICatalogRepository {
   }
 
   async update(id: string, input: Partial<ApiCatalogItem>): Promise<ApiCatalogItem> {
-    const dbData = this.toDatabase(input);
+    const dbData = toDatabaseRow(input);
 
     const [row] = await this.db
       .update(schema.apiCatalog)
@@ -266,12 +266,4 @@ export class DrizzleCatalogRepository implements ICatalogRepository {
     };
   }
 
-  private toDatabase(model: Partial<ApiCatalogItem>): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(model)) {
-      if (key === 'id' || key === 'createdAt' || key === 'updatedAt') continue;
-      result[toSnake(key)] = value;
-    }
-    return result;
-  }
 }

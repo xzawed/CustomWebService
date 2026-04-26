@@ -4,7 +4,7 @@ import * as schema from '@/lib/db/schema';
 import type { User, UserPreferences } from '@/types/user';
 import type { IUserRepository } from '@/repositories/interfaces';
 import type { QueryOptions } from '@/repositories/interfaces/IBaseRepository';
-import { toSnake, buildConditions } from '@/repositories/utils';
+import { toDatabaseRow, normalizePagination, buildConditions } from '@/repositories/utils';
 
 type DrizzleDb = NodePgDatabase<typeof schema>;
 
@@ -25,8 +25,8 @@ export class DrizzleUserRepository implements IUserRepository {
     filter?: Record<string, unknown>,
     options: QueryOptions = {}
   ): Promise<{ items: User[]; total: number }> {
-    const { page = 1, limit = 20, orderDirection = 'desc' } = options;
-    const offset = (page - 1) * limit;
+    const { orderDirection = 'desc' } = options;
+    const { offset, limit } = normalizePagination(options);
 
     const conditions = buildConditions(filter);
 
@@ -50,7 +50,7 @@ export class DrizzleUserRepository implements IUserRepository {
   }
 
   async create(input: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
-    const dbData = this.toDatabase(input);
+    const dbData = toDatabaseRow(input);
 
     const [row] = await this.db
       .insert(schema.users)
@@ -61,7 +61,7 @@ export class DrizzleUserRepository implements IUserRepository {
   }
 
   async update(id: string, input: Partial<User>): Promise<User> {
-    const dbData = this.toDatabase(input);
+    const dbData = toDatabaseRow(input);
 
     const [row] = await this.db
       .update(schema.users)
@@ -91,7 +91,7 @@ export class DrizzleUserRepository implements IUserRepository {
     authId: string,
     input: Omit<User, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<User> {
-    const dbData = this.toDatabase(input);
+    const dbData = toDatabaseRow(input);
 
     const [row] = await this.db
       .insert(schema.users)
@@ -123,12 +123,4 @@ export class DrizzleUserRepository implements IUserRepository {
     };
   }
 
-  private toDatabase(model: Partial<User>): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(model)) {
-      if (key === 'id' || key === 'createdAt' || key === 'updatedAt') continue;
-      result[toSnake(key)] = value;
-    }
-    return result;
-  }
 }
