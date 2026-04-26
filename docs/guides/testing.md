@@ -16,11 +16,11 @@
           ──┼──────────┼──
          │    통합     │  ~110개 (API Routes, Vitest)
         ────┼──────────┼────
-       │       단위    │  ~947개 (lib, providers, services, repositories)
+       │       단위    │  ~985개 (lib, providers, services, repositories)
        ──────────────────
 ```
 
-**총 81개 Vitest 파일, 1,078개 테스트 + 3개 Playwright E2E 파일**
+**총 85개 Vitest 파일, 1,116개 테스트 + 3개 Playwright E2E 파일**
 
 ### 핵심 원칙
 
@@ -50,7 +50,7 @@
 
 | 파일 | 검증 항목 |
 |------|----------|
-| `src/lib/ai/codeValidator.test.ts` | `eval()`, `innerHTML`, `document.write`, API키 하드코딩 감지 (정적 분석). HTML 구조 검증, viewport 존재 여부. 구조 점수·모바일 점수·fetchCallCount·placeholderCount 기반 품질 평가 |
+| `src/lib/ai/codeValidator.test.ts` | `eval()`, `innerHTML`, `document.write`, API키 하드코딩 감지 (정적 분석). **인라인 `<script>` 차단** (CDN `src=` 태그는 허용). HTML 구조 검증, viewport 존재 여부. 구조 점수·모바일 점수·fetchCallCount·placeholderCount 기반 품질 평가 |
 | `src/lib/utils/sanitizeCss.test.ts` | CSS XSS 차단: `expression()`, `url(javascript:)`, `behavior:`, `-moz-binding:`, 프로토콜 상대 URL(`url(//evil.com)`) — 생성된 CSS가 브라우저에서 임의 스크립트를 실행하지 못하도록 |
 | `src/lib/utils/adminAuth.test.ts` | `verifyAdminKey()` 타이밍 공격 방어 (HMAC 상수시간 비교), CORS 헤더 적용 |
 | `src/lib/db/errors.test.ts` | `isUniqueViolation()` — Supabase `{code:'23505'}` / Drizzle Error 인스턴스 양쪽 감지 |
@@ -63,7 +63,8 @@
 | `src/lib/ai/stageRunner.test.ts` | `runStage1`/`runStage2Function`/`runStage3` 각 stage 실행, Extended Thinking 분기, `isCancelled` 중단 처리 |
 | `src/lib/ai/generationSaver.test.ts` | Supabase/Drizzle 경로별 코드 저장, 트랜잭션 롤백, QC 통합, slugSuggester 연동 |
 | `src/__tests__/lib/ai/promptBuilder.test.ts` | Stage1·Stage2 시스템 프롬프트 내용(보안 규칙·모바일 퍼스트·코드 패턴), placeholder blocklist |
-| `src/lib/ai/codeParser.test.ts` | 마크다운 코드블록에서 HTML/CSS/JS 파싱, `assembleHtml()` — CSS·JS 주입, OG 태그, viewport 자동 주입 |
+| `src/lib/ai/codeParser.test.ts` | 마크다운 코드블록에서 HTML/CSS/JS 파싱, `assembleHtml()` — CSS·JS 주입, OG 태그, viewport 자동 주입. **DOMPurify sanitize 검증**: 인라인 `<script>` 제거 확인, Alpine.js CDN 태그 보존 확인 |
+| `src/lib/ai/generationTracker.test.ts` | `start`/`updateProgress`/`complete`/`fail`/`get`/`isGenerating` CRUD. **`vi.useFakeTimers()`로 TTL 검증**: generating 30분, completed/failed 10분 후 cleanup 자동 제거 |
 | `src/lib/ai/qualityLoop.test.ts` | `shouldRetryGeneration()` — 점수 40점 미만·fetchCallCount 0·placeholder 잔존 시 재시도 결정 |
 | `src/lib/ai/slugSuggester.test.ts` | AI 기반 slug 추천: 유효한 형식, 예약어 필터링, AI 에러 시 빈 배열 반환 |
 
@@ -84,6 +85,8 @@
 | `src/lib/config/providers.test.ts` | `getDbProvider()` / `getAuthProvider()` 환경변수 분기 |
 | `src/lib/events/eventBus.test.ts` | `on`/`emit`/`unsubscribe`, 복수 핸들러, 에러 격리 |
 | `src/lib/events/eventPersister.test.ts` | `registerEventPersister()` 멱등성, 이벤트 → DB 자동 저장, 실패 시 logger.warn |
+| `src/lib/monitoring/slackAlert.test.ts` | `SLACK_WEBHOOK_URL` 미설정 시 no-op, POST 전송, HTTP 실패·fetch 예외 시 에러 미전파, fields/이모지 포맷 검증 |
+| `src/lib/monitoring/errorRateMonitor.test.ts` | `registerErrorRateMonitor()` 멱등성, 임계값 미달·도달 알림, 윈도우 내 중복 알림 방지, `CODE_GENERATION_FAILED` 외 이벤트 무시. **`vi.resetModules()` 패턴** |
 | `src/lib/utils/slugify.test.ts` | `toSlug`/`generateSlug`/`isValidSlug`, 예약어(www/api/admin/dashboard) 필터링 |
 | `src/lib/utils/publishUrl.test.ts` | 환경별 URL 생성 (localhost/127.0.0.1/production) |
 | `src/lib/utils/htmlTitle.test.ts` | `extractTitle()` — `<title>` 파싱, 대소문자 무관, 없으면 null |
@@ -299,6 +302,30 @@ const chain = {
 const supabase = { from: vi.fn().mockReturnValue(chain) } as unknown as SupabaseClient;
 ```
 
+### 타이머 제어 — vi.useFakeTimers (TTL, 인터벌 검증)
+
+```typescript
+// TTL 기반 cleanup, setInterval 동작 검증 시 사용
+// vi.resetModules() + 동적 import와 조합 → 싱글톤의 setInterval도 fake timer 하에서 생성됨
+it('30분 TTL 후 자동 제거', async () => {
+  vi.useFakeTimers();
+  const { generationTracker, stopCleanup } = await import('./generationTracker');
+
+  generationTracker.start('proj', 'user');
+  vi.advanceTimersByTime(31 * 60 * 1000); // cleanup interval(60s) 여러 번 실행됨
+
+  expect(generationTracker.get('proj')).toBeUndefined();
+  stopCleanup(); // clearInterval로 타이머 누수 방지
+});
+
+afterEach(() => {
+  vi.useRealTimers(); // 다음 테스트에 영향 없도록 반드시 복원
+});
+```
+
+> `vi.useFakeTimers()`는 `Date.now()`도 제어하므로 `Date.now() - updatedAt > TTL` 패턴이 정확히 동작함.
+> `stopCleanup()` 호출을 잊으면 fake timer가 남아 다음 테스트에서 오동작 가능.
+
 ### 싱글톤 캐시 초기화
 
 ```typescript
@@ -334,7 +361,7 @@ lint (ESLint)
   ↓
 type-check (tsc --noEmit)
   ↓
-test (pnpm test — 1,078개)
+test (pnpm test — 1,116개)
   ↓
 커버리지 업로드 (Codecov + SonarCloud)
   ↓

@@ -1,7 +1,7 @@
 # 시스템 아키텍처
 
-> **최종 업데이트:** 2026-04-17  
-> **구현 상태:** 운영 중 (433개 테스트 통과)
+> **최종 업데이트:** 2026-04-26  
+> **구현 상태:** 운영 중 (1,116개 테스트 통과)
 
 ---
 
@@ -235,6 +235,9 @@ src/
 │   ├── events/
 │   │   ├── eventBus.ts           # pub/sub 이벤트 버스 (on/emit, fire-and-forget 에러 격리)
 │   │   └── eventPersister.ts     # registerEventPersister() — 모든 DomainEvent 자동 DB 기록
+│   ├── monitoring/
+│   │   ├── slackAlert.ts         # sendSlackAlert() — SLACK_WEBHOOK_URL 설정 시 Slack 알림 전송 (no-op if unset)
+│   │   └── errorRateMonitor.ts   # registerErrorRateMonitor() — 5분 윈도우 CODE_GENERATION_FAILED 임계값 초과 시 Slack 알림
 │   ├── i18n/
 │   │   ├── index.ts              # t(key, params?) 함수 export
 │   │   ├── ko.ts                 # 한국어 메시지 (35개 — 에러·서비스·배포)
