@@ -2,10 +2,15 @@
 
 import { memo, useState, useMemo } from 'react';
 import type { ApiCatalogItem, Category } from '@/types/api';
+import dynamic from 'next/dynamic';
 import { CategoryTabs } from './CategoryTabs';
 import { ApiSearchBar } from './ApiSearchBar';
 import { ApiCatalogGrid } from './ApiCatalogGrid';
-import { ApiDetailModal } from './ApiDetailModal';
+
+const ApiDetailModal = dynamic(
+  () => import('./ApiDetailModal').then((m) => m.ApiDetailModal),
+  { ssr: false, loading: () => null }
+);
 
 interface CatalogViewProps {
   initialApis: ApiCatalogItem[];

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { CatalogView } from '@/components/catalog/CatalogView';
 import StepIndicator from '@/components/builder/StepIndicator';
 import BuilderModeSelector from '@/components/builder/BuilderModeSelector';
@@ -15,12 +16,12 @@ import DesignPreferences from '@/components/builder/DesignPreferences';
 import RelevanceGate from '@/components/builder/RelevanceGate';
 import type { Template } from '@/components/builder/TemplateSelector';
 import GenerationProgress from '@/components/builder/GenerationProgress';
-import PreviewFrame from '@/components/builder/PreviewFrame';
 import RePromptPanel from '@/components/builder/RePromptPanel';
 import ApiRecommendations from '@/components/builder/ApiRecommendations';
 import type { ApiRecommendation } from '@/components/builder/ApiRecommendations';
 import PopularServiceSuggestions from '@/components/builder/PopularServiceSuggestions';
 import type { PopularService } from '@/components/builder/PopularServiceSuggestions';
+
 import { useApiSelectionStore } from '@/stores/apiSelectionStore';
 import { useContextStore } from '@/stores/contextStore';
 import { useGenerationStore } from '@/stores/generationStore';
@@ -30,6 +31,11 @@ import { LIMITS } from '@/lib/config/features';
 import type { ApiCatalogItem, Category } from '@/types/api';
 import type { RelevanceGateResult } from '@/types/project';
 import { ChevronLeft, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
+
+const PreviewFrame = dynamic(() => import('@/components/builder/PreviewFrame'), {
+  ssr: false,
+  loading: () => null,
+});
 
 const STEPS_API_FIRST = [{ label: 'API 선택' }, { label: '서비스 설명' }, { label: '생성' }];
 const STEPS_CONTEXT_FIRST = [{ label: '서비스 설명' }, { label: 'API 매칭' }, { label: '생성' }];

@@ -85,12 +85,18 @@ export async function middleware(request: NextRequest) {
   // CSP specifically for those domains. Adding a second, restrictive CSP here would
   // cause the browser to enforce both, blocking the CDNs.
   if (!isApi && !isSitePage) {
+    // Per-request nonce for script-src — eliminates 'unsafe-inline' for inline scripts.
+    // btoa(uuid-hex) produces a base64-safe string without padding issues.
+    const nonce = btoa(crypto.randomUUID().replaceAll('-', ''));
+    response.headers.set('x-nonce', nonce);
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
     const supabaseWs = supabaseUrl.replace(/^https?:\/\//, 'wss://');
     const csp = [
       "default-src 'self'",
-      // Next.js App Router requires unsafe-inline for hydration scripts
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // 'unsafe-eval' is required by Next.js hydration (chunk loading).
+      // 'unsafe-inline' is removed — inline scripts must carry the per-request nonce instead.
+      `script-src 'self' 'nonce-${nonce}' 'unsafe-eval'`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
       "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net",
       `img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com https://avatars.githubusercontent.com`,

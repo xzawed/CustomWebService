@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import './globals.css';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 import { SessionProvider } from 'next-auth/react';
@@ -20,7 +21,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const nonce = (await headers()).get('x-nonce') ?? '';
   return (
     <html lang="ko" data-theme="sky">
       <head>
@@ -33,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         {/* Prevent flash of wrong theme by applying saved theme before hydration */}
         <script
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var s=JSON.parse(localStorage.getItem('cws-theme')||'{}');var t=s.state&&s.state.theme;if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
           }}
