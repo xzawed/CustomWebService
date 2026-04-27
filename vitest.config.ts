@@ -11,7 +11,13 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
-      include: ['src/lib/**', 'src/services/**', 'src/providers/**', 'src/repositories/**'],
+      include: [
+        'src/lib/**',
+        'src/services/**',
+        'src/providers/**',
+        'src/repositories/**',
+        'src/components/**',
+      ],
       exclude: ['src/test/**'],
       thresholds: {
         branches: 40,
