@@ -97,6 +97,6 @@ describe('ProjectCard', () => {
       <ProjectCard project={{ ...baseProject, status: 'published', slug: 'my-service' }} />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'URL 복사' }));
-    expect(navigator.clipboard.writeText).toHaveBeenCalled();
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://my-service.xzawed.xyz');
   });
 });
