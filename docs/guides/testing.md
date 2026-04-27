@@ -12,7 +12,7 @@
              ┌─────────┐
              │   E2E   │  ~11개 × 3디바이스 (Playwright)
             ─┼─────────┼─
-           │ 컴포넌트  │  ~10개 (React, happy-dom)
+           │ 컴포넌트  │  ~100개 (React, happy-dom)
           ──┼──────────┼──
          │    통합     │  ~110개 (API Routes, Vitest)
         ────┼──────────┼────
@@ -20,7 +20,7 @@
        ──────────────────
 ```
 
-**총 85개 Vitest 파일, 1,116개 테스트 + 3개 Playwright E2E 파일**
+**총 100개 Vitest 파일, 1,220개 테스트 + 3개 Playwright E2E 파일**
 
 ### 핵심 원칙
 
@@ -73,6 +73,7 @@
 | 파일 | 검증 항목 |
 |------|----------|
 | `src/lib/qc/renderingQc.test.ts` | Playwright 기반 렌더링 QC: 콘솔 에러 없음, 가로 스크롤 없음, 푸터 접근성, 터치 타겟 44px 이상 |
+| `src/lib/qc/deepQcRunner.test.ts` | `runDeepQcAndUpdate` fire-and-forget 로직 8개 시나리오: assembleHtml 오류 조기 반환, QC 성공/실패 이벤트 발행, 메타데이터 업데이트, findById null 처리, update 오류 경고 — Playwright 의존 없음 (runDeepQc mock) |
 
 #### 인프라 유틸리티
 
@@ -361,7 +362,7 @@ lint (ESLint)
   ↓
 type-check (tsc --noEmit)
   ↓
-test (pnpm test — 1,116개)
+test (pnpm test — 1,220개)
   ↓
 커버리지 업로드 (Codecov + SonarCloud)
   ↓
