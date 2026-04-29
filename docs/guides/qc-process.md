@@ -22,6 +22,7 @@
 | 하드코딩된 API 키 | 에러 | **즉시 차단** |
 | innerHTML 할당 | 경고 | 기록 후 진행 |
 | document.write() | 경고 | 기록 후 진행 |
+| 인라인 `<script>` 태그 (src 속성 없음) | 경고 | 기록 후 진행 (`assembleHtml`이 DOMPurify로 자동 제거) |
 
 **탐지 키 패턴 (`DEFINITE_KEY_PATTERNS`)**: OpenAI/Anthropic `sk-*`, Stripe `sk_live_*`, Google `AIza*`, GitHub `ghp_*`, Slack `xoxb-*`, AWS `AKIA*`
 
@@ -82,6 +83,8 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 - 24개 구체적 수정 지침
 
 **담당**: `qualityLoop.shouldRetryGeneration()`, `buildQualityImprovementPrompt()`
+
+> **타임아웃**: 각 재생성 반복은 `QUALITY_LOOP_ITERATION_TIMEOUT_MS`(기본 120초) 타임아웃 적용. 단일 반복에서 AI 응답이 없으면 해당 반복을 건너뛰고 현재 최선 결과를 유지.
 
 ### Step 5: 재생성 코드 재검증
 
@@ -190,6 +193,7 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 | 날짜 | 변경 |
 |------|------|
+| 2026-04-29 | Phase 2 품질 개선: 인라인 스크립트 탐지 error→warning, Quality Loop 반복당 타임아웃(`QUALITY_LOOP_ITERATION_TIMEOUT_MS`) 추가 |
 | 2026-04-04 | 초안 작성 — Phase 1(코드 레벨) + Phase 2(렌더링 QC) + 격차 해소 |
 | 2026-04-05 | 임계값 40→60, 재시도 최대 2회, Deep QC 조건부 실행, 푸터/레이아웃 체크 추가 |
 | 2026-04-12 | Railway 활성화 가이드 추가 (Dockerfile 수정 방법, 메모리 요구사항) |

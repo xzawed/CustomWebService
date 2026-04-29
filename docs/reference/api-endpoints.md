@@ -799,6 +799,8 @@ QC 통계 조회
     "data": {
         "period": { "from": "2026-04-05", "to": "2026-04-12", "days": 7 },
         "totalGenerations": 150,
+        "failureCount": 8,
+        "realSuccessRate": 0.95,
         "avgStructuralScore": 8.5,
         "avgMobileScore": 7.2,
         "avgRenderingQcScore": 6.8,
@@ -811,6 +813,21 @@ QC 통계 조회
     }
 }
 ```
+
+**응답 필드:**
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `period` | object | 조회 기간 (`from`, `to`, `days`) |
+| `totalGenerations` | number | 기간 내 완료된 생성 건수 |
+| `failureCount` | number | 기간 내 생성 실패 횟수 (`CODE_GENERATION_FAILED` 이벤트 집계) |
+| `realSuccessRate` | number | 실제 성공률 = 성공 생성 / 전체 시도 (0.0 ~ 1.0) |
+| `avgStructuralScore` | number | 평균 구조 QC 점수 |
+| `avgMobileScore` | number | 평균 모바일 QC 점수 |
+| `avgRenderingQcScore` | number | 평균 렌더링 QC 점수 |
+| `qcPassRate` | number | QC 통과율 (0.0 ~ 1.0) |
+| `qualityLoopUsageRate` | number | Quality Loop 사용률 (0.0 ~ 1.0) |
+| `deepQcFailedCount` | number | Deep QC 실패 건수 |
+| `commonFailures` | array | 빈도 상위 실패 체크 목록 |
 
 ### POST /api/v1/admin/trigger-qc
 특정 프로젝트에 대한 수동 QC 실행 (`ENABLE_RENDERING_QC=true` 필요)

@@ -1,6 +1,6 @@
 # AI 코드 생성 파이프라인
 
-> **최종 업데이트:** 2026-04-17
+> **최종 업데이트:** 2026-04-29
 
 ## 1. 개요
 
@@ -219,7 +219,9 @@ DB 저장 구조 (code_versions 테이블):
 
 ### ClaudeProvider 재시도 전략 (`withRetry`)
 - `generateCode` / `generateCodeStream` 모두 `withRetry()` 헬퍼로 래핑
-- HTTP 429·500·502·503·504 또는 네트워크 에러 시 최대 2회 지수 백오프 재시도 (1초→2초)
+- HTTP 429·500·502·503·504 또는 네트워크 에러 시 최대 2회 재시도
+- **429 Retry-After 헤더** 있으면 해당 시간(초→밀리초) 후 재시도, 없으면 지수 백오프(1초→2초)
+- **SDK 타임아웃**: Anthropic 클라이언트 `timeout: 270,000ms` — Railway 300초 HTTP 컷 30초 전 안전 종료
 - 재시도 불가 에러는 즉시 throw
 
 ### 성능 최적화 (현재 적용 중)
@@ -343,10 +345,11 @@ Avoid: [제외할 요소]
 | `generationPipeline.ts` | 오케스트레이터 (~120줄) — generate/regenerate 공통 진입점 |
 | `stageRunner.ts` | `runStage1()` / `runStage2Function()` / `runStage3()` — SSE + AI 호출 + 파싱 |
 | `generationSaver.ts` | DB 저장, slug 제안(fire-and-forget), 버전 정리, Deep QC, 상태 갱신, SSE complete |
-| `qualityLoop.ts` | `shouldRetryGeneration()` + `runQualityLoop()` (최대 3회, best-of-n 반환) |
+| `qualityLoop.ts` | `shouldRetryGeneration()` + `runQualityLoop()` (최대 3회, best-of-n 반환, 반복당 타임아웃 `QUALITY_LOOP_ITERATION_TIMEOUT_MS` 기본 120초) |
 | `generationTracker.ts` | 서버 메모리 진행 상태 싱글톤 (모바일 폴링 fallback용) |
 
-`handlePipelineFailure()` (generationPipeline.ts 내부): Rate Limit 복구, 실패 이벤트 발행(`eventBus.emit`), Tracker 실패 표시
+`handlePipelineFailure()` (generationPipeline.ts 내부): Rate Limit 복구, 실패 이벤트 발행(`eventBus.emit`), Tracker 실패 표시  
+**Stage 3 fallback**: Stage 3 AI 호출 실패 시 Stage 2 결과로 폴백하며 `STAGE3_FALLBACK_USED` 이벤트 발행 → `platform_events` 테이블 자동 기록 (빈도 추적 용도)
 
 **이벤트 흐름**: 생성 성공/실패 시 `eventBus.emit()` → `eventPersister` 구독자가 자동으로 `platform_events` 테이블에 기록 (수동 `persistAsync` 이중 호출 없음)
 
