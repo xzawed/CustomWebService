@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { shouldRetryGeneration, buildQualityImprovementPrompt } from './qualityLoop';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { shouldRetryGeneration, buildQualityImprovementPrompt, runQualityLoop } from './qualityLoop';
 import type { QualityMetrics } from '@/lib/ai/codeValidator';
+import type { IAiProvider } from '@/providers/ai/IAiProvider';
+import type { SseWriter } from '@/lib/ai/sseWriter';
 
 const baseMetrics: QualityMetrics = {
   structuralScore: 80, mobileScore: 80,
@@ -124,5 +126,61 @@ describe('buildQualityImprovementPrompt', () => {
       null,
     );
     expect(prompt).toMatch(/fetch|API 호출/i);
+  });
+});
+
+describe('runQualityLoop — iteration timeout', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it('타임아웃 발생 시 해당 반복을 건너뛰고 최초 결과를 반환한다', async () => {
+    vi.stubEnv('QUALITY_LOOP_ITERATION_TIMEOUT_MS', '100');
+
+    const lowQualityMetrics: QualityMetrics = {
+      ...baseMetrics,
+      structuralScore: 30,
+      mobileScore: 30,
+      hasSemanticHtml: false,
+      hasInteraction: false,
+      hasFooter: false,
+      details: ['품질 부족'],
+    };
+
+    const mockProvider: IAiProvider = {
+      name: 'mock',
+      model: 'mock',
+      generateCode: vi.fn().mockReturnValue(new Promise(() => {})), // 절대 완료되지 않음
+      generateCodeStream: vi.fn(),
+      checkAvailability: vi.fn(),
+    };
+
+    const mockSse: SseWriter = {
+      send: vi.fn(),
+      isCancelled: vi.fn().mockReturnValue(false),
+    };
+
+    const initialParsed = { html: '<div>초기</div>', css: 'body{}', js: 'fetch("/api/v1/proxy")' };
+
+    const loopPromise = runQualityLoop(
+      initialParsed,
+      lowQualityMetrics,
+      null,
+      'stage2 system prompt',
+      mockProvider,
+      mockSse,
+      false,
+      'test-project-id',
+    );
+
+    // 100ms 타임아웃 × 3회 반복 + 여유 시간
+    await vi.advanceTimersByTimeAsync(400);
+    const result = await loopPromise;
+
+    // 타임아웃으로 개선 없음 → 초기 결과 그대로 반환
+    expect(result.parsed).toEqual(initialParsed);
+    expect(result.qualityLoopUsed).toBe(false);
   });
 });
