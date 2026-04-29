@@ -262,7 +262,17 @@ ${featureList}
       generationTracker.updateProgress(projectId, 85, 'stage3_skipped', '디자인 검증 완료 — 품질 충분, 폴리시 스킵.');
       stage3Result = { ...stage2Result, durationMs: 0, tokensUsed: { input: 0, output: 0 }, userPrompt: '' };
     } else {
-      stage3Result = await runStage3(stage2Result.parsed, input.stage2SystemPrompt, input.buildStage2UserPrompt, aiProvider, sse, !needsStage2);
+      try {
+        stage3Result = await runStage3(stage2Result.parsed, input.stage2SystemPrompt, input.buildStage2UserPrompt, aiProvider, sse, !needsStage2);
+      } catch (stage3Err) {
+        logger.warn('Stage 3 (design polish) failed — falling back to Stage 2 result', {
+          projectId,
+          error: stage3Err instanceof Error ? stage3Err.message : String(stage3Err),
+        });
+        sse.send('progress', { step: 'stage3_fallback', progress: 85, message: '디자인 적용 중 오류 — 기능 검증 버전으로 진행합니다.' });
+        generationTracker.updateProgress(projectId, 85, 'stage3_fallback', '디자인 적용 중 오류 — 기능 검증 버전으로 진행합니다.');
+        stage3Result = { ...stage2Result, durationMs: 0, tokensUsed: { input: 0, output: 0 }, userPrompt: '' };
+      }
     }
 
     // ── 검증 ────────────────────────────────────────────────────────────────

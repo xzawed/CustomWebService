@@ -1,3 +1,5 @@
+import { createPlaceholderRegex } from '@/lib/ai/placeholderPatterns';
+
 export interface ValidationResult {
   passed: boolean;
   errors: string[];
@@ -157,10 +159,9 @@ export function evaluateQuality(html: string, _css: string, js: string): Quality
     details.push('.json() 또는 JSON.parse() 없음 — API 응답 파싱 필요');
   }
 
-  // 2c. No placeholder strings
-  const PLACEHOLDER_PATTERN = /홍길동|김철수|이영희|test@example\.com|user@test\.com|Loading\.\.\.|준비 중|구현 예정|곧 출시|추후 업데이트|Sample Data|Lorem ipsum|Lorem|Coming soon|John Doe|Jane Smith|TBD|Placeholder|dummy|\$99\.99|\b0[1-9]\/0[1-9]\/20\d{2}\b/g;
-  const hrefPlaceholderCount = (combinedCode.match(/href\s*=\s*["']#["']/g) ?? []).length;
-  const placeholderCount = (fullCode.match(PLACEHOLDER_PATTERN) ?? []).length + hrefPlaceholderCount;
+  // 2c. No placeholder strings — pattern shared with qcChecks.ts via placeholderPatterns.ts
+  const hrefPlaceholderCount = [...combinedCode.matchAll(/href\s*=\s*["']#["']/g)].length;
+  const placeholderCount = [...fullCode.matchAll(createPlaceholderRegex())].length + hrefPlaceholderCount;
   if (placeholderCount === 0) {
     score++;
   } else {

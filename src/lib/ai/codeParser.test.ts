@@ -1,48 +1,66 @@
 import { describe, it, expect } from 'vitest';
 import { parseGeneratedCode, assembleHtml } from './codeParser';
 
+// Minimal fixtures that satisfy MIN_CODE_LENGTHS (html≥50, css≥20, js≥10)
+const MIN_HTML = '<!DOCTYPE html><html><head></head><body><h1>Hello World</h1></body></html>';
+const MIN_CSS = 'body { color: red; margin: 0; }';
+const MIN_JS = 'const x = 1;';
+
+function buildInput(overrides: { html?: string; css?: string; js?: string } = {}): string {
+  const html = overrides.html ?? MIN_HTML;
+  const css = overrides.css ?? MIN_CSS;
+  const js = overrides.js ?? MIN_JS;
+  return [
+    `\`\`\`html\n${html}\n\`\`\``,
+    `\`\`\`css\n${css}\n\`\`\``,
+    `\`\`\`javascript\n${js}\n\`\`\``,
+  ].join('\n');
+}
+
 describe('parseGeneratedCode', () => {
   it('HTML 블록을 정상 파싱한다', () => {
-    const input = '```html\n<h1>Hello</h1>\n```';
-    const result = parseGeneratedCode(input);
-    expect(result.html).toBe('<h1>Hello</h1>');
+    const result = parseGeneratedCode(buildInput());
+    expect(result.html).toBe(MIN_HTML);
   });
 
   it('CSS 블록을 정상 파싱한다', () => {
-    const input = '```css\nbody { color: red; }\n```';
-    const result = parseGeneratedCode(input);
-    expect(result.css).toBe('body { color: red; }');
+    const result = parseGeneratedCode(buildInput({ css: 'body { background: blue; }' }));
+    expect(result.css).toBe('body { background: blue; }');
   });
 
   it('javascript 블록을 정상 파싱한다', () => {
-    const input = '```javascript\nconsole.log("hi")\n```';
-    const result = parseGeneratedCode(input);
-    expect(result.js).toBe('console.log("hi")');
+    const result = parseGeneratedCode(buildInput({ js: 'console.log("hello world")' }));
+    expect(result.js).toBe('console.log("hello world")');
   });
 
   it('js 블록(단축 표기)을 정상 파싱한다', () => {
-    const input = '```js\nconst x = 1\n```';
+    const input = [
+      `\`\`\`html\n${MIN_HTML}\n\`\`\``,
+      `\`\`\`css\n${MIN_CSS}\n\`\`\``,
+      `\`\`\`js\n${MIN_JS}\n\`\`\``,
+    ].join('\n');
     const result = parseGeneratedCode(input);
-    expect(result.js).toBe('const x = 1');
+    expect(result.js).toBe(MIN_JS);
   });
 
-  it('블록이 없으면 빈 문자열을 반환한다', () => {
-    const result = parseGeneratedCode('아무 코드 블록 없는 텍스트');
-    expect(result.html).toBe('');
-    expect(result.css).toBe('');
-    expect(result.js).toBe('');
+  it('HTML 블록이 없으면 에러를 던진다', () => {
+    expect(() => parseGeneratedCode('아무 코드 블록 없는 텍스트')).toThrow('HTML 코드 블록이 너무 짧습니다');
+  });
+
+  it('HTML 블록이 너무 짧으면 에러를 던진다', () => {
+    const input = [
+      '```html\n<h1>Hi</h1>\n```',
+      `\`\`\`css\n${MIN_CSS}\n\`\`\``,
+      `\`\`\`javascript\n${MIN_JS}\n\`\`\``,
+    ].join('\n');
+    expect(() => parseGeneratedCode(input)).toThrow('HTML 코드 블록이 너무 짧습니다');
   });
 
   it('HTML/CSS/JS 세 블록을 동시에 파싱한다', () => {
-    const input = [
-      '```html\n<div>test</div>\n```',
-      '```css\ndiv { margin: 0; }\n```',
-      '```javascript\nconst a = 1;\n```',
-    ].join('\n');
-    const result = parseGeneratedCode(input);
-    expect(result.html).toBe('<div>test</div>');
-    expect(result.css).toBe('div { margin: 0; }');
-    expect(result.js).toBe('const a = 1;');
+    const result = parseGeneratedCode(buildInput());
+    expect(result.html).toBe(MIN_HTML);
+    expect(result.css).toBe(MIN_CSS);
+    expect(result.js).toBe(MIN_JS);
   });
 });
 
