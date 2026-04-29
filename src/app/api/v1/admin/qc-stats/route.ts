@@ -19,8 +19,16 @@ export async function GET(request: Request): Promise<Response> {
 
       const supabase = await createServiceClient();
       const codeRepo = new CodeRepository(supabase);
-      const codes = await codeRepo.findMetadataByDateRange(from);
+      const [codes, failureCountResult] = await Promise.all([
+        codeRepo.findMetadataByDateRange(from),
+        supabase
+          .from('platform_events')
+          .select('id', { count: 'exact', head: true })
+          .eq('type', 'CODE_GENERATION_FAILED')
+          .gte('created_at', from.toISOString()),
+      ]);
 
+      const failureCount = failureCountResult.count ?? 0;
       const total = codes.length;
       if (total === 0) {
         return jsonResponse({
@@ -28,6 +36,8 @@ export async function GET(request: Request): Promise<Response> {
           data: {
             period: { from: from.toISOString().split('T')[0], to: now.toISOString().split('T')[0], days },
             totalGenerations: 0,
+            failureCount,
+            realSuccessRate: 0,
             avgStructuralScore: 0,
             avgMobileScore: 0,
             avgRenderingQcScore: 0,
@@ -80,11 +90,14 @@ export async function GET(request: Request): Promise<Response> {
         .sort((a, b) => b.failCount - a.failCount)
         .slice(0, 10);
 
+      const totalAttempts = total + failureCount;
       return jsonResponse({
         success: true,
         data: {
           period: { from: from.toISOString().split('T')[0], to: now.toISOString().split('T')[0], days },
           totalGenerations: total,
+          failureCount,
+          realSuccessRate: totalAttempts > 0 ? Math.round((total / totalAttempts) * 100) / 100 : 1,
           avgStructuralScore: Math.round((sumStructural / total) * 10) / 10,
           avgMobileScore: Math.round((sumMobile / total) * 10) / 10,
           avgRenderingQcScore: qcCount > 0 ? Math.round((sumQc / qcCount) * 10) / 10 : 0,

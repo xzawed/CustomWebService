@@ -189,6 +189,49 @@ describe('ClaudeProvider', () => {
       vi.useRealTimers();
     });
 
+    it('429 Retry-After 헤더가 있으면 해당 시간 후 재시도한다', async () => {
+      mockCreate
+        .mockRejectedValueOnce({ status: 429, headers: { 'retry-after': '3' } })
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'ok after retry-after' }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+
+      // 2999ms — 아직 재시도 안 됨 (retry-after: 3초)
+      await vi.advanceTimersByTimeAsync(2999);
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+
+      // 1ms 더 — 3000ms 도달, 재시도 실행
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+
+      const result = await promise;
+      expect(result.content).toBe('ok after retry-after');
+    });
+
+    it('429 Retry-After 헤더가 없으면 기존 지수 백오프(1000ms)를 사용한다', async () => {
+      mockCreate
+        .mockRejectedValueOnce({ status: 429 }) // headers 없음
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'ok fallback backoff' }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        });
+
+      const promise = provider.generateCode({ system: 'sys', user: 'user' });
+
+      // 999ms — 아직 재시도 안 됨
+      await vi.advanceTimersByTimeAsync(999);
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+
+      // 1ms 더 — 1000ms, 재시도
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+
+      await promise;
+    });
+
     it('첫 시도 성공 → 1회 호출, 정상 반환', async () => {
       mockCreate.mockResolvedValueOnce({
         content: [{ type: 'text', text: 'success' }],

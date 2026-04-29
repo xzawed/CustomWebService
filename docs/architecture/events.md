@@ -66,6 +66,10 @@ export type DomainEvent =
   | {
       type: 'QC_REPORT_FAILED';
       payload: { projectId: string; stage: 'fast' | 'deep'; error: string };
+    }
+  | {
+      type: 'STAGE3_FALLBACK_USED';
+      payload: { projectId: string; error: string };
     };
 
 export type DomainEventType = DomainEvent['type'];

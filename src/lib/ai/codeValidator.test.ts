@@ -31,10 +31,18 @@ describe('validateSecurity', () => {
     expect(result.errors).toHaveLength(0);
   });
 
-  it('인라인 script 태그가 있으면 에러를 반환한다', () => {
+  it('인라인 script 태그가 있으면 경고를 반환하고 패스한다', () => {
     const result = validateSecurity('<script>alert(1)</script>');
-    expect(result.passed).toBe(false);
-    expect(result.errors.some((e) => e.includes('인라인 스크립트'))).toBe(true);
+    expect(result.passed).toBe(true);
+    expect(result.errors.some((e) => e.includes('인라인 스크립트'))).toBe(false);
+    expect(result.warnings.some((w) => w.includes('인라인 스크립트'))).toBe(true);
+  });
+
+  it('script type="module" 태그는 경고만 발생하고 패스한다', () => {
+    const result = validateSecurity('<script type="module">import { x } from "./x.js"</script>');
+    expect(result.passed).toBe(true);
+    expect(result.errors.some((e) => e.includes('인라인 스크립트'))).toBe(false);
+    expect(result.warnings.some((w) => w.includes('인라인 스크립트'))).toBe(true);
   });
 
   it('src 속성이 있는 script 태그는 차단하지 않는다', () => {

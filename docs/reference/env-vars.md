@@ -37,6 +37,7 @@
 | `ANTHROPIC_API_KEY` | ✅ | ✅ | Claude API 키 |
 | `AI_MODEL_SUGGESTION` | 선택 | ➖ | 컨텍스트 추천용 모델 (기본: `claude-haiku-4-5`). 허용값: `claude-haiku-4-5` · `claude-sonnet-4-6` · `claude-opus-4-6` · `claude-opus-4-7` |
 | `AI_MODEL_GENERATION` | 선택 | ➖ | 코드 생성용 모델 (기본: `claude-opus-4-7`). 허용값 동일. **주의**: 날짜 suffix 포함 ID(예: `claude-haiku-4-5-20251001`)는 Anthropic 404 반환 |
+| `ET_COMPLEXITY_THRESHOLD` | 선택 | ➖ | Extended Thinking 활성화 복잡도 임계값 (기본: `35`). 0-100 점수 중 이 값 이상이면 ET 활성화 |
 
 ---
 
@@ -90,6 +91,7 @@
 | 변수 | 기본값 | Railway | 설명 |
 |------|--------|---------|------|
 | `ENABLE_RENDERING_QC` | `false` | ❌ | Playwright 렌더링 QC 활성화 |
+| `QUALITY_LOOP_ITERATION_TIMEOUT_MS` | `120000` | ➖ | 품질 루프 반복당 타임아웃 (ms). 단일 반복에서 AI 응답 없을 시 해당 반복 스킵 |
 
 ---
 

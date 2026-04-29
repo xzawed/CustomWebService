@@ -30,6 +30,19 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Retry-After 헤더가 있으면 그 값(초→밀리초)을 반환, 없으면 지수 백오프 값 반환 */
+function getRetryAfterMs(error: unknown, attempt: number): number {
+  if (error !== null && typeof error === 'object' && 'headers' in error) {
+    const headers = (error as { headers: unknown }).headers;
+    if (headers !== null && typeof headers === 'object' && 'retry-after' in headers) {
+      const val = (headers as Record<string, unknown>)['retry-after'];
+      const ms = Number(val) * 1000;
+      if (!Number.isNaN(ms) && ms > 0) return ms;
+    }
+  }
+  return RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+}
+
 /** 지수 백오프 재시도 래퍼. 재시도 가능한 에러에 대해 최대 MAX_RETRIES 회 재시도. */
 async function withRetry<T>(fn: (attempt: number) => Promise<T>, logTag: string): Promise<T> {
   let lastError: unknown;
@@ -37,7 +50,7 @@ async function withRetry<T>(fn: (attempt: number) => Promise<T>, logTag: string)
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       if (attempt > 0) {
-        const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        const delay = getRetryAfterMs(lastError, attempt);
         logger.warn(`${logTag} retry ${attempt}/${MAX_RETRIES}`, { delay });
         await sleep(delay);
       }
@@ -73,7 +86,7 @@ export class ClaudeProvider implements IAiProvider {
   private client: Anthropic;
 
   constructor(apiKey: string, model = 'claude-sonnet-4-6') {
-    this.client = new Anthropic({ apiKey });
+    this.client = new Anthropic({ apiKey, timeout: 270_000 }); // 270s — Railway 300s 컷 전 안전 종료
     this.model = model;
   }
 

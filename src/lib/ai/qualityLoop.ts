@@ -157,7 +157,17 @@ export async function runQualityLoop(
 
     try {
       const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport);
-      const retryResponse = await aiProvider.generateCode({ system: stage2SystemPrompt, user: improvementPrompt, extendedThinking: useET });
+      const iterationTimeoutMs = Number(process.env.QUALITY_LOOP_ITERATION_TIMEOUT_MS ?? 120_000);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Quality loop iteration timed out after ${iterationTimeoutMs}ms`)),
+          iterationTimeoutMs,
+        )
+      );
+      const retryResponse = await Promise.race([
+        aiProvider.generateCode({ system: stage2SystemPrompt, user: improvementPrompt, extendedThinking: useET }),
+        timeoutPromise,
+      ]);
       const retryParsed = parseGeneratedCode(retryResponse.content);
 
       if (retryParsed.html) {
