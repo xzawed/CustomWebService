@@ -231,7 +231,7 @@ DB 저장 구조 (code_versions 테이블):
 
 **Extended Thinking (조건부 — 복잡도 스코어링)**
 - `evaluateComplexityScore(apis, context)` 함수로 0~100점 복잡도 점수 산출 후, `shouldUseExtendedThinking()` 로 활성화 여부 결정
-- 임계값: `ET_COMPLEXITY_THRESHOLD` 환경변수 (기본 **45점**)
+- 임계값: `ET_COMPLEXITY_THRESHOLD` 환경변수 (기본 **35점**)
 - **스코어링 신호 (5종):**
 
   | 신호 | 기여 점수 |
