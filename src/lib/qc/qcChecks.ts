@@ -1,5 +1,6 @@
 import type { Page, ElementHandle } from 'playwright-core';
 import type { QcCheckResult } from '@/types/qc';
+import { PLACEHOLDER_STRINGS } from '@/lib/ai/placeholderPatterns';
 
 // ---------------------------------------------------------------------------
 // Fast checks
@@ -298,16 +299,10 @@ export async function checkResponsiveBreakpoints(page: Page): Promise<QcCheckRes
  */
 export async function checkNoRuntimePlaceholder(page: Page): Promise<QcCheckResult> {
   const start = Date.now();
-  const PLACEHOLDERS = [
-    '홍길동', '김철수', '이영희',
-    'test@example.com', 'Loading...', '준비 중', '구현 예정', '곧 출시', '추후 업데이트',
-    'Sample Data', 'Lorem ipsum', 'Lorem',
-    'Coming soon', 'John Doe', 'Jane Smith', 'TBD', 'Placeholder', 'dummy',
-  ];
 
   try {
     const bodyText = await page.evaluate(() => document.body.innerText);
-    const found = PLACEHOLDERS.filter(p => bodyText.includes(p));
+    const found = PLACEHOLDER_STRINGS.filter(p => bodyText.includes(p));
 
     // href="#" 링크 탐지
     const hrefHashCount = await page.$$eval('a[href="#"]', (els) => els.length).catch(() => 0);

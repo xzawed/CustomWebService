@@ -11,10 +11,19 @@ export interface ParsedCode {
   js: string;
 }
 
+const MIN_CODE_LENGTHS = { html: 50, css: 20, js: 10 } as const;
+
 export function parseGeneratedCode(aiResponse: string): ParsedCode {
   const html = extractCodeBlock(aiResponse, 'html');
   const css = extractCodeBlock(aiResponse, 'css');
   const js = extractCodeBlock(aiResponse, 'javascript') || extractCodeBlock(aiResponse, 'js');
+
+  if (html.length < MIN_CODE_LENGTHS.html)
+    throw new Error(`HTML 코드 블록이 너무 짧습니다 (${html.length}자, 최소 ${MIN_CODE_LENGTHS.html}자). AI 응답이 잘렸거나 코드 블록이 없습니다.`);
+  if (css.length < MIN_CODE_LENGTHS.css)
+    throw new Error(`CSS 코드 블록이 너무 짧습니다 (${css.length}자, 최소 ${MIN_CODE_LENGTHS.css}자).`);
+  if (js.length < MIN_CODE_LENGTHS.js)
+    throw new Error(`JavaScript 코드 블록이 너무 짧습니다 (${js.length}자, 최소 ${MIN_CODE_LENGTHS.js}자).`);
 
   return { html, css, js };
 }
