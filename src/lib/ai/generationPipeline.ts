@@ -209,7 +209,10 @@ ${featureList}
       ...(stage1Quality.placeholderCount > 0 ? [`Placeholder 감지 (${stage1Quality.placeholderCount}개): 홍길동, 준비 중 등 제거 필요`] : []),
     ];
 
-    const staticNeedsStage2 = stage1Quality.fetchCallCount === 0 || stage1Quality.placeholderCount > 0;
+    const staticNeedsStage2 =
+      stage1Quality.fetchCallCount === 0 ||
+      stage1Quality.placeholderCount > 0 ||
+      stage1Quality.hardcodedArrayCount > 0;
 
     let stage1FastQcIssues: string[] | null = null;
     let stage1FastQcPassed: boolean | null = null;
@@ -231,7 +234,7 @@ ${featureList}
 
     const needsStage2 = staticNeedsStage2 || stage1FastQcPassed === false;
 
-    logger.info('Stage 2 necessity evaluated', { projectId, needsStage2, fetchCallCount: stage1Quality.fetchCallCount, placeholderCount: stage1Quality.placeholderCount, stage1FastQcPassed });
+    logger.info('Stage 2 necessity evaluated', { projectId, needsStage2, fetchCallCount: stage1Quality.fetchCallCount, placeholderCount: stage1Quality.placeholderCount, hardcodedArrayCount: stage1Quality.hardcodedArrayCount, stage1FastQcPassed });
 
     // ── Stage 2: 기능 검증 (30→65%) ─────────────────────────────────────────
     let stage2Result: typeof stage1Result;

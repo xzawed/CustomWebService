@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createPlaceholderRegex, PLACEHOLDER_STRINGS } from './placeholderPatterns';
+import { createPlaceholderRegex, PLACEHOLDER_STRINGS, getPlaceholderBlocklistText } from './placeholderPatterns';
 
 describe('createPlaceholderRegex()', () => {
   it('PLACEHOLDER_STRINGS의 모든 문자열을 매칭한다', () => {
@@ -115,5 +115,20 @@ describe('createPlaceholderRegex()', () => {
     // EXTRA_PATTERNS는 MM/DD/YYYY만 검출 — ISO 형식은 정상으로 간주
     const re = createPlaceholderRegex();
     expect(re.test('Date: 2026-04-30')).toBe(false);
+  });
+});
+
+describe('getPlaceholderBlocklistText()', () => {
+  it('PLACEHOLDER_STRINGS의 모든 항목을 쉼표로 결합한다', () => {
+    const text = getPlaceholderBlocklistText();
+    for (const s of PLACEHOLDER_STRINGS) {
+      expect(text).toContain(s);
+    }
+  });
+
+  it('프롬프트와 검증의 단일 진실 공급원 — 항목 수가 일치한다', () => {
+    const text = getPlaceholderBlocklistText();
+    const items = text.split(', ');
+    expect(items.length).toBe(PLACEHOLDER_STRINGS.length);
   });
 });

@@ -23,3 +23,11 @@ export function createPlaceholderRegex(): RegExp {
   const escaped = PLACEHOLDER_STRINGS.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   return new RegExp([...escaped, ...EXTRA_PATTERNS].join('|'), 'g');
 }
+
+/**
+ * Returns the placeholder blocklist as a comma-separated string for prompt injection.
+ * Single source of truth — keep prompts and validators consistent.
+ */
+export function getPlaceholderBlocklistText(): string {
+  return PLACEHOLDER_STRINGS.join(', ');
+}

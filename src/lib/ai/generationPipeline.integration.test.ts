@@ -232,6 +232,17 @@ describe('runGenerationPipeline()', () => {
       expect(runStage2Function).toHaveBeenCalledOnce();
     });
 
+    it('hardcodedArrayCount>0 → stage2 실행 (mock 데이터 차단)', async () => {
+      (evaluateQuality as Mock)
+        .mockReturnValueOnce(makeQualityMetrics({ fetchCallCount: 1, placeholderCount: 0, hardcodedArrayCount: 2 }))
+        .mockReturnValueOnce(makeQualityMetrics());
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(runStage2Function).toHaveBeenCalledOnce();
+    });
+
     it('placeholder 존재 → stage2 실행', async () => {
       (evaluateQuality as Mock)
         .mockReturnValueOnce(makeQualityMetrics({ placeholderCount: 2 }))

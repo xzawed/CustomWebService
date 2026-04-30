@@ -8,6 +8,7 @@ import { assembleHtml } from '@/lib/ai/codeParser';
 import { generationTracker } from '@/lib/ai/generationTracker';
 import { logger } from '@/lib/utils/logger';
 import { eventBus } from '@/lib/events/eventBus';
+import { getPlaceholderBlocklistText } from '@/lib/ai/placeholderPatterns';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import type { SseWriter } from '@/lib/ai/sseWriter';
 
@@ -84,7 +85,7 @@ ${qcIssues ? `\n브라우저 렌더링 검증에서 발견된 추가 문제:\n${
 - fetch() 호출이 없다면 반드시 추가하라
 - 모든 fetch() 호출은 반드시 /api/v1/proxy 경로를 통해야 한다 — 외부 URL 직접 호출은 CORS 오류 발생
 - 하드코딩된 배열 데이터(const items = [...])는 제거하고 /api/v1/proxy를 통한 실제 API 호출로 교체
-- placeholder 문자열을 제거하라: 홍길동, test@example.com, Loading..., 준비 중, 구현 예정
+- placeholder 문자열을 제거하라: ${getPlaceholderBlocklistText()}
 - <footer> 태그로 서비스명 + 저작권 + 링크 포함
 - 반응형 클래스(sm:/md:/lg:)를 최소 8곳 이상 사용
 - 고정 너비(w-[500px] 등) 제거 → max-w-lg, w-full 등으로 교체
