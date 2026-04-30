@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth/index';
 import { createProjectRepository, createCodeRepository } from '@/repositories/factory';
 import { assembleHtml } from '@/lib/ai/codeParser';
 import { AuthRequiredError, ForbiddenError, NotFoundError, ValidationError, handleApiError } from '@/lib/utils/errors';
+import { PREVIEW_CSP } from '@/lib/constants/cdn';
 
 export async function GET(
   request: Request,
@@ -56,16 +57,8 @@ export async function GET(
         'Cache-Control': 'no-cache',
         'X-Content-Type-Options': 'nosniff',
         'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
-        'Content-Security-Policy': [
-          "default-src 'self'",
-          // Allow inline scripts + common CDNs used by AI-generated pages (Tailwind, Chart.js, Font Awesome, etc.)
-          "script-src 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://kit.fontawesome.com https://use.fontawesome.com https://stackpath.bootstrapcdn.com https://unpkg.com",
-          "style-src 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://stackpath.bootstrapcdn.com https://unpkg.com",
-          'font-src https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://use.fontawesome.com https://kit.fontawesome.com data:',
-          'img-src * data: blob:',
-          'connect-src *',
-          "frame-ancestors 'self'",
-        ].join('; '),
+        // CSP 정책은 src/lib/constants/cdn.ts에서 단일 출처 관리 (사용자 페이지와 동일 정책)
+        'Content-Security-Policy': PREVIEW_CSP,
       },
     });
   } catch (error) {
