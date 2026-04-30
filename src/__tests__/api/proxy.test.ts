@@ -315,18 +315,11 @@ describe('GET /api/v1/proxy', () => {
 
   // ─────────────────────────────────────────────────────────────────────────────
   describe('추가 보안 검증', () => {
-    // IPv6 SSRF 방지 —
-    // 참고: URL 표준에서 IPv6 주소는 http://[fe80::1]/ 형식(대괄호)으로 표현되며,
+    // IPv6 SSRF 방지 — URL 표준에서 IPv6는 http://[fe80::1]/ 형식(대괄호)으로 표현되며
     // new URL('http://[fe80::1]/').hostname은 '[fe80::1]'을 반환한다.
-    // 현재 PRIVATE_IP_PATTERNS의 /^fe80:/i, /^(fc|fd)...:/i 는 대괄호 없는 'fe80::1' 형태에만 매칭되므로
-    // URL에서 파싱된 '[fe80::1]' hostname에는 매칭되지 않는 버그가 있다.
-    // → http://[fe80::1]/ URL은 isPrivateHost() 검사를 우회할 수 있음.
-    // 아래 테스트들은 현재 실제 동작을 문서화한다.
+    // isPrivateHost()는 패턴 매칭 전에 대괄호를 제거하므로 [fe80::...] / [fc..::...] / [fd..::...] 형식이 차단된다.
 
-    it('IPv6 link-local fe80:: → 403 차단 (TODO: 현재 URL 파싱 시 대괄호 hostname으로 인해 우회 가능)', async () => {
-      // TODO: PRIVATE_IP_PATTERNS 또는 isPrivateHost()에서 '[fe80::...]' 형식도 처리해야 완전한 차단이 됨.
-      // 'http://fe80::1/api' — Invalid URL이므로 URL 생성 자체가 실패 → 400
-      // 'http://[fe80::1]/api' — URL 파싱 성공, hostname = '[fe80::1]' → isPrivateHost 검사 미통과 → 프록시 시도
+    it('IPv6 link-local fe80:: → 403 차단', async () => {
       const { getAuthUser } = await import('@/lib/auth/index');
       vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
@@ -341,15 +334,12 @@ describe('GET /api/v1/proxy', () => {
       const { GET } = await import('@/app/api/v1/proxy/route');
       const res = await GET(makeRequest(VALID_API_ID, '/data'));
 
-      // 현재 동작: isPrivateHost('[fe80::1]') = false → DNS lookup 시도 (실패 시 403 반환 가능)
-      // DNS lookup mock이 성공 IP를 반환하므로 200 또는 502가 될 수 있음.
-      // 기대 동작(수정 후): 403 차단
-      // TODO: isPrivateHost에서 대괄호 IPv6 형식 처리 추가 필요
-      expect([200, 403, 502]).toContain(res.status);
+      expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body.error.code).toBe('FORBIDDEN');
     });
 
-    it('IPv6 ULA fc00:: → 403 차단 (TODO: 현재 URL 파싱 시 대괄호 hostname으로 인해 우회 가능)', async () => {
-      // TODO: PRIVATE_IP_PATTERNS 또는 isPrivateHost()에서 '[fc00::...]' 형식도 처리해야 완전한 차단이 됨.
+    it('IPv6 ULA fc00:: → 403 차단', async () => {
       const { getAuthUser } = await import('@/lib/auth/index');
       vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
@@ -364,12 +354,12 @@ describe('GET /api/v1/proxy', () => {
       const { GET } = await import('@/app/api/v1/proxy/route');
       const res = await GET(makeRequest(VALID_API_ID, '/data'));
 
-      // TODO: 수정 후에는 expect(res.status).toBe(403) 이어야 함
-      expect([200, 403, 502]).toContain(res.status);
+      expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body.error.code).toBe('FORBIDDEN');
     });
 
-    it('IPv6 ULA fd00:: → 403 차단 (TODO: 현재 URL 파싱 시 대괄호 hostname으로 인해 우회 가능)', async () => {
-      // TODO: PRIVATE_IP_PATTERNS 또는 isPrivateHost()에서 '[fd00::...]' 형식도 처리해야 완전한 차단이 됨.
+    it('IPv6 ULA fd00:: → 403 차단', async () => {
       const { getAuthUser } = await import('@/lib/auth/index');
       vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
@@ -384,8 +374,9 @@ describe('GET /api/v1/proxy', () => {
       const { GET } = await import('@/app/api/v1/proxy/route');
       const res = await GET(makeRequest(VALID_API_ID, '/data'));
 
-      // TODO: 수정 후에는 expect(res.status).toBe(403) 이어야 함
-      expect([200, 403, 502]).toContain(res.status);
+      expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body.error.code).toBe('FORBIDDEN');
     });
 
     it('null user.id (인증은 통과했지만 id 없음) → 401', async () => {
