@@ -41,7 +41,8 @@ export function shouldRetryGeneration(
 export function buildQualityImprovementPrompt(
   previousCode: { html: string; css: string; js: string },
   metrics: QualityMetrics,
-  qcReport?: QcReport | null
+  qcReport?: QcReport | null,
+  userFeedback?: string,
 ): string {
   const issues = metrics.details.map((d) => `- ${d}`).join('\n');
   const qcIssues = qcReport
@@ -52,6 +53,10 @@ export function buildQualityImprovementPrompt(
           return `- [렌더링 QC] ${c.name}${detailStr}`;
         })
         .join('\n')
+    : '';
+
+  const feedbackSection = userFeedback && userFeedback.trim().length > 0
+    ? `\n\n## 사용자 요청 (재생성 시 입력) — 반드시 반영\n${userFeedback.trim()}\n`
     : '';
 
   return `## 이전 생성 코드 (전체)
@@ -77,7 +82,7 @@ ${previousCode.js}
 아래 문제를 반드시 수정하세요:
 
 ${issues}
-${qcIssues ? `\n브라우저 렌더링 검증에서 발견된 추가 문제:\n${qcIssues}\n` : ''}
+${qcIssues ? `\n브라우저 렌더링 검증에서 발견된 추가 문제:\n${qcIssues}\n` : ''}${feedbackSection}
 수정 규칙:
 - 기존 기능과 디자인은 최대한 유지하면서 위 문제만 정확히 수정
 - 시맨틱 HTML 태그(<main>, <nav>, <footer>, <article>) 사용
@@ -139,6 +144,7 @@ export async function runQualityLoop(
   sse: SseWriter,
   useET: boolean,
   projectId: string,
+  userFeedback?: string,
 ): Promise<QualityLoopResult> {
   let bestParsed = initialParsed;
   let bestQuality = initialQuality;
@@ -160,7 +166,7 @@ export async function runQualityLoop(
     generationTracker.updateProgress(projectId, 92, 'quality_improvement', '품질 개선 중...');
 
     try {
-      const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport);
+      const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport, userFeedback);
       const iterationTimeoutMs = Number(process.env.QUALITY_LOOP_ITERATION_TIMEOUT_MS ?? 120_000);
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(
@@ -187,9 +193,15 @@ export async function runQualityLoop(
           }
         }
 
-        const codeImproved =
-          retryQuality.structuralScore > bestQuality.structuralScore ||
-          retryQuality.mobileScore > bestQuality.mobileScore;
+        // 채택 기준: 한쪽 점수만 올라도 채택하던 기존 OR 로직은 시소 진동(한쪽 향상 + 다른 쪽 회귀)을
+        // 허용해 누적 정확도를 떨어뜨릴 수 있다. AND 가드는 한 점수 향상 + 다른 점수 동등 이상일 때만 채택.
+        // QUALITY_LOOP_STRICT_ADOPTION=false (기본 true)로 신구 로직 토글 가능 — 운영 데이터 비교용.
+        const strictAdoption = process.env.QUALITY_LOOP_STRICT_ADOPTION !== 'false';
+        const structDelta = retryQuality.structuralScore - bestQuality.structuralScore;
+        const mobileDelta = retryQuality.mobileScore - bestQuality.mobileScore;
+        const codeImproved = strictAdoption
+          ? (structDelta > 0 && mobileDelta >= 0) || (mobileDelta > 0 && structDelta >= 0)
+          : structDelta > 0 || mobileDelta > 0;
         const qcImproved =
           retryQcReport && bestQcReport
             ? retryQcReport.overallScore > bestQcReport.overallScore

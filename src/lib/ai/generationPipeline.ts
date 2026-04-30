@@ -323,8 +323,9 @@ ${featureList}
     }
 
     // ── Quality Loop ──────────────────────────────────────────────────────────
+    const userFeedback = typeof extraMetadata?.userFeedback === 'string' ? extraMetadata.userFeedback : undefined;
     const { parsed: finalParsed, quality, qcReport, qualityLoopUsed } = await runQualityLoop(
-      parsed, initialQuality, initialQcReport, input.stage2SystemPrompt, aiProvider, sse, useET, projectId,
+      parsed, initialQuality, initialQcReport, input.stage2SystemPrompt, aiProvider, sse, useET, projectId, userFeedback,
     );
 
     // ── 저장 ─────────────────────────────────────────────────────────────────
