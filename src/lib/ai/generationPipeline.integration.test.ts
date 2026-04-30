@@ -506,4 +506,57 @@ describe('runGenerationPipeline()', () => {
       expect(args[4]).toBe(true);
     });
   });
+
+  describe('재생성 feedback 누적 (S10)', () => {
+    it('extraMetadata.userFeedback이 runQualityLoop의 9번째 인자로 전달된다', async () => {
+      // Quality Loop 진입을 위해 stage1 quality 미달 + 이후도 미달 시뮬레이션
+      (evaluateQuality as Mock)
+        .mockReturnValueOnce(makeQualityMetrics({ fetchCallCount: 0 })) // stage1 → stage2 트리거
+        .mockReturnValueOnce(makeQualityMetrics({ structuralScore: 70 })) // pre-stage3
+        .mockReturnValueOnce(makeQualityMetrics({ structuralScore: 50, mobileScore: 50 })); // validate → quality loop initial quality
+
+      const sse = makeSse();
+      const input = makeInput();
+      input.extraMetadata = { userFeedback: '버튼 색상을 파란색으로' };
+
+      await runGenerationPipeline(input, sse as never, makeServices());
+
+      const calls = (runQualityLoop as Mock).mock.calls;
+      expect(calls.length).toBeGreaterThanOrEqual(1);
+      // runQualityLoop signature: (parsed, quality, qcReport, stage2SysPrompt, aiProvider, sse, useET, projectId, userFeedback)
+      expect(calls[0][8]).toBe('버튼 색상을 파란색으로');
+    });
+
+    it('extraMetadata.userFeedback이 없으면 runQualityLoop의 9번째 인자는 undefined', async () => {
+      (evaluateQuality as Mock)
+        .mockReturnValueOnce(makeQualityMetrics({ fetchCallCount: 0 }))
+        .mockReturnValueOnce(makeQualityMetrics({ structuralScore: 70 }))
+        .mockReturnValueOnce(makeQualityMetrics({ structuralScore: 50 }));
+
+      const sse = makeSse();
+      const input = makeInput();
+      // extraMetadata 미설정
+
+      await runGenerationPipeline(input, sse as never, makeServices());
+
+      const calls = (runQualityLoop as Mock).mock.calls;
+      expect(calls[0][8]).toBeUndefined();
+    });
+
+    it('extraMetadata.userFeedback이 string이 아니면(예: number) undefined로 변환된다', async () => {
+      (evaluateQuality as Mock)
+        .mockReturnValueOnce(makeQualityMetrics({ fetchCallCount: 0 }))
+        .mockReturnValueOnce(makeQualityMetrics({ structuralScore: 70 }))
+        .mockReturnValueOnce(makeQualityMetrics({ structuralScore: 50 }));
+
+      const sse = makeSse();
+      const input = makeInput();
+      input.extraMetadata = { userFeedback: 123 as unknown as string }; // 잘못된 타입
+
+      await runGenerationPipeline(input, sse as never, makeServices());
+
+      const calls = (runQualityLoop as Mock).mock.calls;
+      expect(calls[0][8]).toBeUndefined();
+    });
+  });
 });

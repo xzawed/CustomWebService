@@ -1,6 +1,9 @@
+import { LRUMap } from '@/lib/utils/lruMap';
+
 const TTL_GENERATING_MS = 30 * 60 * 1000; // 30분 — 생성 중 상태는 더 오래 유지
 const TTL_TERMINAL_MS = 10 * 60 * 1000;  // 10분 — completed/failed
 const CLEANUP_INTERVAL_MS = 60 * 1000; // 60초
+const MAX_TRACKER_ENTRIES = 10_000; // size cap — TTL 외 안전망 (Railway 단일 인스턴스 메모리 보호)
 
 export interface TrackerEntry {
   userId: string;
@@ -20,7 +23,7 @@ export interface TrackerEntry {
 }
 
 class GenerationTracker {
-  private readonly entries = new Map<string, TrackerEntry>();
+  private readonly entries = new LRUMap<string, TrackerEntry>(MAX_TRACKER_ENTRIES);
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {

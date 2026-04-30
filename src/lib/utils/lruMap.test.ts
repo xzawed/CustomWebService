@@ -64,6 +64,22 @@ describe('LRUMap', () => {
     expect(lru.has('a')).toBe(false);
   });
 
+  it('Symbol.iterator로 for...of 순회 가능 (Map 호환)', () => {
+    const lru = new LRUMap<string, number>(3);
+    lru.set('a', 1);
+    lru.set('b', 2);
+    const collected: Array<[string, number]> = [];
+    for (const [k, v] of lru) collected.push([k, v]);
+    expect(collected).toEqual([['a', 1], ['b', 2]]);
+  });
+
+  it('entries()로 [key, value] iterator 반환', () => {
+    const lru = new LRUMap<string, number>(2);
+    lru.set('x', 10);
+    lru.set('y', 20);
+    expect([...lru.entries()]).toEqual([['x', 10], ['y', 20]]);
+  });
+
   it('1000개 초과 시에도 정상 evict (rate limit 시나리오)', () => {
     const lru = new LRUMap<string, number>(1000);
     for (let i = 0; i < 1500; i++) lru.set(`u${i}`, i);
