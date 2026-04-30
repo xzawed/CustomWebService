@@ -99,8 +99,7 @@ async function runFastQcInternal(html: string): Promise<QcReport> {
   const startTime = Date.now();
   const page: Page | null = await getPage();
   if (!page) {
-    logger.warn('[QC] Fast QC: could not acquire page from pool');
-    return buildReport([], QC_VIEWPORTS.FAST, startTime, QC_THRESHOLDS.FAST_PASS);
+    throw new Error('QC page pool unavailable');
   }
 
   try {
@@ -154,8 +153,7 @@ async function runDeepQcInternal(html: string): Promise<QcReport> {
   const startTime = Date.now();
   const page: Page | null = await getPage();
   if (!page) {
-    logger.warn('[QC] Deep QC: could not acquire page from pool');
-    return buildReport([], QC_VIEWPORTS.DEEP, startTime, QC_THRESHOLDS.DEEP_PASS);
+    throw new Error('QC page pool unavailable');
   }
 
   try {

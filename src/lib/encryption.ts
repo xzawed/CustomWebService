@@ -8,6 +8,9 @@ function getKey(): Buffer {
   if (buf.byteLength < 32) {
     throw new Error('ENCRYPTION_KEY 환경변수가 32바이트 이상이어야 합니다.');
   }
+  if (buf.byteLength > 32) {
+    console.warn(`[Encryption] ENCRYPTION_KEY가 ${buf.byteLength}바이트입니다. AES-256은 정확히 32바이트가 필요하므로 첫 32바이트만 사용합니다.`);
+  }
   return buf.subarray(0, 32);
 }
 

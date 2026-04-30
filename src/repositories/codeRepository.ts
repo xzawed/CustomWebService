@@ -46,7 +46,7 @@ export class CodeRepository extends BaseRepository<GeneratedCode> implements ICo
       .select('id, version')
       .eq('project_id', projectId)
       .order('version', { ascending: false })
-      .range(keepCount, 999);
+      .range(keepCount, keepCount + 9999);
 
     if (error) throw error;
     if (!data || data.length === 0) return;
