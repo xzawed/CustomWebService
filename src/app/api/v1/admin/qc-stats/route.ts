@@ -19,16 +19,22 @@ export async function GET(request: Request): Promise<Response> {
 
       const supabase = await createServiceClient();
       const codeRepo = new CodeRepository(supabase);
-      const [codes, failureCountResult] = await Promise.all([
+      const [codes, failureCountResult, stage3FallbackResult] = await Promise.all([
         codeRepo.findMetadataByDateRange(from),
         supabase
           .from('platform_events')
           .select('id', { count: 'exact', head: true })
           .eq('type', 'CODE_GENERATION_FAILED')
           .gte('created_at', from.toISOString()),
+        supabase
+          .from('platform_events')
+          .select('id', { count: 'exact', head: true })
+          .eq('type', 'STAGE3_FALLBACK_USED')
+          .gte('created_at', from.toISOString()),
       ]);
 
       const failureCount = failureCountResult.count ?? 0;
+      const stage3FallbackCount = stage3FallbackResult.count ?? 0;
       const total = codes.length;
       if (total === 0) {
         return jsonResponse({
@@ -43,6 +49,7 @@ export async function GET(request: Request): Promise<Response> {
             avgRenderingQcScore: 0,
             qcPassRate: 0,
             qualityLoopUsageRate: 0,
+            stage3FallbackCount,
             commonFailures: [],
           },
         });
@@ -104,6 +111,8 @@ export async function GET(request: Request): Promise<Response> {
           qcPassRate: qcCount > 0 ? Math.round((passCount / qcCount) * 100) / 100 : 0,
           qualityLoopUsageRate: Math.round((loopUsedCount / total) * 100) / 100,
           deepQcFailedCount,
+          stage3FallbackCount,
+          stage3FallbackRate: totalAttempts > 0 ? Math.round((stage3FallbackCount / totalAttempts) * 100) / 100 : 0,
           commonFailures,
         },
       });
