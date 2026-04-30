@@ -214,11 +214,11 @@ describe('Rate Limit 심화', () => {
     expect(resA61.status).toBe(403);
   });
 
-  it('x-forwarded-for: 복수 IP → 첫 번째만 사용', async () => {
+  it('x-forwarded-for: 복수 IP → 마지막(신뢰된 프록시 추가) 값만 사용', async () => {
     const { GET } = await import('@/app/api/v1/admin/qc-stats/route');
 
-    // "10.0.0.1, 20.0.0.1" → 첫 번째 IP "10.0.0.1"을 rate limit 키로 사용
-    // 동일 첫번째 IP로 60회 이상 요청 시 차단
+    // Railway 환경: 신뢰된 프록시가 마지막 IP를 추가 → 마지막 값으로 rate limit
+    // "10.0.0.1(클라이언트), 20.0.0.1, 30.0.0.1(Railway 프록시)" → "30.0.0.1" 기준
     for (let i = 0; i < 60; i++) {
       const req = new Request('http://localhost/api/v1/admin/qc-stats', {
         headers: {
@@ -230,11 +230,11 @@ describe('Rate Limit 심화', () => {
       expect(res.status).toBe(200);
     }
 
-    // 61번째: 첫 번째 IP 10.0.0.1 기준으로 차단
+    // 61번째: 마지막 IP 30.0.0.1 기준으로 차단 (앞 IP는 달라도 마지막이 같으면 차단)
     const req61 = new Request('http://localhost/api/v1/admin/qc-stats', {
       headers: {
         Authorization: `Bearer ${VALID_ADMIN_KEY}`,
-        'x-forwarded-for': '10.0.0.1, 99.99.99.99',
+        'x-forwarded-for': '99.99.99.99, 30.0.0.1',
       },
     });
     const res61 = await GET(req61);

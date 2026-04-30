@@ -48,8 +48,9 @@ export function withAdminCors(response: Response): Response {
 
 export function verifyAdminKey(request: Request): void {
   // Rate limit check first
+  const forwarded = request.headers.get('x-forwarded-for');
   const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    (forwarded ? forwarded.split(',').at(-1)?.trim() : null) ??
     request.headers.get('x-real-ip') ??
     'unknown';
   checkRateLimit(ip);

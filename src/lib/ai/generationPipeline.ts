@@ -55,12 +55,16 @@ export interface PipelineServices {
 function safeAssembleHtml(code: { html: string; css: string; js: string }): string | null {
   try {
     return assembleHtml(code);
-  } catch {
+  } catch (err) {
+    logger.warn('[Pipeline] assembleHtml failed — QC 스킵', {
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 }
 
-const ET_THRESHOLD = Number(process.env.ET_COMPLEXITY_THRESHOLD ?? 35);
+const _etVal = Number.parseInt(process.env.ET_COMPLEXITY_THRESHOLD ?? '', 10);
+const ET_THRESHOLD = Number.isNaN(_etVal) || _etVal <= 0 ? 35 : _etVal;
 
 export function evaluateComplexityScore(apis: ApiCatalogItem[], context?: string): number {
   let score = 0;
