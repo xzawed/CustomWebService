@@ -1,8 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------- Module mocks ----------
+const mockSupabaseChain = {
+  select: vi.fn().mockReturnThis(),
+  eq: vi.fn().mockReturnThis(),
+  gte: vi.fn().mockResolvedValue({ count: 0, error: null }),
+};
+
 vi.mock('@/lib/supabase/server', () => ({
-  createServiceClient: vi.fn().mockResolvedValue({}),
+  createServiceClient: vi.fn().mockResolvedValue({
+    from: vi.fn().mockReturnValue(mockSupabaseChain),
+  }),
 }));
 
 vi.mock('@/repositories/codeRepository', () => ({

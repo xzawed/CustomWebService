@@ -1,6 +1,7 @@
 import type { ApiCatalogItem } from '@/types/api';
 import type { DesignPreferences } from '@/types/project';
 import { inferDesignFromCategories } from './categoryDesignMap';
+import { getPlaceholderBlocklistText } from './placeholderPatterns';
 
 // 시스템 프롬프트 모듈 레벨 캐싱 — 매 요청마다 재생성하지 않음
 let cachedStage1SystemPrompt: string | null = null;
@@ -39,7 +40,7 @@ function _buildStage1SystemPrompt(): string {
 
 1. **실제 API 호출을 최우선으로 구현하라.** 서비스가 시작되면 DOMContentLoaded에서 즉시 fetch()를 호출하여 실제 데이터를 화면에 표시한다.
 2. **하드코딩된 가데이터(mock data) 배열은 절대 금지.** \`const mockData = [...]\`, \`const items = [...]\` 같은 하드코딩 배열을 만들지 마라. API 호출 결과만 렌더링한다.
-3. **Placeholder 문자열 절대 금지 — blocklist:** 홍길동, 김철수, test@example.com, user@test.com, Loading..., 준비 중, 구현 예정, Sample Data, Lorem ipsum, 여기에 입력, TODO, 추후 업데이트. 이 문자열들이 최종 코드에 있으면 실패다.
+3. **Placeholder 문자열 절대 금지 — blocklist:** ${getPlaceholderBlocklistText()}. 이 문자열들이 최종 코드에 있으면 실패다. (또한 "여기에 입력", "TODO" 같은 메타 문구도 금지)
 4. **레이아웃은 가로 방향 flex/grid를 기본으로 한다.** 서비스 타이틀이 세로로 깨지거나 요소가 한 줄에 하나씩 쌓이는 것은 심각한 결함이다.
 5. **모든 텍스트는 한국어로 작성한다.** UI, placeholder, 토스트, 에러 메시지 전부 한국어.
 
@@ -548,7 +549,7 @@ function showError(container, message) {
 □ DOMContentLoaded에서 즉시 fetch() 호출이 있는가?
 □ 하드코딩된 배열(const mockData = [...])이 없는가?
 □ API 응답 데이터를 파싱하여 DOM에 바인딩하는가?
-□ Placeholder blocklist 문자열이 없는가? (홍길동, test@example.com, Loading..., 준비 중 등)
+□ Placeholder blocklist 문자열이 없는가? (${getPlaceholderBlocklistText()})
 □ Chart.js 차트에 API 응답 숫자가 바인딩되어 있는가?
 □ 모든 텍스트가 한국어인가?
 □ API 실패 시 에러 Empty State가 표시되는가?
@@ -1326,7 +1327,7 @@ function _buildStage2FunctionSystemPrompt(): string {
 
 1. **JavaScript 로직만 수정한다.** CSS, 디자인 변경 금지. HTML 구조, 클래스 이름은 절대 변경하지 않는다.
 2. **fetch() 호출이 없으면 반드시 추가한다.** 아래 API 호출 지시를 따른다.
-3. **Placeholder 문자열을 제거한다.** 다음 문자열이 JS 코드나 렌더링된 HTML에 있으면 삭제: 홍길동, 김철수, 이영희, test@example.com, user@test.com, Loading..., 준비 중, 구현 예정, Sample Data, Lorem ipsum.
+3. **Placeholder 문자열을 제거한다.** 다음 문자열이 JS 코드나 렌더링된 HTML에 있으면 삭제: ${getPlaceholderBlocklistText()}.
 4. **응답 데이터 파싱이 잘못되어 있으면 수정한다.** \`data.items\`가 undefined인 경우 올바른 path로 교체한다.
 5. **이벤트 핸들러 JS 버그를 수정한다.** 버튼 클릭이 동작하지 않는 경우, querySelector 오류 등.
 6. **전체 코드를 HTML / CSS / JavaScript 형식으로 반환한다.**

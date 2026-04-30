@@ -4,24 +4,26 @@ import { getDbProvider } from '@/lib/config/providers';
 import { createCatalogRepository } from '@/repositories/factory';
 import { decryptApiKey } from '@/lib/encryption';
 import { getAuthUser } from '@/lib/auth/index';
+import { LRUMap } from '@/lib/utils/lruMap';
+import {
+  RATE_LIMIT_PER_MIN,
+  RATE_LIMIT_WINDOW_MS,
+  MAX_CONCURRENT_RATE_LIMIT_USERS,
+} from '@/lib/config/rateLimit';
 
-// 인메모리 Rate Limit: 사용자당 분당 60회
-const proxyRateLimit = new Map<string, { count: number; resetAt: number }>();
-const PROXY_RATE_LIMIT_PER_MIN = 60;
+// 인메모리 Rate Limit: 사용자당 분당 RATE_LIMIT_PER_MIN회 (기본 60회)
+// LRUMap으로 활성 사용자 MAX_CONCURRENT_RATE_LIMIT_USERS 초과 시 가장 오래된
+// 항목 자동 evict (Railway 단일 인스턴스 메모리 누적 방지).
+const proxyRateLimit = new LRUMap<string, { count: number; resetAt: number }>(MAX_CONCURRENT_RATE_LIMIT_USERS);
 
 function checkProxyRateLimit(userId: string): boolean {
   const now = Date.now();
   const entry = proxyRateLimit.get(userId);
   if (!entry || now >= entry.resetAt) {
-    proxyRateLimit.set(userId, { count: 1, resetAt: now + 60_000 });
-    if (proxyRateLimit.size > 1000) {
-      for (const [k, v] of proxyRateLimit) {
-        if (now >= v.resetAt) proxyRateLimit.delete(k);
-      }
-    }
+    proxyRateLimit.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return true;
   }
-  if (entry.count >= PROXY_RATE_LIMIT_PER_MIN) return false;
+  if (entry.count >= RATE_LIMIT_PER_MIN) return false;
   entry.count++;
   return true;
 }
@@ -74,6 +76,13 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
   // 인증 확인
   const user = await getAuthUser();
   if (!user) {
+    return errorResponse(401, 'AUTH_REQUIRED', '로그인이 필요합니다.');
+  }
+
+  // user.id 가드 — 타입상 string(non-nullable)이지만 런타임에서 인증 정보 손상 시
+  // null/undefined가 들어올 수 있다. rate limit Map에 잘못된 키('null', 'undefined')가
+  // 등록되거나 RLS 우회 시도가 가능해지므로 401로 즉시 차단.
+  if (!user.id || typeof user.id !== 'string') {
     return errorResponse(401, 'AUTH_REQUIRED', '로그인이 필요합니다.');
   }
 

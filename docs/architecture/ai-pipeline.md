@@ -1,6 +1,6 @@
 # AI 코드 생성 파이프라인
 
-> **최종 업데이트:** 2026-04-17
+> **최종 업데이트:** 2026-04-29
 
 ## 1. 개요
 
@@ -209,8 +209,12 @@ DB 저장 구조 (code_versions 테이블):
 - **Claude API (Anthropic)** — 기본 Provider
   - 구현: `src/providers/ai/ClaudeProvider.ts`
   - 팩토리: `AiProviderFactory.create()`, `AiProviderFactory.createForTask()`
-  - 모델: **`claude-opus-4-7`** (기본), 태스크별 최적 모델 자동 선택
-  - 환경변수 오버라이드: `AI_MODEL_GENERATION` (코드 생성), `AI_MODEL_SUGGESTION` (slug 제안) — 허용 목록(`claude-*`) 검증 후 적용
+  - 태스크별 모델 (팩토리 기본값):
+    - `generation` (코드 생성): **`claude-opus-4-7`**
+    - `suggestion` (slug/추천): **`claude-haiku-4-5`**
+  - `ClaudeProvider` 클래스 자체 기본값(직접 인스턴스화 시): **`claude-sonnet-4-6`** — 일반적으로는 팩토리를 통해 호출되므로 `generation`/`suggestion` 기본값이 우선 적용됨
+  - 허용 모델: `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`
+  - 환경변수 오버라이드: `AI_MODEL_GENERATION` (코드 생성), `AI_MODEL_SUGGESTION` (slug 제안) — 허용 목록 검증 후 적용
 
 ### Provider 인터페이스 (`src/providers/ai/IAiProvider.ts`)
 - `generateCode(prompt)` — 단일 응답 생성
@@ -219,7 +223,9 @@ DB 저장 구조 (code_versions 테이블):
 
 ### ClaudeProvider 재시도 전략 (`withRetry`)
 - `generateCode` / `generateCodeStream` 모두 `withRetry()` 헬퍼로 래핑
-- HTTP 429·500·502·503·504 또는 네트워크 에러 시 최대 2회 지수 백오프 재시도 (1초→2초)
+- HTTP 429·500·502·503·504 또는 네트워크 에러 시 최대 2회 재시도
+- **429 Retry-After 헤더** 있으면 해당 시간(초→밀리초) 후 재시도, 없으면 지수 백오프(1초→2초)
+- **SDK 타임아웃**: Anthropic 클라이언트 `timeout: 270,000ms` — Railway 300초 HTTP 컷 30초 전 안전 종료
 - 재시도 불가 에러는 즉시 throw
 
 ### 성능 최적화 (현재 적용 중)
@@ -231,7 +237,7 @@ DB 저장 구조 (code_versions 테이블):
 
 **Extended Thinking (조건부 — 복잡도 스코어링)**
 - `evaluateComplexityScore(apis, context)` 함수로 0~100점 복잡도 점수 산출 후, `shouldUseExtendedThinking()` 로 활성화 여부 결정
-- 임계값: `ET_COMPLEXITY_THRESHOLD` 환경변수 (기본 **45점**)
+- 임계값: `ET_COMPLEXITY_THRESHOLD` 환경변수 (기본 **35점**)
 - **스코어링 신호 (5종):**
 
   | 신호 | 기여 점수 |
@@ -343,10 +349,11 @@ Avoid: [제외할 요소]
 | `generationPipeline.ts` | 오케스트레이터 (~120줄) — generate/regenerate 공통 진입점 |
 | `stageRunner.ts` | `runStage1()` / `runStage2Function()` / `runStage3()` — SSE + AI 호출 + 파싱 |
 | `generationSaver.ts` | DB 저장, slug 제안(fire-and-forget), 버전 정리, Deep QC, 상태 갱신, SSE complete |
-| `qualityLoop.ts` | `shouldRetryGeneration()` + `runQualityLoop()` (최대 3회, best-of-n 반환) |
+| `qualityLoop.ts` | `shouldRetryGeneration()` + `runQualityLoop()` (최대 3회, best-of-n 반환, 반복당 타임아웃 `QUALITY_LOOP_ITERATION_TIMEOUT_MS` 기본 120초) |
 | `generationTracker.ts` | 서버 메모리 진행 상태 싱글톤 (모바일 폴링 fallback용) |
 
-`handlePipelineFailure()` (generationPipeline.ts 내부): Rate Limit 복구, 실패 이벤트 발행(`eventBus.emit`), Tracker 실패 표시
+`handlePipelineFailure()` (generationPipeline.ts 내부): Rate Limit 복구, 실패 이벤트 발행(`eventBus.emit`), Tracker 실패 표시  
+**Stage 3 fallback**: Stage 3 AI 호출 실패 시 Stage 2 결과로 폴백하며 `STAGE3_FALLBACK_USED` 이벤트 발행 → `platform_events` 테이블 자동 기록 (빈도 추적 용도)
 
 **이벤트 흐름**: 생성 성공/실패 시 `eventBus.emit()` → `eventPersister` 구독자가 자동으로 `platform_events` 테이블에 기록 (수동 `persistAsync` 이중 호출 없음)
 

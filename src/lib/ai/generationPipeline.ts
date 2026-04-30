@@ -209,7 +209,10 @@ ${featureList}
       ...(stage1Quality.placeholderCount > 0 ? [`Placeholder 감지 (${stage1Quality.placeholderCount}개): 홍길동, 준비 중 등 제거 필요`] : []),
     ];
 
-    const staticNeedsStage2 = stage1Quality.fetchCallCount === 0 || stage1Quality.placeholderCount > 0;
+    const staticNeedsStage2 =
+      stage1Quality.fetchCallCount === 0 ||
+      stage1Quality.placeholderCount > 0 ||
+      stage1Quality.hardcodedArrayCount > 0;
 
     let stage1FastQcIssues: string[] | null = null;
     let stage1FastQcPassed: boolean | null = null;
@@ -231,7 +234,7 @@ ${featureList}
 
     const needsStage2 = staticNeedsStage2 || stage1FastQcPassed === false;
 
-    logger.info('Stage 2 necessity evaluated', { projectId, needsStage2, fetchCallCount: stage1Quality.fetchCallCount, placeholderCount: stage1Quality.placeholderCount, stage1FastQcPassed });
+    logger.info('Stage 2 necessity evaluated', { projectId, needsStage2, fetchCallCount: stage1Quality.fetchCallCount, placeholderCount: stage1Quality.placeholderCount, hardcodedArrayCount: stage1Quality.hardcodedArrayCount, stage1FastQcPassed });
 
     // ── Stage 2: 기능 검증 (30→65%) ─────────────────────────────────────────
     let stage2Result: typeof stage1Result;
@@ -243,6 +246,10 @@ ${featureList}
       sse.send('progress', { step: 'stage2_function_complete', progress: 65, message: '기능 검증 완성. 디자인 적용 중...' });
       generationTracker.updateProgress(projectId, 65, 'stage2_function_complete', '기능 검증 완성. 디자인 적용 중...');
       stage2Result = { ...stage1Result, durationMs: 0, tokensUsed: { input: 0, output: 0 } };
+      eventBus.emit({
+        type: 'STAGE_SKIPPED',
+        payload: { projectId, stage: 'stage2', reason: 'stage1 quality sufficient (fetch present, no placeholder, fast QC passed)' },
+      });
     }
 
     // ── Stage 3: 디자인·폴리시 (65→90%) ────────────────────────────────────
@@ -261,14 +268,20 @@ ${featureList}
       sse.send('progress', { step: 'stage3_skipped', progress: 85, message: '디자인 검증 완료 — 품질 충분, 폴리시 스킵.' });
       generationTracker.updateProgress(projectId, 85, 'stage3_skipped', '디자인 검증 완료 — 품질 충분, 폴리시 스킵.');
       stage3Result = { ...stage2Result, durationMs: 0, tokensUsed: { input: 0, output: 0 }, userPrompt: '' };
+      eventBus.emit({
+        type: 'STAGE_SKIPPED',
+        payload: { projectId, stage: 'stage3', reason: 'pre-stage3 quality sufficient (structuralScore>=80, mobileScore>=70, fetch present, no placeholder, stage2 unneeded)' },
+      });
     } else {
       try {
         stage3Result = await runStage3(stage2Result.parsed, input.stage2SystemPrompt, input.buildStage2UserPrompt, aiProvider, sse, !needsStage2);
       } catch (stage3Err) {
+        const stage3ErrMsg = stage3Err instanceof Error ? stage3Err.message : String(stage3Err);
         logger.warn('Stage 3 (design polish) failed — falling back to Stage 2 result', {
           projectId,
-          error: stage3Err instanceof Error ? stage3Err.message : String(stage3Err),
+          error: stage3ErrMsg,
         });
+        eventBus.emit({ type: 'STAGE3_FALLBACK_USED', payload: { projectId, error: stage3ErrMsg } });
         sse.send('progress', { step: 'stage3_fallback', progress: 85, message: '디자인 적용 중 오류 — 기능 검증 버전으로 진행합니다.' });
         generationTracker.updateProgress(projectId, 85, 'stage3_fallback', '디자인 적용 중 오류 — 기능 검증 버전으로 진행합니다.');
         stage3Result = { ...stage2Result, durationMs: 0, tokensUsed: { input: 0, output: 0 }, userPrompt: '' };
@@ -310,8 +323,9 @@ ${featureList}
     }
 
     // ── Quality Loop ──────────────────────────────────────────────────────────
+    const userFeedback = typeof extraMetadata?.userFeedback === 'string' ? extraMetadata.userFeedback : undefined;
     const { parsed: finalParsed, quality, qcReport, qualityLoopUsed } = await runQualityLoop(
-      parsed, initialQuality, initialQcReport, input.stage2SystemPrompt, aiProvider, sse, useET, projectId,
+      parsed, initialQuality, initialQcReport, input.stage2SystemPrompt, aiProvider, sse, useET, projectId, userFeedback,
     );
 
     // ── 저장 ─────────────────────────────────────────────────────────────────

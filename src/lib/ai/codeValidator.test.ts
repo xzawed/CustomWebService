@@ -31,10 +31,18 @@ describe('validateSecurity', () => {
     expect(result.errors).toHaveLength(0);
   });
 
-  it('인라인 script 태그가 있으면 에러를 반환한다', () => {
+  it('인라인 script 태그가 있으면 경고를 반환하고 패스한다', () => {
     const result = validateSecurity('<script>alert(1)</script>');
-    expect(result.passed).toBe(false);
-    expect(result.errors.some((e) => e.includes('인라인 스크립트'))).toBe(true);
+    expect(result.passed).toBe(true);
+    expect(result.errors.some((e) => e.includes('인라인 스크립트'))).toBe(false);
+    expect(result.warnings.some((w) => w.includes('인라인 스크립트'))).toBe(true);
+  });
+
+  it('script type="module" 태그는 경고만 발생하고 패스한다', () => {
+    const result = validateSecurity('<script type="module">import { x } from "./x.js"</script>');
+    expect(result.passed).toBe(true);
+    expect(result.errors.some((e) => e.includes('인라인 스크립트'))).toBe(false);
+    expect(result.warnings.some((w) => w.includes('인라인 스크립트'))).toBe(true);
   });
 
   it('src 속성이 있는 script 태그는 차단하지 않는다', () => {
@@ -212,5 +220,58 @@ describe('evaluateQuality — fetch-first scoring', () => {
   it('detects placeholder strings', () => {
     const result = evaluateQuality(baseHtml, '', 'document.write("홍길동"); fetch("/api")');
     expect(result.placeholderCount).toBeGreaterThan(0);
+  });
+
+  describe('hardcodedArrayCount 감지 패턴', () => {
+    it('단일 객체 배열 const items = [{id:1}] 감지', () => {
+      const js = 'const items = [{id:1}]; fetch("/api/v1/proxy")';
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(1);
+      expect(result.hasMockData).toBe(true);
+    });
+
+    it('두 객체 배열 const data = [{a:1},{b:2}] 감지', () => {
+      const js = 'const data = [{a:1},{b:2}]; fetch("/api/v1/proxy")';
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(1);
+    });
+
+    it('대문자로 시작하는 상수 const DATA = [{...}] 감지', () => {
+      const js = 'const DATA = [{name:"a"}]; fetch("/api/v1/proxy")';
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(1);
+    });
+
+    it('동일 파일 내 여러 하드코딩 배열을 모두 카운트한다', () => {
+      const js = `
+        const users = [{id:1}];
+        const items = [{name:"a"},{name:"b"}];
+        fetch("/api/v1/proxy")
+      `;
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(2);
+    });
+
+    it('빈 배열 const x = [] 은 mock 데이터로 분류하지 않는다', () => {
+      const js = 'const x = []; fetch("/api/v1/proxy")';
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(0);
+      expect(result.hasMockData).toBe(false);
+    });
+
+    it('원시값 배열 const nums = [1,2,3] 은 카운트하지 않는다 (객체 아님)', () => {
+      const js = 'const nums = [1, 2, 3]; fetch("/api/v1/proxy")';
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(0);
+    });
+
+    it('다중 라인 객체 배열도 감지한다', () => {
+      const js = `const list = [
+        { id: 1, name: "first" },
+        { id: 2, name: "second" }
+      ]; fetch("/api/v1/proxy")`;
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(1);
+    });
   });
 });

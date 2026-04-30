@@ -37,6 +37,7 @@
 | `ANTHROPIC_API_KEY` | ✅ | ✅ | Claude API 키 |
 | `AI_MODEL_SUGGESTION` | 선택 | ➖ | 컨텍스트 추천용 모델 (기본: `claude-haiku-4-5`). 허용값: `claude-haiku-4-5` · `claude-sonnet-4-6` · `claude-opus-4-6` · `claude-opus-4-7` |
 | `AI_MODEL_GENERATION` | 선택 | ➖ | 코드 생성용 모델 (기본: `claude-opus-4-7`). 허용값 동일. **주의**: 날짜 suffix 포함 ID(예: `claude-haiku-4-5-20251001`)는 Anthropic 404 반환 |
+| `ET_COMPLEXITY_THRESHOLD` | 선택 | ➖ | Extended Thinking 활성화 복잡도 임계값 (기본: `35`). 0-100 점수 중 이 값 이상이면 ET 활성화 |
 
 ---
 
@@ -82,6 +83,16 @@
 | `CONTEXT_MIN_LENGTH` | `50` | ➖ | 컨텍스트 최소 길이 (자) |
 | `CONTEXT_MAX_LENGTH` | `2000` | ➖ | 컨텍스트 최대 길이 (자) |
 | `GENERATION_TIMEOUT_MS` | `120000` | ➖ | 생성 타임아웃 (ms) |
+| `ANTHROPIC_TIMEOUT_MS` | `270000` | ➖ | Anthropic SDK 호출 타임아웃 (ms). Railway 300초 HTTP 컷 전 안전 종료를 위해 270초로 설정. 운영 환경에서 더 긴 응답을 허용하려면 조정 |
+
+---
+
+## Rate Limit (인메모리, 단일 인스턴스 전제)
+
+| 변수 | 기본값 | Railway | 설명 |
+|------|--------|---------|------|
+| `RATE_LIMIT_PER_MIN` | `60` | ➖ | proxy + admin 라우트 분당 요청 한도 (사용자/IP 단위) |
+| `MAX_CONCURRENT_RATE_LIMIT_USERS` | `1000` | ➖ | rate limit Map의 LRU evict 임계값 (활성 사용자/IP 한도). 초과 시 가장 오래된 항목 자동 evict — Railway 단일 인스턴스 메모리 누적 차단 |
 
 ---
 
@@ -90,6 +101,8 @@
 | 변수 | 기본값 | Railway | 설명 |
 |------|--------|---------|------|
 | `ENABLE_RENDERING_QC` | `false` | ❌ | Playwright 렌더링 QC 활성화 |
+| `QUALITY_LOOP_ITERATION_TIMEOUT_MS` | `120000` | ➖ | 품질 루프 반복당 타임아웃 (ms). 단일 반복에서 AI 응답 없을 시 해당 반복 스킵 |
+| `QUALITY_LOOP_STRICT_ADOPTION` | `true` | ➖ | 채택 가드: `true`(기본)는 한 점수 향상 + 다른 점수 동등 이상일 때만 retry 채택(시소 진동 방지). `false`로 설정 시 기존 OR 로직(한쪽 향상) 복원 — 운영 데이터 비교용 롤백 스위치 |
 
 ---
 

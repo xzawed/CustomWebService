@@ -4,16 +4,7 @@ import { CodeRepository } from '@/repositories/codeRepository';
 import { assembleHtml } from '@/lib/ai/codeParser';
 import { isValidSlug, RESERVED_SLUGS } from '@/lib/utils/slugify';
 import { notFoundHtml, preparingHtml } from '@/lib/templates/siteError';
-
-const SITE_CSP = [
-  "default-src 'self'",
-  "script-src 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://kit.fontawesome.com https://use.fontawesome.com https://stackpath.bootstrapcdn.com https://unpkg.com",
-  "style-src 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://stackpath.bootstrapcdn.com https://unpkg.com",
-  'font-src https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://use.fontawesome.com https://kit.fontawesome.com data:',
-  'img-src * data: blob:',
-  'connect-src *',
-  "frame-ancestors 'none'",
-].join('; ');
+import { SITE_CSP } from '@/lib/constants/cdn';
 
 export async function GET(
   _request: Request,
