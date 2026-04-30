@@ -19,7 +19,7 @@ export async function GET(request: Request): Promise<Response> {
 
       const supabase = await createServiceClient();
       const codeRepo = new CodeRepository(supabase);
-      const [codes, failureCountResult, stage3FallbackResult, stageSkippedResult] = await Promise.all([
+      const [codes, failureCountResult, stage3FallbackResult, stageSkippedResult, qualityLoopResult] = await Promise.all([
         codeRepo.findMetadataByDateRange(from),
         supabase
           .from('platform_events')
@@ -36,6 +36,11 @@ export async function GET(request: Request): Promise<Response> {
           .select('payload')
           .eq('type', 'STAGE_SKIPPED')
           .gte('created_at', from.toISOString()),
+        supabase
+          .from('platform_events')
+          .select('payload')
+          .eq('type', 'QUALITY_LOOP_COMPLETED')
+          .gte('created_at', from.toISOString()),
       ]);
 
       const failureCount = failureCountResult.count ?? 0;
@@ -43,6 +48,12 @@ export async function GET(request: Request): Promise<Response> {
       const stageSkippedRows = (stageSkippedResult.data ?? []) as Array<{ payload: { stage?: string } | null }>;
       const stage2SkipCount = stageSkippedRows.filter((r) => r.payload?.stage === 'stage2').length;
       const stage3SkipCount = stageSkippedRows.filter((r) => r.payload?.stage === 'stage3').length;
+      const qualityLoopRows = (qualityLoopResult.data ?? []) as Array<{ payload: { iterations?: number; improved?: boolean } | null }>;
+      const qualityLoopEventCount = qualityLoopRows.length;
+      const sumIterations = qualityLoopRows.reduce((s, r) => s + (typeof r.payload?.iterations === 'number' ? r.payload.iterations : 0), 0);
+      const improvedCount = qualityLoopRows.filter((r) => r.payload?.improved === true).length;
+      const avgQualityLoopIterations = qualityLoopEventCount > 0 ? Math.round((sumIterations / qualityLoopEventCount) * 100) / 100 : 0;
+      const qualityLoopImprovementRate = qualityLoopEventCount > 0 ? Math.round((improvedCount / qualityLoopEventCount) * 100) / 100 : 0;
       const total = codes.length;
       if (total === 0) {
         return jsonResponse({
@@ -60,6 +71,8 @@ export async function GET(request: Request): Promise<Response> {
             stage3FallbackCount,
             stage2SkipCount,
             stage3SkipCount,
+            avgQualityLoopIterations,
+            qualityLoopImprovementRate,
             commonFailures: [],
           },
         });
@@ -127,6 +140,8 @@ export async function GET(request: Request): Promise<Response> {
           stage3SkipCount,
           stage2SkipRate: total > 0 ? Math.round((stage2SkipCount / total) * 100) / 100 : 0,
           stage3SkipRate: total > 0 ? Math.round((stage3SkipCount / total) * 100) / 100 : 0,
+          avgQualityLoopIterations,
+          qualityLoopImprovementRate,
           commonFailures,
         },
       });

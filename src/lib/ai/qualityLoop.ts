@@ -7,6 +7,7 @@ import { parseGeneratedCode } from '@/lib/ai/codeParser';
 import { assembleHtml } from '@/lib/ai/codeParser';
 import { generationTracker } from '@/lib/ai/generationTracker';
 import { logger } from '@/lib/utils/logger';
+import { eventBus } from '@/lib/events/eventBus';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import type { SseWriter } from '@/lib/ai/sseWriter';
 
@@ -142,9 +143,11 @@ export async function runQualityLoop(
   let bestQuality = initialQuality;
   let bestQcReport = initialQcReport;
   let qualityLoopUsed = false;
+  let iterationsRun = 0;
 
   for (let attempt = 0; attempt < 3; attempt++) {
     if (!shouldRetryGeneration(bestQuality, bestQcReport)) break;
+    iterationsRun++;
 
     logger.info('Quality below threshold, attempting improvement', {
       projectId,
@@ -202,6 +205,17 @@ export async function runQualityLoop(
       logger.warn('Quality improvement retry failed', { projectId, retryErr });
     }
   }
+
+  eventBus.emit({
+    type: 'QUALITY_LOOP_COMPLETED',
+    payload: {
+      projectId,
+      iterations: iterationsRun,
+      improved: qualityLoopUsed,
+      finalStructuralScore: bestQuality.structuralScore,
+      finalMobileScore: bestQuality.mobileScore,
+    },
+  });
 
   return { parsed: bestParsed, quality: bestQuality, qcReport: bestQcReport, qualityLoopUsed };
 }

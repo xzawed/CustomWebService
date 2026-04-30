@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock('@/lib/events/eventBus', () => ({
+  eventBus: { emit: vi.fn() },
+}));
+
 import { shouldRetryGeneration, buildQualityImprovementPrompt, runQualityLoop } from './qualityLoop';
+import { eventBus } from '@/lib/events/eventBus';
 import type { QualityMetrics } from '@/lib/ai/codeValidator';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import type { SseWriter } from '@/lib/ai/sseWriter';
@@ -209,8 +215,9 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
     };
   }
 
-  it('초기 품질 충분(shouldRetry=false) → 0회 반복, AI 호출 없음', async () => {
+  it('초기 품질 충분(shouldRetry=false) → 0회 반복, AI 호출 없음, iterations=0 이벤트 발행', async () => {
     const generateCode = vi.fn();
+    vi.mocked(eventBus.emit).mockClear();
     const result = await runQualityLoop(
       { html: '<main>ok</main>', css: '', js: 'fetch("/api/v1/proxy")' },
       baseMetrics, // structuralScore=80, mobileScore=80, fetch=1, proxy=true
@@ -225,6 +232,18 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
     expect(generateCode).not.toHaveBeenCalled();
     expect(result.qualityLoopUsed).toBe(false);
     expect(result.quality).toEqual(baseMetrics);
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'QUALITY_LOOP_COMPLETED',
+        payload: expect.objectContaining({
+          projectId: 'p1',
+          iterations: 0,
+          improved: false,
+          finalStructuralScore: 80,
+          finalMobileScore: 80,
+        }),
+      }),
+    );
   });
 
   it('AI 응답 html이 빈 문자열 → 채택하지 않고 다음 시도 진행', async () => {
@@ -256,11 +275,12 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
     expect(result.parsed.html).toBe('<div>초기</div>');
   });
 
-  it('shouldRetryGeneration 시 최대 3회 반복까지만 수행한다', async () => {
+  it('shouldRetryGeneration 시 최대 3회 반복까지만 수행한다 + iterations=3 이벤트 발행', async () => {
     // 모든 응답이 즉시 reject되어 3회 모두 실패 시도
     const generateCode = vi.fn().mockRejectedValue(new Error('AI fail'));
     const lowQuality: QualityMetrics = { ...baseMetrics, structuralScore: 30, mobileScore: 30, details: [] };
 
+    vi.mocked(eventBus.emit).mockClear();
     vi.useRealTimers(); // reject는 즉시 처리되므로 real timers
     const result = await runQualityLoop(
       { html: '<div>x</div>', css: '', js: '' },
@@ -275,6 +295,12 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
 
     expect(generateCode).toHaveBeenCalledTimes(3);
     expect(result.qualityLoopUsed).toBe(false);
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'QUALITY_LOOP_COMPLETED',
+        payload: expect.objectContaining({ projectId: 'p3', iterations: 3, improved: false }),
+      }),
+    );
     vi.useFakeTimers();
   });
 });
