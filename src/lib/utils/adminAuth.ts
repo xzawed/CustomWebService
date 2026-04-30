@@ -1,13 +1,18 @@
 import crypto from 'crypto';
 import { ForbiddenError } from '@/lib/utils/errors';
+import { LRUMap } from '@/lib/utils/lruMap';
+import {
+  RATE_LIMIT_PER_MIN,
+  RATE_LIMIT_WINDOW_MS,
+  MAX_CONCURRENT_RATE_LIMIT_USERS,
+} from '@/lib/config/rateLimit';
 
 // One-time random key for HMAC-based timing-safe string comparison (never exported)
 const _HMAC_KEY = crypto.randomBytes(32);
 
-// In-memory rate limit: max 60 requests per minute per IP
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const RATE_LIMIT_MAX = 60;
+// In-memory rate limit per IP — proxy 라우트와 동일 한도/공용 설정 사용
+// LRUMap으로 활성 IP 한도 초과 시 자동 evict (메모리 누적 차단)
+const rateLimitMap = new LRUMap<string, { count: number; resetAt: number }>(MAX_CONCURRENT_RATE_LIMIT_USERS);
 
 function checkRateLimit(ip: string): void {
   const now = Date.now();
@@ -17,14 +22,8 @@ function checkRateLimit(ip: string): void {
     return;
   }
   entry.count++;
-  if (entry.count > RATE_LIMIT_MAX) {
+  if (entry.count > RATE_LIMIT_PER_MIN) {
     throw new ForbiddenError('요청 한도 초과 — 잠시 후 다시 시도하세요');
-  }
-  // Clean old entries periodically
-  if (rateLimitMap.size > 1000) {
-    for (const [k, v] of rateLimitMap) {
-      if (now > v.resetAt) rateLimitMap.delete(k);
-    }
   }
 }
 
