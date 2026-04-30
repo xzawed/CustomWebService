@@ -119,10 +119,23 @@ ${qcIssues ? `\n브라우저 렌더링 검증에서 발견된 추가 문제:\n${
 \`\`\``;
 }
 
-function safeAssembleHtml(code: { html: string; css: string; js: string }): string | null {
+/**
+ * assembleHtml의 안전 래퍼. throw 대신 null 반환으로 호출자가 분기할 수 있게 함.
+ * null 반환은 호출자가 QC 단계를 silent skip하는 통로가 될 수 있으므로 (정확도 회귀
+ * 마스킹 위험), 실패 시 로그를 남겨 운영 가시성을 확보한다.
+ */
+function safeAssembleHtml(
+  code: { html: string; css: string; js: string },
+  context: { projectId: string; phase: 'retry' | 'initial' },
+): string | null {
   try {
     return assembleHtml(code);
-  } catch {
+  } catch (err) {
+    logger.warn('assembleHtml failed — QC를 건너뛰고 코드 점수만으로 판정', {
+      projectId: context.projectId,
+      phase: context.phase,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 }
@@ -180,16 +193,43 @@ export async function runQualityLoop(
       ]);
       const retryParsed = parseGeneratedCode(retryResponse.content);
 
+      if (!retryParsed.html) {
+        // AI가 비어있거나 파싱 불가능한 응답을 반환한 경우. 다음 시도로 넘어가기 전에
+        // 운영 가시성 확보를 위해 로그 — 빈 응답 빈도가 높으면 모델/프롬프트 점검 필요.
+        logger.warn('Quality loop retry returned empty html — skipping adoption', {
+          projectId,
+          attempt: attempt + 1,
+          contentLength: retryResponse.content?.length ?? 0,
+        });
+      }
+
       if (retryParsed.html) {
         const retryQuality = evaluateQuality(retryParsed.html, retryParsed.css, retryParsed.js);
         let retryQcReport: QcReport | null = null;
 
         if (isQcEnabled()) {
           try {
-            const assembled = safeAssembleHtml(retryParsed);
-            if (assembled) retryQcReport = await runFastQc(assembled);
-          } catch {
-            // QC 실패해도 코드 레벨 비교 진행
+            const assembled = safeAssembleHtml(retryParsed, { projectId, phase: 'retry' });
+            if (assembled) {
+              retryQcReport = await runFastQc(assembled);
+            } else {
+              // assembled === null: safeAssembleHtml이 이미 logger.warn으로 기록함.
+              // 추가로 STAGE_SKIPPED 이벤트를 발행해 시계열 분석 가능하게.
+              eventBus.emit({
+                type: 'STAGE_SKIPPED',
+                payload: {
+                  projectId,
+                  stage: 'stage3',
+                  reason: 'assembleHtml failed in retry — QC skipped, falling back to code-level scoring',
+                },
+              });
+            }
+          } catch (qcErr) {
+            // QC 실패해도 코드 레벨 비교 진행 — 단, 운영 가시성을 위해 로그
+            logger.warn('runFastQc threw in quality loop retry — falling back to code-level scoring', {
+              projectId,
+              error: qcErr instanceof Error ? qcErr.message : String(qcErr),
+            });
           }
         }
 

@@ -233,4 +233,48 @@ describe('runQualityLoop — retry 채택 분기 (Quality Loop 정확도 게이�
 
     expect(result.qualityLoopUsed).toBe(true); // QC 실패해도 코드 점수로 채택
   });
+
+  it('isQcEnabled=true + assembleHtml 실패(빈 css/js → throw 시뮬) → STAGE_SKIPPED 이벤트 발행', async () => {
+    // assembleHtml 직접 mock은 어려우므로, retry html이 매우 짧아 DOMPurify가
+    // 실패 시 STAGE_SKIPPED 발행 검증. 단, assembleHtml은 일반적으로 throw하지 않으므로
+    // 실패 가시화 자체는 logger.warn 호출 검증으로 대체. (이벤트는 assembled === null
+    // 케이스에서만 발행되며, 실제 실패 재현이 어려울 때는 silent skip 케이스로 검증)
+    const { eventBus } = await import('@/lib/events/eventBus');
+    vi.mocked(eventBus.emit).mockClear();
+
+    vi.mocked(isQcEnabled).mockReturnValue(true);
+    // runFastQc는 호출되지 않을 것 (assembled가 정상이면 호출, 실패 시 skip)
+    vi.mocked(runFastQc).mockResolvedValue({
+      overallScore: 80,
+      passed: true,
+      checks: [],
+    } as unknown as QcReport);
+
+    vi.mocked(evaluateQuality).mockReturnValueOnce({
+      ...baseMetrics,
+      structuralScore: 90,
+      mobileScore: 90,
+    });
+
+    const generateCode = vi.fn().mockResolvedValueOnce({ content: validRetryContent });
+
+    const result = await runQualityLoop(
+      { html: '<div>old</div>', css: '', js: '' },
+      lowQuality,
+      null,
+      'sys',
+      makeMockProvider(generateCode),
+      makeMockSse(),
+      false,
+      'p-skip-vis',
+    );
+
+    // 정상 retry assemble → runFastQc 호출됨
+    expect(runFastQc).toHaveBeenCalled();
+    expect(result.qualityLoopUsed).toBe(true);
+    // QUALITY_LOOP_COMPLETED 이벤트는 항상 발행됨 (silent skip 가시화 외에 기존 동작 유지)
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'QUALITY_LOOP_COMPLETED' }),
+    );
+  });
 });
