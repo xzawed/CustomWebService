@@ -213,6 +213,12 @@ describe('runGenerationPipeline()', () => {
       await runGenerationPipeline(makeInput(), sse as never, makeServices());
 
       expect(runStage2Function).not.toHaveBeenCalled();
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'STAGE_SKIPPED',
+          payload: expect.objectContaining({ stage: 'stage2' }),
+        }),
+      );
     });
 
     it('fetch 미호출 → stage2 실행', async () => {
@@ -276,6 +282,12 @@ describe('runGenerationPipeline()', () => {
       await runGenerationPipeline(makeInput(), sse as never, makeServices());
 
       expect(runStage3).not.toHaveBeenCalled();
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'STAGE_SKIPPED',
+          payload: expect.objectContaining({ stage: 'stage3' }),
+        }),
+      );
     });
 
     it('structuralScore=79 정확 boundary → stage3 실행 (>=80 미충족)', async () => {

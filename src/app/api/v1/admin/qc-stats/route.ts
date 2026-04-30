@@ -19,7 +19,7 @@ export async function GET(request: Request): Promise<Response> {
 
       const supabase = await createServiceClient();
       const codeRepo = new CodeRepository(supabase);
-      const [codes, failureCountResult, stage3FallbackResult] = await Promise.all([
+      const [codes, failureCountResult, stage3FallbackResult, stageSkippedResult] = await Promise.all([
         codeRepo.findMetadataByDateRange(from),
         supabase
           .from('platform_events')
@@ -31,10 +31,18 @@ export async function GET(request: Request): Promise<Response> {
           .select('id', { count: 'exact', head: true })
           .eq('type', 'STAGE3_FALLBACK_USED')
           .gte('created_at', from.toISOString()),
+        supabase
+          .from('platform_events')
+          .select('payload')
+          .eq('type', 'STAGE_SKIPPED')
+          .gte('created_at', from.toISOString()),
       ]);
 
       const failureCount = failureCountResult.count ?? 0;
       const stage3FallbackCount = stage3FallbackResult.count ?? 0;
+      const stageSkippedRows = (stageSkippedResult.data ?? []) as Array<{ payload: { stage?: string } | null }>;
+      const stage2SkipCount = stageSkippedRows.filter((r) => r.payload?.stage === 'stage2').length;
+      const stage3SkipCount = stageSkippedRows.filter((r) => r.payload?.stage === 'stage3').length;
       const total = codes.length;
       if (total === 0) {
         return jsonResponse({
@@ -50,6 +58,8 @@ export async function GET(request: Request): Promise<Response> {
             qcPassRate: 0,
             qualityLoopUsageRate: 0,
             stage3FallbackCount,
+            stage2SkipCount,
+            stage3SkipCount,
             commonFailures: [],
           },
         });
@@ -113,6 +123,10 @@ export async function GET(request: Request): Promise<Response> {
           deepQcFailedCount,
           stage3FallbackCount,
           stage3FallbackRate: totalAttempts > 0 ? Math.round((stage3FallbackCount / totalAttempts) * 100) / 100 : 0,
+          stage2SkipCount,
+          stage3SkipCount,
+          stage2SkipRate: total > 0 ? Math.round((stage2SkipCount / total) * 100) / 100 : 0,
+          stage3SkipRate: total > 0 ? Math.round((stage3SkipCount / total) * 100) / 100 : 0,
           commonFailures,
         },
       });

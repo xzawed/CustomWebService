@@ -56,6 +56,10 @@ export type DomainEvent =
   | {
       type: 'STAGE3_FALLBACK_USED';
       payload: { projectId: string; error: string };
+    }
+  | {
+      type: 'STAGE_SKIPPED';
+      payload: { projectId: string; stage: 'stage2' | 'stage3'; reason: string };
     };
 
 export type DomainEventType = DomainEvent['type'];

@@ -243,6 +243,10 @@ ${featureList}
       sse.send('progress', { step: 'stage2_function_complete', progress: 65, message: '기능 검증 완성. 디자인 적용 중...' });
       generationTracker.updateProgress(projectId, 65, 'stage2_function_complete', '기능 검증 완성. 디자인 적용 중...');
       stage2Result = { ...stage1Result, durationMs: 0, tokensUsed: { input: 0, output: 0 } };
+      eventBus.emit({
+        type: 'STAGE_SKIPPED',
+        payload: { projectId, stage: 'stage2', reason: 'stage1 quality sufficient (fetch present, no placeholder, fast QC passed)' },
+      });
     }
 
     // ── Stage 3: 디자인·폴리시 (65→90%) ────────────────────────────────────
@@ -261,6 +265,10 @@ ${featureList}
       sse.send('progress', { step: 'stage3_skipped', progress: 85, message: '디자인 검증 완료 — 품질 충분, 폴리시 스킵.' });
       generationTracker.updateProgress(projectId, 85, 'stage3_skipped', '디자인 검증 완료 — 품질 충분, 폴리시 스킵.');
       stage3Result = { ...stage2Result, durationMs: 0, tokensUsed: { input: 0, output: 0 }, userPrompt: '' };
+      eventBus.emit({
+        type: 'STAGE_SKIPPED',
+        payload: { projectId, stage: 'stage3', reason: 'pre-stage3 quality sufficient (structuralScore>=80, mobileScore>=70, fetch present, no placeholder, stage2 unneeded)' },
+      });
     } else {
       try {
         stage3Result = await runStage3(stage2Result.parsed, input.stage2SystemPrompt, input.buildStage2UserPrompt, aiProvider, sse, !needsStage2);
