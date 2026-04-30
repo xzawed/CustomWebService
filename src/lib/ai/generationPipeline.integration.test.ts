@@ -265,6 +265,80 @@ describe('runGenerationPipeline()', () => {
 
       expect(runStage3).toHaveBeenCalledOnce();
     });
+
+    it('structuralScore=80 정확 boundary → stage3 스킵 (>=80 조건)', async () => {
+      (evaluateQuality as Mock)
+        .mockReturnValueOnce(makeQualityMetrics({ fetchCallCount: 1, placeholderCount: 0 }))
+        .mockReturnValueOnce(makeQualityMetrics({ structuralScore: 80, mobileScore: 70, fetchCallCount: 1, placeholderCount: 0 }))
+        .mockReturnValueOnce(makeQualityMetrics());
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(runStage3).not.toHaveBeenCalled();
+    });
+
+    it('structuralScore=79 정확 boundary → stage3 실행 (>=80 미충족)', async () => {
+      (evaluateQuality as Mock)
+        .mockReturnValueOnce(makeQualityMetrics({ fetchCallCount: 1, placeholderCount: 0 }))
+        .mockReturnValueOnce(makeQualityMetrics({ structuralScore: 79, mobileScore: 75, fetchCallCount: 1, placeholderCount: 0 }))
+        .mockReturnValueOnce(makeQualityMetrics());
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(runStage3).toHaveBeenCalledOnce();
+    });
+
+    it('mobileScore=70 정확 boundary → stage3 스킵 (>=70 조건)', async () => {
+      (evaluateQuality as Mock)
+        .mockReturnValueOnce(makeQualityMetrics({ fetchCallCount: 1, placeholderCount: 0 }))
+        .mockReturnValueOnce(makeQualityMetrics({ structuralScore: 85, mobileScore: 70, fetchCallCount: 1, placeholderCount: 0 }))
+        .mockReturnValueOnce(makeQualityMetrics());
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(runStage3).not.toHaveBeenCalled();
+    });
+
+    it('mobileScore=69 정확 boundary → stage3 실행 (>=70 미충족)', async () => {
+      (evaluateQuality as Mock)
+        .mockReturnValueOnce(makeQualityMetrics({ fetchCallCount: 1, placeholderCount: 0 }))
+        .mockReturnValueOnce(makeQualityMetrics({ structuralScore: 85, mobileScore: 69, fetchCallCount: 1, placeholderCount: 0 }))
+        .mockReturnValueOnce(makeQualityMetrics());
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(runStage3).toHaveBeenCalledOnce();
+    });
+
+    it('fetchCallCount=0 (점수 충분해도) → stage3 실행', async () => {
+      // pre-stage3 fetchCallCount=0이면 skipStage3=false (fetch가 0보다 커야 skip 가능)
+      // 단 stage1에서 fetch=0이면 stage2가 실행되므로 needsStage2=true가 되어 stage3는 어차피 실행됨
+      (evaluateQuality as Mock)
+        .mockReturnValueOnce(makeQualityMetrics({ fetchCallCount: 0 })) // stage1: needs stage2
+        .mockReturnValueOnce(makeQualityMetrics({ structuralScore: 90, mobileScore: 90, fetchCallCount: 0, placeholderCount: 0 }))
+        .mockReturnValueOnce(makeQualityMetrics());
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(runStage3).toHaveBeenCalledOnce();
+    });
+
+    it('placeholderCount>0 (점수 충분해도) → stage3 실행', async () => {
+      (evaluateQuality as Mock)
+        .mockReturnValueOnce(makeQualityMetrics({ fetchCallCount: 1, placeholderCount: 0 })) // stage1: no stage2
+        .mockReturnValueOnce(makeQualityMetrics({ structuralScore: 85, mobileScore: 80, fetchCallCount: 1, placeholderCount: 1 }))
+        .mockReturnValueOnce(makeQualityMetrics());
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(runStage3).toHaveBeenCalledOnce();
+    });
   });
 
   describe('Stage 0 — featureExtractor', () => {
