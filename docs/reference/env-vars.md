@@ -92,6 +92,7 @@
 |------|--------|---------|------|
 | `ENABLE_RENDERING_QC` | `false` | ❌ | Playwright 렌더링 QC 활성화 |
 | `QUALITY_LOOP_ITERATION_TIMEOUT_MS` | `120000` | ➖ | 품질 루프 반복당 타임아웃 (ms). 단일 반복에서 AI 응답 없을 시 해당 반복 스킵 |
+| `QUALITY_LOOP_STRICT_ADOPTION` | `true` | ➖ | 채택 가드: `true`(기본)는 한 점수 향상 + 다른 점수 동등 이상일 때만 retry 채택(시소 진동 방지). `false`로 설정 시 기존 OR 로직(한쪽 향상) 복원 — 운영 데이터 비교용 롤백 스위치 |
 
 ---
 

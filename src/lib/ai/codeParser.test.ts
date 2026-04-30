@@ -181,4 +181,65 @@ describe('assembleHtml', () => {
     const result = assembleHtml({ html: '<p>Hello</p>', css: '', js: '' });
     expect(result).toContain('alpinejs');
   });
+
+  it('Alpine.js x-* 속성을 sanitize 후에도 보존한다 (정확도 핵심)', () => {
+    const result = assembleHtml({
+      html: '<div x-data="{ open: false }" x-show="open"><button x-on:click="open = !open">toggle</button></div>',
+      css: '',
+      js: '',
+    });
+    expect(result).toContain('x-data');
+    expect(result).toContain('x-show');
+    expect(result).toContain('x-on:click');
+  });
+
+  it('Alpine 단축 바인딩(:class, :style)을 보존한다', () => {
+    const result = assembleHtml({
+      html: '<button :class="{ active: open }" :style="{ color: \'red\' }">btn</button>',
+      css: '',
+      js: '',
+    });
+    expect(result).toContain(':class');
+    expect(result).toContain(':style');
+  });
+
+  it('Alpine 이벤트 단축 바인딩(@click, @keydown)을 보존한다', () => {
+    const result = assembleHtml({
+      html: '<input @click="handle()" @keydown.enter="submit()" />',
+      css: '',
+      js: '',
+    });
+    expect(result).toContain('@click');
+    expect(result).toContain('@keydown.enter');
+  });
+
+  it('인라인 이벤트 핸들러(onclick, onerror)를 제거한다 (XSS 방지)', () => {
+    const result = assembleHtml({
+      html: '<div onclick="alert(1)"><img src="x" onerror="alert(2)" /></div>',
+      css: '',
+      js: '',
+    });
+    expect(result).not.toContain('onclick');
+    expect(result).not.toContain('onerror');
+    expect(result).not.toContain('alert(');
+  });
+
+  it('javascript: URL scheme을 href에서 제거한다 (XSS 방지)', () => {
+    const result = assembleHtml({
+      html: '<a href="javascript:alert(1)">click</a>',
+      css: '',
+      js: '',
+    });
+    expect(result).not.toMatch(/href\s*=\s*["']?javascript:/i);
+  });
+
+  it('<script src="외부URL"> 태그는 ADD_TAGS=[]에 따라 제거된다', () => {
+    const result = assembleHtml({
+      html: '<div><script src="https://evil.example.com/payload.js"></script><p>safe</p></div>',
+      css: '',
+      js: '',
+    });
+    expect(result).not.toContain('https://evil.example.com');
+    expect(result).toContain('<p>safe</p>');
+  });
 });

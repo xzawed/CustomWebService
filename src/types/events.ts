@@ -56,6 +56,20 @@ export type DomainEvent =
   | {
       type: 'STAGE3_FALLBACK_USED';
       payload: { projectId: string; error: string };
+    }
+  | {
+      type: 'STAGE_SKIPPED';
+      payload: { projectId: string; stage: 'stage2' | 'stage3'; reason: string };
+    }
+  | {
+      type: 'QUALITY_LOOP_COMPLETED';
+      payload: {
+        projectId: string;
+        iterations: number;
+        improved: boolean;
+        finalStructuralScore: number;
+        finalMobileScore: number;
+      };
     };
 
 export type DomainEventType = DomainEvent['type'];
