@@ -86,7 +86,15 @@ export class ClaudeProvider implements IAiProvider {
   private client: Anthropic;
 
   constructor(apiKey: string, model = 'claude-sonnet-4-6') {
-    this.client = new Anthropic({ apiKey, timeout: 270_000 }); // 270s — Railway 300s 컷 전 안전 종료
+    // SDK 타임아웃 — Railway 300s HTTP 컷 전 안전 종료. 운영 중 조정이 필요한 경우
+    // ANTHROPIC_TIMEOUT_MS 환경변수로 오버라이드 가능 (기본 270000ms = 270초).
+    const timeoutMs = (() => {
+      const raw = process.env.ANTHROPIC_TIMEOUT_MS;
+      if (!raw) return 270_000;
+      const parsed = parseInt(raw, 10);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 270_000;
+    })();
+    this.client = new Anthropic({ apiKey, timeout: timeoutMs });
     this.model = model;
   }
 

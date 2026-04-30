@@ -5,22 +5,25 @@ import { createCatalogRepository } from '@/repositories/factory';
 import { decryptApiKey } from '@/lib/encryption';
 import { getAuthUser } from '@/lib/auth/index';
 import { LRUMap } from '@/lib/utils/lruMap';
+import {
+  RATE_LIMIT_PER_MIN,
+  RATE_LIMIT_WINDOW_MS,
+  MAX_CONCURRENT_RATE_LIMIT_USERS,
+} from '@/lib/config/rateLimit';
 
-// 인메모리 Rate Limit: 사용자당 분당 60회
-// LRUMap으로 활성 사용자 1000명 초과 시 가장 오래된 항목 자동 evict
-// (Railway 단일 인스턴스 메모리 누적 방지)
-const PROXY_RATE_LIMIT_MAX_USERS = 1000;
-const proxyRateLimit = new LRUMap<string, { count: number; resetAt: number }>(PROXY_RATE_LIMIT_MAX_USERS);
-const PROXY_RATE_LIMIT_PER_MIN = 60;
+// 인메모리 Rate Limit: 사용자당 분당 RATE_LIMIT_PER_MIN회 (기본 60회)
+// LRUMap으로 활성 사용자 MAX_CONCURRENT_RATE_LIMIT_USERS 초과 시 가장 오래된
+// 항목 자동 evict (Railway 단일 인스턴스 메모리 누적 방지).
+const proxyRateLimit = new LRUMap<string, { count: number; resetAt: number }>(MAX_CONCURRENT_RATE_LIMIT_USERS);
 
 function checkProxyRateLimit(userId: string): boolean {
   const now = Date.now();
   const entry = proxyRateLimit.get(userId);
   if (!entry || now >= entry.resetAt) {
-    proxyRateLimit.set(userId, { count: 1, resetAt: now + 60_000 });
+    proxyRateLimit.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return true;
   }
-  if (entry.count >= PROXY_RATE_LIMIT_PER_MIN) return false;
+  if (entry.count >= RATE_LIMIT_PER_MIN) return false;
   entry.count++;
   return true;
 }
