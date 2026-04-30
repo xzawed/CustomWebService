@@ -379,13 +379,10 @@ describe('GET /api/v1/proxy', () => {
       expect(body.error.code).toBe('FORBIDDEN');
     });
 
-    it('null user.id (인증은 통과했지만 id 없음) → 401', async () => {
-      // AuthUser.id는 string(non-nullable)이지만 런타임에서 null이 들어오는 엣지 케이스 검증.
-      // 현재 route는 user 객체 존재 여부만 체크하고 user.id 값을 별도 검증하지 않으므로
-      // null id로 rate limit Map에 'null' 키가 등록될 수 있음.
-      // 이 테스트는 해당 엣지케이스를 문서화하며, 향후 id 검증 추가 시 401 반환을 기대함.
+    it('null user.id (인증은 통과했지만 id 없음) → 401 차단', async () => {
+      // AuthUser.id는 string(non-nullable)이지만 런타임 인증 정보 손상 시 null이 들어올 수 있음.
+      // route의 user.id 가드가 401을 반환하여 rate limit Map 오염·RLS 우회 차단.
       const { getAuthUser } = await import('@/lib/auth/index');
-      // null id를 가진 user 객체를 반환 (타입 캐스팅으로 강제)
       vi.mocked(getAuthUser).mockResolvedValue({ ...mockUser, id: null as unknown as string });
 
       const { createCatalogRepository } = await import('@/repositories/factory');
@@ -396,9 +393,39 @@ describe('GET /api/v1/proxy', () => {
       const { GET } = await import('@/app/api/v1/proxy/route');
       const res = await GET(makeRequest(VALID_API_ID, '/data'));
 
-      // TODO: 현재 구현은 id 값을 별도 검증하지 않아 200이 반환될 수 있음.
-      // 안전한 구현이라면 401을 반환해야 함. 현재 동작을 문서화.
-      expect([200, 401]).toContain(res.status);
+      expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body.error.code).toBe('AUTH_REQUIRED');
+    });
+
+    it('빈 문자열 user.id → 401 차단', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue({ ...mockUser, id: '' });
+
+      const { createCatalogRepository } = await import('@/repositories/factory');
+      vi.mocked(createCatalogRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue(mockPublicApi),
+      } as never);
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+      const res = await GET(makeRequest(VALID_API_ID, '/data'));
+
+      expect(res.status).toBe(401);
+    });
+
+    it('user.id가 string이 아닌 경우(예: number) → 401 차단', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue({ ...mockUser, id: 123 as unknown as string });
+
+      const { createCatalogRepository } = await import('@/repositories/factory');
+      vi.mocked(createCatalogRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue(mockPublicApi),
+      } as never);
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+      const res = await GET(makeRequest(VALID_API_ID, '/data'));
+
+      expect(res.status).toBe(401);
     });
 
     it('프로젝트 API 키 조회 실패 시 플랫폼 키 폴백', async () => {

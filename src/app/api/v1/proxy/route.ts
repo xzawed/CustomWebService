@@ -76,6 +76,13 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
     return errorResponse(401, 'AUTH_REQUIRED', '로그인이 필요합니다.');
   }
 
+  // user.id 가드 — 타입상 string(non-nullable)이지만 런타임에서 인증 정보 손상 시
+  // null/undefined가 들어올 수 있다. rate limit Map에 잘못된 키('null', 'undefined')가
+  // 등록되거나 RLS 우회 시도가 가능해지므로 401로 즉시 차단.
+  if (!user.id || typeof user.id !== 'string') {
+    return errorResponse(401, 'AUTH_REQUIRED', '로그인이 필요합니다.');
+  }
+
   // Rate Limit 확인
   if (!checkProxyRateLimit(user.id)) {
     return errorResponse(429, 'RATE_LIMITED', '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.');
