@@ -807,6 +807,14 @@ QC 통계 조회
         "qcPassRate": 0.85,
         "qualityLoopUsageRate": 0.32,
         "deepQcFailedCount": 5,
+        "stage3FallbackCount": 3,
+        "stage3FallbackRate": 0.02,
+        "stage2SkipCount": 90,
+        "stage3SkipCount": 60,
+        "stage2SkipRate": 0.6,
+        "stage3SkipRate": 0.4,
+        "avgQualityLoopIterations": 0.45,
+        "qualityLoopImprovementRate": 0.78,
         "commonFailures": [
             { "check": "contrast", "failCount": 12, "rate": 0.08 }
         ]
@@ -825,8 +833,16 @@ QC 통계 조회
 | `avgMobileScore` | number | 평균 모바일 QC 점수 |
 | `avgRenderingQcScore` | number | 평균 렌더링 QC 점수 |
 | `qcPassRate` | number | QC 통과율 (0.0 ~ 1.0) |
-| `qualityLoopUsageRate` | number | Quality Loop 사용률 (0.0 ~ 1.0) |
+| `qualityLoopUsageRate` | number | Quality Loop 사용률 (`metadata.qualityLoopUsed` boolean 집계, 0.0 ~ 1.0) |
 | `deepQcFailedCount` | number | Deep QC 실패 건수 |
+| `stage3FallbackCount` | number | Stage 3 디자인 폴리시 실패 → Stage 2 폴백 횟수 (`STAGE3_FALLBACK_USED` 이벤트 집계) |
+| `stage3FallbackRate` | number | Stage 3 폴백 비율 = `stage3FallbackCount / (totalGenerations + failureCount)` |
+| `stage2SkipCount` | number | Stage 2 기능 검증 스킵 횟수 (Stage 1 품질 충분 시) |
+| `stage3SkipCount` | number | Stage 3 디자인 폴리시 스킵 횟수 (점수 충분 + Stage 2 불필요) |
+| `stage2SkipRate` | number | Stage 2 스킵 비율 = `stage2SkipCount / totalGenerations` |
+| `stage3SkipRate` | number | Stage 3 스킵 비율 = `stage3SkipCount / totalGenerations` |
+| `avgQualityLoopIterations` | number | Quality Loop 평균 반복 횟수 (loop 미진입 시 0 포함, `QUALITY_LOOP_COMPLETED` 이벤트 평균) |
+| `qualityLoopImprovementRate` | number | Quality Loop 개선 성공률 = `improved=true` 이벤트 수 / 전체 `QUALITY_LOOP_COMPLETED` 이벤트 수 |
 | `commonFailures` | array | 빈도 상위 실패 체크 목록 |
 
 ### POST /api/v1/admin/trigger-qc

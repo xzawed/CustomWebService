@@ -91,7 +91,12 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 재생성된 코드에 대해 **Step 2 + Step 3을 다시 실행**:
 - `evaluateQuality()` 재실행
 - `runFastQc()` 재실행
-- 코드 점수 OR QC 점수가 개선되면 채택, 아니면 원본 유지
+- 채택 가드 (2026-04-30 ADR S12로 강화):
+  - **strict 모드 (기본 `QUALITY_LOOP_STRICT_ADOPTION=true`)** — 한 점수 향상 + 다른 점수 동등 이상일 때만 채택. 시소 진동(한쪽 향상 + 다른 쪽 회귀) 방지
+  - **OR 모드 (`QUALITY_LOOP_STRICT_ADOPTION=false`)** — 한쪽 점수만 향상해도 채택 (구 동작, 운영 데이터 비교용 롤백 스위치)
+  - QC 점수 향상은 별도 OR 조건으로 채택 가능
+- 재생성 시 사용자 feedback이 있으면 (`extraMetadata.userFeedback`) 매 반복마다 프롬프트의 "## 사용자 요청" 섹션에 누적 주입 (2026-04-30 ADR S10) — 3회 반복 동안 사용자 요청이 무시되지 않도록 보장
+- Quality Loop 종료 직후 `QUALITY_LOOP_COMPLETED` 이벤트 발행(반복 횟수, 채택 여부, 최종 점수) — 운영 시계열 분석용
 
 ### Step 6: 저장
 
@@ -193,6 +198,7 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 | 날짜 | 변경 |
 |------|------|
+| 2026-04-30 | 정확도 게이트 강화: Quality Loop 채택 가드 AND 모드(`QUALITY_LOOP_STRICT_ADOPTION` 토글), 사용자 feedback 매 반복 누적 주입, `STAGE_SKIPPED`/`QUALITY_LOOP_COMPLETED` 이벤트 발행, Stage 2 트리거에 `hardcodedArrayCount` 포함, placeholder blocklist 단일 출처화(`getPlaceholderBlocklistText()`) |
 | 2026-04-29 | Phase 2 품질 개선: 인라인 스크립트 탐지 error→warning, Quality Loop 반복당 타임아웃(`QUALITY_LOOP_ITERATION_TIMEOUT_MS`) 추가 |
 | 2026-04-04 | 초안 작성 — Phase 1(코드 레벨) + Phase 2(렌더링 QC) + 격차 해소 |
 | 2026-04-05 | 임계값 40→60, 재시도 최대 2회, Deep QC 조건부 실행, 푸터/레이아웃 체크 추가 |

@@ -70,6 +70,20 @@ export type DomainEvent =
   | {
       type: 'STAGE3_FALLBACK_USED';
       payload: { projectId: string; error: string };
+    }
+  | {
+      type: 'STAGE_SKIPPED';
+      payload: { projectId: string; stage: 'stage2' | 'stage3'; reason: string };
+    }
+  | {
+      type: 'QUALITY_LOOP_COMPLETED';
+      payload: {
+        projectId: string;
+        iterations: number;
+        improved: boolean;
+        finalStructuralScore: number;
+        finalMobileScore: number;
+      };
     };
 
 export type DomainEventType = DomainEvent['type'];
@@ -158,3 +172,18 @@ eventBus.emit({
 
 이벤트는 핵심 비즈니스 로직(저장, 상태 변경)이 완료된 후 발행하여,
 구독자(분석, 알림, 모니터링)가 메인 흐름에 영향을 주지 않도록 합니다.
+
+---
+
+## 정확도 가시화 이벤트 (2026-04-30 ADR)
+
+생성 파이프라인의 정확도 게이트 효율성을 시계열로 측정하기 위해 추가된 이벤트:
+
+| 이벤트 | 발행처 | 용도 |
+|--------|--------|------|
+| `STAGE3_FALLBACK_USED` | `generationPipeline.ts` Stage 3 catch | Stage 3 디자인 폴리시 실패 시 Stage 2 결과로 폴백한 빈도 추적 |
+| `STAGE_SKIPPED` | `generationPipeline.ts` Stage 2/3 skip 분기 | Stage 2/3 진입 없이 통과된 비율(파이프라인 효율성) — `payload.stage`로 'stage2'/'stage3' 구분 |
+| `QUALITY_LOOP_COMPLETED` | `qualityLoop.ts` 종료 직후 (loop 미진입 포함, `iterations=0`으로도 발행) | Quality Loop 평균 반복 횟수, 개선 성공률, 최종 점수 분포 |
+
+이 이벤트들은 `eventPersister`가 `platform_events` 테이블에 자동 영속화하며,
+Admin QC Stats API(`/api/v1/admin/qc-stats`)가 이를 집계해 운영 지표로 노출합니다.
