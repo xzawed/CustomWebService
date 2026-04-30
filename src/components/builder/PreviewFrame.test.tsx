@@ -57,6 +57,6 @@ describe('PreviewFrame', () => {
   it('iframe sandbox 속성이 제한된 권한으로 설정된다', () => {
     const { container } = renderComponent(<PreviewFrame projectId="proj-1" />);
     const iframe = getIframe(container);
-    expect(iframe.getAttribute('sandbox')).toBe('allow-scripts allow-same-origin');
+    expect(iframe.getAttribute('sandbox')).toBe('allow-scripts allow-forms allow-popups');
   });
 });

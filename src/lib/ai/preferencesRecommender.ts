@@ -9,8 +9,6 @@ import type {
   DesignLayout,
 } from '@/types/project';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 interface ApiInfo {
   name: string;
   category: string;
@@ -119,6 +117,11 @@ const FALLBACK_RESULT: RelevanceGateResult = {
 
 export async function recommendPreferences(input: RecommendInput): Promise<RelevanceGateResult> {
   try {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return FALLBACK_RESULT;
+
+    const client = new Anthropic({ apiKey, timeout: 30_000 });
+
     const apiList = input.apis
       .map((a) => `- ${a.name} (${a.category}): ${a.description}`)
       .join('\n');

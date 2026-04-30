@@ -74,7 +74,10 @@ export async function extractFeatures(
   apiNames: string[],
 ): Promise<FeatureSpec> {
   try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return FALLBACK_SPEC(apiNames);
+
+    const client = new Anthropic({ apiKey, timeout: 30_000 });
 
     const response = await client.messages.create({
       model: 'claude-haiku-4-5',
