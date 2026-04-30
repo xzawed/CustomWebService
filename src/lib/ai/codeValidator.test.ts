@@ -221,4 +221,57 @@ describe('evaluateQuality — fetch-first scoring', () => {
     const result = evaluateQuality(baseHtml, '', 'document.write("홍길동"); fetch("/api")');
     expect(result.placeholderCount).toBeGreaterThan(0);
   });
+
+  describe('hardcodedArrayCount 감지 패턴', () => {
+    it('단일 객체 배열 const items = [{id:1}] 감지', () => {
+      const js = 'const items = [{id:1}]; fetch("/api/v1/proxy")';
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(1);
+      expect(result.hasMockData).toBe(true);
+    });
+
+    it('두 객체 배열 const data = [{a:1},{b:2}] 감지', () => {
+      const js = 'const data = [{a:1},{b:2}]; fetch("/api/v1/proxy")';
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(1);
+    });
+
+    it('대문자로 시작하는 상수 const DATA = [{...}] 감지', () => {
+      const js = 'const DATA = [{name:"a"}]; fetch("/api/v1/proxy")';
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(1);
+    });
+
+    it('동일 파일 내 여러 하드코딩 배열을 모두 카운트한다', () => {
+      const js = `
+        const users = [{id:1}];
+        const items = [{name:"a"},{name:"b"}];
+        fetch("/api/v1/proxy")
+      `;
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(2);
+    });
+
+    it('빈 배열 const x = [] 은 mock 데이터로 분류하지 않는다', () => {
+      const js = 'const x = []; fetch("/api/v1/proxy")';
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(0);
+      expect(result.hasMockData).toBe(false);
+    });
+
+    it('원시값 배열 const nums = [1,2,3] 은 카운트하지 않는다 (객체 아님)', () => {
+      const js = 'const nums = [1, 2, 3]; fetch("/api/v1/proxy")';
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(0);
+    });
+
+    it('다중 라인 객체 배열도 감지한다', () => {
+      const js = `const list = [
+        { id: 1, name: "first" },
+        { id: 2, name: "second" }
+      ]; fetch("/api/v1/proxy")`;
+      const result = evaluateQuality(baseHtml, '', js);
+      expect(result.hardcodedArrayCount).toBe(1);
+    });
+  });
 });
