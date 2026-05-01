@@ -242,6 +242,8 @@ function applyAutoFixStep(
     return 'resolved';
   }
 
+  // state.qcReport intentionally not re-run: autofix only changes text patterns
+  // (URLs, placeholder strings) — DOM structure is unchanged, QC delta meaningless.
   logger.info('AutoFix partial fix — LLM retry still needed', {
     projectId, attempt: attempt + 1, fixes: autoFixResult.fixesApplied,
   });
@@ -250,7 +252,7 @@ function applyAutoFixStep(
 
 /**
  * LLM 재시도 한 회를 실행해 best 상태를 업데이트한다.
- * AI 호출 실패·빈 응답·채택 실패는 모두 조용히 처리하고 false를 반환.
+ * AI 호출 실패·빈 응답·채택 실패는 모두 조용히 처리한다.
  */
 async function runLlmRetryIteration(
   state: BestState,
