@@ -276,7 +276,8 @@ describe('assembleHtml', () => {
     expect(result).toContain('cdnjs.cloudflare.com');
   });
 
-  it('Tailwind CDN이 이미 있으면 중복 주입하지 않는다', () => {
+  it('AI 생성 HTML에 Tailwind CDN이 있어도 DOMPurify 제거 후 재주입 — count=1', () => {
+    // DOMPurify removes the original <script src>, so we re-inject exactly once
     const html =
       '<html><head><script src="https://cdn.tailwindcss.com"></script></head><body></body></html>';
     const result = assembleHtml({ html, css: '', js: '' });
