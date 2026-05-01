@@ -123,7 +123,7 @@ pnpm test:coverage    # 커버리지 리포트
 | 코드 생성/재생성 작업 **(필수)** | [docs/guides/qc-process.md](docs/guides/qc-process.md) |
 | 테스트 전략·검증 항목 | [docs/guides/testing.md](docs/guides/testing.md) |
 | API 엔드포인트 목록 | [docs/reference/api-endpoints.md](docs/reference/api-endpoints.md) |
-| 골든셋 API 목록 (검증된 6개) | [docs/reference/golden-api-set.md](docs/reference/golden-api-set.md) |
+| 골든셋 API 목록 (검증된 10개, 즉시 사용 가능) | [docs/reference/golden-api-set.md](docs/reference/golden-api-set.md) |
 | 보안 인시던트 대응 절차 | [docs/security/incident-response.md](docs/security/incident-response.md) |
 | 환경변수 목록 | [docs/reference/env-vars.md](docs/reference/env-vars.md) |
 | 에러 클래스 참조 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
@@ -137,6 +137,8 @@ pnpm test:coverage    # 커버리지 리포트
 | 보안·접근성·커버리지 수정 ADR (PR #49·#50) | [docs/decisions/2026-04-26-sonarcloud-security-a11y-coverage.md](docs/decisions/2026-04-26-sonarcloud-security-a11y-coverage.md) |
 | 생성 성공률 개선 ADR (Phase 2, PR #58) | [docs/decisions/2026-04-29-generation-success-rate-improvement.md](docs/decisions/2026-04-29-generation-success-rate-improvement.md) |
 | 정확도 게이트 회귀 방지·가시화·개선 통합 ADR | [docs/decisions/2026-04-30-accuracy-gate-and-visibility.md](docs/decisions/2026-04-30-accuracy-gate-and-visibility.md) |
+| API 카탈로그 전수 검증 ADR (62개, 2026-05-01) | [docs/decisions/2026-05-01-api-catalog-verification.md](docs/decisions/2026-05-01-api-catalog-verification.md) |
+| API 카탈로그 즉시 사용 가능 기준 정리 ADR (23개 활성, 2026-05-01) | [docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md](docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md) |
 
 - [README.md](README.md) — 프로젝트 전체 개요
 - [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) — PR 템플릿

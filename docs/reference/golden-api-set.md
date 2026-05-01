@@ -1,10 +1,14 @@
 # 골든셋 API 목록
 
-검증 날짜: **2026-04-16**
-검증 방법: `scripts/verifyCatalog.ts` 자동 검증 스크립트
+검증 날짜: **2026-05-01** (전수 재검증 + 즉시 사용 가능 기준 정리)
+검증 방법: 4개 에이전트 병렬 WebFetch/WebSearch + DB 직접 확인
 
-골든셋은 실제 HTTP 요청으로 동작이 확인된 API들의 집합입니다.
-이 API들은 `verification_status = 'verified'`로 표시되며, AI 코드 생성 시 우선 추천됩니다.
+골든셋은 실제 동작이 확인된 API들의 집합입니다.
+`verification_status = 'verified'`로 표시되며, AI 코드 생성 시 우선 추천됩니다.
+
+> **2026-05-01 업데이트 (즉시 사용 가능 기준 정리)**: API 키 등록 없이 즉시 사용 가능한 API만 활성 유지.
+> TMDB·RAWG → is_active=false (키 등록 필요). The Cat API(auth_type→none 재분류)·NASA DEMO_KEY 신규 추가.
+> 전체 정리 내역: [docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md](../decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md)
 
 ---
 
@@ -15,9 +19,13 @@
 | 1 | Random User | `6890346f-fa79-483c-bce2-f841ad3420fd` | data | GET /api/ |
 | 2 | JSONPlaceholder | `04e79764-c27c-46d8-b63c-2794fbe5a3f7` | data | GET /posts, /todos, /users |
 | 3 | PokéAPI | `02cea7ab-d89a-4e51-b9c5-32ed0fd00338` | entertainment | GET /api/v2/pokemon |
-| 4 | Open Notify (ISS) | `9a04cd18-15bb-4424-a4f1-10ddf728749b` | science | GET /iss-now.json, /astros.json |
+| 4 | wheretheiss.at | `9a04cd18-15bb-4424-a4f1-10ddf728749b` | utility | GET /v1/satellites/25544 |
 | 5 | Hacker News API | `de8f5375-22dc-4573-9a64-2903c150fece` | news | GET /v0/topstories.json |
 | 6 | Spaceflight News API | `8461e4de-ba6d-4a4d-ae24-35bd7c47c0c7` | news | GET /v4/articles/ |
+| 7 | The Cat API | `f1b6d26f-4cb4-4ea7-844b-8c6ba3b29a8a` | image | GET /v1/images/search |
+| 8 | TheMealDB | `da2e14a4-e8c6-4164-835e-6ce8b212d59b` | fun | GET /random.php |
+| 9 | The Color API | `522f7158-7de0-4447-80bb-ea71a8e56b50` | utility | GET /id?hex=FF5733 |
+| 10 | NASA 오늘의 천문 사진 | `7b66ab19-4d00-4d39-a4f9-2c2b6c6367a4` | image | GET /planetary/apod |
 
 ---
 
@@ -47,17 +55,8 @@ const items = data.results; // [{name, email, picture, location, ...}]
 - **responseDataPath**: 없음 (direct array)
 
 ```js
-// /posts
 const res = await fetch('/api/v1/proxy?apiId=04e79764-c27c-46d8-b63c-2794fbe5a3f7&proxyPath=%2Fposts');
 const items = await res.json(); // [{id, userId, title, body}]
-
-// /todos
-const res = await fetch('/api/v1/proxy?apiId=04e79764-c27c-46d8-b63c-2794fbe5a3f7&proxyPath=%2Ftodos');
-const items = await res.json(); // [{id, userId, title, completed}]
-
-// /users
-const res = await fetch('/api/v1/proxy?apiId=04e79764-c27c-46d8-b63c-2794fbe5a3f7&proxyPath=%2Fusers');
-const items = await res.json(); // [{id, name, username, email, address, phone, website, company}]
 ```
 
 ---
@@ -78,22 +77,20 @@ const items = data.results; // [{name, url}]
 
 ---
 
-### 4. Open Notify (ISS)
+### 4. wheretheiss.at (구: Open Notify)
 
-- **baseUrl**: `http://api.open-notify.org`
-- **requiresProxy**: true (HTTP only, CORS 없음)
-- **검증 엔드포인트**: `GET /iss-now.json`, `GET /astros.json`
+- **baseUrl**: `https://api.wheretheiss.at`
+- **requiresProxy**: true (CORS 미지원)
+- **검증 엔드포인트**: `GET /v1/satellites/25544`
+- **응답 구조**: `{ latitude, longitude, altitude, velocity, timestamp, ... }`
+
+> Open Notify는 2024년 서비스 종료. 동일 UUID로 wheretheiss.at으로 교체됨.
 
 ```js
 // ISS 현재 위치
-const res = await fetch('/api/v1/proxy?apiId=9a04cd18-15bb-4424-a4f1-10ddf728749b&proxyPath=%2Fiss-now.json');
+const res = await fetch('/api/v1/proxy?apiId=9a04cd18-15bb-4424-a4f1-10ddf728749b&proxyPath=%2Fv1%2Fsatellites%2F25544');
 const data = await res.json();
-// data.iss_position.latitude, data.iss_position.longitude
-
-// 우주 비행사 목록
-const res = await fetch('/api/v1/proxy?apiId=9a04cd18-15bb-4424-a4f1-10ddf728749b&proxyPath=%2Fastros.json');
-const data = await res.json();
-const items = data.people; // [{name, craft}]  ← responseDataPath: "people"
+// data.latitude, data.longitude, data.altitude, data.velocity
 ```
 
 ---
@@ -124,7 +121,71 @@ const storyIds = await res.json(); // [integer IDs]
 ```js
 const res = await fetch('/api/v1/proxy?apiId=8461e4de-ba6d-4a4d-ae24-35bd7c47c0c7&proxyPath=%2Fv4%2Farticles%2F');
 const data = await res.json();
-const items = data.results; // [{id, title, url, imageUrl, newsSite, summary, publishedAt}]
+const items = data.results;
+```
+
+---
+
+### 7. The Cat API
+
+- **baseUrl**: `https://api.thecatapi.com`
+- **authType**: none (키 없이 기본 호출 가능 — 2026-05-01 실측 확인)
+- **requiresProxy**: false, **corsSupported**: true
+- **rate limit**: 10건/분 (키 없이)
+- **검증 엔드포인트**: `GET /v1/images/search`
+- **응답 구조**: `[{id, url, width, height}]` (배열 직접 반환)
+
+```js
+const res = await fetch('/api/v1/proxy?apiId=f1b6d26f-4cb4-4ea7-844b-8c6ba3b29a8a&proxyPath=%2Fv1%2Fimages%2Fsearch&limit=10');
+const images = await res.json(); // [{id, url, width, height}]
+```
+
+---
+
+### 8. TheMealDB
+
+- **baseUrl**: `https://www.themealdb.com/api/json/v1/1`
+- **authType**: none (키 "1"은 공개 테스트 키)
+- **requiresProxy**: false, **corsSupported**: true
+- **주의**: 무료 키(v1/1)는 100건 이하·단일 재료 필터·기본 기능만. v2 기능은 Patreon 키 필요.
+
+```js
+const res = await fetch('/api/v1/proxy?apiId=da2e14a4-e8c6-4164-835e-6ce8b212d59b&proxyPath=%2Frandom.php');
+const data = await res.json();
+const meal = data.meals[0]; // {strMeal, strCategory, strInstructions, strMealThumb}
+```
+
+---
+
+### 9. The Color API
+
+- **baseUrl**: `https://www.thecolorapi.com`
+- **authType**: none
+- **requiresProxy**: false, **corsSupported**: true
+- **rate limit**: 없음 (공식 명시 없음, 사실상 무제한)
+
+```js
+const res = await fetch('/api/v1/proxy?apiId=522f7158-7de0-4447-80bb-ea71a8e56b50&proxyPath=%2Fid&hex=FF5733');
+const data = await res.json();
+// data.name.value, data.rgb, data.hsl
+```
+
+---
+
+### 10. NASA 오늘의 천문 사진
+
+- **baseUrl**: `https://api.nasa.gov`
+- **authType**: api_key — **DEMO_KEY 공개 키 사용 (계정 등록 불필요)**
+- **requiresProxy**: false, **corsSupported**: true
+- **rate limit**: 시간당 30건/IP, 일 50건/IP (DEMO_KEY 기준)
+- **검증 엔드포인트**: `GET /planetary/apod`
+- **응답 구조**: `{ date, title, explanation, url, hdurl, media_type }`
+- **주의**: DEMO_KEY는 auth_config의 default_key로 자동 삽입됨. 신용카드·가입 불필요.
+
+```js
+const res = await fetch('/api/v1/proxy?apiId=7b66ab19-4d00-4d39-a4f9-2c2b6c6367a4&proxyPath=%2Fplanetary%2Fapod');
+const data = await res.json();
+// data.title, data.explanation, data.url (이미지 URL), data.date
 ```
 
 ---
@@ -132,8 +193,8 @@ const items = data.results; // [{id, title, url, imageUrl, newsSite, summary, pu
 ## DB 반영 방법
 
 `scripts/backfillGoldenSet.sql`을 Supabase SQL 에디터에서 실행하면
-위 6개 API의 `verification_status`, `verified_at`, `last_verification_note`, `endpoints[*].example_call`, `endpoints[*].response_data_path`가 업데이트됩니다.
+위 API들의 `verification_status`, `verified_at`, `last_verification_note` 등이 업데이트됩니다.
 
 - SQL은 `jsonb_array_elements` + `CASE WHEN` 패턴으로 기존 endpoint 필드를 보존한 채 새 필드만 병합합니다.
 - 엔드포인트 path가 DB에 저장된 값과 다를 경우 해당 UPDATE는 NOOP으로 처리됩니다 (기존 데이터 손실 없음).
-- 실행 후 스크립트 말미의 `SELECT` 쿼리로 6개 행의 `verification_status`가 `verified`인지 확인하세요.
+- 실행 후 스크립트 말미의 `SELECT` 쿼리로 `verification_status`가 `verified`인지 확인하세요.
