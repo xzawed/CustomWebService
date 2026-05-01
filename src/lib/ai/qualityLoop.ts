@@ -147,18 +147,26 @@ export interface QualityLoopResult {
   qualityLoopUsed: boolean;
 }
 
+export interface QualityLoopRunOptions {
+  stage2SystemPrompt: string;
+  stage2FunctionSystemPrompt: string;
+  aiProvider: IAiProvider;
+  sse: SseWriter;
+  useET: boolean;
+  projectId: string;
+  userFeedback?: string;
+}
+
+const QUALITY_LOOP_PROGRESS = [93, 95, 97] as const;
+
 /** 품질 기준 미달 시 최대 3회 재생성 시도, 최선 버전 반환 */
 export async function runQualityLoop(
   initialParsed: { html: string; css: string; js: string },
   initialQuality: ReturnType<typeof evaluateQuality>,
   initialQcReport: QcReport | null,
-  stage2SystemPrompt: string,
-  aiProvider: IAiProvider,
-  sse: SseWriter,
-  useET: boolean,
-  projectId: string,
-  userFeedback?: string,
+  options: QualityLoopRunOptions,
 ): Promise<QualityLoopResult> {
+  const { stage2SystemPrompt, stage2FunctionSystemPrompt, aiProvider, sse, useET, projectId, userFeedback } = options;
   let bestParsed = initialParsed;
   let bestQuality = initialQuality;
   let bestQcReport = initialQcReport;
@@ -175,8 +183,19 @@ export async function runQualityLoop(
       attempt: attempt + 1,
     });
 
-    sse.send('progress', { step: 'quality_improvement', progress: 92, message: '품질 개선 중...' });
-    generationTracker.updateProgress(projectId, 92, 'quality_improvement', '품질 개선 중...');
+    const progress = QUALITY_LOOP_PROGRESS[attempt] ?? 97;
+    const message = `품질 개선 중... (${attempt + 1}/3회)`;
+    sse.send('progress', { step: 'quality_improvement', progress, message });
+    generationTracker.updateProgress(projectId, progress, 'quality_improvement', message);
+
+    // Functional issues (no API call, proxy bypass, mock data, placeholders) use the
+    // function-fix prompt; design/layout issues use the design polish prompt.
+    const isFunctionalIssue =
+      bestQuality.fetchCallCount === 0 ||
+      (!bestQuality.hasProxyCall && bestQuality.fetchCallCount > 0) ||
+      bestQuality.hardcodedArrayCount > 0 ||
+      bestQuality.placeholderCount > 0;
+    const iterationSystemPrompt = isFunctionalIssue ? stage2FunctionSystemPrompt : stage2SystemPrompt;
 
     try {
       const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport, userFeedback);
@@ -189,7 +208,7 @@ export async function runQualityLoop(
         )
       );
       const retryResponse = await Promise.race([
-        aiProvider.generateCode({ system: stage2SystemPrompt, user: improvementPrompt, extendedThinking: useET }),
+        aiProvider.generateCode({ system: iterationSystemPrompt, user: improvementPrompt, extendedThinking: useET }),
         timeoutPromise,
       ]);
       const retryParsed = parseGeneratedCode(retryResponse.content);

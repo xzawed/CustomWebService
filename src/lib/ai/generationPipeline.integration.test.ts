@@ -523,8 +523,8 @@ describe('runGenerationPipeline()', () => {
 
       const calls = (runQualityLoop as Mock).mock.calls;
       expect(calls.length).toBeGreaterThanOrEqual(1);
-      // runQualityLoop signature: (parsed, quality, qcReport, stage2SysPrompt, aiProvider, sse, useET, projectId, userFeedback)
-      expect(calls[0][8]).toBe('버튼 색상을 파란색으로');
+      // runQualityLoop signature: (parsed, quality, qcReport, options: QualityLoopRunOptions)
+      expect(calls[0][3].userFeedback).toBe('버튼 색상을 파란색으로');
     });
 
     it('extraMetadata.userFeedback이 없으면 runQualityLoop의 9번째 인자는 undefined', async () => {
@@ -540,7 +540,7 @@ describe('runGenerationPipeline()', () => {
       await runGenerationPipeline(input, sse as never, makeServices());
 
       const calls = (runQualityLoop as Mock).mock.calls;
-      expect(calls[0][8]).toBeUndefined();
+      expect(calls[0][3].userFeedback).toBeUndefined();
     });
 
     it('extraMetadata.userFeedback이 string이 아니면(예: number) undefined로 변환된다', async () => {
@@ -556,7 +556,7 @@ describe('runGenerationPipeline()', () => {
       await runGenerationPipeline(input, sse as never, makeServices());
 
       const calls = (runQualityLoop as Mock).mock.calls;
-      expect(calls[0][8]).toBeUndefined();
+      expect(calls[0][3].userFeedback).toBeUndefined();
     });
   });
 });

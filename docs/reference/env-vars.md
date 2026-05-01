@@ -105,6 +105,7 @@
 | `QUALITY_LOOP_STRICT_ADOPTION` | `true` | ➖ | 채택 가드: `true`(기본)는 한 점수 향상 + 다른 점수 동등 이상일 때만 retry 채택(시소 진동 방지). `false`로 설정 시 기존 OR 로직(한쪽 향상) 복원 — 운영 데이터 비교용 롤백 스위치 |
 | `QC_QUALITY_THRESHOLD` | `60` | ➖ | 정적 QC 구조 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
 | `QC_MOBILE_THRESHOLD` | `60` | ➖ | 정적 QC 모바일 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
+| `QC_MAX_CONCURRENT_PAGES` | `2` | ➖ | Playwright 동시 실행 페이지 수 상한. 높일수록 처리 속도 향상이지만 메모리 증가 (Railway 유료 플랜 이상 권장). 1 이하 설정 시 기본값 2로 폴백 |
 
 ---
 
