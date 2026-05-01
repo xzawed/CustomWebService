@@ -4,11 +4,12 @@ vi.mock('@/lib/events/eventBus', () => ({
   eventBus: { emit: vi.fn() },
 }));
 
-import { shouldRetryGeneration, buildQualityImprovementPrompt, runQualityLoop, hasFunctionalIssue } from './qualityLoop';
+import { shouldRetryGeneration, buildQualityImprovementPrompt, runQualityLoop, hasFunctionalIssue, resolveMaxIterations, buildProgressSchedule, shouldAdoptRetry } from './qualityLoop';
 import { eventBus } from '@/lib/events/eventBus';
 import type { QualityMetrics } from '@/lib/ai/codeValidator';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import type { SseWriter } from '@/lib/ai/sseWriter';
+import type { QcReport } from '@/types/qc';
 
 const baseMetrics: QualityMetrics = {
   structuralScore: 80, mobileScore: 80,
@@ -172,6 +173,77 @@ describe('hasFunctionalIssue', () => {
   });
   it('모든 조건 정상이면 false 반환', () => {
     expect(hasFunctionalIssue(baseMetrics)).toBe(false);
+  });
+});
+
+describe('resolveMaxIterations', () => {
+  afterEach(() => { vi.unstubAllEnvs(); });
+
+  it('미설정 시 기본값 2 반환', () => {
+    expect(resolveMaxIterations()).toBe(2);
+  });
+  it('QUALITY_LOOP_MAX_ITERATIONS=3 → 3', () => {
+    vi.stubEnv('QUALITY_LOOP_MAX_ITERATIONS', '3');
+    expect(resolveMaxIterations()).toBe(3);
+  });
+  it('QUALITY_LOOP_MAX_ITERATIONS=4 → 상한 3', () => {
+    vi.stubEnv('QUALITY_LOOP_MAX_ITERATIONS', '4');
+    expect(resolveMaxIterations()).toBe(3);
+  });
+  it('QUALITY_LOOP_MAX_ITERATIONS=0 → 기본값 2', () => {
+    vi.stubEnv('QUALITY_LOOP_MAX_ITERATIONS', '0');
+    expect(resolveMaxIterations()).toBe(2);
+  });
+  it('빈 문자열 → 기본값 2', () => {
+    vi.stubEnv('QUALITY_LOOP_MAX_ITERATIONS', '');
+    expect(resolveMaxIterations()).toBe(2);
+  });
+});
+
+describe('buildProgressSchedule', () => {
+  it('maxIterations=2 → [93, 97]', () => {
+    expect(buildProgressSchedule(2)).toEqual([93, 97]);
+  });
+  it('maxIterations=3 → [93, 95, 97]', () => {
+    expect(buildProgressSchedule(3)).toEqual([93, 95, 97]);
+  });
+  it('maxIterations=1 → [97]', () => {
+    expect(buildProgressSchedule(1)).toEqual([97]);
+  });
+});
+
+describe('shouldAdoptRetry', () => {
+  afterEach(() => { vi.unstubAllEnvs(); });
+
+  const qc60 = { overallScore: 60, passed: true, checks: [] } as unknown as QcReport;
+  const qc80 = { overallScore: 80, passed: true, checks: [] } as unknown as QcReport;
+
+  it('functional issue 해결 시 점수 무관하게 true', () => {
+    const best = { ...baseMetrics, fetchCallCount: 0 };
+    const retry = { ...baseMetrics, fetchCallCount: 1, hasProxyCall: true };
+    expect(shouldAdoptRetry(best, retry, null, null)).toBe(true);
+  });
+  it('strict 모드: structDelta>0 && mobileDelta>=0 → true', () => {
+    const best = { ...baseMetrics, structuralScore: 50, mobileScore: 80 };
+    const retry = { ...baseMetrics, structuralScore: 65, mobileScore: 80 };
+    expect(shouldAdoptRetry(best, retry, null, null)).toBe(true);
+  });
+  it('strict 모드: structDelta>0 && mobileDelta<0 → false', () => {
+    const best = { ...baseMetrics, structuralScore: 50, mobileScore: 80 };
+    const retry = { ...baseMetrics, structuralScore: 65, mobileScore: 70 };
+    expect(shouldAdoptRetry(best, retry, null, null)).toBe(false);
+  });
+  it('QUALITY_LOOP_STRICT_ADOPTION=false: structDelta>0 단독으로 true', () => {
+    vi.stubEnv('QUALITY_LOOP_STRICT_ADOPTION', 'false');
+    const best = { ...baseMetrics, structuralScore: 50, mobileScore: 80 };
+    const retry = { ...baseMetrics, structuralScore: 65, mobileScore: 70 };
+    expect(shouldAdoptRetry(best, retry, null, null)).toBe(true);
+  });
+  it('qcImproved → true', () => {
+    expect(shouldAdoptRetry(baseMetrics, baseMetrics, qc60, qc80)).toBe(true);
+  });
+  it('qcRegressed → false (점수도 동일)', () => {
+    expect(shouldAdoptRetry(baseMetrics, baseMetrics, qc80, qc60)).toBe(false);
   });
 });
 
