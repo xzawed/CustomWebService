@@ -164,7 +164,7 @@ unsubscribe(); // on() 반환값을 호출하면 구독 취소
 
 ## EventRepository (감사 로그)
 
-모든 도메인 이벤트는 `event_log` 테이블에 비동기 영속화됨.  
+모든 도메인 이벤트는 `platform_events` 테이블에 비동기 영속화됨.  
 **파일:** `src/repositories/eventRepository.ts`  
 **사용 예시:**
 ```typescript
