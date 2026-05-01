@@ -122,6 +122,116 @@ export interface QualityMetrics {
   details: string[];
 }
 
+interface DataBindingResult {
+  fetchCallCount: number;
+  hasProxyCall: boolean;
+  hasJsonParse: boolean;
+  placeholderCount: number;
+  hardcodedArrayCount: number;
+  score: number;
+  details: string[];
+}
+
+export function evaluateDataBinding(js: string, combinedCode: string, fullCode: string): DataBindingResult {
+  const fetchCallCount = (js.match(/\bfetch\s*\(/g) ?? []).length;
+  const hasProxyCall = /\/api\/v1\/proxy/.test(js);
+  const hasJsonParse = /\.json\(\)|JSON\.parse\s*\(/.test(js);
+  const hrefPlaceholderCount = [...combinedCode.matchAll(/href\s*=\s*["']#["']/g)].length;
+  const placeholderCount = [...fullCode.matchAll(createPlaceholderRegex())].length + hrefPlaceholderCount;
+  const hardcodedArrayCount = (combinedCode.match(
+    /const\s+[A-Z]?\w+\s*=\s*\[\s*\{[\s\S]*?\}\s*(,\s*\{[\s\S]*?\}\s*)?\]/gm
+  ) ?? []).length;
+
+  let score = 0;
+  const details: string[] = [];
+  if (fetchCallCount > 0) score++; else details.push('fetch() 호출이 없습니다 — 실제 API 호출 필수');
+  if (hasJsonParse) score++; else details.push('.json() 또는 JSON.parse() 없음 — API 응답 파싱 필요');
+  if (placeholderCount === 0) score++;
+  else details.push(`Placeholder 문자열 감지 (${placeholderCount}개): 홍길동, 준비 중, href="#" 등 제거 필요`);
+  return { fetchCallCount, hasProxyCall, hasJsonParse, placeholderCount, hardcodedArrayCount, score, details };
+}
+
+interface StructureResult {
+  hasSemanticHtml: boolean;
+  hasFooter: boolean;
+  hasImgAlt: boolean;
+  score: number;
+  details: string[];
+}
+
+export function evaluateStructure(html: string, fullCode: string): StructureResult {
+  const semanticTags = ['<main', '<nav', '<footer', '<section', '<article'];
+  const semanticCount = semanticTags.filter((tag) => html.includes(tag)).length;
+  const hasSemanticHtml = semanticCount >= 2;
+  const hasFooter = /<footer[\s>]/i.test(html);
+  const imgTags = html.match(/<img\s[^>]*>/gi) ?? [];
+  const imgsWithAlt = imgTags.filter((tag) => /\balt\s*=/i.test(tag)).length;
+  const hasImgAlt = imgTags.length === 0 || imgsWithAlt >= imgTags.length * 0.7;
+  const hasTransitions = /transition|animate|animation/i.test(fullCode);
+  const hasKorean = /[가-힯]/.test(fullCode);
+  const hasGridOrFlex = /grid-cols|flex\s|flex-|display:\s*flex|display:\s*grid/i.test(fullCode);
+
+  let score = 0;
+  const details: string[] = [];
+  if (hasSemanticHtml) score++; else details.push(`시맨틱 HTML 부족 (${semanticCount}/2 태그)`);
+  if (hasFooter) score++; else details.push('<footer> 태그가 없습니다');
+  if (hasImgAlt) score++; else details.push(`이미지 alt 속성 부족 (${imgsWithAlt}/${imgTags.length})`);
+  if (hasTransitions) score++; else details.push('트랜지션/애니메이션이 없습니다');
+  if (hasKorean) score++; else details.push('한국어 텍스트가 감지되지 않았습니다');
+  if (hasGridOrFlex) score++; else details.push('그리드/플렉스 레이아웃이 없습니다');
+  return { hasSemanticHtml, hasFooter, hasImgAlt, score, details };
+}
+
+interface InteractivityResult {
+  hasInteraction: boolean;
+  score: number;
+  details: string[];
+}
+
+export function evaluateInteractivity(js: string): InteractivityResult {
+  const hasDomReady = /DOMContentLoaded|addEventListener\s*\(\s*['"]load['"]/i.test(js);
+  const listenerCount = (js.match(/addEventListener\s*\(/g) ?? []).length;
+  const hasInteraction = listenerCount >= 2;
+
+  let score = 0;
+  const details: string[] = [];
+  if (hasDomReady) score++; else details.push('DOMContentLoaded 리스너가 없습니다');
+  if (hasInteraction) score++; else details.push(`이벤트 리스너 부족 (${listenerCount}개)`);
+  return { hasInteraction, score, details };
+}
+
+interface MobileResult {
+  hasResponsiveClasses: boolean;
+  hasAdequateResponsive: boolean;
+  noFixedOverflow: boolean;
+  hasImageProtection: boolean;
+  hasMobileNav: boolean;
+  score: number;
+  details: string[];
+}
+
+export function evaluateMobileResponsiveness(html: string, fullCode: string): MobileResult {
+  const hasResponsiveClasses = /\b(sm|md|lg|xl):/i.test(fullCode);
+  const responsivePrefixCount = (fullCode.match(/\b(sm|md|lg|xl):/g) ?? []).length;
+  const hasAdequateResponsive = responsivePrefixCount >= 8;
+  const noFixedOverflow = !/w-\[\d{4,}px\]|width:\s*[5-9]\d{2,}px|width:\s*1\d{3,}px/i.test(fullCode);
+  const allImgs = html.match(/<img\s[^>]*>/gi) ?? [];
+  const protectedImgs = allImgs.filter((tag) => /w-full|max-w-full|object-cover|object-contain/i.test(tag));
+  const hasImageProtection = allImgs.length === 0 || protectedImgs.length >= allImgs.length * 0.5;
+  const hasMobileNav =
+    /hidden\s+(?:[\w-]+\s+)*(?:md|lg):(?:flex|block|inline-flex)/i.test(fullCode) ||
+    /(?:md|lg):hidden/i.test(fullCode);
+
+  let score = 0;
+  const details: string[] = [];
+  if (hasResponsiveClasses) score++; else details.push('반응형 클래스(sm:/md:/lg:)가 없습니다');
+  if (hasAdequateResponsive) score++; else details.push(`반응형 클래스 밀도 부족 (${responsivePrefixCount}/8개)`);
+  if (noFixedOverflow) score++; else details.push('위험한 고정 너비(500px+)가 감지되었습니다');
+  if (hasImageProtection) score++; else details.push(`이미지 오버플로우 보호 부족 (${protectedImgs.length}/${allImgs.length}개)`);
+  if (hasMobileNav) score++; else details.push('모바일 네비게이션 패턴(hidden md:flex)이 없습니다');
+  return { hasResponsiveClasses, hasAdequateResponsive, noFixedOverflow, hasImageProtection, hasMobileNav, score, details };
+}
+
 /**
  * Evaluate structural quality of generated code.
  * Returns a score (0-100) and individual quality flags.
@@ -130,182 +240,39 @@ export interface QualityMetrics {
 export function evaluateQuality(html: string, _css: string, js: string): QualityMetrics {
   const combinedCode = `${html}\n${js}`;
   const fullCode = combinedCode;
-  const details: string[] = [];
-  let score = 0;
-  const maxScore = 16; // number of checks
 
-  // 1. Semantic HTML: <main>, <nav>, <article>, <section>, <footer>
-  const semanticTags = ['<main', '<nav', '<footer', '<section', '<article'];
-  const semanticCount = semanticTags.filter((tag) => html.includes(tag)).length;
-  const hasSemanticHtml = semanticCount >= 2;
-  if (hasSemanticHtml) {
-    score++;
-  } else {
-    details.push(`시맨틱 HTML 부족 (${semanticCount}/2 태그)`);
-  }
+  const data = evaluateDataBinding(js, combinedCode, fullCode);
+  const structure = evaluateStructure(html, fullCode);
+  const interactivity = evaluateInteractivity(js);
+  const mobile = evaluateMobileResponsiveness(html, fullCode);
 
-  // 2. Has real fetch() call — REQUIRED
-  const fetchMatches = js.match(/\bfetch\s*\(/g) ?? [];
-  const fetchCallCount = fetchMatches.length;
-  const hasProxyCall = /\/api\/v1\/proxy/.test(js);
-  const hasJsonParse = /\.json\(\)|JSON\.parse\s*\(/.test(js);
-  if (fetchCallCount > 0) {
-    score++;
-  } else {
-    details.push('fetch() 호출이 없습니다 — 실제 API 호출 필수');
-  }
-
-  // 2b. Response JSON parsing
-  if (hasJsonParse) {
-    score++;
-  } else {
-    details.push('.json() 또는 JSON.parse() 없음 — API 응답 파싱 필요');
-  }
-
-  // 2c. No placeholder strings — pattern shared with qcChecks.ts via placeholderPatterns.ts
-  const hrefPlaceholderCount = [...combinedCode.matchAll(/href\s*=\s*["']#["']/g)].length;
-  const placeholderCount = [...fullCode.matchAll(createPlaceholderRegex())].length + hrefPlaceholderCount;
-  if (placeholderCount === 0) {
-    score++;
-  } else {
-    details.push(`Placeholder 문자열 감지 (${placeholderCount}개): 홍길동, 준비 중, href="#" 등 제거 필요`);
-  }
-
-  // 하드코딩 배열 탐지: const foo = [{...}, ...] 패턴
-  const hardcodedArrayMatches = combinedCode.match(
-    /const\s+[A-Z]?\w+\s*=\s*\[\s*\{[\s\S]*?\}\s*(,\s*\{[\s\S]*?\}\s*)?\]/gm
-  ) ?? [];
-  const hardcodedArrayCount = hardcodedArrayMatches.length;
-  const hasMockData = hardcodedArrayCount > 0;
-
-  // 3. DOMContentLoaded listener
-  const hasDomReady = /DOMContentLoaded|addEventListener\s*\(\s*['"]load['"]/i.test(js);
-  if (hasDomReady) {
-    score++;
-  } else {
-    details.push('DOMContentLoaded 리스너가 없습니다');
-  }
-
-  // 4. Event listeners (interaction)
-  const listenerCount = (js.match(/addEventListener\s*\(/g) ?? []).length;
-  const hasInteraction = listenerCount >= 2;
-  if (hasInteraction) {
-    score++;
-  } else {
-    details.push(`이벤트 리스너 부족 (${listenerCount}개)`);
-  }
-
-  // 5. Responsive Tailwind classes
-  const hasResponsiveClasses = /\b(sm|md|lg|xl):/i.test(fullCode);
-  if (hasResponsiveClasses) {
-    score++;
-  } else {
-    details.push('반응형 클래스(sm:/md:/lg:)가 없습니다');
-  }
-
-  // 6. Footer
-  const hasFooter = /<footer[\s>]/i.test(html);
-  if (hasFooter) {
-    score++;
-  } else {
-    details.push('<footer> 태그가 없습니다');
-  }
-
-  // 7. Image alt attributes
-  const imgTags = html.match(/<img\s[^>]*>/gi) ?? [];
-  const imgsWithAlt = imgTags.filter((tag) => /\balt\s*=/i.test(tag)).length;
-  const hasImgAlt = imgTags.length === 0 || imgsWithAlt >= imgTags.length * 0.7;
-  if (hasImgAlt) {
-    score++;
-  } else {
-    details.push(`이미지 alt 속성 부족 (${imgsWithAlt}/${imgTags.length})`);
-  }
-
-  // 8. Transitions / animations
-  const hasTransitions = /transition|animate|animation/i.test(fullCode);
-  if (hasTransitions) {
-    score++;
-  } else {
-    details.push('트랜지션/애니메이션이 없습니다');
-  }
-
-  // 9. Korean text present
-  const hasKorean = /[\uAC00-\uD7AF]/.test(fullCode);
-  if (hasKorean) {
-    score++;
-  } else {
-    details.push('한국어 텍스트가 감지되지 않았습니다');
-  }
-
-  // 10. Grid or flex layout
-  const hasGridOrFlex = /grid-cols|flex\s|flex-|display:\s*flex|display:\s*grid/i.test(fullCode);
-  if (hasGridOrFlex) {
-    score++;
-  } else {
-    details.push('그리드/플렉스 레이아웃이 없습니다');
-  }
-
-  // 11. Responsive prefix density (not just existence — need adequate usage)
-  const responsivePrefixCount = (fullCode.match(/\b(sm|md|lg|xl):/g) ?? []).length;
-  const hasAdequateResponsive = responsivePrefixCount >= 8;
-  if (hasAdequateResponsive) {
-    score++;
-  } else {
-    details.push(`반응형 클래스 밀도 부족 (${responsivePrefixCount}/8개)`);
-  }
-
-  // 12. No dangerous fixed widths that cause overflow
-  const hasDangerousWidth = /w-\[\d{4,}px\]|width:\s*[5-9]\d{2,}px|width:\s*1\d{3,}px/i.test(fullCode);
-  const noFixedOverflow = !hasDangerousWidth;
-  if (noFixedOverflow) {
-    score++;
-  } else {
-    details.push('위험한 고정 너비(500px+)가 감지되었습니다');
-  }
-
-  // 13. Image overflow protection
-  const allImgs = html.match(/<img\s[^>]*>/gi) ?? [];
-  const protectedImgs = allImgs.filter((tag) => /w-full|max-w-full|object-cover|object-contain/i.test(tag));
-  const hasImageProtection = allImgs.length === 0 || protectedImgs.length >= allImgs.length * 0.5;
-  if (hasImageProtection) {
-    score++;
-  } else {
-    details.push(`이미지 오버플로우 보호 부족 (${protectedImgs.length}/${allImgs.length}개)`);
-  }
-
-  // 14. Mobile navigation pattern (hamburger / responsive hide)
-  const hasMobileNav = /hidden\s+(?:[\w-]+\s+)*(?:md|lg):(?:flex|block|inline-flex)/i.test(fullCode) ||
-    /(?:md|lg):hidden/i.test(fullCode);
-  if (hasMobileNav) {
-    score++;
-  } else {
-    details.push('모바일 네비게이션 패턴(hidden md:flex)이 없습니다');
-  }
-
-  const structuralScore = Math.round((score / maxScore) * 100);
-  const mobileChecks = [hasResponsiveClasses, hasAdequateResponsive, noFixedOverflow, hasImageProtection, hasMobileNav];
-  const mobileScore = Math.round((mobileChecks.filter(Boolean).length / mobileChecks.length) * 100);
-
+  const score = data.score + structure.score + interactivity.score + mobile.score;
+  const details = [...data.details, ...structure.details, ...interactivity.details, ...mobile.details];
+  const structuralScore = Math.round((score / 16) * 100);
+  const mobileScore = Math.round(
+    [mobile.hasResponsiveClasses, mobile.hasAdequateResponsive, mobile.noFixedOverflow,
+     mobile.hasImageProtection, mobile.hasMobileNav].filter(Boolean).length / 5 * 100,
+  );
   const hasTailwindCdn = /cdn\.tailwindcss\.com/.test(html);
 
   return {
     structuralScore,
     mobileScore,
-    hasSemanticHtml,
-    hasMockData, // true if hardcodedArrayCount > 0
-    hasInteraction,
-    hasResponsiveClasses,
-    hasAdequateResponsive,
-    noFixedOverflow,
-    hasImageProtection,
-    hasMobileNav,
-    hasFooter,
-    hasImgAlt,
-    fetchCallCount,
-    hasProxyCall,
-    hasJsonParse,
-    placeholderCount,
-    hardcodedArrayCount,
+    hasSemanticHtml: structure.hasSemanticHtml,
+    hasMockData: data.hardcodedArrayCount > 0,
+    hasInteraction: interactivity.hasInteraction,
+    hasResponsiveClasses: mobile.hasResponsiveClasses,
+    hasAdequateResponsive: mobile.hasAdequateResponsive,
+    noFixedOverflow: mobile.noFixedOverflow,
+    hasImageProtection: mobile.hasImageProtection,
+    hasMobileNav: mobile.hasMobileNav,
+    hasFooter: structure.hasFooter,
+    hasImgAlt: structure.hasImgAlt,
+    fetchCallCount: data.fetchCallCount,
+    hasProxyCall: data.hasProxyCall,
+    hasJsonParse: data.hasJsonParse,
+    placeholderCount: data.placeholderCount,
+    hardcodedArrayCount: data.hardcodedArrayCount,
     hasTailwindCdn,
     details,
   };

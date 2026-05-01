@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { validateSecurity, validateFunctionality, validateAll, evaluateQuality } from './codeValidator';
+import {
+  validateSecurity, validateFunctionality, evaluateQuality, validateAll,
+  evaluateDataBinding, evaluateStructure, evaluateInteractivity, evaluateMobileResponsiveness,
+} from './codeValidator';
 
 describe('validateSecurity', () => {
   it('eval() 사용 시 에러를 반환한다', () => {
@@ -273,5 +276,74 @@ describe('evaluateQuality — fetch-first scoring', () => {
       const result = evaluateQuality(baseHtml, '', js);
       expect(result.hardcodedArrayCount).toBe(1);
     });
+  });
+});
+
+describe('evaluateDataBinding', () => {
+  it('fetch 없음 → fetchCallCount=0, details에 포함', () => {
+    const result = evaluateDataBinding('', '', '');
+    expect(result.fetchCallCount).toBe(0);
+    expect(result.details.some(d => d.includes('fetch()'))).toBe(true);
+  });
+  it('fetch 있음 → fetchCallCount>0, score+1', () => {
+    const js = 'fetch("/api/v1/proxy")';
+    const result = evaluateDataBinding(js, js, js);
+    expect(result.fetchCallCount).toBe(1);
+    expect(result.score).toBeGreaterThan(0);
+  });
+  it('placeholder 있음 → placeholderCount>0', () => {
+    const code = '홍길동';
+    const result = evaluateDataBinding('', code, code);
+    expect(result.placeholderCount).toBeGreaterThan(0);
+  });
+  it('hardcoded array → hardcodedArrayCount>0', () => {
+    const js = 'const items = [{ id: 1 }, { id: 2 }]';
+    const result = evaluateDataBinding(js, js, js);
+    expect(result.hardcodedArrayCount).toBeGreaterThan(0);
+  });
+});
+
+describe('evaluateStructure', () => {
+  it('semantic 태그 2개 이상 → hasSemanticHtml true', () => {
+    const html = '<main><nav></nav><footer></footer></main>';
+    const result = evaluateStructure(html, html);
+    expect(result.hasSemanticHtml).toBe(true);
+  });
+  it('footer 없음 → hasFooter false', () => {
+    const result = evaluateStructure('<div></div>', '<div></div>');
+    expect(result.hasFooter).toBe(false);
+  });
+  it('img alt 70% 이상 → hasImgAlt true', () => {
+    const html = '<img src="a.jpg" alt="a"><img src="b.jpg" alt="b">';
+    const result = evaluateStructure(html, html);
+    expect(result.hasImgAlt).toBe(true);
+  });
+});
+
+describe('evaluateInteractivity', () => {
+  it('DOMContentLoaded 없음 → details에 포함', () => {
+    const result = evaluateInteractivity('');
+    expect(result.details.some(d => d.includes('DOMContentLoaded'))).toBe(true);
+  });
+  it('addEventListener 2개 이상 → hasInteraction true', () => {
+    const js = 'el.addEventListener("click",()=>{});el.addEventListener("keydown",()=>{});';
+    const result = evaluateInteractivity(js);
+    expect(result.hasInteraction).toBe(true);
+  });
+});
+
+describe('evaluateMobileResponsiveness', () => {
+  it('반응형 클래스 없음 → hasResponsiveClasses false', () => {
+    const result = evaluateMobileResponsiveness('<div></div>', '<div></div>');
+    expect(result.hasResponsiveClasses).toBe(false);
+  });
+  it('sm:p-4 패턴 8개 이상 → hasAdequateResponsive true', () => {
+    const code = 'sm:p-1 md:p-2 lg:p-3 xl:p-4 sm:m-1 md:m-2 lg:m-3 xl:m-4';
+    const result = evaluateMobileResponsiveness('', code);
+    expect(result.hasAdequateResponsive).toBe(true);
+  });
+  it('hidden md:flex → hasMobileNav true', () => {
+    const result = evaluateMobileResponsiveness('', 'hidden md:flex');
+    expect(result.hasMobileNav).toBe(true);
   });
 });
