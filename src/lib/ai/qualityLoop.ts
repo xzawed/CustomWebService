@@ -193,6 +193,8 @@ export async function runQualityLoop(
         bestParsed = { html: autoFixResult.html, css: autoFixResult.css, js: autoFixResult.js };
         bestQuality = autoFixedQuality;
         qualityLoopUsed = true;
+        // bestQcReport intentionally not re-run: autofix rules only change text patterns
+        // (URLs, comments, placeholder strings) — DOM structure is unchanged.
         logger.info('AutoFix resolved quality issues — LLM retry skipped', {
           projectId, attempt: attempt + 1, fixes: autoFixResult.fixesApplied,
         });
