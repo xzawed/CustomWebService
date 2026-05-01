@@ -19,7 +19,7 @@
 | Stage 3 (디자인 폴리시) | 65→90% | 디자인·레이아웃 완성 | CSS/HTML 문구 (JS 변경 금지) | 정적 QC + Deep Playwright QC |
 
 - DB에는 **Stage 3 결과물만** 저장
-- Stage 2는 **조건부 실행**: `fetchCallCount === 0`, `placeholderCount > 0`, 또는 Fast QC 실패 시에만 수행. 모두 통과 시 Stage 1 코드를 그대로 Stage 3으로 전달 (LLM 호출 절감)
+- Stage 2는 **조건부 실행**: `fetchCallCount === 0`, `placeholderCount > 0`, `hardcodedArrayCount > 0`, `!hasProxyCall && fetchCallCount > 0`, 또는 Fast QC 실패 시에만 수행. 모두 통과 시 Stage 1 코드를 그대로 Stage 3으로 전달 (LLM 호출 절감)
 - Stage 3도 **조건부 실행**: `structuralScore >= 80 && mobileScore >= 70 && fetchCallCount > 0 && placeholderCount === 0 && !needsStage2` 조건 충족 시 스킵. Stage 1/2 결과가 충분히 고품질이면 디자인 폴리시 단계 생략
 
 ### 2.2 데이터 흐름
@@ -254,8 +254,14 @@ DB 저장 구조 (code_versions 테이블):
 - Thinking 토큰은 출력 단가($75/MTok)로 청구
 - 구현: `src/lib/ai/generationPipeline.ts` — `evaluateComplexityScore()` (export), `shouldUseExtendedThinking()` (내부)
 
+**AutoFix (Phase 3, 2026-05-01)**
+- Quality Loop에서 LLM 재시도 전 `applyAutoFix()` (규칙 기반)를 먼저 실행: CDN http→https 업그레이드, TODO 주석 제거, placeholder 교체/제거
+- AutoFix만으로 `shouldRetryGeneration()` 조건을 모두 해소하면 LLM 재시도를 완전 스킵 (토큰 절감)
+- 부분 해소 시에는 AutoFix 결과를 LLM 재시도의 입력으로 활용
+- 구현: `src/lib/ai/autoFix.ts` (CDN 허용 목록 기반, ES2017 호환)
+
 **조건부 Stage 1 Fast QC 스킵**
-- 정적 분석에서 이미 Stage 2가 필요함이 확정된 경우(`fetchCallCount === 0` 또는 `placeholderCount > 0`) Fast QC를 생략
+- 정적 분석에서 이미 Stage 2가 필요함이 확정된 경우(`fetchCallCount === 0`, `placeholderCount > 0`, `hardcodedArrayCount > 0` 또는 프록시 미사용) Fast QC를 생략
 - 결과가 어차피 Stage 2로 진행되므로 Playwright 실행 비용 절감
 
 **slug fire-and-forget**
@@ -335,7 +341,7 @@ Avoid: [제외할 요소]
 
 생성 흐름:
 1. Stage 1 → `codeValidator.validateAll()` (보안 차단) → `evaluateQuality()` (품질 점수, fetchCallCount 포함)
-2. **조건부**: fetchCallCount=0, placeholderCount>0, 또는 Fast QC 실패 시에만 Stage 2 기능 검증 실행. 통과 시 Stage 1 코드 직행
+2. **조건부**: `fetchCallCount=0`, `placeholderCount>0`, `hardcodedArrayCount>0`, 프록시 미사용(`!hasProxyCall && fetchCallCount>0`), 또는 Fast QC 실패 시에만 Stage 2 기능 검증 실행. 통과 시 Stage 1 코드 직행
 3. **조건부**: `structuralScore >= 80 && mobileScore >= 70 && fetchCallCount > 0 && placeholderCount === 0 && !needsStage2` 충족 시 Stage 3 스킵
 4. Stage 3 디자인 폴리시 실행 → DB 저장 → 비동기 Deep QC
 5. **best-effort**: `void (async () => { suggestSlugs(...) })()` — slug 제안 실패가 완료를 블로킹하지 않음
@@ -349,7 +355,8 @@ Avoid: [제외할 요소]
 | `generationPipeline.ts` | 오케스트레이터 (~120줄) — generate/regenerate 공통 진입점 |
 | `stageRunner.ts` | `runStage1()` / `runStage2Function()` / `runStage3()` — SSE + AI 호출 + 파싱 |
 | `generationSaver.ts` | DB 저장, slug 제안(fire-and-forget), 버전 정리, Deep QC, 상태 갱신, SSE complete |
-| `qualityLoop.ts` | `shouldRetryGeneration()` + `runQualityLoop()` (최대 3회, best-of-n 반환, 반복당 타임아웃 `QUALITY_LOOP_ITERATION_TIMEOUT_MS` 기본 120초) |
+| `qualityLoop.ts` | `shouldRetryGeneration()` + `runQualityLoop()` (최대 3회, best-of-n 반환, 반복당 타임아웃 `QUALITY_LOOP_ITERATION_TIMEOUT_MS` 기본 120초) + AutoFix 통합 |
+| `autoFix.ts` | `applyAutoFix()` — LLM 재시도 전 규칙 기반 수정 (CDN http→https, TODO 주석 제거, placeholder 교체). AutoFix로 해소 가능한 경우 LLM 호출 생략 |
 | `generationTracker.ts` | 서버 메모리 진행 상태 싱글톤 (모바일 폴링 fallback용) |
 | `featureExtractor.ts` | API 이름 배열로 기능 명세(feature spec) 추출 — Stage 1 컨텍스트 보강용. `ANTHROPIC_API_KEY` 미설정 시 FALLBACK_SPEC 반환, 30초 타임아웃 |
 | `preferencesRecommender.ts` | 사용자 API 선택 기반 UI 설정 추천 — 레이아웃·색상·컴포넌트 패턴 반환. `ANTHROPIC_API_KEY` 미설정 시 FALLBACK_RESULT 반환, 30초 타임아웃 |

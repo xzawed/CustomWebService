@@ -44,7 +44,7 @@ API 카탈로그 전체 조회
 | category | string | N | 카테고리 필터 |
 | search | string | N | 검색어 |
 | page | number | N | 페이지 (기본 1) |
-| limit | number | N | 페이지 크기 (기본 20) |
+| limit | number | N | 페이지 크기 (기본 20, 최대 100) |
 
 **Response:**
 ```json
@@ -200,8 +200,15 @@ API 카탈로그 전체 조회
         "status": "published",
         "slug": "my-weather-app",
         "publishedAt": "2026-03-28T00:00:00Z"
-    }
+    },
+    "qcWarnings": ["콘솔 에러 감지: ReferenceError"]
 }
+```
+
+> `qcWarnings` 필드는 렌더링 QC(`ENABLE_RENDERING_QC=true`)에서 경고가 발생한 경우에만 조건부 포함됩니다. 경고가 없으면 이 필드 자체가 응답에 포함되지 않습니다.
+
+```json
+{
 ```
 
 ### POST /api/v1/projects/:id/slug/check
@@ -525,15 +532,25 @@ X-Frame-Options: DENY
 ### GET /api/v1/health
 서비스 상태 및 한도 사용률 조회
 
-> **인증 불필요** — 모니터링 용도
+> **인증 불필요** — 기본 상태(`status`, `timestamp`)는 누구나 조회 가능  
+> **상세 정보** — `?detailed=true` + `Authorization: Bearer {ADMIN_API_KEY}` 헤더 필요
 
-**Response:**
+**기본 응답 (인증 없거나 `detailed` 미지정):**
+```json
+{
+    "status": "ok",
+    "timestamp": "2026-03-28T00:00:00Z"
+}
+```
+
+**상세 응답 (`?detailed=true` + `ADMIN_API_KEY` 인증 시):**
 ```json
 {
     "status": "healthy",
     "timestamp": "2026-03-28T00:00:00Z",
     "checks": {
         "database": "ok",
+        "aiProvider": "claude",
         "ai": "ok",
         "deploy": "ok"
     },
@@ -546,7 +563,8 @@ X-Frame-Options: DENY
             "maxApisPerProject": 5,
             "maxProjectsPerUser": 20
         }
-    }
+    },
+    "failover": { "enabled": true, "state": "closed" }
 }
 ```
 
@@ -592,48 +610,7 @@ Supabase Auth 사용 - 별도 API 구현 불필요
 
 ---
 
-## 10. 갤러리 (Gallery)
-
-### GET /api/v1/gallery
-공개 갤러리 목록 조회
-
-**Auth required**: No (인증 없이도 조회 가능, 인증 시 좋아요 상태 포함)
-
-**Query Parameters:**
-| 파라미터 | 타입 | 필수 | 설명 |
-|---------|------|------|------|
-| page | number | N | 페이지 번호 (기본 1) |
-| pageSize | number | N | 페이지 크기 (기본 12, 최대 50) |
-| category | string | N | 카테고리 필터 |
-| sortBy | string | N | 정렬 기준 (`popular` 또는 `newest`, 기본 `newest`) |
-| search | string | N | 검색어 (최대 200자) |
-
-### POST /api/v1/gallery/:id/like
-갤러리 항목 좋아요
-
-**Auth required**: Yes
-
-### DELETE /api/v1/gallery/:id/like
-갤러리 항목 좋아요 취소
-
-**Auth required**: Yes
-
-### POST /api/v1/gallery/:id/fork
-갤러리 항목 포크 (내 프로젝트로 복사)
-
-**Auth required**: Yes
-
-**Response (201 Created):**
-```json
-{
-    "success": true,
-    "data": { ... }
-}
-```
-
----
-
-## 11. AI 추천 (Suggest)
+## 10. AI 추천 (Suggest)
 
 ### POST /api/v1/suggest-apis
 서비스 설명 기반 API 추천
@@ -696,9 +673,51 @@ Supabase Auth 사용 - 별도 API 구현 불필요
 }
 ```
 
+### POST /api/v1/suggest-preferences
+선택된 API와 컨텍스트 기반 UI 디자인 선호도 추천
+
+> 빌더 스텝 2(서비스 설명 입력) 완료 후 자동 호출. API-컨텍스트 연관성 분석 + 최적 레이아웃/색상/컴포넌트 패턴 추천
+
+**Auth required**: Yes
+
+**Request Body:**
+```json
+{
+    "context": "서비스 설명 (50~2000자)",
+    "apiIds": ["uuid1", "uuid2"]
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `context` | string | Y | 서비스 설명 (50~2000자) |
+| `apiIds` | string[] | Y | 선택된 API UUID 목록 |
+
+**Response:**
+```json
+{
+    "success": true,
+    "data": {
+        "relevanceScore": 85,
+        "templateId": "dashboard",
+        "designMood": "modern",
+        "designAudience": "general",
+        "designLayout": "data-dashboard",
+        "resolutionOptions": []
+    }
+}
+```
+
+| 상태코드 | 설명 |
+|---------|------|
+| 200 | 성공 |
+| 400 | context/apiIds 누락 또는 길이 제한 위반 |
+| 401 | 인증 필요 |
+| 429 | 일일 한도 초과 |
+
 ---
 
-## 12. 인기 서비스 (Popular Services)
+## 11. 인기 서비스 (Popular Services)
 
 ### GET /api/v1/popular-services
 인기 서비스 템플릿 목록 조회 (실사용 데이터 기반 + 큐레이션 폴백)
@@ -731,7 +750,7 @@ Supabase Auth 사용 - 별도 API 구현 불필요
 
 ---
 
-## 13. 사용자 API 키 (User API Keys)
+## 12. 사용자 API 키 (User API Keys)
 
 ### GET /api/v1/user-api-keys
 내 API 키 목록 조회 (마스킹 처리)
@@ -758,7 +777,7 @@ API 키 삭제
 
 ---
 
-## 14. 외부 API 프록시 (Proxy)
+## 13. 외부 API 프록시 (Proxy)
 
 ### GET /api/v1/proxy
 ### POST /api/v1/proxy
@@ -780,7 +799,7 @@ API 키 삭제
 
 ---
 
-## 15. 관리자 API (Admin)
+## 14. 관리자 API (Admin)
 
 > `ADMIN_API_KEY` 헤더(`X-Admin-Key`) 필수. 일반 사용자 접근 불가.
 
