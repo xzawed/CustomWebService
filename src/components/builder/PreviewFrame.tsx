@@ -92,7 +92,7 @@ export default function PreviewFrame({ projectId, version }: PreviewFrameProps) 
             border: '1px solid var(--border)',
             background: '#fff',
           }}
-          sandbox="allow-scripts allow-same-origin"
+          sandbox="allow-scripts allow-forms allow-popups"
         />
       </div>
     </div>

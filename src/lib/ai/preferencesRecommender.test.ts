@@ -77,6 +77,7 @@ const sampleInput = {
 describe('recommendPreferences()', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
   });
 
   it('고점수 정상 케이스: suggestion이 존재하고 resolutionOptions가 null이다', async () => {

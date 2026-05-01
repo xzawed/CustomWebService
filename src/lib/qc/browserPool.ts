@@ -58,7 +58,7 @@ async function getBrowser(): Promise<Browser | null> {
       logger.warn('[QC] Browser disconnected, resetting pool');
       // Reset semaphore — all orphaned pages are gone
       activePages = 0;
-      waitQueue.forEach(resolve => resolve(true)); // unblock waiters
+      waitQueue.forEach(resolve => resolve(false)); // browser crashed — waiters did not acquire
       waitQueue.length = 0;
       try {
         await browserInstance.close();

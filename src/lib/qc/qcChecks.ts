@@ -492,10 +492,8 @@ async function subCheckFilterTab(page: Page): Promise<SubCheckResult> {
 export async function checkInteractiveBehavior(page: Page): Promise<QcCheckResult> {
   const start = Date.now();
   try {
-    const [sub1, sub2] = await Promise.all([
-      subCheckInputAction(page),
-      subCheckFilterTab(page),
-    ]);
+    const sub1 = await subCheckInputAction(page);
+    const sub2 = await subCheckFilterTab(page);
 
     const details: string[] = [];
     if (sub1.detail) details.push(`[입력플로우] ${sub1.detail}`);

@@ -50,6 +50,7 @@ function makeEmptyResponse() {
 describe('extractFeatures()', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
   });
 
   it('올바른 도구 호출 응답에서 FeatureSpec을 파싱한다', async () => {

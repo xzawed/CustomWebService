@@ -180,7 +180,8 @@ export async function runQualityLoop(
 
     try {
       const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport, userFeedback);
-      const iterationTimeoutMs = Number(process.env.QUALITY_LOOP_ITERATION_TIMEOUT_MS ?? 120_000);
+      const _loopVal = Number.parseInt(process.env.QUALITY_LOOP_ITERATION_TIMEOUT_MS ?? '', 10);
+      const iterationTimeoutMs = Number.isNaN(_loopVal) || _loopVal <= 0 ? 120_000 : _loopVal;
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(
           () => reject(new Error(`Quality loop iteration timed out after ${iterationTimeoutMs}ms`)),
