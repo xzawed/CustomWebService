@@ -115,9 +115,10 @@ describe('runQualityLoop — retry 채택 분기 (Quality Loop 정확도 게이�
     expect(result.quality.structuralScore).toBe(50);
   });
 
-  it('retry quality 한쪽 향상 + 한쪽 회귀는 strict 모드에서 거부한다', async () => {
+  it('retry quality 한쪽 향상 + 한쪽 회귀는 strict 모드에서 거부한다 (기능 이슈 없을 때)', async () => {
     // strict 가드: structuralScore↑ but mobileScore↓ → 거부
-    // shouldRetryGeneration이 다음 attempt에서 또 true가 되도록 retry quality는 여전히 미달
+    // baseMetrics 기반 lowQuality는 fetchCallCount=1, hasProxyCall=true → 기능 이슈 없음
+    // 기능 이슈 없는 상황에서 점수만 변동하면 AND 가드 정상 적용
     vi.mocked(evaluateQuality).mockReturnValue({
       ...baseMetrics,
       structuralScore: 50,
@@ -248,5 +249,88 @@ describe('runQualityLoop — retry 채택 분기 (Quality Loop 정확도 게이�
     expect(eventBus.emit).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'QUALITY_LOOP_COMPLETED' }),
     );
+  });
+
+  it('functionalIssueSolved: fetchCallCount 0→>0 이면 mobileScore 회귀해도 채택한다', async () => {
+    // fetch 없음(API 호출 누락)이 있던 초기 코드를 retry가 해결하면 점수 회귀 무관하게 채택
+    const noFetchQuality: QualityMetrics = {
+      ...lowQuality,
+      fetchCallCount: 0,
+      hasProxyCall: false,
+    };
+
+    vi.mocked(evaluateQuality).mockReturnValueOnce({
+      ...baseMetrics,
+      fetchCallCount: 2,
+      hasProxyCall: true,
+      structuralScore: 30, // 동등 (delta=0)
+      mobileScore: 20,     // 회귀 (delta=-10) → 기존 strict 게이트라면 거부
+    });
+
+    const generateCode = vi.fn().mockResolvedValueOnce({ content: validRetryContent });
+
+    const result = await runQualityLoop(
+      { html: '<div>old</div>', css: '', js: '' },
+      noFetchQuality,
+      null,
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p-func-1' },
+    );
+
+    expect(result.qualityLoopUsed).toBe(true); // functionalIssueSolved → 채택
+  });
+
+  it('functionalIssueSolved: proxy 미사용이 retry에서도 해결 안 되면 점수 향상해도 기능 이슈 잔존', async () => {
+    // !hasProxyCall이 retry에서도 여전히 true → functionalIssueSolved=false
+    // struct↑ + mobile↓ → strict AND 게이트 거부 (기능 이슈 + 점수 회귀 복합)
+    const noProxyQuality: QualityMetrics = {
+      ...lowQuality,
+      hasProxyCall: false,
+      fetchCallCount: 1,
+    };
+
+    vi.mocked(evaluateQuality).mockReturnValueOnce({
+      ...baseMetrics,
+      hasProxyCall: false, // 여전히 proxy 미사용
+      fetchCallCount: 1,
+      structuralScore: 90, // struct↑ 이지만
+      mobileScore: 20,     // mobile↓ → AND 게이트 거부
+    });
+
+    const generateCode = vi.fn().mockResolvedValueOnce({ content: validRetryContent });
+
+    const result = await runQualityLoop(
+      { html: '<div>old</div>', css: '', js: '' },
+      noProxyQuality,
+      null,
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p-func-2' },
+    );
+
+    expect(result.qualityLoopUsed).toBe(false); // 기능 이슈 미해결 + 점수 회귀 → 거부
+  });
+
+  it('functionalIssueSolved: placeholder 5→0 이면 structuralScore·mobileScore 회귀해도 채택한다', async () => {
+    // placeholder 제거가 retry에서 해결됐으면 점수 회귀 무관하게 채택
+    const placeholderQuality: QualityMetrics = {
+      ...lowQuality,
+      placeholderCount: 5,
+    };
+
+    vi.mocked(evaluateQuality).mockReturnValueOnce({
+      ...baseMetrics,
+      placeholderCount: 0, // 해결
+      structuralScore: 25, // 회귀
+      mobileScore: 25,     // 회귀 → 둘 다 낮아졌지만 functionalIssueSolved=true → 채택
+    });
+
+    const generateCode = vi.fn().mockResolvedValueOnce({ content: validRetryContent });
+
+    const result = await runQualityLoop(
+      { html: '<div>old</div>', css: '', js: '' },
+      placeholderQuality,
+      null,
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p-func-3' },
+    );
+
+    expect(result.qualityLoopUsed).toBe(true); // functionalIssueSolved → 채택
   });
 });

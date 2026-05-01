@@ -103,6 +103,7 @@ function makeStageResult(html = '<html><body><p>hi</p></body></html>', extra?: o
 function makeQualityMetrics(overrides: object = {}) {
   return {
     fetchCallCount: 1,
+    hasProxyCall: true,
     placeholderCount: 0,
     structuralScore: 85,
     mobileScore: 80,
@@ -241,6 +242,32 @@ describe('runGenerationPipeline()', () => {
       await runGenerationPipeline(makeInput(), sse as never, makeServices());
 
       expect(runStage2Function).toHaveBeenCalledOnce();
+    });
+
+    it('hasProxyCall=false + fetchCallCount>0 → stage2 실행 (직접 외부 fetch 차단)', async () => {
+      // fetch가 존재하지만 /api/v1/proxy를 경유하지 않는 경우 — CORS 실패 방지를 위해 stage2 강제
+      (evaluateQuality as Mock)
+        .mockReturnValueOnce(makeQualityMetrics({ fetchCallCount: 2, hasProxyCall: false, placeholderCount: 0 }))
+        .mockReturnValueOnce(makeQualityMetrics())
+        .mockReturnValueOnce(makeQualityMetrics());
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(runStage2Function).toHaveBeenCalledOnce();
+    });
+
+    it('hasProxyCall=true → stage2 스킵 (proxy 경유 확인됨)', async () => {
+      // fetch가 존재하고 proxy 경유 확인 → stage2 불필요
+      (evaluateQuality as Mock)
+        .mockReturnValueOnce(makeQualityMetrics({ fetchCallCount: 1, hasProxyCall: true, placeholderCount: 0 }))
+        .mockReturnValueOnce(makeQualityMetrics())
+        .mockReturnValueOnce(makeQualityMetrics());
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(runStage2Function).not.toHaveBeenCalled();
     });
 
     it('placeholder 존재 → stage2 실행', async () => {

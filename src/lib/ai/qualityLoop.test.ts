@@ -345,8 +345,9 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
     vi.useFakeTimers();
   });
 
-  it('shouldRetryGeneration 시 최대 3회 반복까지만 수행한다 + iterations=3 이벤트 발행', async () => {
-    // 모든 응답이 즉시 reject되어 3회 모두 실패 시도
+  it('QUALITY_LOOP_MAX_ITERATIONS=3 시 최대 3회 반복까지만 수행한다 + iterations=3 이벤트 발행', async () => {
+    // 환경변수로 3회 명시 — 모든 응답이 즉시 reject되어 3회 모두 실패 시도
+    vi.stubEnv('QUALITY_LOOP_MAX_ITERATIONS', '3');
     const generateCode = vi.fn().mockRejectedValue(new Error('AI fail'));
     const lowQuality: QualityMetrics = { ...baseMetrics, structuralScore: 30, mobileScore: 30, details: [] };
 
@@ -370,7 +371,33 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
     vi.useFakeTimers();
   });
 
-  it('per-iteration progress: 1회→93%, 2회→95%, 3회→97%', async () => {
+  it('QUALITY_LOOP_MAX_ITERATIONS 미설정(기본) 시 최대 2회 반복 수행', async () => {
+    // 기본값 2회 — 2회 모두 실패 시도
+    const generateCode = vi.fn().mockRejectedValue(new Error('AI fail'));
+    const lowQuality: QualityMetrics = { ...baseMetrics, structuralScore: 30, mobileScore: 30, details: [] };
+
+    vi.mocked(eventBus.emit).mockClear();
+    vi.useRealTimers();
+    const result = await runQualityLoop(
+      { html: '<div>x</div>', css: '', js: '' },
+      lowQuality,
+      null,
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p-default' },
+    );
+
+    expect(generateCode).toHaveBeenCalledTimes(2);
+    expect(result.qualityLoopUsed).toBe(false);
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'QUALITY_LOOP_COMPLETED',
+        payload: expect.objectContaining({ projectId: 'p-default', iterations: 2, improved: false }),
+      }),
+    );
+    vi.useFakeTimers();
+  });
+
+  it('QUALITY_LOOP_MAX_ITERATIONS=3: progress 1회→93%, 2회→95%, 3회→97%', async () => {
+    vi.stubEnv('QUALITY_LOOP_MAX_ITERATIONS', '3');
     const generateCode = vi.fn().mockRejectedValue(new Error('fail'));
     const lowQuality: QualityMetrics = { ...baseMetrics, structuralScore: 30, mobileScore: 30, details: [] };
     const mockSse = makeMockSse();
@@ -393,6 +420,31 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
     expect(progressCalls[1]?.message).toContain('2/3회');
     expect(progressCalls[2]?.progress).toBe(97);
     expect(progressCalls[2]?.message).toContain('3/3회');
+    vi.useFakeTimers();
+  });
+
+  it('기본값(QUALITY_LOOP_MAX_ITERATIONS 미설정): progress 1회→93%, 2회→97%', async () => {
+    const generateCode = vi.fn().mockRejectedValue(new Error('fail'));
+    const lowQuality: QualityMetrics = { ...baseMetrics, structuralScore: 30, mobileScore: 30, details: [] };
+    const mockSse = makeMockSse();
+
+    vi.useRealTimers();
+    await runQualityLoop(
+      { html: '<div>x</div>', css: '', js: '' },
+      lowQuality,
+      null,
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: mockSse, useET: false, projectId: 'p-progress-default' },
+    );
+
+    const progressCalls = (mockSse.send as ReturnType<typeof vi.fn>).mock.calls
+      .filter(([event]) => event === 'progress')
+      .map(([, data]) => data as { progress: number; message: string });
+
+    expect(progressCalls.length).toBe(2);
+    expect(progressCalls[0]?.progress).toBe(93);
+    expect(progressCalls[0]?.message).toContain('1/2회');
+    expect(progressCalls[1]?.progress).toBe(97);
+    expect(progressCalls[1]?.message).toContain('2/2회');
     vi.useFakeTimers();
   });
 

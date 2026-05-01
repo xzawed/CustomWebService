@@ -485,10 +485,12 @@ function showError(container, message) {
 }
 \`\`\`
 
-## API 호출 규칙
-- auth_type이 'api_key'인 API → 서버 프록시:
+## API 호출 규칙 (★ 필수 — 위반 시 즉시 실패)
+- **인증 방식에 관계없이 모든 API는 반드시 서버 프록시를 경유한다:**
   \`fetch('/api/v1/proxy?apiId=<ID>&proxyPath=<경로>&파라미터=값')\`
-- auth_type이 'none'인 API → base_url로 직접 fetch()
+- **직접 외부 URL fetch() 절대 금지.** CORS 차단으로 동작하지 않는다.
+  ❌ 틀림: \`fetch('https://api.example.com/v1/data')\`
+  ✅ 맞음: \`fetch('/api/v1/proxy?apiId=API_ID_HERE&proxyPath=/v1/data')\`
 - 'YOUR_API_KEY' 절대 사용 금지
 
 ## Alpine.js 상태 관리 (필수)
@@ -825,10 +827,8 @@ export function buildStage1UserPrompt(
         .join('\n');
 
       const projectParam = projectId ? `&projectId=${projectId}` : '';
-      const callMethod =
-        api.authType === 'none'
-          ? `직접 fetch (인증 불필요): ${api.baseUrl}`
-          : `서버 프록시 필수: /api/v1/proxy?apiId=${api.id}${projectParam}&proxyPath=<경로>&<파라미터>=<값>`;
+      const baseUrlNote = api.baseUrl ? ` (원본 API: ${api.baseUrl})` : '';
+      const callMethod = `서버 프록시 필수 (인증 방식 무관): /api/v1/proxy?apiId=${api.id}${projectParam}&proxyPath=<경로>&<파라미터>=<값>${baseUrlNote}`;
 
       return `### API ${i + 1}: ${api.name}
 - API ID (프록시 호출 시 사용): ${api.id}
@@ -943,10 +943,7 @@ export function buildStage1RegenerationUserPrompt(
   const apiSection = apis.length > 0
     ? `## 프로젝트에 연결된 API (반드시 활용)
 ${apis.map((api) => {
-  const callMethod =
-    api.authType === 'none'
-      ? `직접 fetch: ${api.baseUrl}`
-      : `서버 프록시: /api/v1/proxy?apiId=${api.id}&proxyPath=<경로>`;
+  const callMethod = `서버 프록시 (인증 방식 무관): /api/v1/proxy?apiId=${api.id}&proxyPath=<경로>`;
   return `### ${api.name} (ID: ${api.id})
 - 호출 방법: ${callMethod}
 - 인증: ${api.authType}`;
