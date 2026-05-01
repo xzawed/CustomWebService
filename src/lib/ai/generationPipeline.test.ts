@@ -23,7 +23,7 @@ vi.mock('@/lib/ai/stageRunner', () => ({
 vi.mock('@/lib/ai/generationSaver', () => ({ saveGeneratedCode: vi.fn() }));
 vi.mock('@/lib/ai/featureExtractor', () => ({ extractFeatures: vi.fn() }));
 
-import { evaluateComplexityScore } from '@/lib/ai/generationPipeline';
+import { evaluateComplexityScore, injectFeatureSpec } from '@/lib/ai/generationPipeline';
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -201,5 +201,25 @@ describe('evaluateComplexityScore', () => {
     ];
     const context = 'a'.repeat(200);
     expect(evaluateComplexityScore(apis, context)).toBe(44);
+  });
+});
+
+describe('injectFeatureSpec', () => {
+  it('featureSpec null 시 원본 프롬프트 반환', () => {
+    expect(injectFeatureSpec('base prompt', null)).toBe('base prompt');
+  });
+  it('features 없으면 원본 반환', () => {
+    expect(injectFeatureSpec('base', { features: [], stateNeeds: [], apiUsage: [] })).toBe('base');
+  });
+  it('features 있으면 목록 주입', () => {
+    const spec = {
+      features: [{ id: 'F1', description: '날씨 표시', verifiableBy: 'text-display' as const }],
+      stateNeeds: ['weather-data'],
+      apiUsage: ['/forecast.json'],
+    };
+    const result = injectFeatureSpec('base', spec);
+    expect(result).toContain('F1');
+    expect(result).toContain('날씨 표시');
+    expect(result).toContain('text-display');
   });
 });
