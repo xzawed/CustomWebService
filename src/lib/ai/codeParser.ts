@@ -32,6 +32,60 @@ export interface ParsedCode {
   js: string;
 }
 
+export function ensureCharset(html: string): string {
+  const hasCharset =
+    /<meta\s[^>]*charset/i.test(html) ||
+    /<meta\s[^>]*http-equiv\s*=\s*["']?content-type/i.test(html);
+  if (hasCharset) return html;
+  const headIdx = html.indexOf('<head>');
+  if (headIdx === -1) return html;
+  return (
+    html.slice(0, headIdx + '<head>'.length) +
+    '\n  <meta charset="UTF-8">' +
+    html.slice(headIdx + '<head>'.length)
+  );
+}
+
+export function ensureViewport(html: string): string {
+  if (/<meta[^>]*name\s*=\s*["']viewport["']/i.test(html)) return html;
+  const charsetMatch = /<meta[^>]*charset[^>]*>/i.exec(html);
+  if (charsetMatch) {
+    const insertIdx = html.indexOf(charsetMatch[0]) + charsetMatch[0].length;
+    return (
+      html.slice(0, insertIdx) +
+      '\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+      html.slice(insertIdx)
+    );
+  }
+  const headIdx = html.indexOf('<head>');
+  if (headIdx === -1) return html;
+  return (
+    html.slice(0, headIdx + '<head>'.length) +
+    '\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    html.slice(headIdx + '<head>'.length)
+  );
+}
+
+export function injectCdnTags(html: string): string {
+  const headIdx = html.lastIndexOf('</head>');
+  return (
+    html.slice(0, headIdx) +
+    TAILWIND_CDN_TAG + '\n' +
+    TAILWIND_CONFIG_TAG + '\n' +
+    PRETENDARD_CDN_TAG + '\n' +
+    FONT_AWESOME_CDN_TAG + '\n' +
+    html.slice(headIdx)
+  );
+}
+
+export function injectAlpineScript(html: string): string {
+  if (html.includes('alpinejs')) return html;
+  const alpineTag =
+    '  <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>';
+  const headCloseIdx = html.lastIndexOf('</head>');
+  return html.slice(0, headCloseIdx) + alpineTag + '\n' + html.slice(headCloseIdx);
+}
+
 const MIN_CODE_LENGTHS = { html: 50, css: 20, js: 10 } as const;
 
 export function parseGeneratedCode(aiResponse: string): ParsedCode {
@@ -147,162 +201,84 @@ function buildHeadInjections(html: string, safeCss: string): string {
 }
 
 /**
+ * Process a single <img> tag's attributes: add lazy loading, decoding, and dimensions.
+ * First 2 images (imgIndex ≤ 2) skip lazy loading (above the fold).
+ */
+function processImgTag(attrs: string, imgIndex: number): string {
+  let newAttrs = attrs;
+  if (imgIndex > 2 && !/\bloading\s*=/i.test(newAttrs)) {
+    newAttrs += ' loading="lazy"';
+  }
+  if (!/\bdecoding\s*=/i.test(newAttrs)) {
+    newAttrs += ' decoding="async"';
+  }
+  if (/picsum\.photos/i.test(newAttrs)) {
+    const sizeMatch = /picsum\.photos\/(?:seed\/[^/]+\/)?(\d+)\/(\d+)/i.exec(newAttrs);
+    if (sizeMatch) {
+      if (!/\bwidth\s*=/i.test(newAttrs)) newAttrs += ` width="${sizeMatch[1]}"`;
+      if (!/\bheight\s*=/i.test(newAttrs)) newAttrs += ` height="${sizeMatch[2]}"`;
+    }
+  } else if (/images\.unsplash\.com/i.test(newAttrs) || /source\.unsplash\.com/i.test(newAttrs)) {
+    const unsplashWH =
+      /[?&]w=(\d+)&h=(\d+)/i.exec(newAttrs) ||
+      /source\.unsplash\.com\/(\d+)x(\d+)/i.exec(newAttrs);
+    if (unsplashWH) {
+      if (!/\bwidth\s*=/i.test(newAttrs)) newAttrs += ` width="${unsplashWH[1]}"`;
+      if (!/\bheight\s*=/i.test(newAttrs)) newAttrs += ` height="${unsplashWH[2]}"`;
+    }
+  }
+  return newAttrs;
+}
+
+/**
  * Post-process image tags: add lazy loading, decoding, and dimensions for picsum.photos.
  * First 2 images skip lazy loading (above the fold).
  */
 function optimizeImages(html: string): string {
   let imgIndex = 0;
-  return html.replace(/<img\s([^>]*?)>/gi, (match, attrs: string) => {
+  return html.replace(/<img\s([^>]*?)>/gi, (_match, attrs: string) => {
     imgIndex++;
-    let newAttrs = attrs;
-
-    // Add loading="lazy" for images after the first 2 (above the fold)
-    if (imgIndex > 2 && !/\bloading\s*=/i.test(newAttrs)) {
-      newAttrs += ' loading="lazy"';
-    }
-
-    // Add decoding="async"
-    if (!/\bdecoding\s*=/i.test(newAttrs)) {
-      newAttrs += ' decoding="async"';
-    }
-
-    // Extract width/height from image URL patterns
-    if (/picsum\.photos/i.test(newAttrs)) {
-      const sizeMatch = newAttrs.match(/picsum\.photos\/(?:seed\/[^/]+\/)?(\d+)\/(\d+)/i);
-      if (sizeMatch) {
-        if (!/\bwidth\s*=/i.test(newAttrs)) {
-          newAttrs += ` width="${sizeMatch[1]}"`;
-        }
-        if (!/\bheight\s*=/i.test(newAttrs)) {
-          newAttrs += ` height="${sizeMatch[2]}"`;
-        }
-      }
-    } else if (/images\.unsplash\.com/i.test(newAttrs) || /source\.unsplash\.com/i.test(newAttrs)) {
-      // Extract width/height from Unsplash URL: ?w=600&h=400 or /600x400/
-      const unsplashWH = newAttrs.match(/[?&]w=(\d+)&h=(\d+)/i) ||
-        newAttrs.match(/source\.unsplash\.com\/(\d+)x(\d+)/i);
-      if (unsplashWH) {
-        if (!/\bwidth\s*=/i.test(newAttrs)) {
-          newAttrs += ` width="${unsplashWH[1]}"`;
-        }
-        if (!/\bheight\s*=/i.test(newAttrs)) {
-          newAttrs += ` height="${unsplashWH[2]}"`;
-        }
-      }
-    }
-
-    return `<img ${newAttrs}>`;
+    return `<img ${processImgTag(attrs, imgIndex)}>`;
   });
 }
 
-export function assembleHtml(parsed: ParsedCode): string {
-  const safeCss = parsed.css ? sanitizeCss(parsed.css) : '';
+function injectHeadExtras(html: string, safeCss: string): string {
+  const headCloseIdx = html.lastIndexOf('</head>');
+  return (
+    html.slice(0, headCloseIdx) +
+    buildHeadInjections(html, safeCss) +
+    '\n' +
+    html.slice(headCloseIdx)
+  );
+}
 
-  // Sanitize AI-generated HTML. ADD_TAGS is intentionally empty: script/style/link are
-  // all omitted to prevent DOM-based attacks (SonarQube S8479). CSS comes from parsed.css
-  // and Alpine.js is injected by buildHeadInjections() after sanitization.
-  const isFullDoc = parsed.html.includes('</head>');
-  const safeHtml = DOMPurify.sanitize(parsed.html, {
-    WHOLE_DOCUMENT: isFullDoc,
-    FORCE_BODY: !isFullDoc,
-  });
-
-  // If HTML is a full document, inject additional CSS and JS
-  if (safeHtml.includes('</head>')) {
-    let assembled = safeHtml;
-
-    // Ensure charset=UTF-8 is declared — AI sometimes omits it or uses a different encoding
-    const hasCharset =
-      /<meta\s[^>]*charset/i.test(assembled) ||
-      /<meta\s[^>]*http-equiv\s*=\s*["']?content-type/i.test(assembled);
-    if (!hasCharset) {
-      const headIdx = assembled.indexOf('<head>');
-      if (headIdx !== -1) {
-        assembled =
-          assembled.slice(0, headIdx + '<head>'.length) +
-          '\n  <meta charset="UTF-8">' +
-          assembled.slice(headIdx + '<head>'.length);
-      }
-    }
-
-    // Ensure viewport meta is present for responsive design
-    const hasViewport = /<meta[^>]*name\s*=\s*["']viewport["']/i.test(assembled);
-    if (!hasViewport) {
-      const charsetMatch = assembled.match(/<meta[^>]*charset[^>]*>/i);
-      if (charsetMatch) {
-        const insertIdx = assembled.indexOf(charsetMatch[0]) + charsetMatch[0].length;
-        assembled =
-          assembled.slice(0, insertIdx) +
-          '\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-          assembled.slice(insertIdx);
-      } else {
-        const headIdx = assembled.indexOf('<head>');
-        if (headIdx !== -1) {
-          assembled =
-            assembled.slice(0, headIdx + '<head>'.length) +
-            '\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-            assembled.slice(headIdx + '<head>'.length);
-        }
-      }
-    }
-
-    // Re-inject Tailwind CDN + config (DOMPurify strips all <script src> and <link> tags by design;
-    // these whitelisted CDN tags are always re-injected unconditionally after sanitization)
-    const headIdx = assembled.lastIndexOf('</head>');
-    assembled =
-      assembled.slice(0, headIdx) +
-      TAILWIND_CDN_TAG + '\n' +
-      TAILWIND_CONFIG_TAG + '\n' +
-      PRETENDARD_CDN_TAG + '\n' +
-      FONT_AWESOME_CDN_TAG + '\n' +
-      assembled.slice(headIdx);
-
-    // Inject Alpine.js CDN before </head> (skip if already present)
-    if (!assembled.includes('alpinejs')) {
-      const alpineTag =
-        '  <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>';
-      const headCloseForAlpine = assembled.lastIndexOf('</head>');
-      assembled =
-        assembled.slice(0, headCloseForAlpine) +
-        alpineTag +
-        '\n' +
-        assembled.slice(headCloseForAlpine);
-    }
-
-    // Inject favicon, OG tags, CSS variables, and print stylesheet before </head>
-    const headCloseIdx = assembled.lastIndexOf('</head>');
-    assembled =
-      assembled.slice(0, headCloseIdx) +
-      buildHeadInjections(assembled, safeCss) +
-      '\n' +
-      assembled.slice(headCloseIdx);
-
-    if (parsed.js) {
-      const bodyIdx = assembled.lastIndexOf('</body>');
-      if (bodyIdx !== -1) {
-        assembled =
-          assembled.slice(0, bodyIdx) +
-          `<script>\n${parsed.js}\n</script>\n` +
-          assembled.slice(bodyIdx);
-      } else {
-        assembled += `<script>\n${parsed.js}\n</script>`;
-      }
-    }
-
-    // Post-process images for lazy loading and dimensions
-    assembled = optimizeImages(assembled);
-
-    return assembled;
+function injectUserScript(html: string, js: string): string {
+  if (!js) return html;
+  const bodyIdx = html.lastIndexOf('</body>');
+  if (bodyIdx !== -1) {
+    return html.slice(0, bodyIdx) + `<script>\n${js}\n</script>\n` + html.slice(bodyIdx);
   }
+  return html + `<script>\n${js}\n</script>`;
+}
 
-  // Build complete HTML document
+function processFullDocument(assembled: string, safeCss: string, js: string): string {
+  assembled = ensureCharset(assembled);
+  assembled = ensureViewport(assembled);
+  assembled = injectCdnTags(assembled);
+  assembled = injectAlpineScript(assembled);
+  assembled = injectHeadExtras(assembled, safeCss);
+  assembled = injectUserScript(assembled, js);
+  return optimizeImages(assembled);
+}
+
+function buildFromFragment(safeHtml: string, safeCss: string, js: string): string {
   const title = extractTitle(safeHtml) || 'Generated Service';
   const headInjections = buildHeadInjections('', safeCss);
   const alpineScript = safeHtml.includes('alpinejs')
     ? ''
     : '  <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>\n';
 
-  let doc = `<!DOCTYPE html>
+  const doc = `<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
@@ -316,14 +292,25 @@ ${FONT_AWESOME_CDN_TAG}
 ${alpineScript}</head>
 <body>
 ${safeHtml}
-  <script>
-${parsed.js}
-  </script>
-</body>
+${js ? `  <script>\n${js}\n  </script>\n` : ''}</body>
 </html>`;
 
-  // Post-process images for lazy loading and dimensions
-  doc = optimizeImages(doc);
+  return optimizeImages(doc);
+}
 
-  return doc;
+export function assembleHtml(parsed: ParsedCode): string {
+  const safeCss = parsed.css ? sanitizeCss(parsed.css) : '';
+  const isFullDoc = parsed.html.includes('</head>');
+  // Sanitize AI-generated HTML. ADD_TAGS is intentionally empty: script/style/link are
+  // all omitted to prevent DOM-based attacks (SonarQube S8479). CSS comes from parsed.css
+  // and Alpine.js is injected by buildHeadInjections() after sanitization.
+  const safeHtml = DOMPurify.sanitize(parsed.html, {
+    WHOLE_DOCUMENT: isFullDoc,
+    FORCE_BODY: !isFullDoc,
+  });
+
+  if (safeHtml.includes('</head>')) {
+    return processFullDocument(safeHtml, safeCss, parsed.js);
+  }
+  return buildFromFragment(safeHtml, safeCss, parsed.js);
 }

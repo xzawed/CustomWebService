@@ -13,6 +13,22 @@ import { applyAutoFix } from '@/lib/ai/autoFix';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import type { SseWriter } from '@/lib/ai/sseWriter';
 
+/**
+ * Returns true when the generated code has functional issues that require a retry.
+ * - fetchCallCount === 0: no API call at all — must fetch real data
+ * - placeholderCount > 0: template placeholders leaked into output (홍길동, 준비 중, etc.)
+ * - !hasProxyCall && fetchCallCount > 0: direct external fetch bypasses /api/v1/proxy → CORS failure at runtime
+ * - hardcodedArrayCount > 0: mock data arrays present instead of real API calls
+ */
+export function hasFunctionalIssue(metrics: QualityMetrics): boolean {
+  return (
+    metrics.fetchCallCount === 0 ||
+    metrics.placeholderCount > 0 ||
+    (!metrics.hasProxyCall && metrics.fetchCallCount > 0) ||
+    metrics.hardcodedArrayCount > 0
+  );
+}
+
 export function shouldRetryGeneration(
   metrics: QualityMetrics,
   qcReport?: QcReport | null
@@ -29,13 +45,7 @@ export function shouldRetryGeneration(
     if (footerCheck && !footerCheck.passed) return true;
     if (overlapCheck && !overlapCheck.passed) return true;
   }
-  // New: retry if no fetch calls or placeholder strings present
-  if (metrics.fetchCallCount === 0) return true;
-  if (metrics.placeholderCount > 0) return true;
-  // Retry if fetch calls exist but none use the proxy (likely CORS-failing direct API calls)
-  if (!metrics.hasProxyCall && metrics.fetchCallCount > 0) return true;
-  // Retry if hardcoded array data is present (mock data instead of real API calls)
-  if (metrics.hardcodedArrayCount > 0) return true;
+  if (hasFunctionalIssue(metrics)) return true;
   return false;
 }
 
@@ -120,6 +130,64 @@ ${qcIssues ? `\n브라우저 렌더링 검증에서 발견된 추가 문제:\n${
 \`\`\``;
 }
 
+export function resolveMaxIterations(): number {
+  const v = Number.parseInt(process.env.QUALITY_LOOP_MAX_ITERATIONS ?? '', 10);
+  return Number.isNaN(v) || v <= 0 ? 2 : Math.min(v, 3);
+}
+
+export function buildProgressSchedule(maxIterations: number): number[] {
+  const step = maxIterations > 1 ? Math.floor(4 / (maxIterations - 1)) : 4;
+  return Array.from({ length: maxIterations }, (_, i) =>
+    i === maxIterations - 1 ? 97 : 93 + i * step,
+  );
+}
+
+export function shouldAdoptRetry(
+  bestQuality: QualityMetrics,
+  retryQuality: QualityMetrics,
+  bestQcReport: QcReport | null,
+  retryQcReport: QcReport | null,
+): boolean {
+  const functionalIssueSolved = hasFunctionalIssue(bestQuality) && !hasFunctionalIssue(retryQuality);
+  const strictAdoption = process.env.QUALITY_LOOP_STRICT_ADOPTION !== 'false';
+  const structDelta = retryQuality.structuralScore - bestQuality.structuralScore;
+  const mobileDelta = retryQuality.mobileScore - bestQuality.mobileScore;
+  const codeImproved =
+    functionalIssueSolved ||
+    (strictAdoption
+      ? (structDelta > 0 && mobileDelta >= 0) || (mobileDelta > 0 && structDelta >= 0)
+      : structDelta > 0 || mobileDelta > 0);
+  const qcImproved =
+    retryQcReport && bestQcReport
+      ? retryQcReport.overallScore > bestQcReport.overallScore
+      : false;
+  return codeImproved || qcImproved;
+}
+
+async function runQcForRetry(
+  parsed: { html: string; css: string; js: string },
+  projectId: string,
+): Promise<QcReport | null> {
+  if (!isQcEnabled()) return null;
+  try {
+    const assembled = safeAssembleHtml(parsed, { projectId, phase: 'retry' });
+    if (!assembled) {
+      eventBus.emit({
+        type: 'STAGE_SKIPPED',
+        payload: { projectId, stage: 'stage3', reason: 'assembleHtml failed in retry — QC skipped, falling back to code-level scoring' },
+      });
+      return null;
+    }
+    return await runFastQc(assembled);
+  } catch (qcErr) {
+    logger.warn('runFastQc threw in quality loop retry — falling back to code-level scoring', {
+      projectId,
+      error: qcErr instanceof Error ? qcErr.message : String(qcErr),
+    });
+    return null;
+  }
+}
+
 /**
  * assembleHtml의 안전 래퍼. throw 대신 null 반환으로 호출자가 분기할 수 있게 함.
  * null 반환은 호출자가 QC 단계를 silent skip하는 통로가 될 수 있으므로 (정확도 회귀
@@ -138,6 +206,102 @@ function safeAssembleHtml(
       error: err instanceof Error ? err.message : String(err),
     });
     return null;
+  }
+}
+
+interface BestState {
+  parsed: { html: string; css: string; js: string };
+  quality: QualityMetrics;
+  qcReport: QcReport | null;
+  qualityLoopUsed: boolean;
+}
+
+/**
+ * AutoFix 단계를 실행해 best 상태를 업데이트한다.
+ * 반환값: 'resolved' — AutoFix만으로 품질 기준 통과 (LLM 불필요)
+ *          'partial'  — 일부 수정됐지만 LLM 재시도 필요
+ *          'none'     — AutoFix 적용 없음
+ */
+function applyAutoFixStep(
+  state: BestState,
+  projectId: string,
+  attempt: number,
+): 'resolved' | 'partial' | 'none' {
+  const autoFixResult = applyAutoFix(state.parsed);
+  if (autoFixResult.fixesApplied.length === 0) return 'none';
+
+  const autoFixedQuality = evaluateQuality(autoFixResult.html, autoFixResult.css, autoFixResult.js);
+  state.parsed = { html: autoFixResult.html, css: autoFixResult.css, js: autoFixResult.js };
+  state.quality = autoFixedQuality;
+
+  if (!shouldRetryGeneration(autoFixedQuality, state.qcReport)) {
+    state.qualityLoopUsed = true;
+    logger.info('AutoFix resolved quality issues — LLM retry skipped', {
+      projectId, attempt: attempt + 1, fixes: autoFixResult.fixesApplied,
+    });
+    return 'resolved';
+  }
+
+  // state.qcReport intentionally not re-run: autofix only changes text patterns
+  // (URLs, placeholder strings) — DOM structure is unchanged, QC delta meaningless.
+  logger.info('AutoFix partial fix — LLM retry still needed', {
+    projectId, attempt: attempt + 1, fixes: autoFixResult.fixesApplied,
+  });
+  return 'partial';
+}
+
+/**
+ * LLM 재시도 한 회를 실행해 best 상태를 업데이트한다.
+ * AI 호출 실패·빈 응답·채택 실패는 모두 조용히 처리한다.
+ */
+async function runLlmRetryIteration(
+  state: BestState,
+  options: {
+    systemPrompt: string;
+    userFeedback: string | undefined;
+    aiProvider: IAiProvider;
+    useET: boolean;
+    projectId: string;
+    attempt: number;
+  },
+): Promise<void> {
+  const { systemPrompt, userFeedback, aiProvider, useET, projectId, attempt } = options;
+  try {
+    const improvementPrompt = buildQualityImprovementPrompt(state.parsed, state.quality, state.qcReport, userFeedback);
+    const _loopVal = Number.parseInt(process.env.QUALITY_LOOP_ITERATION_TIMEOUT_MS ?? '', 10);
+    const iterationTimeoutMs = Number.isNaN(_loopVal) || _loopVal <= 0 ? 120_000 : _loopVal;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Quality loop iteration timed out after ${iterationTimeoutMs}ms`)),
+        iterationTimeoutMs,
+      )
+    );
+    const retryResponse = await Promise.race([
+      aiProvider.generateCode({ system: systemPrompt, user: improvementPrompt, extendedThinking: useET }),
+      timeoutPromise,
+    ]);
+    const retryParsed = parseGeneratedCode(retryResponse.content);
+
+    if (!retryParsed.html) {
+      logger.warn('Quality loop retry returned empty html — skipping adoption', {
+        projectId,
+        attempt: attempt + 1,
+        contentLength: retryResponse.content?.length ?? 0,
+      });
+      return;
+    }
+
+    const retryQuality = evaluateQuality(retryParsed.html, retryParsed.css, retryParsed.js);
+    const retryQcReport = await runQcForRetry(retryParsed, projectId);
+
+    if (shouldAdoptRetry(state.quality, retryQuality, state.qcReport, retryQcReport)) {
+      state.parsed = retryParsed;
+      state.quality = retryQuality;
+      if (retryQcReport) state.qcReport = retryQcReport;
+      state.qualityLoopUsed = true;
+    }
+  } catch (retryErr) {
+    logger.warn('Quality improvement retry failed', { projectId, retryErr });
   }
 }
 
@@ -166,53 +330,29 @@ export async function runQualityLoop(
   options: QualityLoopRunOptions,
 ): Promise<QualityLoopResult> {
   const { stage2SystemPrompt, stage2FunctionSystemPrompt, aiProvider, sse, useET, projectId, userFeedback } = options;
-  let bestParsed = initialParsed;
-  let bestQuality = initialQuality;
-  let bestQcReport = initialQcReport;
-  let qualityLoopUsed = false;
+  const state: BestState = {
+    parsed: initialParsed,
+    quality: initialQuality,
+    qcReport: initialQcReport,
+    qualityLoopUsed: false,
+  };
   let iterationsRun = 0;
 
-  const _maxIter = Number.parseInt(process.env.QUALITY_LOOP_MAX_ITERATIONS ?? '', 10);
-  const maxIterations = Number.isNaN(_maxIter) || _maxIter <= 0 ? 2 : Math.min(_maxIter, 3);
-  // progress 구간: 93부터 97까지 maxIterations 등분 (예: 2회→[93,97], 3회→[93,95,97])
-  const progressStep = maxIterations > 1 ? Math.floor(4 / (maxIterations - 1)) : 4;
-  const qualityLoopProgress = Array.from({ length: maxIterations }, (_, i) =>
-    i === maxIterations - 1 ? 97 : 93 + i * progressStep,
-  );
+  const maxIterations = resolveMaxIterations();
+  const qualityLoopProgress = buildProgressSchedule(maxIterations);
 
   for (let attempt = 0; attempt < maxIterations; attempt++) {
-    if (!shouldRetryGeneration(bestQuality, bestQcReport)) break;
+    if (!shouldRetryGeneration(state.quality, state.qcReport)) break;
 
     // AutoFix: deterministic rules before LLM retry — saves tokens when fixable
-    const autoFixResult = applyAutoFix(bestParsed);
-    if (autoFixResult.fixesApplied.length > 0) {
-      const autoFixedQuality = evaluateQuality(
-        autoFixResult.html, autoFixResult.css, autoFixResult.js,
-      );
-      if (!shouldRetryGeneration(autoFixedQuality, bestQcReport)) {
-        bestParsed = { html: autoFixResult.html, css: autoFixResult.css, js: autoFixResult.js };
-        bestQuality = autoFixedQuality;
-        qualityLoopUsed = true;
-        // bestQcReport intentionally not re-run: autofix rules only change text patterns
-        // (URLs, comments, placeholder strings) — DOM structure is unchanged.
-        logger.info('AutoFix resolved quality issues — LLM retry skipped', {
-          projectId, attempt: attempt + 1, fixes: autoFixResult.fixesApplied,
-        });
-        break;
-      }
-      // Partial fix: apply and use as base for LLM retry
-      bestParsed = { html: autoFixResult.html, css: autoFixResult.css, js: autoFixResult.js };
-      bestQuality = autoFixedQuality;
-      logger.info('AutoFix partial fix — LLM retry still needed', {
-        projectId, attempt: attempt + 1, fixes: autoFixResult.fixesApplied,
-      });
-    }
+    const autoFixOutcome = applyAutoFixStep(state, projectId, attempt);
+    if (autoFixOutcome === 'resolved') break;
 
     iterationsRun++;
 
     logger.info('Quality below threshold, attempting improvement', {
       projectId,
-      score: bestQuality.structuralScore,
+      score: state.quality.structuralScore,
       attempt: attempt + 1,
     });
 
@@ -223,110 +363,9 @@ export async function runQualityLoop(
 
     // Functional issues (no API call, proxy bypass, mock data, placeholders) use the
     // function-fix prompt; design/layout issues use the design polish prompt.
-    const isFunctionalIssue =
-      bestQuality.fetchCallCount === 0 ||
-      (!bestQuality.hasProxyCall && bestQuality.fetchCallCount > 0) ||
-      bestQuality.hardcodedArrayCount > 0 ||
-      bestQuality.placeholderCount > 0;
-    const iterationSystemPrompt = isFunctionalIssue ? stage2FunctionSystemPrompt : stage2SystemPrompt;
+    const systemPrompt = hasFunctionalIssue(state.quality) ? stage2FunctionSystemPrompt : stage2SystemPrompt;
 
-    try {
-      const improvementPrompt = buildQualityImprovementPrompt(bestParsed, bestQuality, bestQcReport, userFeedback);
-      const _loopVal = Number.parseInt(process.env.QUALITY_LOOP_ITERATION_TIMEOUT_MS ?? '', 10);
-      const iterationTimeoutMs = Number.isNaN(_loopVal) || _loopVal <= 0 ? 120_000 : _loopVal;
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(
-          () => reject(new Error(`Quality loop iteration timed out after ${iterationTimeoutMs}ms`)),
-          iterationTimeoutMs,
-        )
-      );
-      const retryResponse = await Promise.race([
-        aiProvider.generateCode({ system: iterationSystemPrompt, user: improvementPrompt, extendedThinking: useET }),
-        timeoutPromise,
-      ]);
-      const retryParsed = parseGeneratedCode(retryResponse.content);
-
-      if (!retryParsed.html) {
-        // AI가 비어있거나 파싱 불가능한 응답을 반환한 경우. 다음 시도로 넘어가기 전에
-        // 운영 가시성 확보를 위해 로그 — 빈 응답 빈도가 높으면 모델/프롬프트 점검 필요.
-        logger.warn('Quality loop retry returned empty html — skipping adoption', {
-          projectId,
-          attempt: attempt + 1,
-          contentLength: retryResponse.content?.length ?? 0,
-        });
-      }
-
-      if (retryParsed.html) {
-        const retryQuality = evaluateQuality(retryParsed.html, retryParsed.css, retryParsed.js);
-        let retryQcReport: QcReport | null = null;
-
-        if (isQcEnabled()) {
-          try {
-            const assembled = safeAssembleHtml(retryParsed, { projectId, phase: 'retry' });
-            if (assembled) {
-              retryQcReport = await runFastQc(assembled);
-            } else {
-              // assembled === null: safeAssembleHtml이 이미 logger.warn으로 기록함.
-              // 추가로 STAGE_SKIPPED 이벤트를 발행해 시계열 분석 가능하게.
-              eventBus.emit({
-                type: 'STAGE_SKIPPED',
-                payload: {
-                  projectId,
-                  stage: 'stage3',
-                  reason: 'assembleHtml failed in retry — QC skipped, falling back to code-level scoring',
-                },
-              });
-            }
-          } catch (qcErr) {
-            // QC 실패해도 코드 레벨 비교 진행 — 단, 운영 가시성을 위해 로그
-            logger.warn('runFastQc threw in quality loop retry — falling back to code-level scoring', {
-              projectId,
-              error: qcErr instanceof Error ? qcErr.message : String(qcErr),
-            });
-          }
-        }
-
-        // 채택 기준: 한쪽 점수만 올라도 채택하던 기존 OR 로직은 시소 진동(한쪽 향상 + 다른 쪽 회귀)을
-        // 허용해 누적 정확도를 떨어뜨릴 수 있다. AND 가드는 한 점수 향상 + 다른 점수 동등 이상일 때만 채택.
-        // QUALITY_LOOP_STRICT_ADOPTION=false (기본 true)로 신구 로직 토글 가능 — 운영 데이터 비교용.
-        const strictAdoption = process.env.QUALITY_LOOP_STRICT_ADOPTION !== 'false';
-        const structDelta = retryQuality.structuralScore - bestQuality.structuralScore;
-        const mobileDelta = retryQuality.mobileScore - bestQuality.mobileScore;
-
-        // 기능 이슈(proxy 미사용, fetch 없음, placeholder, hardcoded array)가 retry 코드에서
-        // 해결됐다면 점수 등락 무관하게 채택 — 기능 정확도가 점수보다 우선
-        const prevHadFunctionalIssue =
-          bestQuality.fetchCallCount === 0 ||
-          (!bestQuality.hasProxyCall && bestQuality.fetchCallCount > 0) ||
-          bestQuality.hardcodedArrayCount > 0 ||
-          bestQuality.placeholderCount > 0;
-        const retryHasFunctionalIssue =
-          retryQuality.fetchCallCount === 0 ||
-          (!retryQuality.hasProxyCall && retryQuality.fetchCallCount > 0) ||
-          retryQuality.hardcodedArrayCount > 0 ||
-          retryQuality.placeholderCount > 0;
-        const functionalIssueSolved = prevHadFunctionalIssue && !retryHasFunctionalIssue;
-
-        const codeImproved =
-          functionalIssueSolved ||
-          (strictAdoption
-            ? (structDelta > 0 && mobileDelta >= 0) || (mobileDelta > 0 && structDelta >= 0)
-            : structDelta > 0 || mobileDelta > 0);
-        const qcImproved =
-          retryQcReport && bestQcReport
-            ? retryQcReport.overallScore > bestQcReport.overallScore
-            : false;
-
-        if (codeImproved || qcImproved) {
-          bestParsed = retryParsed;
-          bestQuality = retryQuality;
-          if (retryQcReport) bestQcReport = retryQcReport;
-          qualityLoopUsed = true;
-        }
-      }
-    } catch (retryErr) {
-      logger.warn('Quality improvement retry failed', { projectId, retryErr });
-    }
+    await runLlmRetryIteration(state, { systemPrompt, userFeedback, aiProvider, useET, projectId, attempt });
   }
 
   eventBus.emit({
@@ -334,11 +373,11 @@ export async function runQualityLoop(
     payload: {
       projectId,
       iterations: iterationsRun,
-      improved: qualityLoopUsed,
-      finalStructuralScore: bestQuality.structuralScore,
-      finalMobileScore: bestQuality.mobileScore,
+      improved: state.qualityLoopUsed,
+      finalStructuralScore: state.quality.structuralScore,
+      finalMobileScore: state.quality.mobileScore,
     },
   });
 
-  return { parsed: bestParsed, quality: bestQuality, qcReport: bestQcReport, qualityLoopUsed };
+  return { parsed: state.parsed, quality: state.quality, qcReport: state.qcReport, qualityLoopUsed: state.qualityLoopUsed };
 }
