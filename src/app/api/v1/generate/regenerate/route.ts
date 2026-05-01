@@ -31,6 +31,8 @@ import { runGenerationPipeline } from '@/lib/ai/generationPipeline';
 import { generationTracker } from '@/lib/ai/generationTracker';
 
 export async function POST(request: Request): Promise<Response> {
+  let pendingDecrement: (() => Promise<void>) | undefined;
+
   try {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
@@ -53,6 +55,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const rateLimitService = createRateLimitService(supabase);
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
+    pendingDecrement = () => rateLimitService.decrementDailyLimit(user.id);
 
     const projectService = createProjectService(supabase);
     const [project, apiIds] = await Promise.all([
@@ -139,6 +142,7 @@ export async function POST(request: Request): Promise<Response> {
       },
     });
   } catch (error) {
+    await pendingDecrement?.().catch(() => {});
     return handleApiError(error);
   }
 }
