@@ -132,12 +132,12 @@ interface DataBindingResult {
   details: string[];
 }
 
-export function evaluateDataBinding(js: string, combinedCode: string, fullCode: string): DataBindingResult {
+export function evaluateDataBinding(js: string, combinedCode: string, _fullCode?: string): DataBindingResult {
   const fetchCallCount = (js.match(/\bfetch\s*\(/g) ?? []).length;
   const hasProxyCall = /\/api\/v1\/proxy/.test(js);
   const hasJsonParse = /\.json\(\)|JSON\.parse\s*\(/.test(js);
   const hrefPlaceholderCount = [...combinedCode.matchAll(/href\s*=\s*["']#["']/g)].length;
-  const placeholderCount = [...fullCode.matchAll(createPlaceholderRegex())].length + hrefPlaceholderCount;
+  const placeholderCount = [...combinedCode.matchAll(createPlaceholderRegex())].length + hrefPlaceholderCount;
   const hardcodedArrayCount = (combinedCode.match(
     /const\s+[A-Z]?\w+\s*=\s*\[\s*\{[\s\S]*?\}\s*(,\s*\{[\s\S]*?\}\s*)?\]/gm
   ) ?? []).length;
@@ -159,7 +159,7 @@ interface StructureResult {
   details: string[];
 }
 
-export function evaluateStructure(html: string, fullCode: string): StructureResult {
+export function evaluateStructure(html: string, combinedCode: string): StructureResult {
   const semanticTags = ['<main', '<nav', '<footer', '<section', '<article'];
   const semanticCount = semanticTags.filter((tag) => html.includes(tag)).length;
   const hasSemanticHtml = semanticCount >= 2;
@@ -167,9 +167,9 @@ export function evaluateStructure(html: string, fullCode: string): StructureResu
   const imgTags = html.match(/<img\s[^>]*>/gi) ?? [];
   const imgsWithAlt = imgTags.filter((tag) => /\balt\s*=/i.test(tag)).length;
   const hasImgAlt = imgTags.length === 0 || imgsWithAlt >= imgTags.length * 0.7;
-  const hasTransitions = /transition|animate|animation/i.test(fullCode);
-  const hasKorean = /[가-힯]/.test(fullCode);
-  const hasGridOrFlex = /grid-cols|flex\s|flex-|display:\s*flex|display:\s*grid/i.test(fullCode);
+  const hasTransitions = /transition|animate|animation/i.test(combinedCode);
+  const hasKorean = /[가-힯]/.test(combinedCode);
+  const hasGridOrFlex = /grid-cols|flex\s|flex-|display:\s*flex|display:\s*grid/i.test(combinedCode);
 
   let score = 0;
   const details: string[] = [];
@@ -239,12 +239,11 @@ export function evaluateMobileResponsiveness(html: string, fullCode: string): Mo
  */
 export function evaluateQuality(html: string, _css: string, js: string): QualityMetrics {
   const combinedCode = `${html}\n${js}`;
-  const fullCode = combinedCode;
 
-  const data = evaluateDataBinding(js, combinedCode, fullCode);
-  const structure = evaluateStructure(html, fullCode);
+  const data = evaluateDataBinding(js, combinedCode);
+  const structure = evaluateStructure(html, combinedCode);
   const interactivity = evaluateInteractivity(js);
-  const mobile = evaluateMobileResponsiveness(html, fullCode);
+  const mobile = evaluateMobileResponsiveness(html, combinedCode);
 
   const score = data.score + structure.score + interactivity.score + mobile.score;
   const details = [...data.details, ...structure.details, ...interactivity.details, ...mobile.details];
