@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { parseGeneratedCode, assembleHtml } from './codeParser';
+import {
+  parseGeneratedCode, assembleHtml, sanitizeCss,
+  ensureCharset, ensureViewport, injectCdnTags, injectAlpineScript,
+} from './codeParser';
 
 // Minimal fixtures that satisfy MIN_CODE_LENGTHS (html≥50, css≥20, js≥10)
 const MIN_HTML = '<!DOCTYPE html><html><head></head><body><h1>Hello World</h1></body></html>';
@@ -299,5 +302,50 @@ describe('assembleHtml', () => {
     const result = assembleHtml({ html, css: '', js: '' });
     expect(result).not.toContain('evil.com');
     expect(result).toContain('cdn.tailwindcss.com');
+  });
+});
+
+describe('ensureCharset', () => {
+  it('charset 이미 있으면 변경 없음', () => {
+    const html = '<html><head><meta charset="UTF-8"></head><body></body></html>';
+    expect(ensureCharset(html)).toBe(html);
+  });
+  it('charset 없으면 <head> 뒤에 삽입', () => {
+    const html = '<html><head></head><body></body></html>';
+    expect(ensureCharset(html)).toContain('<meta charset="UTF-8">');
+  });
+});
+
+describe('ensureViewport', () => {
+  it('viewport 이미 있으면 변경 없음', () => {
+    const html = '<html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head></html>';
+    expect(ensureViewport(html)).toBe(html);
+  });
+  it('viewport 없으면 charset 뒤에 삽입', () => {
+    const html = '<html><head><meta charset="UTF-8"></head><body></body></html>';
+    expect(ensureViewport(html)).toContain('viewport');
+  });
+});
+
+describe('injectCdnTags', () => {
+  it('</head> 바로 앞에 Tailwind CDN 주입', () => {
+    const html = '<html><head></head><body></body></html>';
+    expect(injectCdnTags(html)).toContain('cdn.tailwindcss.com');
+  });
+  it('Pretendard 폰트도 주입', () => {
+    const html = '<html><head></head><body></body></html>';
+    expect(injectCdnTags(html)).toContain('pretendard');
+  });
+});
+
+describe('injectAlpineScript', () => {
+  it('alpinejs 없으면 주입', () => {
+    const html = '<html><head></head><body></body></html>';
+    expect(injectAlpineScript(html)).toContain('alpinejs');
+  });
+  it('alpinejs 이미 있으면 그대로', () => {
+    const html = '<html><head><script src="alpinejs"></script></head><body></body></html>';
+    const result = injectAlpineScript(html);
+    expect((result.match(/alpinejs/g) ?? []).length).toBe(1);
   });
 });
