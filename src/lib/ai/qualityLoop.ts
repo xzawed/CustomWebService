@@ -13,6 +13,13 @@ import { applyAutoFix } from '@/lib/ai/autoFix';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import type { SseWriter } from '@/lib/ai/sseWriter';
 
+/**
+ * Returns true when the generated code has functional issues that require a retry.
+ * - fetchCallCount === 0: no API call at all — must fetch real data
+ * - placeholderCount > 0: template placeholders leaked into output (홍길동, 준비 중, etc.)
+ * - !hasProxyCall && fetchCallCount > 0: direct external fetch bypasses /api/v1/proxy → CORS failure at runtime
+ * - hardcodedArrayCount > 0: mock data arrays present instead of real API calls
+ */
 export function hasFunctionalIssue(metrics: QualityMetrics): boolean {
   return (
     metrics.fetchCallCount === 0 ||
