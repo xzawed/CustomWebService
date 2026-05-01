@@ -9,6 +9,7 @@ import { generationTracker } from '@/lib/ai/generationTracker';
 import { logger } from '@/lib/utils/logger';
 import { eventBus } from '@/lib/events/eventBus';
 import { getPlaceholderBlocklistText } from '@/lib/ai/placeholderPatterns';
+import { applyAutoFix } from '@/lib/ai/autoFix';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import type { SseWriter } from '@/lib/ai/sseWriter';
 
@@ -181,6 +182,32 @@ export async function runQualityLoop(
 
   for (let attempt = 0; attempt < maxIterations; attempt++) {
     if (!shouldRetryGeneration(bestQuality, bestQcReport)) break;
+
+    // AutoFix: deterministic rules before LLM retry — saves tokens when fixable
+    const autoFixResult = applyAutoFix(bestParsed);
+    if (autoFixResult.fixesApplied.length > 0) {
+      const autoFixedQuality = evaluateQuality(
+        autoFixResult.html, autoFixResult.css, autoFixResult.js,
+      );
+      if (!shouldRetryGeneration(autoFixedQuality, bestQcReport)) {
+        bestParsed = { html: autoFixResult.html, css: autoFixResult.css, js: autoFixResult.js };
+        bestQuality = autoFixedQuality;
+        qualityLoopUsed = true;
+        // bestQcReport intentionally not re-run: autofix rules only change text patterns
+        // (URLs, comments, placeholder strings) — DOM structure is unchanged.
+        logger.info('AutoFix resolved quality issues — LLM retry skipped', {
+          projectId, attempt: attempt + 1, fixes: autoFixResult.fixesApplied,
+        });
+        break;
+      }
+      // Partial fix: apply and use as base for LLM retry
+      bestParsed = { html: autoFixResult.html, css: autoFixResult.css, js: autoFixResult.js };
+      bestQuality = autoFixedQuality;
+      logger.info('AutoFix partial fix — LLM retry still needed', {
+        projectId, attempt: attempt + 1, fixes: autoFixResult.fixesApplied,
+      });
+    }
+
     iterationsRun++;
 
     logger.info('Quality below threshold, attempting improvement', {

@@ -62,6 +62,27 @@ describe('buildStage1SystemPrompt', () => {
     expect(prompt).toContain('터치 UI');
     expect(prompt).toContain('44px');
   });
+
+  it('CoT 5단계 자가검증 섹션이 포함된다', () => {
+    const prompt = buildStage1SystemPrompt();
+    expect(prompt).toContain('자가검증 5단계');
+    expect(prompt).toContain('①단계');
+    expect(prompt).toContain('②단계');
+    expect(prompt).toContain('③단계');
+    expect(prompt).toContain('④단계');
+    expect(prompt).toContain('⑤단계');
+  });
+
+  it('CoT 자가검증에 /api/v1/proxy 검증 항목이 포함된다', () => {
+    const prompt = buildStage1SystemPrompt();
+    expect(prompt).toContain('/api/v1/proxy');
+  });
+
+  it('CoT 자가검증에 placeholder blocklist 항목이 포함된다', () => {
+    const prompt = buildStage1SystemPrompt();
+    const matches = (prompt.match(/홍길동/g) ?? []).length;
+    expect(matches).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe('buildStage1UserPrompt', () => {
