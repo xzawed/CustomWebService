@@ -41,6 +41,20 @@
 
 ---
 
+## 개발자 제공 API 키 (플랫폼 공유 키)
+
+플랫폼 개발자가 직접 발급·등록하는 API 키. 사용자는 별도 등록 없이 사용 가능.
+
+| 변수 | 필수 | Railway | 설명 |
+|------|------|---------|------|
+| `DATA_GO_KR_API_KEY` | 선택 | ❌ | 한국 공공데이터 포털(data.go.kr) API 키. 공휴일 정보·기상청 단기/중기예보·아파트 실거래가 공유 사용. [data.go.kr](https://data.go.kr) 가입 후 각 API 활용신청(공휴일은 자동승인, 나머지 1~3일). 개발계정 10,000건/일. |
+| `KAKAO_REST_API_KEY` | 선택 | ❌ | 카카오 REST API 키. 카카오 로컬(지도·장소검색)·카카오 검색 공유 사용. [developers.kakao.com](https://developers.kakao.com) 앱 생성 후 REST API 키 발급. 서버사이드 단일키 패턴 공식 지원. 로컬 100,000건/일, 검색 50,000건/일. |
+| `UNSPLASH_ACCESS_KEY` | 선택 | ❌ | Unsplash 사진 API 접근 키. [unsplash.com/developers](https://unsplash.com/developers) 앱 등록 후 발급. **Demo: 50건/시간 → Production 심사 후 1,000건/시간.** Unsplash 공식 단일키 프록시 패턴 권장. **사진가 Attribution(이름+링크) 자동 삽입 구현 필수.** |
+
+> **Open-Meteo** (날씨 API, UUID: `a3f8d2e1-7c4b-4a9f-b6e5-1d2c3f4e5a6b`)는 키 불필요 — 환경변수 등록 없이 즉시 사용 가능. 단, 비상업적 전용(CC BY 4.0): 플랫폼에 광고·구독 없을 때만 사용 가능.
+
+---
+
 ## 배포
 
 | 변수 | 필수 | Railway | 설명 |
