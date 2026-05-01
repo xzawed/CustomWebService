@@ -42,6 +42,7 @@ function makeHighQualityMetrics(overrides: Partial<QualityMetrics> = {}): Qualit
     hasJsonParse: true,
     placeholderCount: 0,
     hardcodedArrayCount: 0,
+    hasTailwindCdn: true,
     details: [],
     ...overrides,
   };

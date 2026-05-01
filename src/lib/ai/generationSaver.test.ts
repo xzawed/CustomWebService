@@ -153,6 +153,7 @@ const mockQuality: QualityMetrics = {
   hasJsonParse: false,
   placeholderCount: 0,
   hardcodedArrayCount: 0,
+  hasTailwindCdn: true,
   details: [],
 };
 
