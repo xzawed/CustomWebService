@@ -342,7 +342,7 @@ data: {"message": "코드 생성에 실패했습니다."}
 | `generating` | 진행 중 (progress, message 포함) |
 | `completed` | 완료 (result.version 포함, 또는 tracker miss 시 DB에서 코드 존재 확인) |
 | `failed` | 실패 (error 메시지 포함) |
-| `not_found` | 해당 프로젝트 생성 기록 없음 (tracker + DB 모두 미존재) |
+| `not_found` | 해당 프로젝트 생성 기록 없음 (tracker + DB 모두 미존재). **소유권 불일치 시에도 `not_found` 반환** — 보안 목적 정보 노출 방지 |
 
 | 상태코드 | 설명 |
 |---------|------|

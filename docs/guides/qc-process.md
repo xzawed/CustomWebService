@@ -163,7 +163,7 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 | 보안/품질 검증 | `src/lib/ai/codeValidator.ts` |
 | 품질 루프/재시도 | `src/lib/ai/qualityLoop.ts` |
 | 브라우저 풀 | `src/lib/qc/browserPool.ts` |
-| 체크 함수 8개 | `src/lib/qc/qcChecks.ts` |
+| 체크 함수 12개 | `src/lib/qc/qcChecks.ts` |
 | Fast/Deep QC 오케스트레이터 | `src/lib/qc/renderingQc.ts` |
 | 생성 파이프라인 | `src/app/api/v1/generate/route.ts` |
 | 재생성 파이프라인 | `src/app/api/v1/generate/regenerate/route.ts` |
@@ -206,3 +206,4 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 | 2026-04-14 | 품질 대개편: API 바인딩 메트릭 추가(fetchCallCount/hasProxyCall/hasJsonParse/placeholderCount), Fast QC +1 체크(placeholder), Deep QC +3 체크(인터랙티브/네트워크/로딩), 최대 재생성 2→3회 |
 | 2026-04-15 | 버그 수정: "Stage" → "Step" 용어 통일 (생성 파이프라인의 Stage 1/2/3과 혼동 방지), ENABLE_RENDERING_QC Railway 활성화 |
 | 2026-04-16 | Dockerfile 가이드 수정 — node:20-slim + playwright install → node:20-alpine + apk add chromium (실제 Dockerfile 반영) |
+| 2026-05-01 | 보안·품질 강화: browserPool 세마포어 음수 카운터 버그 수정(H3 — `resolve(false)` 로 연결 크래시 시 대기자 오획득 방지), qcChecks.ts `checkInteractiveBehavior` 순차 실행 전환(M4 — 공유 Page 뷰포트 경합 방지), renderingQc.ts Pool 미획득 시 `throw` 로 명시적 실패 처리(M5 — 빈 통과 리포트 반환 제거) |

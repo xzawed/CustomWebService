@@ -37,7 +37,7 @@
 | `ANTHROPIC_API_KEY` | ✅ | ✅ | Claude API 키 |
 | `AI_MODEL_SUGGESTION` | 선택 | ➖ | 컨텍스트 추천용 모델 (기본: `claude-haiku-4-5`). 허용값: `claude-haiku-4-5` · `claude-sonnet-4-6` · `claude-opus-4-6` · `claude-opus-4-7` |
 | `AI_MODEL_GENERATION` | 선택 | ➖ | 코드 생성용 모델 (기본: `claude-opus-4-7`). 허용값 동일. **주의**: 날짜 suffix 포함 ID(예: `claude-haiku-4-5-20251001`)는 Anthropic 404 반환 |
-| `ET_COMPLEXITY_THRESHOLD` | 선택 | ➖ | Extended Thinking 활성화 복잡도 임계값 (기본: `35`). 0-100 점수 중 이 값 이상이면 ET 활성화 |
+| `ET_COMPLEXITY_THRESHOLD` | 선택 | ➖ | Extended Thinking 활성화 복잡도 임계값 (기본: `35`). 0-100 점수 중 이 값 이상이면 ET 활성화. **빈 문자열 또는 0 이하 값 설정 시 기본값 35로 폴백** |
 
 ---
 
@@ -55,7 +55,7 @@
 
 | 변수 | 필수 | Railway | 설명 |
 |------|------|---------|------|
-| `ENCRYPTION_KEY` | ✅ | ✅ | 사용자 API 키 AES-256-GCM 암호화 키 (32자 이상) |
+| `ENCRYPTION_KEY` | ✅ | ✅ | 사용자 API 키 AES-256-GCM 암호화 키. **정확히 32바이트 권장**; 32바이트 미만 시 시작 오류, 초과 시 경고 로그 후 첫 32바이트만 사용 (`openssl rand -base64 24` → 32바이트 안전 생성) |
 | `ADMIN_API_KEY` | ✅ | ✅ | 관리자 API 인증 (`/api/v1/admin/*`) |
 
 ---
@@ -101,8 +101,10 @@
 | 변수 | 기본값 | Railway | 설명 |
 |------|--------|---------|------|
 | `ENABLE_RENDERING_QC` | `false` | ❌ | Playwright 렌더링 QC 활성화 |
-| `QUALITY_LOOP_ITERATION_TIMEOUT_MS` | `120000` | ➖ | 품질 루프 반복당 타임아웃 (ms). 단일 반복에서 AI 응답 없을 시 해당 반복 스킵 |
+| `QUALITY_LOOP_ITERATION_TIMEOUT_MS` | `120000` | ➖ | 품질 루프 반복당 타임아웃 (ms). 단일 반복에서 AI 응답 없을 시 해당 반복 스킵. **빈 문자열 또는 0 이하 값 설정 시 기본값 120000으로 폴백** |
 | `QUALITY_LOOP_STRICT_ADOPTION` | `true` | ➖ | 채택 가드: `true`(기본)는 한 점수 향상 + 다른 점수 동등 이상일 때만 retry 채택(시소 진동 방지). `false`로 설정 시 기존 OR 로직(한쪽 향상) 복원 — 운영 데이터 비교용 롤백 스위치 |
+| `QC_QUALITY_THRESHOLD` | `60` | ➖ | 정적 QC 구조 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
+| `QC_MOBILE_THRESHOLD` | `60` | ➖ | 정적 QC 모바일 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
 
 ---
 

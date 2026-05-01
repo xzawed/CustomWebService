@@ -351,6 +351,8 @@ Avoid: [제외할 요소]
 | `generationSaver.ts` | DB 저장, slug 제안(fire-and-forget), 버전 정리, Deep QC, 상태 갱신, SSE complete |
 | `qualityLoop.ts` | `shouldRetryGeneration()` + `runQualityLoop()` (최대 3회, best-of-n 반환, 반복당 타임아웃 `QUALITY_LOOP_ITERATION_TIMEOUT_MS` 기본 120초) |
 | `generationTracker.ts` | 서버 메모리 진행 상태 싱글톤 (모바일 폴링 fallback용) |
+| `featureExtractor.ts` | API 이름 배열로 기능 명세(feature spec) 추출 — Stage 1 컨텍스트 보강용. `ANTHROPIC_API_KEY` 미설정 시 FALLBACK_SPEC 반환, 30초 타임아웃 |
+| `preferencesRecommender.ts` | 사용자 API 선택 기반 UI 설정 추천 — 레이아웃·색상·컴포넌트 패턴 반환. `ANTHROPIC_API_KEY` 미설정 시 FALLBACK_RESULT 반환, 30초 타임아웃 |
 
 `handlePipelineFailure()` (generationPipeline.ts 내부): Rate Limit 복구, 실패 이벤트 발행(`eventBus.emit`), Tracker 실패 표시  
 **Stage 3 fallback**: Stage 3 AI 호출 실패 시 Stage 2 결과로 폴백하며 `STAGE3_FALLBACK_USED` 이벤트 발행 → `platform_events` 테이블 자동 기록 (빈도 추적 용도)

@@ -20,7 +20,7 @@
        ──────────────────
 ```
 
-**총 100개 Vitest 파일, 1,220개 테스트 + 3개 Playwright E2E 파일**
+**총 100개 Vitest 파일, 1,409개 테스트 + 3개 Playwright E2E 파일**
 
 ### 핵심 원칙
 
@@ -362,7 +362,7 @@ lint (ESLint)
   ↓
 type-check (tsc --noEmit)
   ↓
-test (pnpm test — 1,220개)
+test (pnpm test — 1,409개)
   ↓
 커버리지 업로드 (Codecov + SonarCloud)
   ↓

@@ -76,6 +76,8 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" "https://xzawed.xyz/api/v1/health
 
 **현재 상태**: ENCRYPTION_KEY 회전은 마이그레이션 스크립트 구현 전까지 보류.
 
+> **키 길이 주의**: `openssl rand -hex 32`는 64바이트 hex 문자열을 생성합니다 — 서버 시작 시 경고 로그 발생 후 첫 32바이트만 사용됩니다. 정확히 32바이트 키 생성은 `openssl rand -base64 24`(base64 인코딩 32자) 또는 `python3 -c "import secrets; print(secrets.token_bytes(32).hex()[:32])"` 사용을 권장합니다.
+
 ---
 
 ## 정기 시크릿 회전 일정 (분기 1회)
