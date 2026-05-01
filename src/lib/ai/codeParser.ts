@@ -292,10 +292,7 @@ ${FONT_AWESOME_CDN_TAG}
 ${alpineScript}</head>
 <body>
 ${safeHtml}
-  <script>
-${js}
-  </script>
-</body>
+${js ? `  <script>\n${js}\n  </script>\n` : ''}</body>
 </html>`;
 
   return optimizeImages(doc);
