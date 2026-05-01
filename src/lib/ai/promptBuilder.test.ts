@@ -227,3 +227,15 @@ describe('buildStage2FunctionUserPrompt', () => {
     expect(prompt).toContain('placeholder 감지: 준비 중');
   });
 });
+
+import { buildStage2FunctionRegenerationUserPrompt } from './promptBuilder';
+
+describe('buildStage2FunctionRegenerationUserPrompt', () => {
+  it('buildStage2FunctionUserPrompt 결과에 사용자 피드백 섹션을 추가한다', () => {
+    const code = { html: '<html>', css: '', js: '' };
+    const feedback = '버튼 클릭 시 데이터를 새로 불러와야 합니다';
+    const prompt = buildStage2FunctionRegenerationUserPrompt(code, [], null, feedback);
+    expect(prompt).toContain('사용자 피드백');
+    expect(prompt).toContain(feedback);
+  });
+});
