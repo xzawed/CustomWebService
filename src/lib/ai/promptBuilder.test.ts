@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { buildStage1SystemPrompt, buildStage1UserPrompt, buildStage1RegenerationUserPrompt, clearPromptCache } from './promptBuilder';
+import { buildStage1SystemPrompt, buildStage1UserPrompt, buildStage1RegenerationUserPrompt, clearPromptCache, buildStage2FunctionSystemPrompt, buildStage2FunctionUserPrompt, buildStage2FunctionRegenerationUserPrompt } from './promptBuilder';
 import type { ApiCatalogItem } from '@/types/api';
 
 beforeEach(() => {
@@ -126,6 +126,23 @@ describe('buildStage1UserPrompt', () => {
     const prompt = buildStage1UserPrompt([mockApi], '날씨 대시보드');
     expect(prompt).toContain('허용되는 UI 섹션');
   });
+
+  it('designPreferences가 non-auto 값이면 분위기·대상·레이아웃이 포함된다', () => {
+    const prefs = { mood: 'dark' as const, audience: 'business' as const, layoutPreference: 'dashboard' as const };
+    const prompt = buildStage1UserPrompt([mockApi], '비즈니스 대시보드', undefined, prefs);
+    expect(prompt).toContain('분위기');
+    expect(prompt).toContain('dark');
+    expect(prompt).toContain('business');
+    expect(prompt).toContain('dashboard');
+  });
+
+  it('designPreferences가 auto/general 값이면 해당 항목이 포함되지 않는다', () => {
+    const prefs = { mood: 'auto' as const, audience: 'general' as const, layoutPreference: 'auto' as const };
+    const prompt = buildStage1UserPrompt([mockApi], '서비스', undefined, prefs);
+    expect(prompt).not.toContain('- 분위기:');
+    expect(prompt).not.toContain('- 대상 고객:');
+    expect(prompt).not.toContain('- 레이아웃:');
+  });
 });
 
 describe('buildStage1RegenerationUserPrompt', () => {
@@ -202,8 +219,6 @@ describe('buildStage1UserPrompt — exampleCall injection', () => {
   });
 });
 
-import { buildStage2FunctionSystemPrompt, buildStage2FunctionUserPrompt } from './promptBuilder';
-
 describe('buildStage2FunctionSystemPrompt', () => {
   it('instructs JS-only fixes', () => {
     const prompt = buildStage2FunctionSystemPrompt();
@@ -226,9 +241,14 @@ describe('buildStage2FunctionUserPrompt', () => {
     expect(prompt).toContain('fetch 호출이 없습니다');
     expect(prompt).toContain('placeholder 감지: 준비 중');
   });
-});
 
-import { buildStage2FunctionRegenerationUserPrompt } from './promptBuilder';
+  it('이슈 없음 시 "문제 없음" 섹션을 반환한다', () => {
+    const code = { html: '<html>', css: '', js: '' };
+    const prompt = buildStage2FunctionUserPrompt(code, [], null);
+    expect(prompt).toContain('문제 없음');
+    expect(prompt).toContain('코드를 그대로 반환');
+  });
+});
 
 describe('buildStage2FunctionRegenerationUserPrompt', () => {
   it('buildStage2FunctionUserPrompt 결과에 사용자 피드백 섹션을 추가한다', () => {
