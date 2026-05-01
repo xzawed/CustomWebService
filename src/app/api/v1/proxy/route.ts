@@ -158,6 +158,8 @@ async function buildSafeTargetUrl(
   api: { baseUrl: string },
   proxyPath: string,
 ): Promise<URL | Response> {
+  const allowedHost = new URL(api.baseUrl).hostname;
+
   let targetUrl: URL;
   try {
     const path = proxyPath.startsWith('/') ? proxyPath : `/${proxyPath}`;
@@ -166,11 +168,14 @@ async function buildSafeTargetUrl(
     return error400('유효하지 않은 경로입니다.');
   }
 
-  const allowedHost = new URL(api.baseUrl).hostname;
+  // Enforce same host as registered base URL and block private networks
   if (targetUrl.hostname !== allowedHost || isPrivateHost(targetUrl.hostname)) {
     return errorResponse(403, 'FORBIDDEN', '허용되지 않은 대상입니다.');
   }
 
+  // DNS rebinding defense: resolve hostname and verify the resolved IP is not private.
+  // Prevents an attacker from registering a public hostname that later DNS-rebinds to
+  // an internal address (e.g. 169.254.169.254 AWS metadata service).
   try {
     const { address: resolvedIp } = await dns.lookup(allowedHost, { verbatim: false });
     if (isPrivateHost(resolvedIp)) {
