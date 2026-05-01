@@ -29,7 +29,17 @@ export async function GET(
       const codeRepo = createCodeRepository(supabase);
       const latestCode = await codeRepo.findByProject(projectId);
       if (latestCode) {
-        return Response.json({ success: true, data: { status: 'completed' } });
+        return Response.json({
+          success: true,
+          data: {
+            status: 'completed',
+            result: {
+              projectId,
+              version: latestCode.version,
+              previewUrl: `/api/v1/preview/${projectId}`,
+            },
+          },
+        });
       }
       return Response.json({ success: true, data: { status: 'not_found' } });
     }
