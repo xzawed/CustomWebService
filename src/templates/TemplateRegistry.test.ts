@@ -51,4 +51,46 @@ describe('templateRegistry', () => {
     expect(output.html).toContain('lightbox');
     expect(output.css).toContain('column-count');
   });
+
+  it('gallery generate — authType이 none이 아닐 때 프록시 URL을 생성한다', () => {
+    const authApi = {
+      ...sampleApi,
+      id: 'img-api-id',
+      authType: 'api_key',
+      endpoints: [{ path: '/photos', method: 'GET' }],
+    } as unknown as ApiCatalogItem;
+    const gallery = templateRegistry.get('gallery');
+    const output = gallery!.generate({
+      apis: [authApi],
+      userContext: '사진 갤러리',
+      templateId: 'gallery',
+    });
+    expect(output.js).toContain('/api/v1/proxy?apiId=img-api-id');
+    expect(output.js).toContain('proxyPath=');
+  });
+
+  it('gallery generate — responseDataPath가 있을 때 경로를 삽입한다', () => {
+    const dataPathApi = {
+      ...sampleApi,
+      endpoints: [{ path: '/search', method: 'GET', responseDataPath: 'photos.results' }],
+    } as unknown as ApiCatalogItem;
+    const gallery = templateRegistry.get('gallery');
+    const output = gallery!.generate({
+      apis: [dataPathApi],
+      userContext: '검색 갤러리',
+      templateId: 'gallery',
+    });
+    expect(output.js).toContain('photos.results');
+  });
+
+  it('gallery matchScore — apis가 빈 배열이면 0을 반환한다', () => {
+    const gallery = templateRegistry.get('gallery')!;
+    expect(gallery.matchScore([])).toBe(0);
+  });
+
+  it('gallery matchScore — gallery 카테고리 API는 높은 점수를 반환한다', () => {
+    const galleryApi = { ...sampleApi, category: 'image', name: 'Photo API' } as unknown as ApiCatalogItem;
+    const gallery = templateRegistry.get('gallery')!;
+    expect(gallery.matchScore([galleryApi])).toBeGreaterThan(0);
+  });
 });
