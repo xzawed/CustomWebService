@@ -13,6 +13,15 @@ import { applyAutoFix } from '@/lib/ai/autoFix';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import type { SseWriter } from '@/lib/ai/sseWriter';
 
+export function hasFunctionalIssue(metrics: QualityMetrics): boolean {
+  return (
+    metrics.fetchCallCount === 0 ||
+    metrics.placeholderCount > 0 ||
+    (!metrics.hasProxyCall && metrics.fetchCallCount > 0) ||
+    metrics.hardcodedArrayCount > 0
+  );
+}
+
 export function shouldRetryGeneration(
   metrics: QualityMetrics,
   qcReport?: QcReport | null
@@ -29,13 +38,7 @@ export function shouldRetryGeneration(
     if (footerCheck && !footerCheck.passed) return true;
     if (overlapCheck && !overlapCheck.passed) return true;
   }
-  // New: retry if no fetch calls or placeholder strings present
-  if (metrics.fetchCallCount === 0) return true;
-  if (metrics.placeholderCount > 0) return true;
-  // Retry if fetch calls exist but none use the proxy (likely CORS-failing direct API calls)
-  if (!metrics.hasProxyCall && metrics.fetchCallCount > 0) return true;
-  // Retry if hardcoded array data is present (mock data instead of real API calls)
-  if (metrics.hardcodedArrayCount > 0) return true;
+  if (hasFunctionalIssue(metrics)) return true;
   return false;
 }
 
@@ -223,11 +226,7 @@ export async function runQualityLoop(
 
     // Functional issues (no API call, proxy bypass, mock data, placeholders) use the
     // function-fix prompt; design/layout issues use the design polish prompt.
-    const isFunctionalIssue =
-      bestQuality.fetchCallCount === 0 ||
-      (!bestQuality.hasProxyCall && bestQuality.fetchCallCount > 0) ||
-      bestQuality.hardcodedArrayCount > 0 ||
-      bestQuality.placeholderCount > 0;
+    const isFunctionalIssue = hasFunctionalIssue(bestQuality);
     const iterationSystemPrompt = isFunctionalIssue ? stage2FunctionSystemPrompt : stage2SystemPrompt;
 
     try {
@@ -295,16 +294,8 @@ export async function runQualityLoop(
 
         // 기능 이슈(proxy 미사용, fetch 없음, placeholder, hardcoded array)가 retry 코드에서
         // 해결됐다면 점수 등락 무관하게 채택 — 기능 정확도가 점수보다 우선
-        const prevHadFunctionalIssue =
-          bestQuality.fetchCallCount === 0 ||
-          (!bestQuality.hasProxyCall && bestQuality.fetchCallCount > 0) ||
-          bestQuality.hardcodedArrayCount > 0 ||
-          bestQuality.placeholderCount > 0;
-        const retryHasFunctionalIssue =
-          retryQuality.fetchCallCount === 0 ||
-          (!retryQuality.hasProxyCall && retryQuality.fetchCallCount > 0) ||
-          retryQuality.hardcodedArrayCount > 0 ||
-          retryQuality.placeholderCount > 0;
+        const prevHadFunctionalIssue = hasFunctionalIssue(bestQuality);
+        const retryHasFunctionalIssue = hasFunctionalIssue(retryQuality);
         const functionalIssueSolved = prevHadFunctionalIssue && !retryHasFunctionalIssue;
 
         const codeImproved =

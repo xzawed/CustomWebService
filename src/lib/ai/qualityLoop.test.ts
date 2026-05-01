@@ -4,7 +4,7 @@ vi.mock('@/lib/events/eventBus', () => ({
   eventBus: { emit: vi.fn() },
 }));
 
-import { shouldRetryGeneration, buildQualityImprovementPrompt, runQualityLoop } from './qualityLoop';
+import { shouldRetryGeneration, buildQualityImprovementPrompt, runQualityLoop, hasFunctionalIssue } from './qualityLoop';
 import { eventBus } from '@/lib/events/eventBus';
 import type { QualityMetrics } from '@/lib/ai/codeValidator';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
@@ -154,6 +154,24 @@ describe('buildQualityImprovementPrompt', () => {
   it('userFeedback이 빈 문자열이면 섹션을 포함하지 않는다 (trim 후 빈 값)', () => {
     const prompt = buildQualityImprovementPrompt({ html: '', css: '', js: '' }, baseMetrics, null, '   ');
     expect(prompt).not.toContain('사용자 요청');
+  });
+});
+
+describe('hasFunctionalIssue', () => {
+  it('fetchCallCount === 0 시 true 반환', () => {
+    expect(hasFunctionalIssue({ ...baseMetrics, fetchCallCount: 0 })).toBe(true);
+  });
+  it('placeholderCount > 0 시 true 반환', () => {
+    expect(hasFunctionalIssue({ ...baseMetrics, placeholderCount: 1 })).toBe(true);
+  });
+  it('hasProxyCall=false && fetchCallCount > 0 시 true 반환', () => {
+    expect(hasFunctionalIssue({ ...baseMetrics, hasProxyCall: false, fetchCallCount: 2 })).toBe(true);
+  });
+  it('hardcodedArrayCount > 0 시 true 반환', () => {
+    expect(hasFunctionalIssue({ ...baseMetrics, hardcodedArrayCount: 1 })).toBe(true);
+  });
+  it('모든 조건 정상이면 false 반환', () => {
+    expect(hasFunctionalIssue(baseMetrics)).toBe(false);
   });
 });
 
