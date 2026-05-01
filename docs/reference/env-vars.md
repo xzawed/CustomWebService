@@ -82,6 +82,7 @@
 | `SENTRY_ORG` | 선택 | ❌ | Sentry 조직 슬러그 (소스맵 업로드용) |
 | `SENTRY_PROJECT` | 선택 | ❌ | Sentry 프로젝트 슬러그 |
 | `SENTRY_AUTH_TOKEN` | 선택 | ❌ | Sentry 소스맵 업로드 토큰 |
+| `SLACK_WEBHOOK_URL` | 선택 | ❌ | Slack 알림 Webhook URL. 미설정 시 알림 스킵. `slackAlert()` + `errorRateMonitor`에서 사용 |
 
 ---
 
@@ -94,6 +95,7 @@
 | `MAX_PROJECTS_PER_USER` | `20` | ➖ | 사용자당 최대 프로젝트 수 |
 | `MAX_REGENERATIONS` | `5` | ➖ | 프로젝트당 재생성 횟수 |
 | `MAX_DEPLOY_PER_DAY` | `5` | ➖ | 사용자당 일일 최대 배포 횟수 |
+| `MAX_CODE_VERSIONS` | `10` | ➖ | 프로젝트당 최대 코드 버전 수. 초과 시 오래된 버전 삭제 |
 | `CONTEXT_MIN_LENGTH` | `50` | ➖ | 컨텍스트 최소 길이 (자) |
 | `CONTEXT_MAX_LENGTH` | `2000` | ➖ | 컨텍스트 최대 길이 (자) |
 | `GENERATION_TIMEOUT_MS` | `120000` | ➖ | 생성 타임아웃 (ms) |
@@ -120,6 +122,8 @@
 | `QUALITY_LOOP_STRICT_ADOPTION` | `true` | ➖ | 채택 가드: `true`(기본)는 한 점수 향상 + 다른 점수 동등 이상일 때만 retry 채택(시소 진동 방지). `false`로 설정 시 기존 OR 로직(한쪽 향상) 복원 — 운영 데이터 비교용 롤백 스위치 |
 | `QC_QUALITY_THRESHOLD` | `60` | ➖ | 정적 QC 구조 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
 | `QC_MOBILE_THRESHOLD` | `60` | ➖ | 정적 QC 모바일 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
+| `QC_FAST_PASS_THRESHOLD` | `60` | ➖ | Fast QC 통과 기준 점수. 이 값 미만이면 Fast QC 실패로 판정 |
+| `QC_DEEP_PASS_THRESHOLD` | `70` | ➖ | Deep QC 통과 기준 점수. 이 값 미만이면 Deep QC 실패로 판정 (`QC_DEEP_PASS_THRESHOLD` 환경변수로 조정 가능) |
 | `QC_MAX_CONCURRENT_PAGES` | `2` | ➖ | Playwright 동시 실행 페이지 수 상한. 높일수록 처리 속도 향상이지만 메모리 증가 (Railway 유료 플랜 이상 권장). 1 이하 설정 시 기본값 2로 폴백 |
 | `QC_FAST_TIMEOUT_MS` | `3000` | ➖ | Fast QC 전체 타임아웃 (ms). 초과 시 Fast QC 결과 없이 진행 |
 | `QC_DEEP_TIMEOUT_MS` | `10000` | ➖ | Deep QC 전체 타임아웃 (ms). 비동기 실행이므로 생성 완료를 블로킹하지 않음 |

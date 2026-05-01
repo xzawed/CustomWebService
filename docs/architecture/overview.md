@@ -1,7 +1,7 @@
 # 시스템 아키텍처
 
 > **최종 업데이트:** 2026-04-26  
-> **구현 상태:** 운영 중 (1,409개 테스트 통과)
+> **구현 상태:** 운영 중 (1,466개 테스트 통과)
 
 ---
 
@@ -111,27 +111,45 @@ src/
 │   │   │   ├── route.ts          # GET, POST /api/v1/projects
 │   │   │   └── [id]/
 │   │   │       ├── route.ts      # GET, DELETE
-│   │   │       └── rollback/route.ts  # POST (신규)
+│   │   │       ├── publish/route.ts   # POST, DELETE
+│   │   │       ├── rollback/route.ts  # POST
+│   │   │       └── slug/check/route.ts # POST
 │   │   ├── generate/
 │   │   │   ├── route.ts          # POST (SSE)
-│   │   │   └── regenerate/route.ts
+│   │   │   ├── regenerate/route.ts
+│   │   │   └── status/[projectId]/route.ts  # GET (폴링 fallback)
 │   │   ├── deploy/
-│   │   │   └── route.ts          # POST (SSE) ✅
+│   │   │   └── route.ts          # POST (SSE)
 │   │   ├── preview/
-│   │   │   └── [projectId]/route.ts  # GET (text/html) ✅
+│   │   │   └── [projectId]/route.ts  # GET (text/html)
+│   │   ├── proxy/route.ts        # GET (SSRF 방지 프록시)
+│   │   ├── suggest-apis/route.ts
+│   │   ├── suggest-context/route.ts
+│   │   ├── suggest-preferences/route.ts
+│   │   ├── suggest-modification/route.ts
+│   │   ├── popular-services/route.ts
+│   │   ├── user-api-keys/route.ts
+│   │   ├── admin/                # 관리자 전용
+│   │   │   └── qc-stats/route.ts
 │   │   └── health/route.ts       # GET
 │   ├── layout.tsx
 │   └── page.tsx                  # 랜딩 페이지
 │
 ├── __tests__/                    # 통합 테스트
-│   └── api/
+│   └── api/                      # API Route 통합 테스트 (13파일)
 │       ├── health.test.ts
 │       ├── projects.test.ts
 │       ├── generate.test.ts
 │       ├── preview.test.ts
-│       ├── gallery.test.ts
+│       ├── proxy.test.ts
+│       ├── admin.test.ts
+│       ├── deploy.test.ts
+│       ├── projects-publish.test.ts
+│       ├── projects-rollback.test.ts
+│       ├── projects-slug-check.test.ts
 │       ├── suggest-apis.test.ts
-│       └── suggest-context.test.ts
+│       ├── suggest-context.test.ts
+│       └── suggest-preferences.test.ts
 │
 ├── test/                         # 테스트 유틸리티
 │   ├── setup.ts                  # MSW 초기화
@@ -240,7 +258,7 @@ src/
 │   │   └── errorRateMonitor.ts   # registerErrorRateMonitor() — 5분 윈도우 CODE_GENERATION_FAILED 임계값 초과 시 Slack 알림
 │   ├── i18n/
 │   │   ├── index.ts              # t(key, params?) 함수 export
-│   │   ├── ko.ts                 # 한국어 메시지 (35개 — 에러·서비스·배포)
+│   │   ├── ko.ts                 # 한국어 메시지 (26개 — 에러·서비스·배포)
 │   │   └── types.ts              # MessageKey 타입 (자동완성 지원)
 │   ├── qc/
 │   │   └── deepQcRunner.ts       # Deep QC + ICodeRepository로 메타데이터 업데이트
@@ -249,10 +267,10 @@ src/
 │       └── logger.ts             # 구조적 로깅
 │
 ├── types/                        # 타입 정의
-│   ├── schemas.ts                # Zod 공용 스키마 (generateSchema, createProjectSchema 등 13개)
+│   ├── schemas.ts                # Zod 공용 스키마 (generateSchema, createProjectSchema 등 15개)
 │   ├── api.ts
 │   ├── project.ts
-│   ├── events.ts                 # DomainEvent 유니온 타입 (12개 이벤트)
+│   ├── events.ts                 # DomainEvent 유니온 타입 (16개 이벤트)
 │   └── qc.ts
 │
 └── templates/                    # 코드 생성 템플릿 (11개)
@@ -458,37 +476,45 @@ export interface FeatureLimits {
   maxDailyGenerations: number;
   maxProjectsPerUser: number;
   maxRegenerationsPerProject: number;
-  maxDeployPerDay: number;       // 사용자당 일일 최대 배포 횟수
+  maxCodeVersionsPerProject: number;  // 프로젝트당 최대 코드 버전 수
+  maxDeployPerDay: number;
   contextMinLength: number;
   contextMaxLength: number;
   generationTimeoutMs: number;
 }
 
-// 기본값 (환경변수로 오버라이드 가능)
+function env(key: string, defaultValue: number): number {
+  const val = process.env[key];
+  if (!val) return defaultValue;
+  const num = Number(val);
+  return isNaN(num) ? defaultValue : num;
+}
+
 const DEFAULT_LIMITS: FeatureLimits = {
-  maxApisPerProject: Number(process.env.MAX_APIS_PER_PROJECT ?? 5),
-  maxDailyGenerations: Number(process.env.MAX_DAILY_GENERATIONS ?? 10),
-  maxProjectsPerUser: Number(process.env.MAX_PROJECTS_PER_USER ?? 20),
-  maxRegenerationsPerProject: Number(process.env.MAX_REGENERATIONS ?? 5),
-  maxDeployPerDay: Number(process.env.MAX_DEPLOY_PER_DAY ?? 5),
-  contextMinLength: Number(process.env.CONTEXT_MIN_LENGTH ?? 50),
-  contextMaxLength: Number(process.env.CONTEXT_MAX_LENGTH ?? 2000),
-  generationTimeoutMs: Number(process.env.GENERATION_TIMEOUT_MS ?? 120000),
+  maxApisPerProject: env('MAX_APIS_PER_PROJECT', 5),
+  maxDailyGenerations: env('MAX_DAILY_GENERATIONS', 10),
+  maxProjectsPerUser: env('MAX_PROJECTS_PER_USER', 20),
+  maxRegenerationsPerProject: env('MAX_REGENERATIONS', 5),
+  maxCodeVersionsPerProject: env('MAX_CODE_VERSIONS', 10),
+  maxDeployPerDay: env('MAX_DEPLOY_PER_DAY', 5),
+  contextMinLength: env('CONTEXT_MIN_LENGTH', 50),
+  contextMaxLength: env('CONTEXT_MAX_LENGTH', 2000),
+  generationTimeoutMs: env('GENERATION_TIMEOUT_MS', 120000),
 };
 
-// 향후 플랜별 오버라이드 지원
-const PLAN_LIMITS: Record<string, Partial<FeatureLimits>> = {
+const PLAN_OVERRIDES: Record<string, Partial<FeatureLimits>> = {
   free: {},
   pro: {
     maxApisPerProject: 10,
     maxDailyGenerations: 50,
     maxProjectsPerUser: 100,
+    maxCodeVersionsPerProject: 50,
     contextMaxLength: 5000,
   },
 };
 
 export function getLimits(plan: string = 'free'): FeatureLimits {
-  return { ...DEFAULT_LIMITS, ...(PLAN_LIMITS[plan] ?? {}) };
+  return { ...DEFAULT_LIMITS, ...(PLAN_OVERRIDES[plan] ?? {}) };
 }
 ```
 

@@ -375,7 +375,7 @@ Avoid: [제외할 요소]
 ### 서버: GenerationTracker (`src/lib/ai/generationTracker.ts`)
 - 싱글톤 Map으로 진행 상태를 메모리에 보관 (**상태별 차등 TTL**: `generating` 30분 / `completed`·`failed` 10분 자동 만료)
 - `generationPipeline.ts`에서 SSE 이벤트 전송과 동시에 Tracker도 업데이트
-- SSE가 끊겨도 서버 파이프라인은 계속 실행 (isCancelled 체크 제거)
+- SSE가 끊겨도 서버 파이프라인은 계속 실행 (`sse.isCancelled()` 체크는 stageRunner에서 개별 청크 스로틀 전송 취소 용도로만 사용)
 
 ```typescript
 generationTracker.start(projectId, userId);

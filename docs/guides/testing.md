@@ -12,15 +12,15 @@
              ┌─────────┐
              │   E2E   │  ~11개 × 3디바이스 (Playwright)
             ─┼─────────┼─
-           │ 컴포넌트  │  ~100개 (React, happy-dom)
+           │ 컴포넌트  │  ~250개 (React, happy-dom)
           ──┼──────────┼──
-         │    통합     │  ~110개 (API Routes, Vitest)
+         │    통합     │  ~130개 (API Routes, Vitest)
         ────┼──────────┼────
-       │       단위    │  ~985개 (lib, providers, services, repositories)
+       │       단위    │  ~1,080개 (lib, providers, services, repositories)
        ──────────────────
 ```
 
-**총 100개 Vitest 파일, 1,409개 테스트 + 3개 Playwright E2E 파일**
+**총 119개 Vitest 파일, 1,466개 테스트 + 3개 Playwright E2E 파일**
 
 ### 핵심 원칙
 
@@ -42,7 +42,7 @@
 
 ## 2. 테스트 분류 및 검증 항목
 
-### 2.1 lib 유틸리티 단위 테스트 (~35파일, ~550개)
+### 2.1 lib 유틸리티 단위 테스트 (~42파일, ~600개)
 
 `pnpm test:unit`으로 실행 (대상: `src/lib/**`)
 
@@ -165,7 +165,7 @@
 
 ---
 
-### 2.5 API Route 통합 테스트 (11파일, ~110개)
+### 2.5 API Route 통합 테스트 (13파일, ~130개)
 
 `pnpm test:integration`으로 실행 (대상: `src/app/api/**`)
 
@@ -201,17 +201,26 @@
 |------|-----------|---------------|
 | `suggest-apis.test.ts` | `POST /api/v1/suggest-apis` | context 길이(50~2000자), 파싱 실패 시 빈 배열 |
 | `suggest-context.test.ts` | `POST /api/v1/suggest-context` | apis 배열 최대 5개, AI 응답 JSON 파싱 |
+| `suggest-preferences.test.ts` | `POST /api/v1/suggest-preferences` | 인증·입력·AI 응답 파싱·fallback |
 
 ---
 
-### 2.6 컴포넌트 테스트 (2파일, ~10개)
+### 2.6 컴포넌트 테스트 (28파일, ~250개)
 
 `src/**/*.test.tsx` — happy-dom 환경
+
+주요 커버리지 영역:
 
 | 파일 | 검증 항목 |
 |------|----------|
 | `src/components/dashboard/PublishDialog.test.tsx` | AI 추천 slug 라디오, 커스텀 slug 입력, slug 가용성 체크 후 버튼 활성화 |
 | `src/components/dashboard/RePromptSection.test.tsx` | 버전 번호 표시, `router.refresh()` 호출 |
+| `src/components/builder/GenerationProgress.test.tsx` | idle/generating/completed/failed 상태, elapsed 타이머, 단계별 phase 매핑 |
+| `src/components/builder/PreviewFrame.test.tsx` | iframe src 쿼리 파라미터, device 토글, cache-bust t 증가, sandbox 권한 |
+| `src/components/builder/RePromptPanel.test.tsx` | 버전 탭, 재생성 제출, 피드백 textarea |
+| `src/components/layout/Header.test.tsx` | 비로그인/로그인 분기, 아바타 드롭다운, 로그아웃, 모바일 메뉴 |
+| `src/components/settings/ApiKeyCard.test.tsx` | 키 등록/변경/삭제, 빈 입력 차단, 가이드 모달 |
+| *(21개 추가 파일)* | catalog, builder, settings 영역 UI 회귀 방지 |
 
 ---
 
@@ -362,7 +371,7 @@ lint (ESLint)
   ↓
 type-check (tsc --noEmit)
   ↓
-test (pnpm test — 1,409개)
+test (pnpm test — 1,466개)
   ↓
 커버리지 업로드 (Codecov + SonarCloud)
   ↓
