@@ -86,11 +86,7 @@ describe('runQualityLoop — retry 채택 분기 (Quality Loop 정확도 게이�
       { html: '<div>old</div>', css: '', js: '' },
       lowQuality,
       null,
-      'sys',
-      makeMockProvider(generateCode),
-      makeMockSse(),
-      false,
-      'p-adopt-1',
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p-adopt-1' },
     );
 
     expect(result.qualityLoopUsed).toBe(true);
@@ -112,11 +108,7 @@ describe('runQualityLoop — retry 채택 분기 (Quality Loop 정확도 게이�
       { html: '<div>old</div>', css: '', js: '' },
       lowQuality,
       null,
-      'sys',
-      makeMockProvider(generateCode),
-      makeMockSse(),
-      false,
-      'p-adopt-2',
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p-adopt-2' },
     );
 
     expect(result.qualityLoopUsed).toBe(true);
@@ -138,11 +130,7 @@ describe('runQualityLoop — retry 채택 분기 (Quality Loop 정확도 게이�
       { html: '<div>old</div>', css: '', js: '' },
       lowQuality,
       null,
-      'sys',
-      makeMockProvider(generateCode),
-      makeMockSse(),
-      false,
-      'p-adopt-3',
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p-adopt-3' },
     );
 
     expect(result.qualityLoopUsed).toBe(false);
@@ -164,11 +152,7 @@ describe('runQualityLoop — retry 채택 분기 (Quality Loop 정확도 게이�
       { html: '<div>old</div>', css: '', js: '' },
       lowQuality,
       null,
-      'sys',
-      makeMockProvider(generateCode),
-      makeMockSse(),
-      false,
-      'p-adopt-4',
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p-adopt-4' },
     );
 
     expect(result.qualityLoopUsed).toBe(true);
@@ -196,11 +180,7 @@ describe('runQualityLoop — retry 채택 분기 (Quality Loop 정확도 게이�
       { html: '<div>old</div>', css: '', js: '' },
       lowQuality,
       null,
-      'sys',
-      makeMockProvider(generateCode),
-      makeMockSse(),
-      false,
-      'p-adopt-qc',
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p-adopt-qc' },
     );
 
     expect(runFastQc).toHaveBeenCalled();
@@ -224,11 +204,7 @@ describe('runQualityLoop — retry 채택 분기 (Quality Loop 정확도 게이�
       { html: '<div>old</div>', css: '', js: '' },
       lowQuality,
       null,
-      'sys',
-      makeMockProvider(generateCode),
-      makeMockSse(),
-      false,
-      'p-adopt-qc-fail',
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p-adopt-qc-fail' },
     );
 
     expect(result.qualityLoopUsed).toBe(true); // QC 실패해도 코드 점수로 채택
@@ -262,11 +238,7 @@ describe('runQualityLoop — retry 채택 분기 (Quality Loop 정확도 게이�
       { html: '<div>old</div>', css: '', js: '' },
       lowQuality,
       null,
-      'sys',
-      makeMockProvider(generateCode),
-      makeMockSse(),
-      false,
-      'p-skip-vis',
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p-skip-vis' },
     );
 
     // 정상 retry assemble → runFastQc 호출됨

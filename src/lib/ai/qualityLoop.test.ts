@@ -195,11 +195,14 @@ describe('runQualityLoop — iteration timeout', () => {
       initialParsed,
       lowQualityMetrics,
       null,
-      'stage2 system prompt',
-      mockProvider,
-      mockSse,
-      false,
-      'test-project-id',
+      {
+        stage2SystemPrompt: 'stage2 system prompt',
+        stage2FunctionSystemPrompt: 'stage2 function prompt',
+        aiProvider: mockProvider,
+        sse: mockSse,
+        useET: false,
+        projectId: 'test-project-id',
+      },
     );
 
     // 100ms 타임아웃 × 3회 반복 + 여유 시간
@@ -243,11 +246,7 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
       { html: '<main>ok</main>', css: '', js: 'fetch("/api/v1/proxy")' },
       baseMetrics, // structuralScore=80, mobileScore=80, fetch=1, proxy=true
       null,
-      'sys',
-      makeMockProvider(generateCode),
-      makeMockSse(),
-      false,
-      'p1',
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p1' },
     );
 
     expect(generateCode).not.toHaveBeenCalled();
@@ -282,11 +281,7 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
       { html: '<div>초기</div>', css: '', js: '' },
       lowQuality,
       null,
-      'sys',
-      makeMockProvider(generateCode),
-      makeMockSse(),
-      false,
-      'p2',
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p2' },
     );
 
     await vi.advanceTimersByTimeAsync(300);
@@ -320,11 +315,7 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
       initialParsed,
       lowQuality,
       null,
-      'sys',
-      makeMockProvider(generateCode),
-      makeMockSse(),
-      false,
-      'p4',
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p4' },
     );
 
     // 모바일 회귀하므로 strict 모드에서는 채택 안 됨 → qualityLoopUsed false 또는 초기 유지
@@ -346,11 +337,7 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
       { html: '<div>x</div>', css: '', js: '' },
       lowQuality,
       null,
-      'sys',
-      makeMockProvider(generateCode),
-      makeMockSse(),
-      false,
-      'p5',
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p5' },
     );
 
     expect(generateCode).toHaveBeenCalled();
@@ -369,11 +356,7 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
       { html: '<div>x</div>', css: '', js: '' },
       lowQuality,
       null,
-      'sys',
-      makeMockProvider(generateCode),
-      makeMockSse(),
-      false,
-      'p3',
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p3' },
     );
 
     expect(generateCode).toHaveBeenCalledTimes(3);
@@ -383,6 +366,81 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
         type: 'QUALITY_LOOP_COMPLETED',
         payload: expect.objectContaining({ projectId: 'p3', iterations: 3, improved: false }),
       }),
+    );
+    vi.useFakeTimers();
+  });
+
+  it('per-iteration progress: 1회→93%, 2회→95%, 3회→97%', async () => {
+    const generateCode = vi.fn().mockRejectedValue(new Error('fail'));
+    const lowQuality: QualityMetrics = { ...baseMetrics, structuralScore: 30, mobileScore: 30, details: [] };
+    const mockSse = makeMockSse();
+
+    vi.useRealTimers();
+    await runQualityLoop(
+      { html: '<div>x</div>', css: '', js: '' },
+      lowQuality,
+      null,
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: makeMockProvider(generateCode), sse: mockSse, useET: false, projectId: 'p-progress' },
+    );
+
+    const progressCalls = (mockSse.send as ReturnType<typeof vi.fn>).mock.calls
+      .filter(([event]) => event === 'progress')
+      .map(([, data]) => data as { progress: number; message: string });
+
+    expect(progressCalls[0]?.progress).toBe(93);
+    expect(progressCalls[0]?.message).toContain('1/3회');
+    expect(progressCalls[1]?.progress).toBe(95);
+    expect(progressCalls[1]?.message).toContain('2/3회');
+    expect(progressCalls[2]?.progress).toBe(97);
+    expect(progressCalls[2]?.message).toContain('3/3회');
+    vi.useFakeTimers();
+  });
+
+  it('기능 문제(fetchCallCount=0) → stage2FunctionSystemPrompt 사용', async () => {
+    const generateCode = vi.fn().mockRejectedValue(new Error('skip'));
+    const functionalIssueMetrics: QualityMetrics = {
+      ...baseMetrics,
+      fetchCallCount: 0, // 기능 문제 트리거
+      structuralScore: 30,
+      mobileScore: 30,
+    };
+
+    vi.useRealTimers();
+    await runQualityLoop(
+      { html: '<div>x</div>', css: '', js: '' },
+      functionalIssueMetrics,
+      null,
+      { stage2SystemPrompt: 'design-sys', stage2FunctionSystemPrompt: 'function-sys', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p-func-prompt' },
+    );
+
+    expect(generateCode).toHaveBeenCalledWith(
+      expect.objectContaining({ system: 'function-sys' }),
+    );
+    vi.useFakeTimers();
+  });
+
+  it('디자인 문제만 있을 때(fetch 있고 proxy 있고 placeholder=0) → stage2SystemPrompt 사용', async () => {
+    const generateCode = vi.fn().mockRejectedValue(new Error('skip'));
+    const designIssueMetrics: QualityMetrics = {
+      ...baseMetrics,
+      fetchCallCount: 1,
+      hasProxyCall: true,
+      placeholderCount: 0,
+      hardcodedArrayCount: 0,
+      structuralScore: 30, // 디자인/구조 문제
+      mobileScore: 30,
+    };
+
+    vi.useRealTimers();
+    await runQualityLoop(
+      { html: '<div>x</div>', css: '', js: '' },
+      designIssueMetrics,
+      null,
+      { stage2SystemPrompt: 'design-sys', stage2FunctionSystemPrompt: 'function-sys', aiProvider: makeMockProvider(generateCode), sse: makeMockSse(), useET: false, projectId: 'p-design-prompt' },
+    );
+
+    expect(generateCode).toHaveBeenCalledWith(
+      expect.objectContaining({ system: 'design-sys' }),
     );
     vi.useFakeTimers();
   });

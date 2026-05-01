@@ -2,7 +2,8 @@ import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { logger } from '@/lib/utils/logger';
 
-const MAX_CONCURRENT_PAGES = 2;
+const _qcMaxPages = Number.parseInt(process.env.QC_MAX_CONCURRENT_PAGES ?? '', 10);
+const MAX_CONCURRENT_PAGES = Number.isNaN(_qcMaxPages) || _qcMaxPages <= 0 ? 2 : _qcMaxPages;
 
 export function isQcEnabled(): boolean {
   return process.env.ENABLE_RENDERING_QC === 'true';
