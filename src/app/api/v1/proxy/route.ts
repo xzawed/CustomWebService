@@ -72,8 +72,13 @@ export async function POST(request: Request): Promise<Response> {
   return handleProxy(request, 'POST');
 }
 
-async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Response> {
-  // 인증 확인
+interface ValidatedRequest {
+  apiId: string;
+  proxyPath: string;
+  searchParams: URLSearchParams;
+}
+
+async function validateRequest(request: Request): Promise<ValidatedRequest | Response> {
   const user = await getAuthUser();
   if (!user) {
     return errorResponse(401, 'AUTH_REQUIRED', '로그인이 필요합니다.');
@@ -86,7 +91,6 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
     return errorResponse(401, 'AUTH_REQUIRED', '로그인이 필요합니다.');
   }
 
-  // Rate Limit 확인
   if (!checkProxyRateLimit(user.id)) {
     return errorResponse(429, 'RATE_LIMITED', '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.');
   }
@@ -98,15 +102,148 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
   if (!apiId || !proxyPath) {
     return error400('apiId와 proxyPath가 필요합니다.');
   }
-
   if (!UUID_RE.test(apiId)) {
     return error400('유효하지 않은 API ID입니다.');
   }
-
-  // Prevent path traversal
   if (proxyPath.includes('..') || /\/\//.test(proxyPath)) {
     return error400('유효하지 않은 경로입니다.');
   }
+
+  return { apiId, proxyPath, searchParams };
+}
+
+interface UpstreamSuccess {
+  upstream: globalThis.Response;
+  error: null;
+}
+interface UpstreamError {
+  upstream: null;
+  error: Response;
+}
+type UpstreamResult = UpstreamSuccess | UpstreamError;
+
+async function fetchUpstream(
+  targetUrl: URL,
+  method: 'GET' | 'POST',
+  headers: Record<string, string>,
+  request: Request,
+): Promise<UpstreamResult> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const upstream = await fetch(targetUrl.toString(), {
+      method,
+      headers,
+      redirect: 'error', // Prevent SSRF via open redirects
+      signal: controller.signal,
+      ...(method === 'POST'
+        ? {
+            body: await request.text(),
+            headers: { ...headers, 'Content-Type': 'application/json' },
+          }
+        : {}),
+    });
+    return { upstream, error: null };
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') {
+      return { upstream: null, error: error502('외부 API 응답 시간이 초과되었습니다 (30초).') };
+    }
+    return { upstream: null, error: error502('외부 API 서버에 연결할 수 없습니다.') };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function buildSafeTargetUrl(
+  api: { baseUrl: string },
+  proxyPath: string,
+): Promise<URL | Response> {
+  let targetUrl: URL;
+  try {
+    const path = proxyPath.startsWith('/') ? proxyPath : `/${proxyPath}`;
+    targetUrl = new URL(path, api.baseUrl);
+  } catch {
+    return error400('유효하지 않은 경로입니다.');
+  }
+
+  const allowedHost = new URL(api.baseUrl).hostname;
+  if (targetUrl.hostname !== allowedHost || isPrivateHost(targetUrl.hostname)) {
+    return errorResponse(403, 'FORBIDDEN', '허용되지 않은 대상입니다.');
+  }
+
+  try {
+    const { address: resolvedIp } = await dns.lookup(allowedHost, { verbatim: false });
+    if (isPrivateHost(resolvedIp)) {
+      return errorResponse(403, 'FORBIDDEN', '허용되지 않은 대상입니다.');
+    }
+  } catch {
+    return errorResponse(403, 'FORBIDDEN', '허용되지 않은 대상입니다.');
+  }
+
+  return targetUrl;
+}
+
+async function resolveApiKey(
+  apiId: string,
+  cfg: { param_name?: string; param_in?: string; env_var?: string },
+  supabase: Awaited<ReturnType<typeof createServiceClient>> | undefined,
+  searchParams: URLSearchParams,
+  headers: Record<string, string>,
+  targetUrl: URL,
+): Promise<void> {
+  let resolvedKey: string | undefined;
+
+  // 1) 프로젝트 오너의 개인 API 키 조회 (projectId가 있을 때, Supabase 모드만)
+  const projectId = searchParams.get('projectId');
+  if (supabase && projectId && UUID_RE.test(projectId)) {
+    try {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('user_id')
+        .eq('id', projectId)
+        .single();
+
+      if (project?.user_id) {
+        const { data: userKey } = await supabase
+          .from('user_api_keys')
+          .select('encrypted_key')
+          .eq('user_id', project.user_id)
+          .eq('api_id', apiId)
+          .single();
+
+        if (userKey?.encrypted_key) {
+          try { resolvedKey = decryptApiKey(userKey.encrypted_key); } catch { /* skip */ }
+        }
+      }
+    } catch { /* 조회 실패 시 플랫폼 키로 폴백 */ }
+  }
+
+  // 2) 플랫폼 공용 키 (환경변수)
+  if (!resolvedKey && cfg.env_var) {
+    resolvedKey = process.env[cfg.env_var];
+  }
+
+  if (resolvedKey && cfg.param_name) {
+    if (cfg.param_in === 'header') {
+      headers[cfg.param_name] = resolvedKey;
+    } else {
+      targetUrl.searchParams.set(cfg.param_name, resolvedKey);
+    }
+  }
+}
+
+function resolveContentType(rawContentType: string): string {
+  const isTextType = /^(text\/|application\/(json|xml|javascript|x-www-form-urlencoded))/.test(rawContentType);
+  return isTextType && !rawContentType.toLowerCase().includes('charset')
+    ? `${rawContentType}; charset=utf-8`
+    : rawContentType;
+}
+
+async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Response> {
+  // 인증·레이트리밋·파라미터 검증
+  const validated = await validateRequest(request);
+  if (validated instanceof Response) return validated;
+  const { apiId, proxyPath, searchParams } = validated;
 
   // Look up API using service role (bypasses RLS — read-only, catalog is semi-public)
   const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
@@ -123,32 +260,10 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
     return error404('API를 찾을 수 없습니다.');
   }
 
-  // Build target URL — only allow the registered base URL (SSRF prevention)
-  let targetUrl: URL;
-  try {
-    const path = proxyPath.startsWith('/') ? proxyPath : `/${proxyPath}`;
-    targetUrl = new URL(path, api.baseUrl);
-  } catch {
-    return error400('유효하지 않은 경로입니다.');
-  }
-
-  // Enforce same host as registered base URL and block private networks
-  const allowedHost = new URL(api.baseUrl).hostname;
-  if (targetUrl.hostname !== allowedHost || isPrivateHost(targetUrl.hostname)) {
-    return errorResponse(403, 'FORBIDDEN', '허용되지 않은 대상입니다.');
-  }
-
-  // DNS rebinding defense: resolve hostname and verify the resolved IP is not private.
-  // Prevents an attacker from registering a public hostname that later DNS-rebinds to
-  // an internal address (e.g. 169.254.169.254 AWS metadata service).
-  try {
-    const { address: resolvedIp } = await dns.lookup(allowedHost, { verbatim: false });
-    if (isPrivateHost(resolvedIp)) {
-      return errorResponse(403, 'FORBIDDEN', '허용되지 않은 대상입니다.');
-    }
-  } catch {
-    return errorResponse(403, 'FORBIDDEN', '허용되지 않은 대상입니다.');
-  }
+  // Build target URL — only allow the registered base URL (SSRF + DNS rebinding prevention)
+  const urlOrError = await buildSafeTargetUrl(api, proxyPath);
+  if (urlOrError instanceof Response) return urlOrError;
+  const targetUrl = urlOrError;
 
   // Forward all query params except our own
   const ownParams = new Set(['apiId', 'proxyPath', 'projectId']);
@@ -170,89 +285,20 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
       param_in?: string;
       env_var?: string;
     };
-
-    let resolvedKey: string | undefined;
-
-    // 1) 프로젝트 오너의 개인 API 키 조회 (projectId가 있을 때, Supabase 모드만)
-    const projectId = searchParams.get('projectId');
-    if (supabase && projectId && UUID_RE.test(projectId)) {
-      try {
-        const { data: project } = await supabase
-          .from('projects')
-          .select('user_id')
-          .eq('id', projectId)
-          .single();
-
-        if (project?.user_id) {
-          const { data: userKey } = await supabase
-            .from('user_api_keys')
-            .select('encrypted_key')
-            .eq('user_id', project.user_id)
-            .eq('api_id', apiId)
-            .single();
-
-          if (userKey?.encrypted_key) {
-            try { resolvedKey = decryptApiKey(userKey.encrypted_key); } catch { /* skip */ }
-          }
-        }
-      } catch { /* 조회 실패 시 플랫폼 키로 폴백 */ }
-    }
-
-    // 2) 플랫폼 공용 키 (환경변수)
-    if (!resolvedKey && cfg.env_var) {
-      resolvedKey = process.env[cfg.env_var];
-    }
-
-    if (resolvedKey && cfg.param_name) {
-      if (cfg.param_in === 'header') {
-        headers[cfg.param_name] = resolvedKey;
-      } else {
-        targetUrl.searchParams.set(cfg.param_name, resolvedKey);
-      }
-    }
+    await resolveApiKey(apiId, cfg, supabase, searchParams, headers, targetUrl);
   }
 
   // Forward the request
-  let upstream: globalThis.Response;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30_000);
-  try {
-    upstream = await fetch(targetUrl.toString(), {
-      method,
-      headers,
-      redirect: 'error', // Prevent SSRF via open redirects
-      signal: controller.signal,
-      ...(method === 'POST'
-        ? {
-            body: await request.text(),
-            headers: { ...headers, 'Content-Type': 'application/json' },
-          }
-        : {}),
-    });
-  } catch (e) {
-    if ((e as Error).name === 'AbortError') {
-      return error502('외부 API 응답 시간이 초과되었습니다 (30초).');
-    }
-    return error502('외부 API 서버에 연결할 수 없습니다.');
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  const { upstream, error: fetchError } = await fetchUpstream(targetUrl, method, headers, request);
+  if (fetchError) return fetchError;
 
   const rawContentType = upstream.headers.get('content-type') ?? 'application/json';
   const body = await upstream.text();
 
-  // Ensure text responses always carry charset=utf-8 so Korean content renders correctly.
-  // Binary types (image/*, application/octet-stream, etc.) are left unchanged.
-  const isTextType = /^(text\/|application\/(json|xml|javascript|x-www-form-urlencoded))/.test(rawContentType);
-  const contentType =
-    isTextType && !rawContentType.toLowerCase().includes('charset')
-      ? `${rawContentType}; charset=utf-8`
-      : rawContentType;
-
   return new Response(body, {
     status: upstream.status,
     headers: {
-      'Content-Type': contentType,
+      'Content-Type': resolveContentType(rawContentType),
       'Cache-Control': 'no-store',
       'X-Proxy-Api-Id': apiId,
     },
