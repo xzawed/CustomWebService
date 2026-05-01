@@ -121,6 +121,12 @@
 | `QC_QUALITY_THRESHOLD` | `60` | ➖ | 정적 QC 구조 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
 | `QC_MOBILE_THRESHOLD` | `60` | ➖ | 정적 QC 모바일 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
 | `QC_MAX_CONCURRENT_PAGES` | `2` | ➖ | Playwright 동시 실행 페이지 수 상한. 높일수록 처리 속도 향상이지만 메모리 증가 (Railway 유료 플랜 이상 권장). 1 이하 설정 시 기본값 2로 폴백 |
+| `QC_FAST_TIMEOUT_MS` | `3000` | ➖ | Fast QC 전체 타임아웃 (ms). 초과 시 Fast QC 결과 없이 진행 |
+| `QC_DEEP_TIMEOUT_MS` | `10000` | ➖ | Deep QC 전체 타임아웃 (ms). 비동기 실행이므로 생성 완료를 블로킹하지 않음 |
+| `QC_CHECK_TIMEOUT_MS` | `1500` | ➖ | 개별 QC 체크(consoleErrors, horizontalScroll 등) 타임아웃 (ms) |
+| `QC_PAGE_DEFAULT_TIMEOUT_MS` | `5000` | ➖ | Playwright 페이지 기본 작업 타임아웃 (ms) |
+| `QC_FAST_CONTENT_TIMEOUT_MS` | `3000` | ➖ | Fast QC `page.setContent()` 타임아웃 (ms) |
+| `QC_DEEP_CONTENT_TIMEOUT_MS` | `8000` | ➖ | Deep QC `page.setContent()` 타임아웃 (ms). Deep QC는 더 무거운 체크를 수행하므로 더 긴 타임아웃 필요 |
 
 ---
 

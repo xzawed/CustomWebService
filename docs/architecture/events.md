@@ -96,25 +96,38 @@ export type DomainEventType = DomainEvent['type'];
 ```typescript
 // src/lib/events/eventBus.ts
 
-class EventBus {
-  private handlers = new Map<string, Set<EventHandler>>();
+type EventHandler = (event: DomainEvent) => void | Promise<void>;
 
-  emit(event: DomainEvent): void { ... }
-  on<T extends DomainEventType>(
-    type: T,
-    handler: EventHandler<Extract<DomainEvent, { type: T }>>
-  ): () => void { ... }   // 구독 해제 함수 반환
-  onAll(handler: EventHandler): () => void { ... }  // 와일드카드 구독
-  off(type: DomainEventType | '*', handler: EventHandler): void { ... }
+class EventBus {
+  private handlers: EventHandler[] = [];
+
+  // 구독 등록 — 반환값(unsubscribe 함수)으로 구독 해제
+  on(handler: EventHandler): () => void {
+    this.handlers.push(handler);
+    return () => {
+      this.handlers = this.handlers.filter(h => h !== handler);
+    };
+  }
+
+  // 모든 등록된 핸들러에 이벤트 발행 (fire-and-forget, 에러 격리)
+  emit(event: DomainEvent): void {
+    for (const handler of this.handlers) {
+      Promise.resolve(handler(event)).catch((err) => {
+        logger.warn('EventBus handler error', { type: event.type, error: err });
+      });
+    }
+  }
 }
 
 export const eventBus = new EventBus();
 ```
 
 **특징:**
-- 핸들러 실행 중 예외가 발생해도 나머지 핸들러는 계속 실행됨 (격리된 try/catch)
-- `on()` 반환값(구독 해제 함수)으로 메모리 누수 없이 구독 취소 가능
-- `onAll()` 로 모든 이벤트를 와일드카드 구독 가능
+- 모든 핸들러가 모든 이벤트를 수신 (이벤트 타입 필터링 없음 — 핸들러 내부에서 `event.type` 분기)
+- 핸들러 실행 중 예외가 발생해도 나머지 핸들러는 계속 실행됨 (Promise + catch 에러 격리)
+- `on()` 반환값(unsubscribe 함수)으로 메모리 누수 없이 구독 취소 가능
+
+> **주의:** 이전 문서에 기술된 `on(type, handler)` 타입별 구독, `off()`, `onAll()` 메서드는 현재 구현에 존재하지 않습니다. 이벤트 타입 필터링은 핸들러 내부에서 직접 처리해야 합니다.
 
 ---
 
@@ -122,23 +135,29 @@ export const eventBus = new EventBus();
 
 ```typescript
 // 분석 이벤트 구독 (핵심 로직 수정 없이 추가)
-eventBus.on('CODE_GENERATED', (event) => {
-  analytics.track('code_generated', event.payload);
+// 핸들러 내부에서 event.type으로 분기
+const unsubscribe = eventBus.on((event) => {
+  if (event.type === 'CODE_GENERATED') {
+    analytics.track('code_generated', event.payload);
+  }
 });
 
 // 알림 구독
-eventBus.on('DEPLOYMENT_FAILED', (event) => {
-  notificationService.send(event.payload.projectId, '배포에 실패했습니다.');
+eventBus.on((event) => {
+  if (event.type === 'DEPLOYMENT_FAILED') {
+    notificationService.send(event.payload.projectId, '배포에 실패했습니다.');
+  }
 });
 
 // 모니터링 구독
-eventBus.on('API_QUOTA_WARNING', (event) => {
-  logger.warn('API quota warning', event.payload);
+eventBus.on((event) => {
+  if (event.type === 'API_QUOTA_WARNING') {
+    logger.warn('API quota warning', event.payload);
+  }
 });
 
 // 구독 해제
-const unsubscribe = eventBus.on('CODE_GENERATED', handler);
-unsubscribe(); // 구독 취소
+unsubscribe(); // on() 반환값을 호출하면 구독 취소
 ```
 
 ---
