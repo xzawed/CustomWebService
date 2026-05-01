@@ -498,3 +498,99 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
     vi.useFakeTimers();
   });
 });
+
+// ─── AutoFix 통합 테스트 ───────────────────────────────────────────────────────
+
+// 구조적 품질은 높지만 placeholder(홍길동)가 있어 shouldRetryGeneration=true인 픽스처
+// Responsive prefixes count: hidden md:flex(1) hidden lg:block(2) grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4(5) sm:p-4 md:p-6 lg:p-8 xl:p-10(9 total) ≥ 8 ✓
+const AUTOFIXABLE_HTML = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"></head>
+<body>
+<header class="hidden md:flex justify-between"><h1>서비스</h1></header>
+<nav class="hidden lg:block"><a href="/">홈</a></nav>
+<main class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+<section class="sm:p-4 md:p-6 lg:p-8 xl:p-10">
+<article><p>사용자 이름: 홍길동</p></article>
+</section>
+</main>
+<footer class="border-t mt-4 transition"><p class="text-sm text-gray-500">© 2026 서비스. All rights reserved.</p></footer>
+</body></html>`;
+
+const AUTOFIXABLE_JS = `document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch('/api/v1/proxy?apiId=test&proxyPath=/data');
+    const data = await res.json();
+    document.querySelector('main').classList.add('animate-fade-in');
+  } catch (err) { console.error(err); }
+  document.addEventListener('click', () => {});
+  document.addEventListener('keydown', () => {});
+});`;
+
+describe('runQualityLoop — AutoFix 통합', () => {
+  let mockAiProvider: { generateCode: ReturnType<typeof vi.fn> };
+  let mockSse: { send: ReturnType<typeof vi.fn> };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('ENABLE_RENDERING_QC', 'false');
+    mockAiProvider = { generateCode: vi.fn() };
+    mockSse = { send: vi.fn() };
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('AutoFix로 placeholder 해결 시 aiProvider.generateCode를 호출하지 않는다', async () => {
+    const { evaluateQuality } = await import('@/lib/ai/codeValidator');
+    const { shouldRetryGeneration: checkRetry } = await import('./qualityLoop');
+    const initialQuality = evaluateQuality(AUTOFIXABLE_HTML, '', AUTOFIXABLE_JS);
+
+    // Verify fixture: placeholder present → retry needed
+    expect(initialQuality.placeholderCount).toBeGreaterThan(0);
+    expect(checkRetry(initialQuality, null)).toBe(true);
+
+    const result = await runQualityLoop(
+      { html: AUTOFIXABLE_HTML, css: '', js: AUTOFIXABLE_JS },
+      initialQuality,
+      null,
+      {
+        stage2SystemPrompt: 'system',
+        stage2FunctionSystemPrompt: 'function',
+        aiProvider: mockAiProvider as unknown as IAiProvider,
+        sse: mockSse as unknown as SseWriter,
+        useET: false,
+        projectId: 'test-autofix',
+      },
+    );
+
+    expect(mockAiProvider.generateCode).not.toHaveBeenCalled();
+    expect(result.qualityLoopUsed).toBe(true);
+    expect(result.parsed.html).not.toContain('홍길동');
+  });
+
+  it('AutoFix로 해결 안 되는 이슈(fetch 없음)는 LLM 재시도를 수행한다', async () => {
+    const noFetchHtml = '<html><body><main><p>내용</p></main></body></html>';
+    const noFetchJs = 'document.addEventListener("click", () => {});';
+    const { evaluateQuality } = await import('@/lib/ai/codeValidator');
+    const initialQuality = evaluateQuality(noFetchHtml, '', noFetchJs);
+    expect(initialQuality.fetchCallCount).toBe(0);
+
+    mockAiProvider.generateCode.mockRejectedValueOnce(new Error('timeout'));
+
+    await runQualityLoop(
+      { html: noFetchHtml, css: '', js: noFetchJs },
+      initialQuality,
+      null,
+      {
+        stage2SystemPrompt: 'system',
+        stage2FunctionSystemPrompt: 'function',
+        aiProvider: mockAiProvider as unknown as IAiProvider,
+        sse: mockSse as unknown as SseWriter,
+        useET: false,
+        projectId: 'test-no-fetch',
+      },
+    );
+
+    expect(mockAiProvider.generateCode).toHaveBeenCalled();
+  });
+});
