@@ -385,7 +385,7 @@ export interface ICodeTemplate {
 ## 5. 이벤트 시스템
 
 ```typescript
-// src/types/events.ts — 12개 DomainEvent 유니온 타입
+// src/types/events.ts — 16개 DomainEvent 유니온 타입
 export type DomainEvent =
   | { type: 'USER_SIGNED_UP'; payload: { userId: string } }
   | { type: 'PROJECT_CREATED'; payload: { projectId: string; userId: string; apiCount: number } }
@@ -395,10 +395,14 @@ export type DomainEvent =
   | { type: 'DEPLOYMENT_COMPLETED'; payload: { projectId: string; url: string; platform: string } }
   | { type: 'DEPLOYMENT_FAILED'; payload: { projectId: string; error: string } }
   | { type: 'PROJECT_DELETED'; payload: { projectId: string } }
+  | { type: 'PROJECT_PUBLISHED'; payload: { projectId: string; userId: string; slug: string } }
+  | { type: 'PROJECT_UNPUBLISHED'; payload: { projectId: string; userId: string } }
   | { type: 'API_QUOTA_WARNING'; payload: { service: string; usage: number; limit: number } }
   | { type: 'QC_REPORT_COMPLETED'; payload: { ... } }
   | { type: 'QC_REPORT_FAILED'; payload: { ... } }
-  | { type: 'PROJECT_UNPUBLISHED'; payload: { projectId: string; userId: string } };
+  | { type: 'STAGE3_FALLBACK_USED'; payload: { projectId: string; error: string } }
+  | { type: 'STAGE_SKIPPED'; payload: { projectId: string; stage: 'stage2'|'stage3'; reason: string } }
+  | { type: 'QUALITY_LOOP_COMPLETED'; payload: { projectId: string; iterations: number; improved: boolean; finalStructuralScore: number; finalMobileScore: number } };
 
 // src/lib/events/eventBus.ts — pub/sub 구독자 시스템
 type EventHandler = (event: DomainEvent) => void | Promise<void>;

@@ -70,6 +70,8 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 |------|--------|
 | fetch 호출 없음 | fetchCallCount === 0 |
 | placeholder 존재 | placeholderCount > 0 |
+| 하드코딩 배열 데이터 | hardcodedArrayCount > 0 |
+| 프록시 미사용 fetch | !hasProxyCall && fetchCallCount > 0 |
 | 구조 점수 미달 | structuralScore < 60 |
 | 모바일 점수 미달 | mobileScore < 60 |
 | JS 콘솔 에러 감지 | consoleErrors.passed === false |
@@ -77,12 +79,15 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 | 푸터 미존재 | footerVisible.passed === false |
 | 레이아웃 겹침 | noLayoutOverlap.passed === false |
 
+**AutoFix 선행 처리 (Phase 3, 2026-05-01)**:  
+LLM 재시도 전 `applyAutoFix()`가 먼저 실행됩니다. CDN http→https, TODO 주석 제거, placeholder 교체 규칙으로 해결 가능한 경우 LLM 재시도를 완전히 건너뜁니다. 부분 해소 시에는 AutoFix 결과를 LLM 재시도 기반으로 활용합니다. (`src/lib/ai/autoFix.ts`)
+
 **수정 프롬프트에 포함되는 정보**:
 - 코드 레벨 이슈 목록 (details)
 - 렌더링 QC 실패 항목 (QcReport.checks)
 - 24개 구체적 수정 지침
 
-**담당**: `qualityLoop.shouldRetryGeneration()`, `buildQualityImprovementPrompt()`
+**담당**: `qualityLoop.shouldRetryGeneration()`, `applyAutoFix()`, `buildQualityImprovementPrompt()`
 
 > **타임아웃**: 각 재생성 반복은 `QUALITY_LOOP_ITERATION_TIMEOUT_MS`(기본 120초) 타임아웃 적용. 단일 반복에서 AI 응답이 없으면 해당 반복을 건너뛰고 현재 최선 결과를 유지.
 
