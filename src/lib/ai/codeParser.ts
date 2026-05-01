@@ -246,34 +246,16 @@ export function assembleHtml(parsed: ParsedCode): string {
       }
     }
 
-    // Re-inject Tailwind CDN + config (DOMPurify strips <script src> by design)
-    if (!assembled.includes('cdn.tailwindcss.com')) {
-      const idx = assembled.lastIndexOf('</head>');
-      assembled =
-        assembled.slice(0, idx) +
-        TAILWIND_CDN_TAG + '\n' +
-        TAILWIND_CONFIG_TAG + '\n' +
-        assembled.slice(idx);
-    }
-
-    // Re-inject Pretendard font CDN (check CDN URL, not just the word "pretendard"
-    // which already appears inside TAILWIND_CONFIG_TAG's fontFamily definition)
-    if (!assembled.includes('pretendardvariable-dynamic-subset')) {
-      const idx = assembled.lastIndexOf('</head>');
-      assembled =
-        assembled.slice(0, idx) +
-        PRETENDARD_CDN_TAG + '\n' +
-        assembled.slice(idx);
-    }
-
-    // Re-inject Font Awesome CDN
-    if (!assembled.includes('font-awesome')) {
-      const idx = assembled.lastIndexOf('</head>');
-      assembled =
-        assembled.slice(0, idx) +
-        FONT_AWESOME_CDN_TAG + '\n' +
-        assembled.slice(idx);
-    }
+    // Re-inject Tailwind CDN + config (DOMPurify strips all <script src> and <link> tags by design;
+    // these whitelisted CDN tags are always re-injected unconditionally after sanitization)
+    const headIdx = assembled.lastIndexOf('</head>');
+    assembled =
+      assembled.slice(0, headIdx) +
+      TAILWIND_CDN_TAG + '\n' +
+      TAILWIND_CONFIG_TAG + '\n' +
+      PRETENDARD_CDN_TAG + '\n' +
+      FONT_AWESOME_CDN_TAG + '\n' +
+      assembled.slice(headIdx);
 
     // Inject Alpine.js CDN before </head> (skip if already present)
     if (!assembled.includes('alpinejs')) {
