@@ -157,9 +157,7 @@ export interface QualityLoopRunOptions {
   userFeedback?: string;
 }
 
-const QUALITY_LOOP_PROGRESS = [93, 95, 97] as const;
-
-/** 품질 기준 미달 시 최대 3회 재생성 시도, 최선 버전 반환 */
+/** 품질 기준 미달 시 최대 N회 재생성 시도, 최선 버전 반환 */
 export async function runQualityLoop(
   initialParsed: { html: string; css: string; js: string },
   initialQuality: ReturnType<typeof evaluateQuality>,
@@ -173,7 +171,15 @@ export async function runQualityLoop(
   let qualityLoopUsed = false;
   let iterationsRun = 0;
 
-  for (let attempt = 0; attempt < 3; attempt++) {
+  const _maxIter = Number.parseInt(process.env.QUALITY_LOOP_MAX_ITERATIONS ?? '', 10);
+  const maxIterations = Number.isNaN(_maxIter) || _maxIter <= 0 ? 2 : Math.min(_maxIter, 3);
+  // progress 구간: 93부터 97까지 maxIterations 등분 (예: 2회→[93,97], 3회→[93,95,97])
+  const progressStep = maxIterations > 1 ? Math.floor(4 / (maxIterations - 1)) : 4;
+  const qualityLoopProgress = Array.from({ length: maxIterations }, (_, i) =>
+    i === maxIterations - 1 ? 97 : 93 + i * progressStep,
+  );
+
+  for (let attempt = 0; attempt < maxIterations; attempt++) {
     if (!shouldRetryGeneration(bestQuality, bestQcReport)) break;
     iterationsRun++;
 
@@ -183,8 +189,8 @@ export async function runQualityLoop(
       attempt: attempt + 1,
     });
 
-    const progress = QUALITY_LOOP_PROGRESS[attempt] ?? 97;
-    const message = `품질 개선 중... (${attempt + 1}/3회)`;
+    const progress = qualityLoopProgress[attempt] ?? 97;
+    const message = `품질 개선 중... (${attempt + 1}/${maxIterations}회)`;
     sse.send('progress', { step: 'quality_improvement', progress, message });
     generationTracker.updateProgress(projectId, progress, 'quality_improvement', message);
 
@@ -259,9 +265,26 @@ export async function runQualityLoop(
         const strictAdoption = process.env.QUALITY_LOOP_STRICT_ADOPTION !== 'false';
         const structDelta = retryQuality.structuralScore - bestQuality.structuralScore;
         const mobileDelta = retryQuality.mobileScore - bestQuality.mobileScore;
-        const codeImproved = strictAdoption
-          ? (structDelta > 0 && mobileDelta >= 0) || (mobileDelta > 0 && structDelta >= 0)
-          : structDelta > 0 || mobileDelta > 0;
+
+        // 기능 이슈(proxy 미사용, fetch 없음, placeholder, hardcoded array)가 retry 코드에서
+        // 해결됐다면 점수 등락 무관하게 채택 — 기능 정확도가 점수보다 우선
+        const prevHadFunctionalIssue =
+          bestQuality.fetchCallCount === 0 ||
+          (!bestQuality.hasProxyCall && bestQuality.fetchCallCount > 0) ||
+          bestQuality.hardcodedArrayCount > 0 ||
+          bestQuality.placeholderCount > 0;
+        const retryHasFunctionalIssue =
+          retryQuality.fetchCallCount === 0 ||
+          (!retryQuality.hasProxyCall && retryQuality.fetchCallCount > 0) ||
+          retryQuality.hardcodedArrayCount > 0 ||
+          retryQuality.placeholderCount > 0;
+        const functionalIssueSolved = prevHadFunctionalIssue && !retryHasFunctionalIssue;
+
+        const codeImproved =
+          functionalIssueSolved ||
+          (strictAdoption
+            ? (structDelta > 0 && mobileDelta >= 0) || (mobileDelta > 0 && structDelta >= 0)
+            : structDelta > 0 || mobileDelta > 0);
         const qcImproved =
           retryQcReport && bestQcReport
             ? retryQcReport.overallScore > bestQcReport.overallScore

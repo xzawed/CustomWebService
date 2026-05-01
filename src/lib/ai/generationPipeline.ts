@@ -210,13 +210,15 @@ ${featureList}
       ...stage1Validation.warnings,
       ...stage1Quality.details,
       ...(stage1Quality.fetchCallCount === 0 ? ['fetch() 호출이 없습니다 — 반드시 API 호출 추가'] : []),
+      ...(!stage1Quality.hasProxyCall && stage1Quality.fetchCallCount > 0 ? ['직접 외부 URL fetch 감지 — 모든 API 호출은 /api/v1/proxy 경유 필수'] : []),
       ...(stage1Quality.placeholderCount > 0 ? [`Placeholder 감지 (${stage1Quality.placeholderCount}개): 홍길동, 준비 중 등 제거 필요`] : []),
     ];
 
     const staticNeedsStage2 =
       stage1Quality.fetchCallCount === 0 ||
       stage1Quality.placeholderCount > 0 ||
-      stage1Quality.hardcodedArrayCount > 0;
+      stage1Quality.hardcodedArrayCount > 0 ||
+      (!stage1Quality.hasProxyCall && stage1Quality.fetchCallCount > 0);
 
     let stage1FastQcIssues: string[] | null = null;
     let stage1FastQcPassed: boolean | null = null;
