@@ -116,6 +116,9 @@ export interface QualityMetrics {
   hasJsonParse: boolean;
   placeholderCount: number;
   hardcodedArrayCount: number;
+  // Informational: did the AI include Tailwind CDN in the raw HTML?
+  // assembleHtml() always re-injects it regardless, so this does not affect scoring.
+  hasTailwindCdn: boolean;
   details: string[];
 }
 
@@ -283,6 +286,8 @@ export function evaluateQuality(html: string, _css: string, js: string): Quality
   const mobileChecks = [hasResponsiveClasses, hasAdequateResponsive, noFixedOverflow, hasImageProtection, hasMobileNav];
   const mobileScore = Math.round((mobileChecks.filter(Boolean).length / mobileChecks.length) * 100);
 
+  const hasTailwindCdn = /cdn\.tailwindcss\.com/.test(html);
+
   return {
     structuralScore,
     mobileScore,
@@ -301,6 +306,7 @@ export function evaluateQuality(html: string, _css: string, js: string): Quality
     hasJsonParse,
     placeholderCount,
     hardcodedArrayCount,
+    hasTailwindCdn,
     details,
   };
 }

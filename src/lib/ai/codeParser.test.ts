@@ -242,4 +242,61 @@ describe('assembleHtml', () => {
     expect(result).not.toContain('https://evil.example.com');
     expect(result).toContain('<p>safe</p>');
   });
+
+  // ── CDN 재주입 테스트 (DOMPurify가 제거한 CDN을 assembleHtml이 복원하는지 검증) ──
+
+  it('Tailwind CDN script 태그를 </head> 앞에 재주입한다 (풀 문서)', () => {
+    const html = '<html><head></head><body><p class="bg-blue-500">Hello</p></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    expect(result).toContain('cdn.tailwindcss.com');
+    const tailwindIdx = result.indexOf('cdn.tailwindcss.com');
+    const headCloseIdx = result.indexOf('</head>');
+    expect(tailwindIdx).toBeGreaterThan(-1);
+    expect(tailwindIdx).toBeLessThan(headCloseIdx);
+  });
+
+  it('tailwind.config 인라인 스크립트를 재주입한다 (풀 문서)', () => {
+    const html = '<html><head></head><body></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    expect(result).toContain('tailwind.config');
+    expect(result).toContain('pretendard');
+  });
+
+  it('Pretendard 폰트 CDN link 태그를 재주입한다 (풀 문서)', () => {
+    const html = '<html><head></head><body></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    expect(result).toContain('cdn.jsdelivr.net');
+    expect(result).toContain('pretendardvariable-dynamic-subset');
+  });
+
+  it('Font Awesome CDN link 태그를 재주입한다 (풀 문서)', () => {
+    const html = '<html><head></head><body></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    expect(result).toContain('font-awesome');
+    expect(result).toContain('cdnjs.cloudflare.com');
+  });
+
+  it('Tailwind CDN이 이미 있으면 중복 주입하지 않는다', () => {
+    const html =
+      '<html><head><script src="https://cdn.tailwindcss.com"></script></head><body></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    const count = (result.match(/cdn\.tailwindcss\.com/g) ?? []).length;
+    expect(count).toBe(1);
+  });
+
+  it('비-풀 문서 HTML에서도 Tailwind CDN을 주입한다', () => {
+    const result = assembleHtml({ html: '<p class="text-blue-500">Hello</p>', css: '', js: '' });
+    expect(result).toContain('cdn.tailwindcss.com');
+    expect(result).toContain('tailwind.config');
+    expect(result).toContain('pretendardvariable-dynamic-subset');
+    expect(result).toContain('font-awesome');
+  });
+
+  it('악성 도메인 script는 제거되고 화이트리스트 CDN은 재주입된다', () => {
+    const html =
+      '<html><head><script src="https://evil.com/payload.js"></script></head><body></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    expect(result).not.toContain('evil.com');
+    expect(result).toContain('cdn.tailwindcss.com');
+  });
 });

@@ -5,6 +5,27 @@ DOMPurify.addHook('uponSanitizeAttribute', (_el, data) => {
   if (/^(x-|:|@)/.test(data.attrName)) data.forceKeepAttr = true;
 });
 
+// CDN whitelist re-injection constants.
+// DOMPurify strips <script src> and <link> tags by design (XSS prevention).
+// These known-safe CDN tags are re-injected explicitly after sanitization —
+// same pattern as Alpine.js injection. Keep URLs in sync with promptBuilder.ts.
+const TAILWIND_CDN_TAG = '  <script src="https://cdn.tailwindcss.com"></script>';
+const TAILWIND_CONFIG_TAG = [
+  '  <script>',
+  '    tailwind.config = {',
+  '      theme: { extend: {',
+  "        fontFamily: { pretendard: ['Pretendard Variable', 'Pretendard', 'sans-serif'] },",
+  '      } },',
+  '    };',
+  '  </script>',
+].join('\n');
+const PRETENDARD_CDN_TAG = [
+  '  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>',
+  '  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">',
+].join('\n');
+const FONT_AWESOME_CDN_TAG =
+  '  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">';
+
 export interface ParsedCode {
   html: string;
   css: string;
@@ -225,6 +246,35 @@ export function assembleHtml(parsed: ParsedCode): string {
       }
     }
 
+    // Re-inject Tailwind CDN + config (DOMPurify strips <script src> by design)
+    if (!assembled.includes('cdn.tailwindcss.com')) {
+      const idx = assembled.lastIndexOf('</head>');
+      assembled =
+        assembled.slice(0, idx) +
+        TAILWIND_CDN_TAG + '\n' +
+        TAILWIND_CONFIG_TAG + '\n' +
+        assembled.slice(idx);
+    }
+
+    // Re-inject Pretendard font CDN (check CDN URL, not just the word "pretendard"
+    // which already appears inside TAILWIND_CONFIG_TAG's fontFamily definition)
+    if (!assembled.includes('pretendardvariable-dynamic-subset')) {
+      const idx = assembled.lastIndexOf('</head>');
+      assembled =
+        assembled.slice(0, idx) +
+        PRETENDARD_CDN_TAG + '\n' +
+        assembled.slice(idx);
+    }
+
+    // Re-inject Font Awesome CDN
+    if (!assembled.includes('font-awesome')) {
+      const idx = assembled.lastIndexOf('</head>');
+      assembled =
+        assembled.slice(0, idx) +
+        FONT_AWESOME_CDN_TAG + '\n' +
+        assembled.slice(idx);
+    }
+
     // Inject Alpine.js CDN before </head> (skip if already present)
     if (!assembled.includes('alpinejs')) {
       const alpineTag =
@@ -276,6 +326,10 @@ export function assembleHtml(parsed: ParsedCode): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
+${TAILWIND_CDN_TAG}
+${TAILWIND_CONFIG_TAG}
+${PRETENDARD_CDN_TAG}
+${FONT_AWESOME_CDN_TAG}
   ${headInjections}
 ${alpineScript}</head>
 <body>
