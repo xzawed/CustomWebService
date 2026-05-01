@@ -215,6 +215,33 @@ describe('runStage2Function()', () => {
 
     expect(buildUserPrompt).toHaveBeenCalledWith(mockParsedCode, ['static-issue'], ['fast-issue']);
   });
+
+  it('500ms 스로틀 경과 후 progress callback이 sse.send를 호출한다', async () => {
+    vi.useFakeTimers();
+    const buildUserPrompt = vi.fn().mockReturnValue('user');
+
+    provider.generateCodeStream.mockImplementation(
+      async (_msgs: unknown, callback: (chunk: string, accumulated: string) => void) => {
+        vi.advanceTimersByTime(600);
+        callback('chunk', 'x'.repeat(10000));
+        return {
+          content: 'code',
+          provider: 'anthropic',
+          model: 'claude-opus-4-7',
+          durationMs: 100,
+          tokensUsed: { input: 1, output: 1 },
+        };
+      }
+    );
+
+    await runStage2Function(mockParsedCode, 'sys', buildUserPrompt, [], null, provider, sse);
+    vi.useRealTimers();
+
+    const progressSteps = (sse.send as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) => c[0] === 'progress')
+      .map((c: unknown[]) => (c[1] as { step: string }).step);
+    expect(progressSteps).toContain('stage2_function_generating');
+  });
 });
 
 describe('runStage3()', () => {
@@ -296,5 +323,32 @@ describe('runStage3()', () => {
       tokensUsed: { input: 100, output: 200 },
       userPrompt: 'stage3-user-prompt',
     });
+  });
+
+  it('500ms 스로틀 경과 후 progress callback이 sse.send를 호출한다', async () => {
+    vi.useFakeTimers();
+    const buildUserPrompt = vi.fn().mockReturnValue('user');
+
+    provider.generateCodeStream.mockImplementation(
+      async (_msgs: unknown, callback: (chunk: string, accumulated: string) => void) => {
+        vi.advanceTimersByTime(600);
+        callback('chunk', 'x'.repeat(15000));
+        return {
+          content: 'code',
+          provider: 'anthropic',
+          model: 'claude-opus-4-7',
+          durationMs: 100,
+          tokensUsed: { input: 1, output: 1 },
+        };
+      }
+    );
+
+    await runStage3(mockParsedCode, 'sys', buildUserPrompt, provider, sse, false);
+    vi.useRealTimers();
+
+    const progressSteps = (sse.send as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) => c[0] === 'progress')
+      .map((c: unknown[]) => (c[1] as { step: string }).step);
+    expect(progressSteps).toContain('stage3_generating');
   });
 });
