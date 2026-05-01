@@ -593,4 +593,46 @@ describe('runQualityLoop — AutoFix 통합', () => {
 
     expect(mockAiProvider.generateCode).toHaveBeenCalled();
   });
+
+  it('AutoFix가 일부만 해결(partial fix) — bestParsed를 autoFix 결과로 교체 후 LLM 재시도', async () => {
+    // CDN http→https는 autoFix가 고치지만, fetch 없음은 고치지 못함 → partial fix path (lines 204-206)
+    const partialHtml = `<!DOCTYPE html><html lang="ko"><head>
+<script src="http://cdn.tailwindcss.com"></script>
+</head><body>
+<header class="hidden md:flex"><h1>서비스</h1></header>
+<nav class="hidden lg:block"><a href="/">홈</a></nav>
+<main class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+<section class="sm:p-4 md:p-6 lg:p-8"><article><p>내용</p></article></section>
+</main>
+<footer class="border-t mt-4 transition"><p>© 2026</p></footer>
+</body></html>`;
+    const partialJs = 'document.addEventListener("click", () => {});'; // fetch 없음
+
+    const { evaluateQuality } = await import('@/lib/ai/codeValidator');
+    const initialQuality = evaluateQuality(partialHtml, '', partialJs);
+    // autoFix가 CDN http→https를 고치지만 fetchCallCount=0 이므로 shouldRetryGeneration=true 유지
+    expect(initialQuality.fetchCallCount).toBe(0);
+
+    mockAiProvider.generateCode.mockRejectedValueOnce(new Error('timeout'));
+
+    const result = await runQualityLoop(
+      { html: partialHtml, css: '', js: partialJs },
+      initialQuality,
+      null,
+      {
+        stage2SystemPrompt: 'system',
+        stage2FunctionSystemPrompt: 'function',
+        aiProvider: mockAiProvider as unknown as IAiProvider,
+        sse: mockSse as unknown as SseWriter,
+        useET: false,
+        projectId: 'test-partial-fix',
+      },
+    );
+
+    // autoFix partial fix 후 LLM 재시도가 수행됨
+    expect(mockAiProvider.generateCode).toHaveBeenCalled();
+    // autoFix가 CDN을 https로 교체한 결과가 bestParsed에 반영됨
+    expect(result.parsed.html).toContain('https://cdn.tailwindcss.com');
+  });
+
 });
