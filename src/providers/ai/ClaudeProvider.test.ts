@@ -140,7 +140,8 @@ describe('ClaudeProvider', () => {
       await provider.generateCode({ system: 'sys', user: 'user', extendedThinking: true });
       const callArg = mockCreate.mock.calls[0][0] as Record<string, unknown>;
       expect(callArg).toMatchObject({
-        thinking: { type: 'enabled', budget_tokens: 32000 },
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'high' },
       });
       expect(callArg).not.toHaveProperty('temperature');
     });
