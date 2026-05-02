@@ -110,7 +110,8 @@ export class ClaudeProvider implements IAiProvider {
         messages: [{ role: 'user', content: prompt.user }],
         max_tokens: prompt.maxTokens ?? 48000,
         ...(useThinking && {
-          thinking: { type: 'enabled' as const, budget_tokens: 32000 },
+          thinking: { type: 'adaptive' as const },
+          output_config: { effort: 'high' as const },
         }),
       });
 
@@ -147,7 +148,8 @@ export class ClaudeProvider implements IAiProvider {
         messages: [{ role: 'user', content: prompt.user }],
         max_tokens: prompt.maxTokens ?? 48000,
         ...(useThinking && {
-          thinking: { type: 'enabled' as const, budget_tokens: 32000 },
+          thinking: { type: 'adaptive' as const },
+          output_config: { effort: 'high' as const },
         }),
       });
 
