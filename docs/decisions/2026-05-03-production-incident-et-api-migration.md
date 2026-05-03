@@ -36,15 +36,19 @@
 
 ---
 
-### 원인 3: Playwright Chromium 바이너리 미설치
+### 원인 3: Playwright executablePath 미전달 및 Alpine 폰트 의존성 누락
 
 **현상**: 모든 QC 단계에서 `browserType.launch: Executable doesn't exist` 오류 발생.
 
-**근본 원인**: `ENABLE_RENDERING_QC=true`로 설정되어 있었으나, Railway 컨테이너 이미지에 Playwright의 Chromium 바이너리가 설치되지 않은 상태였다. Playwright는 코드 설치(`npm install playwright`) 외에 별도의 바이너리 설치(`playwright install chromium`)가 필요한데, Dockerfile에 이 단계가 누락되어 있었다.
+**초기 진단 (부정확)**: "Playwright Chromium 바이너리가 미설치"로 추정했으나, Dockerfile에 `apk add chromium`이 이미 존재하고 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` 환경변수도 설정된 상태였다.
+
+**실제 근본 원인 (2개)**:
+1. `playwright-core`는 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 환경변수를 **자동으로 읽지 않는다**. `chromium.launch({ executablePath })` 옵션에 명시적으로 전달해야 하며, 미전달 시 playwright-core가 자체 다운로드 경로(`/home/nextjs/.cache/ms-playwright/chromium_headless_shell-1217/...`)를 탐색하다 실패한다.
+2. Alpine 시스템 Chromium 실행에 필요한 폰트 패키지(`nss`, `freetype`, `harfbuzz`, `ttf-freefont`)가 Dockerfile에서 누락되어 렌더링 품질 저하 위험이 있었다.
 
 **영향 범위**: Rendering QC가 활성화된 모든 생성/재생성 요청.
 
-**관련 파일**: `Dockerfile`, `src/lib/qc/renderingQc.ts`
+**관련 파일**: `src/lib/qc/browserPool.ts`, `Dockerfile`
 
 ---
 
@@ -97,13 +101,18 @@
 
 ---
 
-### 수정 3: Rendering QC 비활성화 (환경변수)
+### 수정 3: Rendering QC 비활성화 (임시) → Playwright executablePath 수정 (PR #94)
 
-**변경 내용**: `ENABLE_RENDERING_QC=false` 환경변수 설정으로 Playwright 기반 QC 비활성화.
+**1단계 임시 조치**: `ENABLE_RENDERING_QC=false` 환경변수 설정으로 Playwright 기반 QC 즉시 비활성화.
 
-**배포 필요**: 아니오 (Railway 환경변수 재배포 없이 반영).
+**2단계 근본 수정 (PR #94)**:
+- `src/lib/qc/browserPool.ts`: `chromium.launch()` 에 `executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 명시 전달. 환경변수 미설정 시 playwright 기본값 유지 (로컬 개발 호환).
+- `src/lib/qc/browserPool.ts`: `--disable-setuid-sandbox` 인자 추가 (Alpine 비루트 컨테이너 호환).
+- `Dockerfile`: `nss`, `freetype`, `harfbuzz`, `ca-certificates`, `ttf-freefont` 추가 (텍스트 렌더링 품질 보장).
 
-**임시 조치**: Dockerfile에 Playwright 바이너리 설치 단계 추가 후 재활성화 예정.
+**배포 필요**: 예 (PR #94 코드 변경 + Docker 이미지 재빌드).
+
+**재활성화**: PR #94 Railway 배포 완료 후 `ENABLE_RENDERING_QC=true` 설정.
 
 ---
 
@@ -132,12 +141,11 @@
 
 아래 항목은 이번 인시던트에서 임시 조치(환경변수 플래그)로 우회된 상태이며, 근본 수정이 완료되어야 재활성화할 수 있다.
 
-### [미해결] Playwright Chromium 바이너리 설치
+### [해결됨] Playwright executablePath 수정 (PR #94)
 
-- **과제**: `Dockerfile`에 `RUN npx playwright install chromium --with-deps` 단계 추가
-- **우선순위**: 높음 — Rendering QC는 생성 품질 보증의 핵심 검증 단계
-- **현재 상태**: `ENABLE_RENDERING_QC=false`로 비활성화 중
-- **관련 파일**: `Dockerfile`
+- **수정 내용**: `browserPool.ts`에서 `chromium.launch({ executablePath })` 명시 전달 + Dockerfile Alpine 폰트 의존성 추가
+- **현재 상태**: PR #94 배포 후 `ENABLE_RENDERING_QC=true` 재활성화 완료
+- **관련 파일**: `src/lib/qc/browserPool.ts`, `Dockerfile`
 
 ### [미해결] logger Error 직렬화 버그
 
@@ -175,9 +183,15 @@
 
 `JSON.stringify(Error)` 버그로 에러 내용이 소실되지 않았다면 타임아웃 오설정을 훨씬 일찍 발견했을 것이다. **에러 객체를 문자열로 변환할 때는 반드시 `err.message`나 구조화된 포맷을 사용**해야 한다. `JSON.stringify`는 `Error` 인스턴스에서 `{}` 를 반환한다는 점은 JavaScript의 잘 알려진 함정이다.
 
-### 의존성 설치와 런타임 실행의 분리
+### 환경변수 ≠ 라이브러리 설정
 
-Playwright는 npm 패키지 설치와 별개로 OS 레벨 바이너리 설치가 필요하다. `package.json` 의존성 목록에 있다는 사실만으로 런타임에서 동작한다고 가정하면 안 된다. **컨테이너 이미지 빌드 시 런타임 실행 가능 여부를 smoke test로 검증**하는 단계가 필요하다.
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 환경변수를 설정했어도 `playwright-core`가 이를 자동으로 읽지 않는다. **라이브러리가 환경변수를 암묵적으로 읽는다고 가정하지 말고, 공식 문서에서 지원 여부를 직접 확인**해야 한다. `playwright`(풀 패키지)와 `playwright-core`(코어 패키지)는 동작 방식이 다르며, 특히 실행 경로 탐색 로직이 다르다.
+
+환경변수 → 라이브러리 API 파라미터 전달이 필요한 경우는 코드에서 명시적으로 처리해야 한다:
+```typescript
+const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+chromium.launch({ ...(executablePath && { executablePath }) });
+```
 
 ### 인시던트 대응 계정은 레이트리밋 예외 필요
 
@@ -191,11 +205,11 @@ Playwright는 npm 패키지 설치와 별개로 OS 레벨 바이너리 설치가
 
 ## 관련 파일
 
-- `src/providers/ai/ClaudeProvider.ts` — ET API 마이그레이션 (원인 1 수정)
-- `src/lib/ai/qualityLoop.ts` — 타임아웃 설정 및 logger 버그 (원인 2)
-- `src/lib/qc/renderingQc.ts` — Playwright 기반 Rendering QC (원인 3)
-- `Dockerfile` — Playwright Chromium 바이너리 설치 누락 (원인 3)
-- `src/app/(main)/builder/page.tsx` — 생성 완료 상태 고착 수정 (원인 4 수정)
-- `src/services/rateLimitService.ts` — 관리자 레이트리밋 우회 (원인 5 수정)
-- `docs/reference/env-vars.md` — `RATE_LIMIT_BYPASS_USER_IDS` 환경변수 추가 필요
+- `src/providers/ai/ClaudeProvider.ts` — ET API 마이그레이션 (원인 1 수정, PR #90)
+- `src/lib/ai/qualityLoop.ts` — `resolveMaxIterations(0)` 버그 수정 (원인 2 관련, PR #93)
+- `src/lib/utils/logger.ts` — Error 직렬화 버그 수정 (원인 2 관련, PR #93)
+- `src/lib/qc/browserPool.ts` — Playwright executablePath 명시 전달 (원인 3 수정, PR #94)
+- `Dockerfile` — Alpine 폰트 의존성 추가 (원인 3 수정, PR #94)
+- `src/app/(main)/builder/page.tsx` — 생성 완료 상태 고착 수정 (원인 4 수정, PR #91)
+- `src/services/rateLimitService.ts` — 관리자 레이트리밋 우회 (원인 5 수정, PR #92)
 - [ADR 2026-04-29](2026-04-29-generation-success-rate-improvement.md) — Quality Loop 타임아웃 기능 도입 배경
