@@ -35,6 +35,9 @@ export class RateLimitService {
    * method returned successfully but the generation subsequently failed.
    */
   async checkAndIncrementDailyLimit(userId: string): Promise<void> {
+    const bypassIds = (process.env.RATE_LIMIT_BYPASS_USER_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (bypassIds.includes(userId)) return;
+
     const limits = getLimits();
     try {
       const allowed = await this.rateLimitRepo.checkAndIncrementDailyLimit(
