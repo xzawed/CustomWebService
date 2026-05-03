@@ -143,6 +143,7 @@ pnpm test:coverage    # 커버리지 리포트
 | API 카탈로그 전수 검증 ADR (62개, 2026-05-01) | [docs/decisions/2026-05-01-api-catalog-verification.md](docs/decisions/2026-05-01-api-catalog-verification.md) |
 | API 카탈로그 즉시 사용 가능 기준 정리 ADR (23개 활성, 2026-05-01) | [docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md](docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md) |
 | 프로덕션 인시던트 회고 ADR — ET API 마이그레이션 및 연쇄 장애 (2026-05-03) | [docs/decisions/2026-05-03-production-incident-et-api-migration.md](docs/decisions/2026-05-03-production-incident-et-api-migration.md) |
+| Quality Loop 재활성화 및 ET 타임아웃 분리 구현 계획 | [docs/superpowers/plans/2026-05-03-quality-loop-restoration.md](docs/superpowers/plans/2026-05-03-quality-loop-restoration.md) |
 
 - [README.md](README.md) — 프로젝트 전체 개요
 - [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) — PR 템플릿
