@@ -21,6 +21,15 @@ function shouldLog(level: LogLevel): boolean {
   return LOG_LEVELS[level] >= LOG_LEVELS[CURRENT_LEVEL];
 }
 
+function serializeContext(context: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(context).map(([k, v]) => [
+      k,
+      v instanceof Error ? { message: v.message, name: v.name, stack: v.stack } : v,
+    ]),
+  );
+}
+
 function log(
   level: LogLevel,
   message: string,
@@ -34,7 +43,7 @@ function log(
     message,
     timestamp: new Date().toISOString(),
     ...(correlationId && { correlationId }),
-    ...(context && { context }),
+    ...(context && { context: serializeContext(context) }),
   };
 
   const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;

@@ -132,7 +132,9 @@ ${qcIssues ? `\n브라우저 렌더링 검증에서 발견된 추가 문제:\n${
 
 export function resolveMaxIterations(): number {
   const v = Number.parseInt(process.env.QUALITY_LOOP_MAX_ITERATIONS ?? '', 10);
-  return Number.isNaN(v) || v <= 0 ? 2 : Math.min(v, 3);
+  if (Number.isNaN(v)) return 2;
+  if (v === 0) return 0;
+  return Math.min(Math.max(1, v), 3);
 }
 
 export function buildProgressSchedule(maxIterations: number): number[] {
