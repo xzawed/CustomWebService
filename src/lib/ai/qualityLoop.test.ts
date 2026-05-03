@@ -190,9 +190,9 @@ describe('resolveMaxIterations', () => {
     vi.stubEnv('QUALITY_LOOP_MAX_ITERATIONS', '4');
     expect(resolveMaxIterations()).toBe(3);
   });
-  it('QUALITY_LOOP_MAX_ITERATIONS=0 → 기본값 2', () => {
+  it('QUALITY_LOOP_MAX_ITERATIONS=0 → 0 (명시적 비활성화)', () => {
     vi.stubEnv('QUALITY_LOOP_MAX_ITERATIONS', '0');
-    expect(resolveMaxIterations()).toBe(2);
+    expect(resolveMaxIterations()).toBe(0);
   });
   it('빈 문자열 → 기본값 2', () => {
     vi.stubEnv('QUALITY_LOOP_MAX_ITERATIONS', '');

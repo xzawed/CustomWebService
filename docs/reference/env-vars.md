@@ -109,6 +109,7 @@
 |------|--------|---------|------|
 | `RATE_LIMIT_PER_MIN` | `60` | ➖ | proxy + admin 라우트 분당 요청 한도 (사용자/IP 단위) |
 | `MAX_CONCURRENT_RATE_LIMIT_USERS` | `1000` | ➖ | rate limit Map의 LRU evict 임계값 (활성 사용자/IP 한도). 초과 시 가장 오래된 항목 자동 evict — Railway 단일 인스턴스 메모리 누적 차단 |
+| `RATE_LIMIT_BYPASS_USER_IDS` | `` (빈 문자열) | ➖ | 쉼표 구분 userId 목록. 포함된 계정은 일일 생성 한도(`MAX_DAILY_GENERATIONS`) 검사 스킵. 관리자·개발자 계정 우회용. 코드 위치: `src/services/rateLimitService.ts` `checkAndIncrementDailyLimit()` |
 
 ---
 
@@ -116,9 +117,9 @@
 
 | 변수 | 기본값 | Railway | 설명 |
 |------|--------|---------|------|
-| `ENABLE_RENDERING_QC` | `false` | ❌ | Playwright 렌더링 QC 활성화 |
+| `ENABLE_RENDERING_QC` | `false` | ❌ **`false` 운영 중** | Playwright 렌더링 QC 활성화. **현재 Railway에 Playwright 바이너리 미설치로 비활성화** |
 | `QUALITY_LOOP_ITERATION_TIMEOUT_MS` | `120000` | ➖ | 품질 루프 반복당 타임아웃 (ms). 단일 반복에서 AI 응답 없을 시 해당 반복 스킵. **빈 문자열 또는 0 이하 값 설정 시 기본값 120000으로 폴백** |
-| `QUALITY_LOOP_MAX_ITERATIONS` | `2` | ➖ | 품질 루프 최대 반복 횟수. 기본 2회 (최대 3회 상한). 낮출수록 총 생성 시간 단축 — Railway 300초 타임아웃 초과 방지용 |
+| `QUALITY_LOOP_MAX_ITERATIONS` | `2` | ✅ **`0` 운영 중** | 품질 루프 최대 반복 횟수. 기본 2회 (최대 3회 상한). **현재 0으로 설정 — 80초 타임아웃 인시던트 대응으로 Quality Loop 재시도 비활성화.** 낮출수록 총 생성 시간 단축 — Railway 300초 타임아웃 초과 방지용 |
 | `QUALITY_LOOP_STRICT_ADOPTION` | `true` | ➖ | 채택 가드: `true`(기본)는 한 점수 향상 + 다른 점수 동등 이상일 때만 retry 채택(시소 진동 방지). `false`로 설정 시 기존 OR 로직(한쪽 향상) 복원 — 운영 데이터 비교용 롤백 스위치 |
 | `QC_QUALITY_THRESHOLD` | `60` | ➖ | 정적 QC 구조 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
 | `QC_MOBILE_THRESHOLD` | `60` | ➖ | 정적 QC 모바일 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
