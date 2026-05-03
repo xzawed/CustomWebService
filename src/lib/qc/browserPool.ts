@@ -70,9 +70,11 @@ async function getBrowser(): Promise<Browser | null> {
     }
 
     logger.info('[QC] Launching Chromium browser');
+    const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
     browserInstance = await chromium.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+      ...(executablePath && { executablePath }),
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
     });
     return browserInstance;
   } catch (err) {
