@@ -30,7 +30,7 @@ import type { BuilderMode } from '@/stores/builderModeStore';
 import { LIMITS } from '@/lib/config/features';
 import type { ApiCatalogItem, Category } from '@/types/api';
 import type { RelevanceGateResult } from '@/types/project';
-import { ChevronLeft, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 
 const PreviewFrame = dynamic(() => import('@/components/builder/PreviewFrame'), {
   ssr: false,
@@ -601,7 +601,7 @@ export default function BuilderPage() {
       <BuilderModeToggle
         mode={mode}
         onReset={handleResetMode}
-        disabled={step === 3 && genStatus !== 'idle'}
+        disabled={step === 3 && genStatus === 'generating'}
       />
       <StepIndicator currentStep={step} steps={steps} />
 
@@ -869,6 +869,17 @@ export default function BuilderPage() {
           >
             <Sparkles className="h-4 w-4" />
             생성하기
+          </button>
+        )}
+
+        {step === 3 && genStatus === 'completed' && (
+          <button
+            type="button"
+            onClick={resetGeneration}
+            className="btn-secondary inline-flex items-center gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            새로 생성하기
           </button>
         )}
       </div>
