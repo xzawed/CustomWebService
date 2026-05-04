@@ -5,6 +5,7 @@ import { createCatalogRepository } from '@/repositories/factory';
 import { decryptApiKey } from '@/lib/encryption';
 import { getAuthUser } from '@/lib/auth/index';
 import { LRUMap } from '@/lib/utils/lruMap';
+import { proxyCache, buildCacheKey } from '@/lib/cache/proxyCache';
 import {
   RATE_LIMIT_PER_MIN,
   RATE_LIMIT_WINDOW_MS,
@@ -270,11 +271,35 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
   if (urlOrError instanceof Response) return urlOrError;
   const targetUrl = urlOrError;
 
-  // Forward all query params except our own
+  // Forward all query params except our own; track forwarded params for cache key
   const ownParams = new Set(['apiId', 'proxyPath', 'projectId']);
+  const forwardedParams = new URLSearchParams();
   for (const [key, value] of searchParams.entries()) {
     if (!ownParams.has(key)) {
       targetUrl.searchParams.set(key, value);
+      forwardedParams.set(key, value);
+    }
+  }
+
+  // Cache check — GET 요청 + API에 cacheTtlSeconds 설정된 경우만 적용
+  const cacheTtlMs =
+    method === 'GET' && api.cacheTtlSeconds != null && api.cacheTtlSeconds > 0
+      ? api.cacheTtlSeconds * 1000
+      : null;
+
+  if (cacheTtlMs !== null) {
+    const cacheKey = buildCacheKey(apiId, proxyPath, forwardedParams);
+    const cached = proxyCache.get(cacheKey);
+    if (cached) {
+      return new Response(cached.body, {
+        status: cached.status,
+        headers: {
+          'Content-Type': cached.contentType,
+          'Cache-Control': `public, max-age=${api.cacheTtlSeconds!}`,
+          'X-Proxy-Api-Id': apiId,
+          'X-Cache': 'HIT',
+        },
+      });
     }
   }
 
@@ -299,13 +324,21 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
 
   const rawContentType = upstream.headers.get('content-type') ?? 'application/json';
   const body = await upstream.text();
+  const resolvedContentType = resolveContentType(rawContentType);
+
+  // 2xx 응답만 캐시 저장 (오류 응답은 캐시하지 않음)
+  if (cacheTtlMs !== null && upstream.status >= 200 && upstream.status < 300) {
+    const cacheKey = buildCacheKey(apiId, proxyPath, forwardedParams);
+    proxyCache.set(cacheKey, { body, contentType: resolvedContentType, status: upstream.status }, cacheTtlMs);
+  }
 
   return new Response(body, {
     status: upstream.status,
     headers: {
-      'Content-Type': resolveContentType(rawContentType),
-      'Cache-Control': 'no-store',
+      'Content-Type': resolvedContentType,
+      'Cache-Control': cacheTtlMs !== null ? `public, max-age=${api.cacheTtlSeconds!}` : 'no-store',
       'X-Proxy-Api-Id': apiId,
+      ...(cacheTtlMs !== null ? { 'X-Cache': 'MISS' } : {}),
     },
   });
 }

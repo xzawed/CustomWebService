@@ -159,6 +159,7 @@ export class CatalogRepository extends BaseRepository<ApiCatalogItem> implements
       corsSupported: (row.cors_supported as boolean) ?? true,
       requiresProxy: (row.requires_proxy as boolean) ?? false,
       creditRequired: row.credit_required != null ? Number(row.credit_required) : null,
+      cacheTtlSeconds: row.cache_ttl_seconds != null ? Number(row.cache_ttl_seconds) : null,
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string,
       verificationStatus: (row.verification_status ?? 'unverified') as ApiVerificationStatus,

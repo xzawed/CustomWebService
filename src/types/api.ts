@@ -40,6 +40,7 @@ export interface ApiCatalogItem {
   corsSupported: boolean;
   requiresProxy: boolean;
   creditRequired: number | null;
+  cacheTtlSeconds?: number | null;
   createdAt: string;
   updatedAt: string;
   verificationStatus?: ApiVerificationStatus | null;
