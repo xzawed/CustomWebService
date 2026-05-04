@@ -286,6 +286,7 @@ function showError(message) {
 ### 이미지 URL
 API 응답에 이미지 URL이 없을 때만: \`https://source.unsplash.com/600x400/?{콘텐츠키워드}\`
 API 응답의 이미지 필드가 있으면 반드시 그것을 사용하라.
+Unsplash 이미지를 사용하면 시스템이 자동으로 "Photos by Unsplash" 귀속 문구를 페이지 하단에 삽입한다. 별도로 삽입하지 말 것.
 
 ## 동적 화면 구현 패턴
 

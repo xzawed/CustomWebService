@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseGeneratedCode, assembleHtml, sanitizeCss,
   ensureCharset, ensureViewport, injectCdnTags, injectAlpineScript,
+  injectUnsplashAttribution,
 } from './codeParser';
 
 // Minimal fixtures that satisfy MIN_CODE_LENGTHS (html≥50, css≥20, js≥10)
@@ -347,5 +348,72 @@ describe('injectAlpineScript', () => {
     const html = '<html><head><script src="alpinejs"></script></head><body></body></html>';
     const result = injectAlpineScript(html);
     expect((result.match(/alpinejs/g) ?? []).length).toBe(1);
+  });
+});
+
+describe('injectUnsplashAttribution', () => {
+  it('unsplash.com img src가 있으면 </body> 앞에 귀속 문구를 주입한다', () => {
+    const html = '<html><body><img src="https://images.unsplash.com/photo-123?w=600&h=400"></body></html>';
+    const result = injectUnsplashAttribution(html);
+    expect(result).toContain('Photos by');
+    expect(result).toContain('https://unsplash.com');
+    expect(result).toContain('rel="noopener noreferrer"');
+    const attrIdx = result.indexOf('Photos by');
+    const bodyCloseIdx = result.indexOf('</body>');
+    expect(attrIdx).toBeLessThan(bodyCloseIdx);
+  });
+
+  it('source.unsplash.com img src가 있으면 귀속 문구를 주입한다', () => {
+    const html = '<html><body><img src="https://source.unsplash.com/600x400/?nature"></body></html>';
+    const result = injectUnsplashAttribution(html);
+    expect(result).toContain('Photos by');
+  });
+
+  it('Alpine :src에 unsplash.com이 있어도 귀속 문구를 주입한다', () => {
+    const html = '<html><body><img :src="\'https://images.unsplash.com/photo-123\'"></body></html>';
+    const result = injectUnsplashAttribution(html);
+    expect(result).toContain('Photos by');
+  });
+
+  it('unsplash 이미지가 없으면 HTML을 그대로 반환한다', () => {
+    const html = '<html><body><img src="https://picsum.photos/600/400"></body></html>';
+    expect(injectUnsplashAttribution(html)).toBe(html);
+  });
+
+  it('귀속 문구는 한 번만 주입된다', () => {
+    const html = '<html><body><img src="https://images.unsplash.com/a.jpg"><img src="https://images.unsplash.com/b.jpg"></body></html>';
+    const result = injectUnsplashAttribution(html);
+    const count = (result.match(/Photos by/g) ?? []).length;
+    expect(count).toBe(1);
+  });
+
+  it('</body> 태그가 없으면 HTML을 그대로 반환한다', () => {
+    const html = '<img src="https://images.unsplash.com/photo-123">';
+    expect(injectUnsplashAttribution(html)).toBe(html);
+  });
+});
+
+describe('assembleHtml — Unsplash attribution', () => {
+  it('Unsplash 이미지가 포함된 풀 문서에 귀속 문구를 주입한다', () => {
+    const html = '<html><head></head><body><img src="https://images.unsplash.com/photo-abc?w=600&h=400"></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    expect(result).toContain('Photos by');
+    expect(result).toContain('https://unsplash.com');
+  });
+
+  it('Unsplash 이미지가 없는 풀 문서에는 귀속 문구를 주입하지 않는다', () => {
+    const html = '<html><head></head><body><img src="https://picsum.photos/600/400"></body></html>';
+    const result = assembleHtml({ html, css: '', js: '' });
+    expect(result).not.toContain('Photos by');
+  });
+
+  it('Unsplash 이미지가 포함된 프래그먼트에 귀속 문구를 주입한다', () => {
+    const result = assembleHtml({
+      html: '<img src="https://images.unsplash.com/photo-xyz?w=800&h=600"><p>content</p>',
+      css: '',
+      js: '',
+    });
+    expect(result).toContain('Photos by');
+    expect(result).toContain('https://unsplash.com');
   });
 });

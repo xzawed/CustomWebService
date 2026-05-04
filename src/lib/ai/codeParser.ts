@@ -261,6 +261,21 @@ function injectUserScript(html: string, js: string): string {
   return html + `<script>\n${js}\n</script>`;
 }
 
+// Matches any Unsplash image URL in the HTML (src, :src, data attributes, etc.).
+const UNSPLASH_IMG_RE = /unsplash\.com/i;
+
+export function injectUnsplashAttribution(html: string): string {
+  if (!UNSPLASH_IMG_RE.test(html)) return html;
+  const bodyCloseIdx = html.lastIndexOf('</body>');
+  if (bodyCloseIdx === -1) return html;
+  const attribution =
+    '<p class="text-center text-[10px] text-gray-400 py-3">' +
+    'Photos by <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" ' +
+    'class="underline decoration-gray-300 hover:text-gray-600 transition-colors">Unsplash</a>' +
+    '</p>\n';
+  return html.slice(0, bodyCloseIdx) + attribution + html.slice(bodyCloseIdx);
+}
+
 function processFullDocument(assembled: string, safeCss: string, js: string): string {
   assembled = ensureCharset(assembled);
   assembled = ensureViewport(assembled);
@@ -268,6 +283,7 @@ function processFullDocument(assembled: string, safeCss: string, js: string): st
   assembled = injectAlpineScript(assembled);
   assembled = injectHeadExtras(assembled, safeCss);
   assembled = injectUserScript(assembled, js);
+  assembled = injectUnsplashAttribution(assembled);
   return optimizeImages(assembled);
 }
 
@@ -295,7 +311,7 @@ ${safeHtml}
 ${js ? `  <script>\n${js}\n  </script>\n` : ''}</body>
 </html>`;
 
-  return optimizeImages(doc);
+  return injectUnsplashAttribution(optimizeImages(doc));
 }
 
 export function assembleHtml(parsed: ParsedCode): string {
