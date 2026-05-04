@@ -1,11 +1,19 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from 'vitest';
-import { renderComponent, screen } from '@/test/helpers/component';
+import { renderComponent, screen, fireEvent } from '@/test/helpers/component';
 import { Footer } from './Footer';
 
 vi.mock('next/link', () => ({
-  default: ({ href, children }: { href: string; children: unknown }) => (
-    <a href={href}>{children as React.ReactNode}</a>
+  default: ({
+    href,
+    children,
+    ...rest
+  }: {
+    href: string;
+    children: unknown;
+    [key: string]: unknown;
+  }) => (
+    <a href={href} {...rest}>{children as React.ReactNode}</a>
   ),
 }));
 
@@ -43,6 +51,22 @@ describe('Footer', () => {
     expect(github).toBeTruthy();
     expect(github?.getAttribute('target')).toBe('_blank');
     expect(github?.getAttribute('rel')).toBe('noopener noreferrer');
+  });
+
+  it('nav 링크에 onMouseEnter 시 accent 색상으로 변경된다', () => {
+    const { container } = renderComponent(<Footer />);
+    const link = container.querySelector('a[href="/catalog"]') as HTMLAnchorElement;
+    expect(link).toBeTruthy();
+    fireEvent.mouseEnter(link);
+    expect(link.style.color).toBe('var(--accent-primary)');
+  });
+
+  it('nav 링크에 onMouseLeave 시 muted 색상으로 복원된다', () => {
+    const { container } = renderComponent(<Footer />);
+    const link = container.querySelector('a[href="/catalog"]') as HTMLAnchorElement;
+    fireEvent.mouseEnter(link);
+    fireEvent.mouseLeave(link);
+    expect(link.style.color).toBe('var(--text-muted)');
   });
 
 });
