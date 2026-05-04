@@ -189,6 +189,204 @@ describe('coveragePercent 계산', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 6. 'input+button' 검증
+// ---------------------------------------------------------------------------
+
+describe("'input+button' 검증", () => {
+  it('input 없음 → passed: false, detail: 텍스트 입력 필드 없음', async () => {
+    const page = createMockPage({
+      $: vi.fn().mockResolvedValue(null),
+    });
+
+    const report = await runFeatureSmokeTests(page, [makeFeature('input+button')]);
+
+    expect(report.results[0].passed).toBe(false);
+    expect(report.results[0].detail).toBe('텍스트 입력 필드 없음');
+  });
+
+  it('input 있음 + button 없음 → passed: false, detail: 버튼 없음', async () => {
+    const mockInput = { fill: vi.fn().mockResolvedValue(undefined) };
+    // First call returns input element, second call returns null (no button)
+    const mockDollar = vi.fn()
+      .mockResolvedValueOnce(mockInput)  // input selector
+      .mockResolvedValueOnce(null);      // button selector
+
+    const page = createMockPage({ $: mockDollar });
+
+    const report = await runFeatureSmokeTests(page, [makeFeature('input+button')]);
+
+    expect(report.results[0].passed).toBe(false);
+    expect(report.results[0].detail).toBe('버튼 없음');
+    expect(mockInput.fill).toHaveBeenCalledWith('서울');
+  });
+
+  it('input + button 있음 + bodyText > 100 → passed: true', async () => {
+    const mockInput = { fill: vi.fn().mockResolvedValue(undefined) };
+    const mockButton = { click: vi.fn().mockResolvedValue(undefined) };
+    const mockDollar = vi.fn()
+      .mockResolvedValueOnce(mockInput)  // input selector
+      .mockResolvedValueOnce(mockButton); // button selector
+
+    const page = createMockPage({
+      $: mockDollar,
+      evaluate: vi.fn().mockResolvedValue(150), // textAfter > 100
+    });
+
+    const report = await runFeatureSmokeTests(page, [makeFeature('input+button')]);
+
+    expect(report.results[0].passed).toBe(true);
+    expect(report.results[0].detail).toBe('입력→버튼→DOM 변화 확인');
+    expect(mockButton.click).toHaveBeenCalledOnce();
+  });
+
+  it('input + button 있음 + bodyText <= 100 → passed: false, detail: DOM 변화 없음', async () => {
+    const mockInput = { fill: vi.fn().mockResolvedValue(undefined) };
+    const mockButton = { click: vi.fn().mockResolvedValue(undefined) };
+    const mockDollar = vi.fn()
+      .mockResolvedValueOnce(mockInput)
+      .mockResolvedValueOnce(mockButton);
+
+    const page = createMockPage({
+      $: mockDollar,
+      evaluate: vi.fn().mockResolvedValue(50), // textAfter <= 100
+    });
+
+    const report = await runFeatureSmokeTests(page, [makeFeature('input+button')]);
+
+    expect(report.results[0].passed).toBe(false);
+    expect(report.results[0].detail).toBe('DOM 변화 없음');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. 'filter-button' 검증
+// ---------------------------------------------------------------------------
+
+describe("'filter-button' 검증", () => {
+  it('필터 버튼 1개 → passed: false, detail: 필터 버튼 부족', async () => {
+    const page = createMockPage({
+      $$: vi.fn().mockResolvedValue([{}]), // only 1 button
+    });
+
+    const report = await runFeatureSmokeTests(page, [makeFeature('filter-button')]);
+
+    expect(report.results[0].passed).toBe(false);
+    expect(report.results[0].detail).toBe('필터 버튼 부족');
+  });
+
+  it('필터 버튼 2개 + before !== after → passed: true, detail: 필터 적용 확인', async () => {
+    const mockFilterBtn1 = { click: vi.fn().mockResolvedValue(undefined) };
+    const mockFilterBtn2 = { click: vi.fn().mockResolvedValue(undefined) };
+
+    // $$eval: first call returns before=3, second call returns after=5
+    const mockDblDollarEval = vi.fn()
+      .mockResolvedValueOnce(3)  // before
+      .mockResolvedValueOnce(5); // after
+
+    // $ returns null for active element check
+    const page = createMockPage({
+      $$: vi.fn().mockResolvedValue([mockFilterBtn1, mockFilterBtn2]),
+      $$eval: mockDblDollarEval,
+      $: vi.fn().mockResolvedValue(null), // no active element
+    });
+
+    const report = await runFeatureSmokeTests(page, [makeFeature('filter-button')]);
+
+    expect(report.results[0].passed).toBe(true);
+    expect(report.results[0].detail).toBe('필터 적용 확인');
+    expect(mockFilterBtn2.click).toHaveBeenCalledOnce();
+  });
+
+  it('필터 버튼 2개 + before === after + active 요소 존재 → passed: true, detail: active 상태 변화 확인', async () => {
+    const mockFilterBtn1 = { click: vi.fn().mockResolvedValue(undefined) };
+    const mockFilterBtn2 = { click: vi.fn().mockResolvedValue(undefined) };
+
+    const mockDblDollarEval = vi.fn()
+      .mockResolvedValueOnce(3)  // before
+      .mockResolvedValueOnce(3); // after (same)
+
+    const page = createMockPage({
+      $$: vi.fn().mockResolvedValue([mockFilterBtn1, mockFilterBtn2]),
+      $$eval: mockDblDollarEval,
+      $: vi.fn().mockResolvedValue({}), // active element exists
+    });
+
+    const report = await runFeatureSmokeTests(page, [makeFeature('filter-button')]);
+
+    expect(report.results[0].passed).toBe(true);
+    expect(report.results[0].detail).toBe('active 상태 변화 확인');
+  });
+
+  it('필터 버튼 2개 + before === after + active 없음 → passed: false', async () => {
+    const mockFilterBtn1 = { click: vi.fn().mockResolvedValue(undefined) };
+    const mockFilterBtn2 = { click: vi.fn().mockResolvedValue(undefined) };
+
+    const mockDblDollarEval = vi.fn()
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(3); // same
+
+    const page = createMockPage({
+      $$: vi.fn().mockResolvedValue([mockFilterBtn1, mockFilterBtn2]),
+      $$eval: mockDblDollarEval,
+      $: vi.fn().mockResolvedValue(null), // no active element
+    });
+
+    const report = await runFeatureSmokeTests(page, [makeFeature('filter-button')]);
+
+    expect(report.results[0].passed).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. 'text-display' 검증
+// ---------------------------------------------------------------------------
+
+describe("'text-display' 검증", () => {
+  it('bodyText > 50 → passed: true, detail에 글자 수 포함', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockResolvedValue(120),
+    });
+
+    const report = await runFeatureSmokeTests(page, [makeFeature('text-display')]);
+
+    expect(report.results[0].passed).toBe(true);
+    expect(report.results[0].detail).toContain('120');
+    expect(report.results[0].detail).toContain('텍스트');
+  });
+
+  it('bodyText <= 50 → passed: false', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockResolvedValue(30),
+    });
+
+    const report = await runFeatureSmokeTests(page, [makeFeature('text-display')]);
+
+    expect(report.results[0].passed).toBe(false);
+    expect(report.results[0].detail).toContain('30');
+  });
+
+  it('bodyText = 51 boundary → passed: true (> 50)', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockResolvedValue(51),
+    });
+
+    const report = await runFeatureSmokeTests(page, [makeFeature('text-display')]);
+
+    expect(report.results[0].passed).toBe(true);
+  });
+
+  it('bodyText = 50 boundary → passed: false (not > 50)', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockResolvedValue(50),
+    });
+
+    const report = await runFeatureSmokeTests(page, [makeFeature('text-display')]);
+
+    expect(report.results[0].passed).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 6. 결과 구조 검증 (featureId, description, verifiableBy 전달 확인)
 // ---------------------------------------------------------------------------
 

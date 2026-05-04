@@ -23,14 +23,18 @@ vi.mock('next/link', () => ({
     onClick,
     className,
     style,
+    onMouseEnter,
+    onMouseLeave,
   }: {
     href: string;
     children: unknown;
     onClick?: () => void;
     className?: string;
     style?: React.CSSProperties;
+    onMouseEnter?: React.MouseEventHandler<HTMLAnchorElement>;
+    onMouseLeave?: React.MouseEventHandler<HTMLAnchorElement>;
   }) => (
-    <a href={href} onClick={onClick} className={className} style={style}>
+    <a href={href} onClick={onClick} className={className} style={style} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       {children as React.ReactNode}
     </a>
   ),
@@ -182,6 +186,43 @@ describe('Header', () => {
         .getAllByText('빌더')[0]
         .closest('a') as HTMLAnchorElement;
       expect(builderLink.style.color).toContain('--accent-primary');
+    });
+  });
+
+  describe('nav 링크 마우스 이벤트', () => {
+    it('비활성 nav 링크에서 mouseEnter/mouseLeave를 해도 에러가 발생하지 않는다', () => {
+      // 카탈로그 링크는 비로그인 상태에서도 노출되며 비활성(/catalog가 아닌 경로)
+      pathnameMock = '/';
+      renderComponent(<Header />);
+      const catalogLinks = screen.getAllByText('카탈로그');
+      // 데스크톱 nav의 카탈로그 링크(첫 번째 a 태그)
+      const link = catalogLinks[0].closest('a') as HTMLAnchorElement;
+      expect(link).toBeTruthy();
+      // 에러 없이 이벤트가 처리되어야 한다 (smoke test)
+      fireEvent.mouseEnter(link);
+      expect(link.style.color).toContain('--text-primary');
+      fireEvent.mouseLeave(link);
+      expect(link.style.color).toContain('--text-secondary');
+    });
+  });
+
+  describe('드롭다운 외부 클릭 닫기', () => {
+    it('드롭다운이 열린 상태에서 외부 mousedown 이벤트 발생 시 드롭다운이 닫힌다', () => {
+      authState.user = {
+        id: 'u1',
+        email: 'test@example.com',
+        name: '테스터',
+        avatarUrl: null,
+      } as User;
+      authState.isAuthenticated = true;
+      const { container } = renderComponent(<Header />);
+      // 아바타 버튼 클릭으로 드롭다운 열기
+      const avatarBtn = container.querySelector('button[type="button"]') as HTMLButtonElement;
+      fireEvent.click(avatarBtn);
+      expect(screen.getByText('로그아웃')).toBeTruthy();
+      // 외부 요소(document.body)에 mousedown 이벤트 발생 → 드롭다운 닫힘
+      fireEvent.mouseDown(document.body);
+      expect(screen.queryByText('로그아웃')).toBeNull();
     });
   });
 });
