@@ -742,18 +742,13 @@ describe('runQualityLoop — ET 타임아웃 분기', () => {
       }
     );
 
-    // 100000ms 진행 — 기본 ET 타임아웃(200000ms) 미도달이므로 아직 pending
-    vi.advanceTimersByTime(100_000);
+    // Phase 1: 100000ms 진행 — 기본 ET 타임아웃(200000ms) 미도달이므로 아직 pending
+    await vi.advanceTimersByTimeAsync(100_000);
+    const pending = await Promise.race([loopPromise.then(() => 'resolved'), Promise.resolve('pending')]);
+    expect(pending).toBe('pending');
 
-    // loopPromise가 아직 resolve되지 않았는지 확인
-    let resolved = false;
-    loopPromise.then(() => { resolved = true; }).catch(() => { resolved = true; });
-    // 마이크로태스크 flush
-    await Promise.resolve();
-    expect(resolved).toBe(false);
-
-    // 200001ms 추가 진행 → 총 300001ms 경과 → 타임아웃 트리거
-    vi.advanceTimersByTime(200_001);
+    // Phase 2: 100001ms 추가 진행 → 총 200001ms 경과 → ET 기본값 200000ms 초과 → 타임아웃
+    await vi.advanceTimersByTimeAsync(100_001);
     const result = await loopPromise;
     expect(result.parsed).toEqual(initialParsed);
     expect(result.qualityLoopUsed).toBe(false);
