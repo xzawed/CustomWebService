@@ -261,6 +261,7 @@ export class DrizzleCatalogRepository implements ICatalogRepository {
       corsSupported: row.cors_supported ?? true,
       requiresProxy: row.requires_proxy ?? false,
       creditRequired: row.credit_required != null ? Number(row.credit_required) : null,
+      cacheTtlSeconds: row.cache_ttl_seconds != null ? Number(row.cache_ttl_seconds) : null,
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at),
     };

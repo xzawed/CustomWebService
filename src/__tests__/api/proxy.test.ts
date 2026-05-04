@@ -589,4 +589,124 @@ describe('GET /api/v1/proxy', () => {
       expect(body.error.code).toBe('RATE_LIMITED');
     });
   });
+
+  describe('응답 캐시', () => {
+    const mockWeatherApi = {
+      id: VALID_API_ID,
+      isActive: true,
+      baseUrl: 'https://api.example.com',
+      authType: 'none' as const,
+      authConfig: {},
+      cacheTtlSeconds: 10800,
+    };
+
+    it('cacheTtlSeconds 설정 API: 첫 요청 MISS → 두 번째 동일 요청 HIT (upstream 1회만 호출)', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+      const { createCatalogRepository } = await import('@/repositories/factory');
+      vi.mocked(createCatalogRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue(mockWeatherApi),
+      } as never);
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+
+      const res1 = await GET(makeRequest(VALID_API_ID, '/getVilageFcst'));
+      expect(res1.status).toBe(200);
+      expect(res1.headers.get('X-Cache')).toBe('MISS');
+      expect(res1.headers.get('Cache-Control')).toBe('public, max-age=10800');
+      expect(mockFetch).toHaveBeenCalledOnce();
+
+      const res2 = await GET(makeRequest(VALID_API_ID, '/getVilageFcst'));
+      expect(res2.status).toBe(200);
+      expect(res2.headers.get('X-Cache')).toBe('HIT');
+      expect(mockFetch).toHaveBeenCalledOnce(); // upstream 추가 호출 없음
+    });
+
+    it('cacheTtlSeconds 없는 API → Cache-Control: no-store, X-Cache 헤더 없음', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+      const { createCatalogRepository } = await import('@/repositories/factory');
+      vi.mocked(createCatalogRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue({ ...mockPublicApi, cacheTtlSeconds: null }),
+      } as never);
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+      const res = await GET(makeRequest(VALID_API_ID, '/data'));
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+      expect(res.headers.get('X-Cache')).toBeNull();
+    });
+
+    it('파라미터 다른 요청 → 각각 별도 캐시 엔트리 (독립 upstream 호출)', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+      const { createCatalogRepository } = await import('@/repositories/factory');
+      vi.mocked(createCatalogRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue(mockWeatherApi),
+      } as never);
+
+      function makeWeatherRequest(nx: string) {
+        const url = new URL('http://localhost/api/v1/proxy');
+        url.searchParams.set('apiId', VALID_API_ID);
+        url.searchParams.set('proxyPath', '/getVilageFcst');
+        url.searchParams.set('nx', nx);
+        return new Request(url.toString());
+      }
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+
+      await GET(makeWeatherRequest('55')); // nx=55 → MISS
+      await GET(makeWeatherRequest('66')); // nx=66 → 다른 키, MISS
+      await GET(makeWeatherRequest('55')); // nx=55 → HIT
+
+      expect(mockFetch).toHaveBeenCalledTimes(2); // 55, 66 각 1회
+    });
+
+    it('POST 요청 → cacheTtlSeconds 있어도 캐시 미적용 (Cache-Control: no-store)', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+      const { createCatalogRepository } = await import('@/repositories/factory');
+      vi.mocked(createCatalogRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue(mockWeatherApi),
+      } as never);
+
+      const url = new URL('http://localhost/api/v1/proxy');
+      url.searchParams.set('apiId', VALID_API_ID);
+      url.searchParams.set('proxyPath', '/data');
+      const req = new Request(url.toString(), { method: 'POST', body: '{}' });
+
+      const { POST } = await import('@/app/api/v1/proxy/route');
+      const res = await POST(req);
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Cache-Control')).toBe('no-store');
+      expect(res.headers.get('X-Cache')).toBeNull();
+    });
+
+    it('upstream 오류 응답(4xx) → 캐시 저장 안 됨, 재요청 시 upstream 재호출', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+      const { createCatalogRepository } = await import('@/repositories/factory');
+      vi.mocked(createCatalogRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue(mockWeatherApi),
+      } as never);
+
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(new Response('{"error":"bad request"}', { status: 400, headers: { 'Content-Type': 'application/json' } })),
+      );
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+      await GET(makeRequest(VALID_API_ID, '/getVilageFcst'));
+      await GET(makeRequest(VALID_API_ID, '/getVilageFcst'));
+
+      // 400 응답은 캐시 안 됨 → upstream 2회 호출
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+  });
 });

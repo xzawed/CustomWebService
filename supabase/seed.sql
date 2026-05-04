@@ -88,7 +88,7 @@ INSERT INTO api_catalog (name, description, category, base_url, auth_type, auth_
 );
 
 -- 4. 기상청 단기예보
-INSERT INTO api_catalog (name, description, category, base_url, auth_type, auth_config, rate_limit, is_active, docs_url, endpoints, tags, api_version, cors_supported, requires_proxy) VALUES
+INSERT INTO api_catalog (name, description, category, base_url, auth_type, auth_config, rate_limit, is_active, docs_url, endpoints, tags, api_version, cors_supported, requires_proxy, cache_ttl_seconds) VALUES
 (
   '기상청 단기예보',
   '우리 동네 날씨 예보. 기온, 비, 눈, 바람, 습도를 3시간 단위로 알려줘요. 공공데이터포털 무료 가입 후 사용.',
@@ -103,11 +103,12 @@ INSERT INTO api_catalog (name, description, category, base_url, auth_type, auth_
   ARRAY['weather', 'korea', '공공데이터', 'api-key'],
   'v2.0',
   false,
-  true
+  true,
+  10800
 );
 
 -- 5. 기상청 중기예보
-INSERT INTO api_catalog (name, description, category, base_url, auth_type, auth_config, rate_limit, is_active, docs_url, endpoints, tags, api_version, cors_supported, requires_proxy) VALUES
+INSERT INTO api_catalog (name, description, category, base_url, auth_type, auth_config, rate_limit, is_active, docs_url, endpoints, tags, api_version, cors_supported, requires_proxy, cache_ttl_seconds) VALUES
 (
   '기상청 중기예보',
   '3~10일 후 날씨 전망. 이번 주 비가 올지, 기온이 어떨지 미리 확인할 수 있어요.',
@@ -122,7 +123,8 @@ INSERT INTO api_catalog (name, description, category, base_url, auth_type, auth_
   ARRAY['weather', 'korea', '공공데이터', 'api-key'],
   'v1',
   false,
-  true
+  true,
+  21600
 );
 
 -- ────────────────────────────────────────
