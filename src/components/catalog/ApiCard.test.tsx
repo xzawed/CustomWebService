@@ -98,4 +98,17 @@ describe('ApiCard', () => {
     );
     expect(screen.queryByText(/\/min/)).toBeNull();
   });
+
+  it('상세 버튼 hover 시 color가 accent-primary로 변경되고 leave 시 원복된다', () => {
+    const onDetail = vi.fn();
+    const { container } = renderComponent(
+      <ApiCard api={baseApi} isSelected={false} onSelect={vi.fn()} onDetail={onDetail} />,
+    );
+    const btn = container.querySelector('button[aria-label="상세 보기"]') as HTMLElement;
+    expect(btn).toBeTruthy();
+    fireEvent.mouseEnter(btn);
+    expect(btn.style.color).toBe('var(--accent-primary)');
+    fireEvent.mouseLeave(btn);
+    expect(btn.style.color).toBe('var(--text-muted)');
+  });
 });
