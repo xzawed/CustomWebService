@@ -69,4 +69,19 @@ describe('Footer', () => {
     expect(link.style.color).toBe('var(--text-muted)');
   });
 
+  it('GitHub 링크 onMouseEnter 시 accent 색상으로 변경된다', () => {
+    const { container } = renderComponent(<Footer />);
+    const github = container.querySelector('a[href="https://github.com"]') as HTMLAnchorElement;
+    expect(github).toBeTruthy();
+    fireEvent.mouseEnter(github);
+    expect(github.style.color).toBe('var(--accent-primary)');
+  });
+
+  it('GitHub 링크 onMouseLeave 시 muted 색상으로 복원된다', () => {
+    const { container } = renderComponent(<Footer />);
+    const github = container.querySelector('a[href="https://github.com"]') as HTMLAnchorElement;
+    fireEvent.mouseEnter(github);
+    fireEvent.mouseLeave(github);
+    expect(github.style.color).toBe('var(--text-muted)');
+  });
 });

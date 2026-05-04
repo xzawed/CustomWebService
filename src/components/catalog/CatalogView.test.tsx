@@ -90,6 +90,19 @@ describe('CatalogView', () => {
     expect(screen.getByText('금융 API')).toBeTruthy();
   });
 
+  it('태그로 검색 시 일치하는 API만 표시된다', async () => {
+    const apisWithTags: ApiCatalogItem[] = [
+      { ...apis[0], tags: ['forecast', 'outdoor'] },
+      { ...apis[1], tags: ['stock', 'market'] },
+    ];
+    renderComponent(<CatalogView initialApis={apisWithTags} categories={categories} />);
+    const input = screen.getByPlaceholderText('API 이름, 설명으로 검색...');
+    fireEvent.change(input, { target: { value: 'forecast' } });
+    await act(async () => { vi.advanceTimersByTime(300); });
+    expect(screen.getByText('날씨 API')).toBeTruthy();
+    expect(screen.queryByText('금융 API')).toBeNull();
+  });
+
   describe('selectionMode', () => {
     it('selectionMode=true이고 선택되지 않은 API 클릭 시 onSelect가 호출된다', () => {
       const onSelect = vi.fn();
