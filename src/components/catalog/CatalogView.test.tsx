@@ -89,4 +89,47 @@ describe('CatalogView', () => {
     expect(screen.getByText('날씨 API')).toBeTruthy();
     expect(screen.getByText('금융 API')).toBeTruthy();
   });
+
+  describe('selectionMode', () => {
+    it('selectionMode=true이고 선택되지 않은 API 클릭 시 onSelect가 호출된다', () => {
+      const onSelect = vi.fn();
+      const onDeselect = vi.fn();
+      renderComponent(
+        <CatalogView
+          initialApis={apis}
+          categories={categories}
+          selectionMode={true}
+          selectedIds={[]}
+          onSelect={onSelect}
+          onDeselect={onDeselect}
+        />
+      );
+      // ApiCard는 button[type="button"]으로 렌더링됨 — 첫 번째 카드 클릭
+      const cards = screen.getAllByRole('button', { name: /날씨 API/ });
+      fireEvent.click(cards[0]);
+      expect(onSelect).toHaveBeenCalledTimes(1);
+      expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'api-1' }));
+      expect(onDeselect).not.toHaveBeenCalled();
+    });
+
+    it('selectionMode=true이고 이미 선택된 API 클릭 시 onDeselect가 호출된다', () => {
+      const onSelect = vi.fn();
+      const onDeselect = vi.fn();
+      renderComponent(
+        <CatalogView
+          initialApis={apis}
+          categories={categories}
+          selectionMode={true}
+          selectedIds={['api-1']}
+          onSelect={onSelect}
+          onDeselect={onDeselect}
+        />
+      );
+      const cards = screen.getAllByRole('button', { name: /날씨 API/ });
+      fireEvent.click(cards[0]);
+      expect(onDeselect).toHaveBeenCalledTimes(1);
+      expect(onDeselect).toHaveBeenCalledWith('api-1');
+      expect(onSelect).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -87,4 +87,48 @@ describe('ApiDetailModal', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('required=true 파라미터에는 * 표시가 렌더링된다', () => {
+    const apiWithRequiredParam: typeof api = {
+      ...api,
+      endpoints: [
+        {
+          path: '/current',
+          method: 'GET',
+          description: '현재 날씨 조회',
+          params: [
+            { name: 'city', type: 'string', required: true, description: '도시명' },
+            { name: 'units', type: 'string', required: false, description: '단위' },
+          ],
+          responseExample: {},
+        },
+      ],
+    };
+    renderComponent(<ApiDetailModal api={apiWithRequiredParam} isOpen={true} onClose={vi.fn()} />);
+    expect(screen.getByText('city')).toBeTruthy();
+    // required=true 파라미터에 * 표시
+    expect(screen.getByText('*')).toBeTruthy();
+    expect(screen.getByText('units')).toBeTruthy();
+  });
+
+  it('onSelect 콜백이 있을 때 "선택하기" 버튼 클릭 시 onSelect와 onClose가 호출된다', () => {
+    const onClose = vi.fn();
+    const onSelect = vi.fn();
+    renderComponent(
+      <ApiDetailModal api={api} isOpen={true} onClose={onClose} onSelect={onSelect} isSelected={false} />
+    );
+    const selectBtn = screen.getByText('선택하기');
+    expect(selectBtn).toBeTruthy();
+    fireEvent.click(selectBtn);
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith(api);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('isSelected=true일 때 "선택됨" 버튼이 표시된다', () => {
+    renderComponent(
+      <ApiDetailModal api={api} isOpen={true} onClose={vi.fn()} onSelect={vi.fn()} isSelected={true} />
+    );
+    expect(screen.getByText('선택됨')).toBeTruthy();
+  });
 });
