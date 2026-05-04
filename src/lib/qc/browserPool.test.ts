@@ -135,7 +135,7 @@ describe('browserPool', () => {
       const page = await getPage();
       expect(page).toBe(mockPage);
 
-      await releasePage(mockPage as Parameters<typeof releasePage>[0]);
+      await releasePage(mockPage as unknown as Parameters<typeof releasePage>[0]);
 
       expect(mockPage.close).toHaveBeenCalledTimes(1);
       expect(mockContext.close).toHaveBeenCalledTimes(1);
@@ -151,7 +151,7 @@ describe('browserPool', () => {
       expect(page).not.toBeNull();
 
       await expect(
-        releasePage(mockPage as Parameters<typeof releasePage>[0])
+        releasePage(mockPage as unknown as Parameters<typeof releasePage>[0])
       ).resolves.toBeUndefined();
     });
 
@@ -166,7 +166,7 @@ describe('browserPool', () => {
       expect(page2).not.toBeNull();
 
       // Release one slot
-      await releasePage(mockPage as Parameters<typeof releasePage>[0]);
+      await releasePage(mockPage as unknown as Parameters<typeof releasePage>[0]);
 
       // Now should be able to get another page without timeout
       const page3 = await getPage();

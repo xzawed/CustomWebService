@@ -664,7 +664,7 @@ describe('runFastQc', () => {
     // Dynamically import so we get the mocked version
     const mod = await import('./renderingQc');
     runFastQc = mod.runFastQc;
-    mockedBrowserPool = (await import('./browserPool')) as typeof mockedBrowserPool;
+    mockedBrowserPool = (await import('./browserPool')) as unknown as typeof mockedBrowserPool;
   });
 
   it('isQcEnabled() = false → null 반환', async () => {
@@ -746,7 +746,7 @@ describe('runDeepQc', () => {
     vi.clearAllMocks();
     const mod = await import('./renderingQc');
     runDeepQc = mod.runDeepQc;
-    mockedBrowserPool = (await import('./browserPool')) as typeof mockedBrowserPool;
+    mockedBrowserPool = (await import('./browserPool')) as unknown as typeof mockedBrowserPool;
   });
 
   it('isQcEnabled() = false → null 반환', async () => {
