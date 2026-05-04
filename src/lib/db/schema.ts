@@ -89,6 +89,7 @@ export const apiCatalog = pgTable('api_catalog', {
   cors_supported: boolean('cors_supported').default(true),
   requires_proxy: boolean('requires_proxy').default(false),
   credit_required: integer('credit_required'),
+  cache_ttl_seconds: integer('cache_ttl_seconds'),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
