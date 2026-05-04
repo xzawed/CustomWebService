@@ -53,6 +53,9 @@ vi.mock('@/lib/ai/generationTracker', () => ({
 vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
+vi.mock('@/lib/ai/codeParser', () => ({
+  assembleHtml: vi.fn(),
+}));
 
 // ── imports after mocks ────────────────────────────────────────────────────────
 
@@ -66,6 +69,7 @@ import { validateAll, evaluateQuality } from '@/lib/ai/codeValidator';
 import { runFastQc, isQcEnabled } from '@/lib/qc';
 import { eventBus } from '@/lib/events/eventBus';
 import { generationTracker } from '@/lib/ai/generationTracker';
+import { assembleHtml } from '@/lib/ai/codeParser';
 import type { ApiCatalogItem } from '@/types/api';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
@@ -146,6 +150,7 @@ describe('runGenerationPipeline()', () => {
     (AiProviderFactory.createForTask as Mock).mockReturnValue(mockProvider);
     (extractFeatures as Mock).mockResolvedValue({ features: [] });
     (isQcEnabled as Mock).mockReturnValue(false);
+    (assembleHtml as Mock).mockReturnValue('<html><body>assembled</body></html>');
     (validateAll as Mock).mockReturnValue({ errors: [], warnings: [] });
     (evaluateQuality as Mock).mockReturnValue(makeQualityMetrics());
 
@@ -531,6 +536,56 @@ describe('runGenerationPipeline()', () => {
 
       const args = (runStage1 as Mock).mock.calls[0] as [unknown, unknown, unknown, unknown, boolean];
       expect(args[4]).toBe(true);
+    });
+  });
+
+  describe('safeAssembleHtml 에러 경로', () => {
+    it('assembleHtml throw → QC 스킵하고 파이프라인 계속 진행 (saveGeneratedCode 호출)', async () => {
+      // QC 활성화 상태에서 assembleHtml이 throw → safeAssembleHtml이 null 반환 → QC 스킵하고 계속
+      (isQcEnabled as Mock).mockReturnValue(true);
+      (assembleHtml as Mock).mockImplementation(() => {
+        throw new Error('HTML 조립 실패');
+      });
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      // 파이프라인이 중단되지 않고 saveGeneratedCode까지 도달해야 함
+      expect(saveGeneratedCode).toHaveBeenCalledOnce();
+      // SSE error 이벤트가 없어야 함 (에러 경로 진입 안 함)
+      const errorEvents = sse.events.filter(e => e.event === 'error');
+      expect(errorEvents).toHaveLength(0);
+    });
+  });
+
+  describe('resolveStage3 폴백', () => {
+    it('runStage3 throw → stage2 결과로 폴백 + STAGE3_FALLBACK_USED 이벤트 발행', async () => {
+      // stage2가 실행되도록 fetch=0으로 설정
+      (evaluateQuality as Mock)
+        .mockReturnValueOnce(makeQualityMetrics({ fetchCallCount: 0 })) // stage1 → stage2 트리거
+        .mockReturnValueOnce(makeQualityMetrics({ structuralScore: 70 })) // pre-stage3: skip 조건 미충족
+        .mockReturnValueOnce(makeQualityMetrics()); // final
+
+      (runStage3 as Mock).mockRejectedValue(new Error('Stage 3 timeout'));
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      // STAGE3_FALLBACK_USED 이벤트가 발행되어야 함
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'STAGE3_FALLBACK_USED',
+          payload: expect.objectContaining({ projectId: 'proj-1', error: 'Stage 3 timeout' }),
+        }),
+      );
+
+      // 폴백 후에도 파이프라인이 계속되어 저장까지 완료되어야 함
+      expect(saveGeneratedCode).toHaveBeenCalledOnce();
+
+      // SSE에 stage3_fallback progress가 전송되어야 함
+      const progressEvents = sse.events.filter(e => e.event === 'progress');
+      const steps = progressEvents.map(e => (e.data as { step: string }).step);
+      expect(steps).toContain('stage3_fallback');
     });
   });
 
