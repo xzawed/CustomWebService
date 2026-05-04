@@ -1,9 +1,32 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { checkConsoleErrors, checkHorizontalScroll, checkFooterVisible, checkTouchTargets, checkInteractiveBehavior } from './qcChecks';
+import {
+  checkConsoleErrors,
+  checkHorizontalScroll,
+  checkFooterVisible,
+  checkTouchTargets,
+  checkInteractiveBehavior,
+  checkNetworkActivity,
+  checkLoadingStateDisappears,
+  checkAccessibility,
+  checkImageLoading,
+  checkNoLayoutOverlap,
+  checkNoRuntimePlaceholder,
+  checkResponsiveBreakpoints,
+} from './qcChecks';
 import { isQcEnabled } from './browserPool';
 import { shouldRetryGeneration } from '@/lib/ai/qualityLoop';
 import type { QualityMetrics } from '@/lib/ai/codeValidator';
 import type { QcReport } from '@/types/qc';
+
+// ---------------------------------------------------------------------------
+// browserPool mock — used for runFastQc / runDeepQc tests (sections 9 & 10)
+// ---------------------------------------------------------------------------
+
+vi.mock('./browserPool', () => ({
+  isQcEnabled: vi.fn().mockImplementation(() => process.env.ENABLE_RENDERING_QC === 'true'),
+  getPage: vi.fn(),
+  releasePage: vi.fn().mockResolvedValue(undefined),
+}));
 
 // ---------------------------------------------------------------------------
 // Mock Page factory
@@ -605,5 +628,584 @@ describe('checkInteractiveBehavior', () => {
     expect(result.passed).toBe(false);
     expect(result.score).toBe(0);
     expect(result.details[0]).toContain('Evaluation error');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. runFastQc / runDeepQc — Task 2
+// ---------------------------------------------------------------------------
+
+describe('runFastQc', () => {
+  let runFastQc: (html: string) => Promise<QcReport | null>;
+  let mockedBrowserPool: {
+    isQcEnabled: ReturnType<typeof vi.fn>;
+    getPage: ReturnType<typeof vi.fn>;
+    releasePage: ReturnType<typeof vi.fn>;
+  };
+
+  // Rich mock page required by runFastQcInternal
+  function createRichMockPage() {
+    return {
+      on: vi.fn(),
+      setViewportSize: vi.fn().mockResolvedValue(undefined),
+      setDefaultTimeout: vi.fn(),
+      setContent: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockResolvedValue({ scrollWidth: 375, clientWidth: 375 }),
+      $: vi.fn().mockResolvedValue(null),
+      $$: vi.fn().mockResolvedValue([]),
+      $$eval: vi.fn().mockResolvedValue([]),
+      evaluateHandle: vi.fn().mockResolvedValue({ asElement: vi.fn().mockReturnValue(null) }),
+      waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import('playwright-core').Page;
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    // Dynamically import so we get the mocked version
+    const mod = await import('./renderingQc');
+    runFastQc = mod.runFastQc;
+    mockedBrowserPool = (await import('./browserPool')) as typeof mockedBrowserPool;
+  });
+
+  it('isQcEnabled() = false → null 반환', async () => {
+    mockedBrowserPool.isQcEnabled.mockReturnValue(false);
+    const result = await runFastQc('<html><body></body></html>');
+    expect(result).toBeNull();
+  });
+
+  it('getPage() = null → null 반환 (QC page pool unavailable)', async () => {
+    mockedBrowserPool.isQcEnabled.mockReturnValue(true);
+    mockedBrowserPool.getPage.mockResolvedValue(null);
+    const result = await runFastQc('<html><body></body></html>');
+    expect(result).toBeNull();
+  });
+
+  it('정상 동작 → QcReport 반환 (overallScore, passed, checks, viewportsTested)', async () => {
+    mockedBrowserPool.isQcEnabled.mockReturnValue(true);
+    const mockPage = createRichMockPage();
+    // footer exists and is visible
+    (mockPage.$ as ReturnType<typeof vi.fn>).mockImplementation((sel: string) => {
+      if (sel === 'footer') return Promise.resolve({ isVisible: vi.fn().mockResolvedValue(true) });
+      return Promise.resolve(null);
+    });
+    // evaluate returns no overflow
+    (mockPage.evaluate as ReturnType<typeof vi.fn>).mockResolvedValue('clean body text');
+    // $$eval for href="#" returns 0
+    (mockPage.$$eval as ReturnType<typeof vi.fn>).mockImplementation((sel: string) => {
+      if (sel === 'a[href="#"]') return Promise.resolve(0);
+      return Promise.resolve([]);
+    });
+    mockedBrowserPool.getPage.mockResolvedValue(mockPage);
+
+    const result = await runFastQc('<html><body></body></html>');
+    expect(result).not.toBeNull();
+    expect(typeof result!.overallScore).toBe('number');
+    expect(Array.isArray(result!.checks)).toBe(true);
+    expect(Array.isArray(result!.viewportsTested)).toBe(true);
+    expect(typeof result!.durationMs).toBe('number');
+    // releasePage should be called
+    expect(mockedBrowserPool.releasePage).toHaveBeenCalledWith(mockPage);
+  });
+
+  it('내부 오류 발생 → null 반환, releasePage 호출 보장', async () => {
+    mockedBrowserPool.isQcEnabled.mockReturnValue(true);
+    const mockPage = createRichMockPage();
+    (mockPage.setContent as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('timeout navigating'));
+    mockedBrowserPool.getPage.mockResolvedValue(mockPage);
+
+    const result = await runFastQc('<html><body></body></html>');
+    expect(result).toBeNull();
+    expect(mockedBrowserPool.releasePage).toHaveBeenCalledWith(mockPage);
+  });
+});
+
+describe('runDeepQc', () => {
+  let runDeepQc: (html: string) => Promise<QcReport | null>;
+  let mockedBrowserPool: {
+    isQcEnabled: ReturnType<typeof vi.fn>;
+    getPage: ReturnType<typeof vi.fn>;
+    releasePage: ReturnType<typeof vi.fn>;
+  };
+
+  function createRichMockPage() {
+    return {
+      on: vi.fn(),
+      setViewportSize: vi.fn().mockResolvedValue(undefined),
+      setDefaultTimeout: vi.fn(),
+      setContent: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockResolvedValue({ scrollWidth: 375, clientWidth: 375 }),
+      $: vi.fn().mockResolvedValue(null),
+      $$: vi.fn().mockResolvedValue([]),
+      $$eval: vi.fn().mockResolvedValue([]),
+      evaluateHandle: vi.fn().mockResolvedValue({ asElement: vi.fn().mockReturnValue(null) }),
+      waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    } as unknown as import('playwright-core').Page;
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const mod = await import('./renderingQc');
+    runDeepQc = mod.runDeepQc;
+    mockedBrowserPool = (await import('./browserPool')) as typeof mockedBrowserPool;
+  });
+
+  it('isQcEnabled() = false → null 반환', async () => {
+    mockedBrowserPool.isQcEnabled.mockReturnValue(false);
+    const result = await runDeepQc('<html><body></body></html>');
+    expect(result).toBeNull();
+  });
+
+  it('getPage() = null → null 반환', async () => {
+    mockedBrowserPool.isQcEnabled.mockReturnValue(true);
+    mockedBrowserPool.getPage.mockResolvedValue(null);
+    const result = await runDeepQc('<html><body></body></html>');
+    expect(result).toBeNull();
+  });
+
+  it('정상 동작 → QcReport 반환 (checks 배열 포함)', async () => {
+    mockedBrowserPool.isQcEnabled.mockReturnValue(true);
+    const mockPage = createRichMockPage();
+    (mockPage.$ as ReturnType<typeof vi.fn>).mockImplementation((sel: string) => {
+      if (sel === 'footer') return Promise.resolve({ isVisible: vi.fn().mockResolvedValue(true) });
+      return Promise.resolve(null);
+    });
+    (mockPage.evaluate as ReturnType<typeof vi.fn>).mockResolvedValue('clean body');
+    (mockPage.$$eval as ReturnType<typeof vi.fn>).mockImplementation((sel: string) => {
+      if (sel === 'a[href="#"]') return Promise.resolve(0);
+      if (sel === 'img') return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+    mockedBrowserPool.getPage.mockResolvedValue(mockPage);
+
+    const result = await runDeepQc('<html><body></body></html>');
+    expect(result).not.toBeNull();
+    expect(result!.checks.length).toBeGreaterThan(0);
+    expect(mockedBrowserPool.releasePage).toHaveBeenCalledWith(mockPage);
+  });
+
+  it('내부 오류 발생 → null 반환, releasePage 호출 보장', async () => {
+    mockedBrowserPool.isQcEnabled.mockReturnValue(true);
+    const mockPage = createRichMockPage();
+    (mockPage.setContent as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('network idle timeout'));
+    mockedBrowserPool.getPage.mockResolvedValue(mockPage);
+
+    const result = await runDeepQc('<html><body></body></html>');
+    expect(result).toBeNull();
+    expect(mockedBrowserPool.releasePage).toHaveBeenCalledWith(mockPage);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. qcChecks deep check functions — Task 5
+// ---------------------------------------------------------------------------
+
+describe('checkNetworkActivity', () => {
+  it('빈 요청 목록 → passed: false, score: 20 (API 요청 없음)', () => {
+    const result = checkNetworkActivity([]);
+    expect(result.name).toBe('networkActivity');
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(20);
+    expect(result.details[0]).toContain('API 요청이 없습니다');
+  });
+
+  it('CDN 요청만 있는 경우 → passed: false, score: 20', () => {
+    const result = checkNetworkActivity([
+      'https://cdn.tailwindcss.com/3.0.0/tailwind.min.css',
+      'https://cdn.jsdelivr.net/npm/chart.js',
+      'https://unpkg.com/react@18/umd/react.production.min.js',
+      'data:text/css;base64,abc123',
+    ]);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(20);
+  });
+
+  it('실제 API 요청 포함 → passed: true, score: 100', () => {
+    const result = checkNetworkActivity([
+      'https://api.example.com/data',
+      'https://cdn.tailwindcss.com/tailwind.min.css',
+    ]);
+    expect(result.passed).toBe(true);
+    expect(result.score).toBe(100);
+    expect(result.details[0]).toContain('Request:');
+  });
+
+  it('모든 요청이 비 CDN → details에 최대 3개만 포함', () => {
+    const result = checkNetworkActivity([
+      'https://api.example.com/1',
+      'https://api.example.com/2',
+      'https://api.example.com/3',
+      'https://api.example.com/4',
+    ]);
+    expect(result.passed).toBe(true);
+    expect(result.details.length).toBeLessThanOrEqual(3);
+  });
+
+  it('cdnjs.cloudflare.com 요청 → CDN으로 필터링', () => {
+    const result = checkNetworkActivity([
+      'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
+    ]);
+    expect(result.passed).toBe(false);
+  });
+});
+
+describe('checkLoadingStateDisappears', () => {
+  it('스켈레톤 요소 없음 → passed: true, score: 100', async () => {
+    const page = createMockPage({
+      $$eval: vi.fn().mockResolvedValue(0),
+    });
+    const result = await checkLoadingStateDisappears(page);
+    expect(result.name).toBe('loadingStateDisappears');
+    expect(result.passed).toBe(true);
+    expect(result.score).toBe(100);
+    expect(result.details[0]).toContain('No loading skeleton');
+  });
+
+  it('.animate-pulse 존재 후 사라짐 → passed: true, score: 100', async () => {
+    let callCount = 0;
+    const page = createMockPage({
+      $$eval: vi.fn().mockImplementation(() => {
+        callCount++;
+        // First call (.animate-pulse check): has element; second set of calls: 0
+        return Promise.resolve(callCount === 1 ? 1 : 0);
+      }),
+      waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    });
+    const result = await checkLoadingStateDisappears(page);
+    expect(result.passed).toBe(true);
+    expect(result.score).toBe(100);
+  });
+
+  it('.skeleton 존재 후에도 남아있음 → passed: false, score: 40', async () => {
+    // First 4 selectors: return 0 for animate-pulse, 1 for skeleton
+    let callCount = 0;
+    const page = createMockPage({
+      $$eval: vi.fn().mockImplementation((sel: string) => {
+        callCount++;
+        if (sel === '.skeleton') return Promise.resolve(1);
+        return Promise.resolve(0);
+      }),
+      waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    });
+    const result = await checkLoadingStateDisappears(page);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(40);
+    expect(result.details[0]).toContain('로딩 스켈레톤');
+  });
+
+  it('$$eval 오류 → passed: false, score: 0', async () => {
+    const page = createMockPage({
+      $$eval: vi.fn().mockRejectedValue(new Error('context lost')),
+    });
+    const result = await checkLoadingStateDisappears(page);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.details[0]).toContain('context lost');
+  });
+});
+
+describe('checkAccessibility', () => {
+  it('h1·main 모두 있고 헤딩 순서 정상 → passed: true, score: 100', async () => {
+    const page = createMockPage({
+      $: vi.fn().mockImplementation((sel: string) => {
+        if (sel === 'h1' || sel === 'main') return Promise.resolve({});
+        return Promise.resolve(null);
+      }),
+      $$eval: vi.fn().mockResolvedValue([1, 2, 3]),
+    });
+    const result = await checkAccessibility(page);
+    expect(result.name).toBe('accessibility');
+    expect(result.passed).toBe(true);
+    expect(result.score).toBe(100);
+    expect(result.details).toHaveLength(0);
+  });
+
+  it('h1 없음 → passed: false, details에 Missing h1', async () => {
+    const page = createMockPage({
+      $: vi.fn().mockImplementation((sel: string) => {
+        if (sel === 'main') return Promise.resolve({});
+        return Promise.resolve(null); // no h1
+      }),
+      $$eval: vi.fn().mockResolvedValue([2, 3]),
+    });
+    const result = await checkAccessibility(page);
+    expect(result.passed).toBe(false);
+    expect(result.details.some(d => d.includes('h1'))).toBe(true);
+  });
+
+  it('main 없음 → passed: false, details에 Missing main', async () => {
+    const page = createMockPage({
+      $: vi.fn().mockImplementation((sel: string) => {
+        if (sel === 'h1') return Promise.resolve({});
+        return Promise.resolve(null); // no main
+      }),
+      $$eval: vi.fn().mockResolvedValue([1, 2]),
+    });
+    const result = await checkAccessibility(page);
+    expect(result.passed).toBe(false);
+    expect(result.details.some(d => d.includes('main'))).toBe(true);
+  });
+
+  it('헤딩 순서 건너뜀 (h1→h3) → noHeadingSkip = false, score 감소', async () => {
+    const page = createMockPage({
+      $: vi.fn().mockImplementation((sel: string) => {
+        if (sel === 'h1' || sel === 'main') return Promise.resolve({});
+        return Promise.resolve(null);
+      }),
+      $$eval: vi.fn().mockResolvedValue([1, 3]), // h1 → h3 skips h2
+    });
+    const result = await checkAccessibility(page);
+    // passed = hasH1 && hasMain = true, but score is reduced because noHeadingSkip = false
+    expect(result.score).toBeLessThan(100);
+    expect(result.details.some(d => d.includes('skip') || d.includes('Heading'))).toBe(true);
+  });
+
+  it('page.$ 오류 → passed: false, details에 에러 메시지', async () => {
+    const page = createMockPage({
+      $: vi.fn().mockRejectedValue(new Error('frame detached')),
+      $$eval: vi.fn().mockResolvedValue([]),
+    });
+    const result = await checkAccessibility(page);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.details[0]).toContain('frame detached');
+  });
+});
+
+describe('checkImageLoading', () => {
+  it('img 없음 → passed: true, score: 100', async () => {
+    const page = createMockPage({
+      $$eval: vi.fn().mockResolvedValue([]),
+    });
+    const result = await checkImageLoading(page);
+    expect(result.name).toBe('imageLoading');
+    expect(result.passed).toBe(true);
+    expect(result.score).toBe(100);
+    expect(result.details[0]).toContain('No images');
+  });
+
+  it('모든 이미지 로드됨 → passed: true, score: 100', async () => {
+    const page = createMockPage({
+      $$eval: vi.fn().mockResolvedValue([
+        { src: 'https://example.com/a.png', loaded: true },
+        { src: 'https://example.com/b.png', loaded: true },
+      ]),
+    });
+    const result = await checkImageLoading(page);
+    expect(result.passed).toBe(true);
+    expect(result.score).toBe(100);
+    expect(result.details).toHaveLength(0);
+  });
+
+  it('일부 이미지 실패 → passed: false, score 비례 감소', async () => {
+    const page = createMockPage({
+      $$eval: vi.fn().mockResolvedValue([
+        { src: 'https://example.com/ok.png', loaded: true },
+        { src: 'https://example.com/fail.png', loaded: false },
+        { src: 'https://example.com/ok2.png', loaded: true },
+        { src: 'https://example.com/fail2.png', loaded: false },
+      ]),
+    });
+    const result = await checkImageLoading(page);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(50); // 2/4 loaded
+    expect(result.details).toHaveLength(2);
+    expect(result.details[0]).toContain('Failed to load');
+  });
+
+  it('모든 이미지 실패 → passed: false, score: 0', async () => {
+    const page = createMockPage({
+      $$eval: vi.fn().mockResolvedValue([
+        { src: 'https://broken.com/a.png', loaded: false },
+      ]),
+    });
+    const result = await checkImageLoading(page);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(0);
+  });
+
+  it('$$eval 오류 → passed: false, score: 0', async () => {
+    const page = createMockPage({
+      $$eval: vi.fn().mockRejectedValue(new Error('context destroyed')),
+    });
+    const result = await checkImageLoading(page);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.details[0]).toContain('context destroyed');
+  });
+});
+
+describe('checkNoLayoutOverlap', () => {
+  it('header/main/footer 모두 없음 → passed: true, skipping overlap check', async () => {
+    const page = createMockPage({
+      $: vi.fn().mockResolvedValue(null),
+    });
+    const result = await checkNoLayoutOverlap(page);
+    expect(result.name).toBe('noLayoutOverlap');
+    expect(result.passed).toBe(true);
+    expect(result.score).toBe(100);
+    expect(result.details[0]).toContain('skipping');
+  });
+
+  it('header·main·footer 존재하고 겹치지 않음 → passed: true, score: 100', async () => {
+    const makeEl = (y: number, height: number) => ({
+      boundingBox: vi.fn().mockResolvedValue({ x: 0, y, width: 375, height }),
+    });
+    const page = createMockPage({
+      $: vi.fn().mockImplementation((sel: string) => {
+        if (sel === 'header') return Promise.resolve(makeEl(0, 60));
+        if (sel === 'main, [role="main"]') return Promise.resolve(makeEl(60, 400));
+        if (sel === 'footer') return Promise.resolve(makeEl(460, 80));
+        return Promise.resolve(null);
+      }),
+    });
+    const result = await checkNoLayoutOverlap(page);
+    expect(result.passed).toBe(true);
+    expect(result.score).toBe(100);
+  });
+
+  it('header가 main과 겹침 → passed: false, details에 overlap 메시지', async () => {
+    const makeEl = (y: number, height: number) => ({
+      boundingBox: vi.fn().mockResolvedValue({ x: 0, y, width: 375, height }),
+    });
+    const page = createMockPage({
+      $: vi.fn().mockImplementation((sel: string) => {
+        if (sel === 'header') return Promise.resolve(makeEl(0, 100));
+        if (sel === 'main, [role="main"]') return Promise.resolve(makeEl(50, 400)); // overlaps with header (100 > 50+2)
+        if (sel === 'footer') return Promise.resolve(makeEl(500, 80));
+        return Promise.resolve(null);
+      }),
+    });
+    const result = await checkNoLayoutOverlap(page);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.details[0]).toContain('overlaps');
+  });
+
+  it('page.$ 오류 → passed: false, score: 0', async () => {
+    const page = createMockPage({
+      $: vi.fn().mockRejectedValue(new Error('page crashed')),
+    });
+    const result = await checkNoLayoutOverlap(page);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.details[0]).toContain('page crashed');
+  });
+});
+
+describe('checkNoRuntimePlaceholder', () => {
+  it('플레이스홀더 없음 → passed: true, score: 100', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockResolvedValue('실제 서비스 내용입니다'),
+      $$eval: vi.fn().mockResolvedValue(0),
+    });
+    const result = await checkNoRuntimePlaceholder(page);
+    expect(result.name).toBe('noRuntimePlaceholder');
+    expect(result.passed).toBe(true);
+    expect(result.score).toBe(100);
+  });
+
+  it('"홍길동" 플레이스홀더 감지 → passed: false', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockResolvedValue('안녕하세요 홍길동 님'),
+      $$eval: vi.fn().mockResolvedValue(0),
+    });
+    const result = await checkNoRuntimePlaceholder(page);
+    expect(result.passed).toBe(false);
+    expect(result.details.some(d => d.includes('홍길동'))).toBe(true);
+  });
+
+  it('"Lorem ipsum" 감지 → passed: false', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockResolvedValue('Lorem ipsum dolor sit amet'),
+      $$eval: vi.fn().mockResolvedValue(0),
+    });
+    const result = await checkNoRuntimePlaceholder(page);
+    expect(result.passed).toBe(false);
+  });
+
+  it('href="#" 링크 감지 → passed: false, details에 링크 수 포함', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockResolvedValue('정상 텍스트'),
+      $$eval: vi.fn().mockResolvedValue(3),
+    });
+    const result = await checkNoRuntimePlaceholder(page);
+    expect(result.passed).toBe(false);
+    expect(result.details.some(d => d.includes('href="#"') && d.includes('3'))).toBe(true);
+  });
+
+  it('evaluate 오류 → passed: false, score: 0', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockRejectedValue(new Error('execution context was destroyed')),
+      $$eval: vi.fn().mockResolvedValue(0),
+    });
+    const result = await checkNoRuntimePlaceholder(page);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.details[0]).toContain('execution context was destroyed');
+  });
+
+  it('복수 플레이스홀더 → score 비례 감소', async () => {
+    const page = createMockPage({
+      evaluate: vi.fn().mockResolvedValue('홍길동 김철수 Loading... TBD'),
+      $$eval: vi.fn().mockResolvedValue(0),
+    });
+    const result = await checkNoRuntimePlaceholder(page);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBeLessThan(100);
+    expect(result.score).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('checkResponsiveBreakpoints', () => {
+  it('모든 뷰포트에서 overflow 없음 → passed: true, score: 100', async () => {
+    const page = createMockPage({
+      setViewportSize: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockResolvedValue({ scrollWidth: 375, clientWidth: 375 }),
+    });
+    const result = await checkResponsiveBreakpoints(page);
+    expect(result.name).toBe('responsiveBreakpoints');
+    expect(result.passed).toBe(true);
+    expect(result.score).toBe(100);
+    expect(result.details).toHaveLength(0);
+  });
+
+  it('일부 뷰포트에서 overflow → score 비례 감소', async () => {
+    let callCount = 0;
+    const page = createMockPage({
+      setViewportSize: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockImplementation(() => {
+        callCount++;
+        // 375px: overflow, 768px: ok, 1280px: ok
+        if (callCount === 1) return Promise.resolve({ scrollWidth: 400, clientWidth: 375 });
+        return Promise.resolve({ scrollWidth: 768, clientWidth: 768 });
+      }),
+    });
+    const result = await checkResponsiveBreakpoints(page);
+    expect(result.passed).toBe(false);
+    // 2/3 passing → score ≈ 67
+    expect(result.score).toBeCloseTo(67, 0);
+    expect(result.details[0]).toContain('375px');
+  });
+
+  it('모든 뷰포트에서 overflow → passed: false, score: 0', async () => {
+    const page = createMockPage({
+      setViewportSize: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockResolvedValue({ scrollWidth: 2000, clientWidth: 375 }),
+    });
+    const result = await checkResponsiveBreakpoints(page);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.details).toHaveLength(3);
+  });
+
+  it('evaluate 오류 → passed: false, score: 0', async () => {
+    const page = createMockPage({
+      setViewportSize: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn().mockRejectedValue(new Error('context gone')),
+    });
+    const result = await checkResponsiveBreakpoints(page);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.details[0]).toContain('context gone');
   });
 });
