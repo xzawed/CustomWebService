@@ -99,4 +99,25 @@ describe('ProjectCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'URL 복사' }));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://my-service.xzawed.xyz');
   });
+
+  it('"게시 취소" 버튼 클릭 시 onUnpublish가 project.id와 함께 호출된다', () => {
+    const onUnpublish = vi.fn();
+    renderComponent(
+      <ProjectCard project={{ ...baseProject, status: 'published' }} onUnpublish={onUnpublish} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: '게시 취소' }));
+    expect(onUnpublish).toHaveBeenCalledWith('proj-1');
+  });
+
+  it('onDelete prop이 있을 때 "삭제" 버튼이 표시된다', () => {
+    renderComponent(<ProjectCard project={baseProject} onDelete={vi.fn()} />);
+    expect(screen.getByRole('button', { name: '삭제' })).toBeTruthy();
+  });
+
+  it('"삭제" 버튼 클릭 시 onDelete가 project.id와 함께 호출된다', () => {
+    const onDelete = vi.fn();
+    renderComponent(<ProjectCard project={baseProject} onDelete={onDelete} />);
+    fireEvent.click(screen.getByRole('button', { name: '삭제' }));
+    expect(onDelete).toHaveBeenCalledWith('proj-1');
+  });
 });

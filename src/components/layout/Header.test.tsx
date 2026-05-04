@@ -206,6 +206,81 @@ describe('Header', () => {
     });
   });
 
+  describe('모바일 메뉴 토글 버튼 hover', () => {
+    it('mouseEnter 시 color가 --text-primary로 변경된다', () => {
+      const { container } = renderComponent(<Header />);
+      // Mobile toggle button has class "rounded-lg p-2 transition-colors md:hidden"
+      const toggleBtn = container.querySelector('button.md\\:hidden') as HTMLElement;
+      expect(toggleBtn).toBeTruthy();
+      fireEvent.mouseEnter(toggleBtn);
+      expect(toggleBtn.style.color).toBe('var(--text-primary)');
+    });
+
+    it('mouseLeave 시 color가 --text-secondary로 복원된다', () => {
+      const { container } = renderComponent(<Header />);
+      const toggleBtn = container.querySelector('button.md\\:hidden') as HTMLElement;
+      expect(toggleBtn).toBeTruthy();
+      fireEvent.mouseEnter(toggleBtn);
+      fireEvent.mouseLeave(toggleBtn);
+      expect(toggleBtn.style.color).toBe('var(--text-secondary)');
+    });
+  });
+
+  describe('드롭다운 버튼/링크 hover', () => {
+    beforeEach(() => {
+      authState.user = {
+        id: 'u1',
+        email: 'test@example.com',
+        name: '테스터',
+        avatarUrl: null,
+      } as User;
+      authState.isAuthenticated = true;
+    });
+
+    it('로그아웃 버튼 mouseEnter 시 배경·색상이 변경된다', () => {
+      const { container } = renderComponent(<Header />);
+      // Open dropdown
+      const avatarBtn = container.querySelector('button[type="button"]') as HTMLButtonElement;
+      fireEvent.click(avatarBtn);
+      const logoutBtn = screen.getByText('로그아웃').closest('button') as HTMLButtonElement;
+      expect(logoutBtn).toBeTruthy();
+      fireEvent.mouseEnter(logoutBtn);
+      expect(logoutBtn.style.background).toBe('var(--ghost-hover-bg)');
+      expect(logoutBtn.style.color).toBe('var(--text-primary)');
+    });
+
+    it('로그아웃 버튼 mouseLeave 시 색상이 복원된다', () => {
+      const { container } = renderComponent(<Header />);
+      const avatarBtn = container.querySelector('button[type="button"]') as HTMLButtonElement;
+      fireEvent.click(avatarBtn);
+      const logoutBtn = screen.getByText('로그아웃').closest('button') as HTMLButtonElement;
+      fireEvent.mouseEnter(logoutBtn);
+      fireEvent.mouseLeave(logoutBtn);
+      expect(logoutBtn.style.color).toBe('var(--text-secondary)');
+    });
+
+    it('내 API 키 관리 링크 mouseEnter 시 배경·색상이 변경된다', () => {
+      const { container } = renderComponent(<Header />);
+      const avatarBtn = container.querySelector('button[type="button"]') as HTMLButtonElement;
+      fireEvent.click(avatarBtn);
+      const apiKeyLink = screen.getByText('내 API 키 관리').closest('a') as HTMLAnchorElement;
+      expect(apiKeyLink).toBeTruthy();
+      fireEvent.mouseEnter(apiKeyLink);
+      expect(apiKeyLink.style.background).toBe('var(--ghost-hover-bg)');
+      expect(apiKeyLink.style.color).toBe('var(--text-primary)');
+    });
+
+    it('내 API 키 관리 링크 mouseLeave 시 색상이 복원된다', () => {
+      const { container } = renderComponent(<Header />);
+      const avatarBtn = container.querySelector('button[type="button"]') as HTMLButtonElement;
+      fireEvent.click(avatarBtn);
+      const apiKeyLink = screen.getByText('내 API 키 관리').closest('a') as HTMLAnchorElement;
+      fireEvent.mouseEnter(apiKeyLink);
+      fireEvent.mouseLeave(apiKeyLink);
+      expect(apiKeyLink.style.color).toBe('var(--text-secondary)');
+    });
+  });
+
   describe('드롭다운 외부 클릭 닫기', () => {
     it('드롭다운이 열린 상태에서 외부 mousedown 이벤트 발생 시 드롭다운이 닫힌다', () => {
       authState.user = {

@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
+// Each importBrowserPool() registers 3 signal handlers (exit/SIGTERM/SIGINT).
+// With many tests, accumulated listeners can exceed the default limit of 10.
+// Raise the limit for this test file to avoid MaxListeners warnings.
+process.setMaxListeners(50);
+
 // Shared mock objects — module-level so vi.mock factory can reference them
 const mockContext = {
   newPage: vi.fn(),
@@ -257,6 +262,59 @@ describe('browserPool', () => {
       expect(process.listenerCount('exit')).toBe(exitCountBefore + 1);
       expect(process.listenerCount('SIGTERM')).toBe(sigtermCountBefore + 1);
       expect(process.listenerCount('SIGINT')).toBe(sigintCountBefore + 1);
+    });
+  });
+
+  describe('process signal handlers — safe invocation', () => {
+    it('SIGTERM 방출이 예외 없이 처리된다', async () => {
+      // shutdown() is safe even with no browser — just verify no uncaught exceptions
+      await importBrowserPool();
+      await expect(
+        new Promise<void>((resolve) => {
+          process.emit('SIGTERM');
+          setTimeout(resolve, 10);
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('SIGINT 방출이 예외 없이 처리된다', async () => {
+      await importBrowserPool();
+      await expect(
+        new Promise<void>((resolve) => {
+          process.emit('SIGINT');
+          setTimeout(resolve, 10);
+        })
+      ).resolves.toBeUndefined();
+    });
+
+    it('SIGTERM 수신 시 브라우저가 닫힌다', async () => {
+      process.env.ENABLE_RENDERING_QC = 'true';
+      const { getPage } = await importBrowserPool();
+
+      // Launch a browser
+      await getPage();
+      expect(chromiumLaunchMock).toHaveBeenCalledTimes(1);
+
+      // Emit SIGTERM — triggers the shutdown handler registered at module load
+      process.emit('SIGTERM');
+
+      // Allow async shutdown to complete
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockBrowser.close).toHaveBeenCalled();
+    });
+
+    it('SIGINT 수신 시 브라우저가 닫힌다', async () => {
+      process.env.ENABLE_RENDERING_QC = 'true';
+      const { getPage } = await importBrowserPool();
+
+      await getPage();
+      expect(chromiumLaunchMock).toHaveBeenCalledTimes(1);
+
+      process.emit('SIGINT');
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(mockBrowser.close).toHaveBeenCalled();
     });
   });
 });
