@@ -270,8 +270,10 @@ async function runLlmRetryIteration(
   const { systemPrompt, userFeedback, aiProvider, useET, projectId, attempt } = options;
   try {
     const improvementPrompt = buildQualityImprovementPrompt(state.parsed, state.quality, state.qcReport, userFeedback);
-    const _loopVal = Number.parseInt(process.env.QUALITY_LOOP_ITERATION_TIMEOUT_MS ?? '', 10);
-    const iterationTimeoutMs = Number.isNaN(_loopVal) || _loopVal <= 0 ? 120_000 : _loopVal;
+    const timeoutEnvKey = useET ? 'QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS' : 'QUALITY_LOOP_ITERATION_TIMEOUT_MS';
+    const defaultTimeoutMs = useET ? 200_000 : 120_000;
+    const _loopVal = Number.parseInt(process.env[timeoutEnvKey] ?? '', 10);
+    const iterationTimeoutMs = Number.isNaN(_loopVal) || _loopVal <= 0 ? defaultTimeoutMs : _loopVal;
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(
         () => reject(new Error(`Quality loop iteration timed out after ${iterationTimeoutMs}ms`)),

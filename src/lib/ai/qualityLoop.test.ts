@@ -589,6 +589,177 @@ describe('runQualityLoop — 반복 경계 및 채택 로직', () => {
   });
 });
 
+describe('runQualityLoop — ET 타임아웃 분기', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it('ET 활성(useET=true) 시 QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS 사용', async () => {
+    vi.stubEnv('QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS', '100');
+    vi.stubEnv('QUALITY_LOOP_ITERATION_TIMEOUT_MS', '5000'); // 일반 타임아웃은 크게 설정
+
+    const lowQualityMetrics: QualityMetrics = {
+      ...baseMetrics,
+      structuralScore: 30,
+      mobileScore: 30,
+      hasSemanticHtml: false,
+      hasInteraction: false,
+      hasFooter: false,
+      details: ['품질 부족'],
+    };
+
+    const mockProvider: IAiProvider = {
+      name: 'mock',
+      model: 'mock',
+      generateCode: vi.fn().mockReturnValue(new Promise(() => {})), // 절대 완료되지 않음
+      generateCodeStream: vi.fn(),
+      checkAvailability: vi.fn(),
+    };
+
+    const mockSse: SseWriter = {
+      send: vi.fn(),
+      isCancelled: vi.fn().mockReturnValue(false),
+    };
+
+    const initialParsed = { html: '<div>초기</div>', css: 'body{}', js: 'fetch("/api/v1/proxy")' };
+
+    const loopPromise = runQualityLoop(
+      initialParsed,
+      lowQualityMetrics,
+      null,
+      {
+        stage2SystemPrompt: 'stage2 system prompt',
+        stage2FunctionSystemPrompt: 'stage2 function prompt',
+        aiProvider: mockProvider,
+        sse: mockSse,
+        useET: true,
+        projectId: 'test-project',
+        userFeedback: undefined,
+      }
+    );
+
+    await vi.advanceTimersByTimeAsync(200); // ET 타임아웃(100ms) 경과, 일반 타임아웃(5000ms)은 미도달
+    const result = await loopPromise;
+    // ET 타임아웃이 트리거되어 초기 결과 반환
+    expect(result.parsed).toEqual(initialParsed);
+    expect(result.qualityLoopUsed).toBe(false);
+  });
+
+  it('ET 비활성(useET=false) 시 QUALITY_LOOP_ITERATION_TIMEOUT_MS 사용', async () => {
+    vi.stubEnv('QUALITY_LOOP_ITERATION_TIMEOUT_MS', '100');
+    vi.stubEnv('QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS', '5000'); // ET 타임아웃은 크게 설정
+
+    const lowQualityMetrics: QualityMetrics = {
+      ...baseMetrics,
+      structuralScore: 30,
+      mobileScore: 30,
+      hasSemanticHtml: false,
+      hasInteraction: false,
+      hasFooter: false,
+      details: ['품질 부족'],
+    };
+
+    const mockProvider: IAiProvider = {
+      name: 'mock',
+      model: 'mock',
+      generateCode: vi.fn().mockReturnValue(new Promise(() => {})),
+      generateCodeStream: vi.fn(),
+      checkAvailability: vi.fn(),
+    };
+
+    const mockSse: SseWriter = {
+      send: vi.fn(),
+      isCancelled: vi.fn().mockReturnValue(false),
+    };
+
+    const initialParsed = { html: '<div>초기</div>', css: 'body{}', js: 'fetch("/api/v1/proxy")' };
+
+    const loopPromise = runQualityLoop(
+      initialParsed,
+      lowQualityMetrics,
+      null,
+      {
+        stage2SystemPrompt: 'stage2 system prompt',
+        stage2FunctionSystemPrompt: 'stage2 function prompt',
+        aiProvider: mockProvider,
+        sse: mockSse,
+        useET: false,
+        projectId: 'test-project',
+        userFeedback: undefined,
+      }
+    );
+
+    await vi.advanceTimersByTimeAsync(200); // 일반 타임아웃(100ms) 경과, ET 타임아웃(5000ms)은 미도달
+    const result = await loopPromise;
+    // 일반 타임아웃이 트리거되어 초기 결과 반환
+    expect(result.parsed).toEqual(initialParsed);
+    expect(result.qualityLoopUsed).toBe(false);
+  });
+
+  it('QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS 미설정 시 ET 기본값 200000ms 사용 (100000ms에서 미타임아웃)', async () => {
+    vi.unstubAllEnvs(); // 환경변수 없음
+    vi.stubEnv('QUALITY_LOOP_MAX_ITERATIONS', '1');
+
+    const lowQualityMetrics: QualityMetrics = {
+      ...baseMetrics,
+      structuralScore: 30,
+      mobileScore: 30,
+      hasSemanticHtml: false,
+      hasInteraction: false,
+      hasFooter: false,
+      details: ['품질 부족'],
+    };
+
+    const mockProvider: IAiProvider = {
+      name: 'mock',
+      model: 'mock',
+      generateCode: vi.fn().mockReturnValue(new Promise(() => {})), // 절대 완료되지 않음
+      generateCodeStream: vi.fn(),
+      checkAvailability: vi.fn(),
+    };
+
+    const mockSse: SseWriter = {
+      send: vi.fn(),
+      isCancelled: vi.fn().mockReturnValue(false),
+    };
+
+    const initialParsed = { html: '<div>초기</div>', css: 'body{}', js: 'fetch("/api/v1/proxy")' };
+
+    const loopPromise = runQualityLoop(
+      initialParsed,
+      lowQualityMetrics,
+      null,
+      {
+        stage2SystemPrompt: 'stage2 system prompt',
+        stage2FunctionSystemPrompt: 'stage2 function prompt',
+        aiProvider: mockProvider,
+        sse: mockSse,
+        useET: true, // ET 활성
+        projectId: 'test-project',
+        userFeedback: undefined,
+      }
+    );
+
+    // 100000ms 진행 — 기본 ET 타임아웃(200000ms) 미도달이므로 아직 pending
+    vi.advanceTimersByTime(100_000);
+
+    // loopPromise가 아직 resolve되지 않았는지 확인
+    let resolved = false;
+    loopPromise.then(() => { resolved = true; }).catch(() => { resolved = true; });
+    // 마이크로태스크 flush
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+
+    // 200001ms 추가 진행 → 총 300001ms 경과 → 타임아웃 트리거
+    vi.advanceTimersByTime(200_001);
+    const result = await loopPromise;
+    expect(result.parsed).toEqual(initialParsed);
+    expect(result.qualityLoopUsed).toBe(false);
+  });
+});
+
 // ─── AutoFix 통합 테스트 ───────────────────────────────────────────────────────
 
 // 구조적 품질은 높지만 placeholder(홍길동)가 있어 shouldRetryGeneration=true인 픽스처
