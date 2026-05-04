@@ -81,4 +81,42 @@ describe('ThemeSelector', () => {
     fireEvent.mouseDown(screen.getByTestId('outside'));
     expect(screen.queryByText('테마 선택')).toBeNull();
   });
+
+  it('토글 버튼 mouseEnter 시 (닫힌 상태) 색상이 변경된다', () => {
+    renderComponent(<ThemeSelector />);
+    const btn = screen.getByTitle('테마 색상 변경') as HTMLButtonElement;
+    fireEvent.mouseEnter(btn);
+    expect(btn.style.color).toBe('var(--text-primary)');
+  });
+
+  it('토글 버튼 mouseLeave 시 (닫힌 상태) 색상이 복원된다', () => {
+    renderComponent(<ThemeSelector />);
+    const btn = screen.getByTitle('테마 색상 변경') as HTMLButtonElement;
+    fireEvent.mouseEnter(btn);
+    fireEvent.mouseLeave(btn);
+    expect(btn.style.color).toBe('var(--text-secondary)');
+  });
+
+  it('비활성 테마 버튼 mouseEnter 시 배경이 변경된다', () => {
+    themeStoreState.theme = 'sky';
+    const { container } = renderComponent(<ThemeSelector />);
+    // Open dropdown
+    fireEvent.click(screen.getByTitle('테마 색상 변경'));
+    // Find a non-active theme button (e.g., '민트' when 'sky' is active)
+    const mintBtn = screen.getByText('민트').closest('button') as HTMLButtonElement;
+    expect(mintBtn).toBeTruthy();
+    fireEvent.mouseEnter(mintBtn);
+    expect(mintBtn.style.background).toBe('var(--ghost-hover-bg)');
+    expect(container).toBeTruthy();
+  });
+
+  it('비활성 테마 버튼 mouseLeave는 예외 없이 처리된다', () => {
+    themeStoreState.theme = 'sky';
+    renderComponent(<ThemeSelector />);
+    fireEvent.click(screen.getByTitle('테마 색상 변경'));
+    const mintBtn = screen.getByText('민트').closest('button') as HTMLButtonElement;
+    fireEvent.mouseEnter(mintBtn);
+    // mouseLeave should not throw — background handler is safe
+    expect(() => fireEvent.mouseLeave(mintBtn)).not.toThrow();
+  });
 });

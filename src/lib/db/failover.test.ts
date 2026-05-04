@@ -23,6 +23,25 @@ vi.mock('@/lib/utils/logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
+// pg Client mock (recovery probe 용)
+// vi.hoisted()를 사용하여 vi.mock 호이스팅 이전에 mockClientInstance를 초기화한다.
+const { mockClientInstance } = vi.hoisted(() => ({
+  mockClientInstance: {
+    connect: vi.fn().mockResolvedValue(undefined),
+    query: vi.fn().mockResolvedValue(undefined),
+    end: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+vi.mock('pg', () => {
+  class MockPgClient {
+    connect = mockClientInstance.connect;
+    query = mockClientInstance.query;
+    end = mockClientInstance.end;
+  }
+  return { Client: MockPgClient };
+});
+
 // ───────────────────────────────────────────────
 // 헬퍼
 // ───────────────────────────────────────────────
@@ -189,5 +208,93 @@ describe('getFailoverStatus()', () => {
     expect(status.consecutiveFailures).toBe(0);
     expect(status.lastTripTime).toBeNull();
     expect(status.enabled).toBe(true);
+  });
+});
+
+// ───────────────────────────────────────────────
+// recovery probe (startRecoveryProbe / runRecoveryProbe / recoverCircuit)
+// ───────────────────────────────────────────────
+describe('recovery probe', () => {
+  beforeEach(() => {
+    _resetFailoverState();
+    vi.stubEnv('FAILOVER_ENABLED', 'true');
+    vi.stubEnv('FAILOVER_FAILURE_THRESHOLD', '1'); // 1번 실패로 trip
+    vi.stubEnv('FAILOVER_RECOVERY_INTERVAL_MS', '100');
+    // NOTE: Number('0') || 60_000 → 60_000 (0은 falsy), 최소 유지 시간 무력화하려면 1ms
+    vi.stubEnv('FAILOVER_MIN_DURATION_MS', '1');
+    vi.stubEnv('DATABASE_URL', 'postgresql://localhost/test');
+    mockClientInstance.connect.mockResolvedValue(undefined);
+    mockClientInstance.query.mockResolvedValue(undefined);
+    mockClientInstance.end.mockResolvedValue(undefined);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    _resetFailoverState();
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it('tripCircuit 후 복구 프로브가 시작되고 성공 시 recoverCircuit()이 호출된다', async () => {
+    vi.stubEnv('FAILOVER_RECOVERY_THRESHOLD', '1'); // 1번 성공으로 복구
+
+    // threshold=1이므로 실패 1번으로 trip
+    reportFailure(Object.assign(new Error('conn refused'), { code: 'ECONNREFUSED' }));
+    expect(isInFailover()).toBe(true);
+
+    // tripCircuit async 체인(resetDbConnection → startRecoveryProbe) 완료 대기
+    // advanceTimersByTimeAsync는 내부에서 Promise 마이크로태스크도 플러시함
+    await vi.advanceTimersByTimeAsync(10);
+
+    // recovery interval(100ms) 경과 → runRecoveryProbe 실행 + probe async 완료
+    await vi.advanceTimersByTimeAsync(200);
+
+    // 성공 프로브 후 circuit 복구
+    expect(isInFailover()).toBe(false);
+  });
+
+  it('복구 프로브 실패 시 consecutiveRecoverySuccesses가 리셋되고 failover 유지된다', async () => {
+    vi.stubEnv('FAILOVER_RECOVERY_THRESHOLD', '2'); // 2번 성공 필요
+    mockClientInstance.connect.mockRejectedValueOnce(new Error('still down'));
+
+    // trip circuit
+    reportFailure(Object.assign(new Error('conn refused'), { code: 'ECONNREFUSED' }));
+    expect(isInFailover()).toBe(true);
+    await vi.advanceTimersByTimeAsync(10);
+
+    // probe 실행 → connect 실패 → 카운터 리셋
+    await vi.advanceTimersByTimeAsync(200);
+
+    // 여전히 failover 상태
+    expect(isInFailover()).toBe(true);
+  });
+
+  it('DATABASE_URL 미설정 시 프로브가 스킵된다', async () => {
+    vi.stubEnv('DATABASE_URL', '');
+
+    reportFailure(Object.assign(new Error('conn refused'), { code: 'ECONNREFUSED' }));
+    expect(isInFailover()).toBe(true);
+    await vi.advanceTimersByTimeAsync(10);
+
+    await vi.advanceTimersByTimeAsync(200);
+
+    // connect가 호출되지 않아야 함 (DATABASE_URL 없으면 probe 스킵)
+    expect(mockClientInstance.connect).not.toHaveBeenCalled();
+    expect(isInFailover()).toBe(true);
+  });
+
+  it('복구 성공 후 recoverCircuit()이 상태를 normal로 설정한다', async () => {
+    vi.stubEnv('FAILOVER_RECOVERY_THRESHOLD', '1');
+
+    reportFailure(Object.assign(new Error('conn refused'), { code: 'ECONNREFUSED' }));
+    await vi.advanceTimersByTimeAsync(10);
+
+    // interval 경과 → probe 성공 → recover
+    await vi.advanceTimersByTimeAsync(200);
+
+    const status = getFailoverStatus();
+    expect(status.state).toBe('normal');
+    expect(status.consecutiveFailures).toBe(0);
   });
 });

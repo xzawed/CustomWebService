@@ -116,6 +116,31 @@ describe('suggestSlugs()', () => {
     expect(result).toContain('another-slug');
   });
 
+  it('AI 응답에 JSON 배열이 없을 경우 빈 배열 반환', async () => {
+    const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
+    vi.mocked(AiProviderFactory.createForTask).mockReturnValue(
+      makeProvider('여기에 JSON 배열이 없습니다.') as never,
+    );
+
+    const { suggestSlugs } = await import('./slugSuggester');
+    const result = await suggestSlugs({ context: '서비스 설명' });
+
+    expect(result).toEqual([]);
+  });
+
+  it('JSON parse 실패 시 빈 배열 반환', async () => {
+    const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
+    // Response contains a bracket-delimited string that's invalid JSON
+    vi.mocked(AiProviderFactory.createForTask).mockReturnValue(
+      makeProvider('[invalid json here]') as never,
+    );
+
+    const { suggestSlugs } = await import('./slugSuggester');
+    const result = await suggestSlugs({ context: '서비스 설명' });
+
+    expect(result).toEqual([]);
+  });
+
   it('pageTitle과 categoryHints 있을 때 user prompt에 포함됨', async () => {
     const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
     const mockProvider = makeProvider('["news-reader", "daily-news", "news-feed"]');
