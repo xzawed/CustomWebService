@@ -4,7 +4,7 @@ vi.mock('@/lib/events/eventBus', () => ({
   eventBus: { emit: vi.fn() },
 }));
 
-import { shouldRetryGeneration, buildQualityImprovementPrompt, runQualityLoop, hasFunctionalIssue, resolveMaxIterations, buildProgressSchedule, shouldAdoptRetry } from './qualityLoop';
+import { shouldRetryGeneration, buildQualityImprovementPrompt, runQualityLoop, hasFunctionalIssue, resolveMaxIterations, buildProgressSchedule, shouldAdoptRetry, resolvePipelineBudgetMs, resolveIterationTimeoutMs } from './qualityLoop';
 import { eventBus } from '@/lib/events/eventBus';
 import type { QualityMetrics } from '@/lib/ai/codeValidator';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
@@ -891,4 +891,125 @@ describe('runQualityLoop — AutoFix 통합', () => {
     expect(result.parsed.html).toContain('https://cdn.tailwindcss.com');
   });
 
+});
+
+describe('resolvePipelineBudgetMs', () => {
+  afterEach(() => { vi.unstubAllEnvs(); });
+
+  it('PIPELINE_MAX_DURATION_MS 미설정 시 290000 반환', () => {
+    vi.stubEnv('PIPELINE_MAX_DURATION_MS', '');
+    expect(resolvePipelineBudgetMs()).toBe(290_000);
+  });
+
+  it('PIPELINE_MAX_DURATION_MS=250000 설정 시 해당 값 반환', () => {
+    vi.stubEnv('PIPELINE_MAX_DURATION_MS', '250000');
+    expect(resolvePipelineBudgetMs()).toBe(250_000);
+  });
+
+  it('PIPELINE_MAX_DURATION_MS=0 설정 시 기본값 290000 반환', () => {
+    vi.stubEnv('PIPELINE_MAX_DURATION_MS', '0');
+    expect(resolvePipelineBudgetMs()).toBe(290_000);
+  });
+});
+
+describe('resolveIterationTimeoutMs', () => {
+  afterEach(() => { vi.unstubAllEnvs(); });
+
+  it('useET=true + env 미설정 → 200000', () => {
+    vi.stubEnv('QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS', '');
+    expect(resolveIterationTimeoutMs(true)).toBe(200_000);
+  });
+
+  it('useET=false + env 미설정 → 120000', () => {
+    vi.stubEnv('QUALITY_LOOP_ITERATION_TIMEOUT_MS', '');
+    expect(resolveIterationTimeoutMs(false)).toBe(120_000);
+  });
+
+  it('useET=true + env=150000 → 150000', () => {
+    vi.stubEnv('QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS', '150000');
+    expect(resolveIterationTimeoutMs(true)).toBe(150_000);
+  });
+});
+
+describe('runQualityLoop — 파이프라인 예산 가드', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  function makeLowQuality(): QualityMetrics {
+    return { ...baseMetrics, structuralScore: 30, mobileScore: 30, hasSemanticHtml: false, hasInteraction: false, hasFooter: false, details: ['품질 부족'] };
+  }
+
+  function makeHangingProvider(): IAiProvider {
+    return { name: 'mock', model: 'mock', generateCode: vi.fn().mockReturnValue(new Promise(() => {})), generateCodeStream: vi.fn(), checkAvailability: vi.fn() };
+  }
+
+  function makeMockSse(): SseWriter {
+    return { send: vi.fn(), isCancelled: vi.fn().mockReturnValue(false) };
+  }
+
+  it('pipelineStartMs 미전달 시 가드 비활성 — LLM 호출 진행', async () => {
+    vi.stubEnv('QUALITY_LOOP_MAX_ITERATIONS', '1');
+    vi.stubEnv('QUALITY_LOOP_ITERATION_TIMEOUT_MS', '100');
+
+    const provider = makeHangingProvider();
+    const loopPromise = runQualityLoop(
+      { html: '<div>초기</div>', css: 'body{}', js: 'fetch("/api/v1/proxy")' },
+      makeLowQuality(),
+      null,
+      { stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func', aiProvider: provider, sse: makeMockSse(), useET: false, projectId: 'p1' },
+    );
+
+    await vi.advanceTimersByTimeAsync(200);
+    await loopPromise;
+    expect(provider.generateCode).toHaveBeenCalled();
+  });
+
+  it('pipelineStartMs 전달 + 예산 초과 시 LLM 호출 없이 초기 결과 반환', async () => {
+    vi.stubEnv('QUALITY_LOOP_MAX_ITERATIONS', '1');
+    vi.stubEnv('PIPELINE_MAX_DURATION_MS', '100');
+    vi.stubEnv('QUALITY_LOOP_ITERATION_TIMEOUT_MS', '200');
+
+    const provider = makeHangingProvider();
+    const initialParsed = { html: '<div>초기</div>', css: 'body{}', js: 'fetch("/api/v1/proxy")' };
+
+    const result = await runQualityLoop(
+      initialParsed,
+      makeLowQuality(),
+      null,
+      {
+        stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func',
+        aiProvider: provider, sse: makeMockSse(), useET: false, projectId: 'p2',
+        pipelineStartMs: Date.now() - 50, // 50ms 경과 → 50 + 200 = 250 > 100 → skip
+      },
+    );
+
+    expect(provider.generateCode).not.toHaveBeenCalled();
+    expect(result.parsed).toEqual(initialParsed);
+    expect(result.qualityLoopUsed).toBe(false);
+  });
+
+  it('pipelineStartMs 전달 + 예산 충분 시 LLM 호출 진행', async () => {
+    vi.stubEnv('QUALITY_LOOP_MAX_ITERATIONS', '1');
+    vi.stubEnv('PIPELINE_MAX_DURATION_MS', '10000');
+    vi.stubEnv('QUALITY_LOOP_ITERATION_TIMEOUT_MS', '100');
+
+    const provider = makeHangingProvider();
+    const loopPromise = runQualityLoop(
+      { html: '<div>초기</div>', css: 'body{}', js: 'fetch("/api/v1/proxy")' },
+      makeLowQuality(),
+      null,
+      {
+        stage2SystemPrompt: 'sys', stage2FunctionSystemPrompt: 'func',
+        aiProvider: provider, sse: makeMockSse(), useET: false, projectId: 'p3',
+        pipelineStartMs: Date.now(), // 방금 시작 → 0 + 100 = 100 < 10000 → 진행
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(200);
+    await loopPromise;
+    expect(provider.generateCode).toHaveBeenCalled();
+  });
 });

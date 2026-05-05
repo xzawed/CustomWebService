@@ -332,8 +332,10 @@ export interface QualityLoopRunOptions {
   pipelineStartMs?: number;
 }
 
-const _maxDurationEnvVal = Number.parseInt(process.env.PIPELINE_MAX_DURATION_MS ?? '', 10);
-const PIPELINE_BUDGET_MS = Number.isNaN(_maxDurationEnvVal) || _maxDurationEnvVal <= 0 ? 290_000 : _maxDurationEnvVal;
+export function resolvePipelineBudgetMs(): number {
+  const v = Number.parseInt(process.env.PIPELINE_MAX_DURATION_MS ?? '', 10);
+  return Number.isNaN(v) || v <= 0 ? 290_000 : v;
+}
 
 /** 품질 기준 미달 시 최대 N회 재생성 시도, 최선 버전 반환 */
 export async function runQualityLoop(
@@ -354,6 +356,7 @@ export async function runQualityLoop(
   const maxIterations = resolveMaxIterations();
   const qualityLoopProgress = buildProgressSchedule(maxIterations);
   const iterationTimeoutMs = resolveIterationTimeoutMs(useET);
+  const pipelineBudgetMs = resolvePipelineBudgetMs();
 
   for (let attempt = 0; attempt < maxIterations; attempt++) {
     if (!shouldRetryGeneration(state.quality, state.qcReport)) break;
@@ -365,9 +368,9 @@ export async function runQualityLoop(
     // Railway 300s 총 예산 가드 — elapsed + 이번 반복 예상 시간이 예산 초과 시 스킵
     if (pipelineStartMs !== undefined) {
       const elapsed = Date.now() - pipelineStartMs;
-      if (elapsed + iterationTimeoutMs > PIPELINE_BUDGET_MS) {
+      if (elapsed + iterationTimeoutMs > pipelineBudgetMs) {
         logger.warn('Quality loop iteration skipped — insufficient pipeline time budget', {
-          projectId, elapsed, iterationTimeoutMs, pipelineBudgetMs: PIPELINE_BUDGET_MS,
+          projectId, elapsed, iterationTimeoutMs, pipelineBudgetMs,
         });
         break;
       }
