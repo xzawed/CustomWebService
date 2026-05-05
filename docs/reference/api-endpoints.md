@@ -207,10 +207,6 @@ API 카탈로그 전체 조회
 
 > `qcWarnings` 필드는 렌더링 QC(`ENABLE_RENDERING_QC=true`)에서 경고가 발생한 경우에만 조건부 포함됩니다. 경고가 없으면 이 필드 자체가 응답에 포함되지 않습니다.
 
-```json
-{
-```
-
 ### POST /api/v1/projects/:id/slug/check
 slug 가용성 실시간 검증 (PublishDialog에서 커스텀 입력 시 사용)
 
@@ -789,6 +785,19 @@ API 키 삭제
 **Auth required**: Yes (`getAuthUser()` — 미인증 시 401 반환)
 
 **Rate Limit**: 사용자당 분당 60회 (인메모리, 초과 시 429)
+
+**응답 캐시 (서버사이드)**:
+특정 API에 `cache_ttl_seconds`가 설정된 경우 GET 응답이 서버 메모리에 캐시됩니다.
+
+| 헤더 | 값 | 설명 |
+|------|-----|------|
+| `X-Cache` | `HIT` | 캐시에서 응답 반환 |
+| `X-Cache` | `MISS` | 업스트림에서 응답 후 캐시 저장 |
+| `Cache-Control` | `public, max-age={ttl}` | 캐시됨 (`cache_ttl_seconds` 설정된 API) |
+| `Cache-Control` | `no-store` | 캐시 미사용 |
+
+> POST 요청, 4xx/5xx 응답, `cache_ttl_seconds=null` API는 캐시하지 않습니다.
+> 캐시 키: `apiId:proxyPath:sortedParams` (서버 주입 인증 파라미터 제외)
 
 **Query Parameters:**
 | 파라미터 | 타입 | 필수 | 설명 |

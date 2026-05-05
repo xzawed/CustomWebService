@@ -89,7 +89,7 @@ LLM 재시도 전 `applyAutoFix()`가 먼저 실행됩니다. CDN http→https, 
 
 **담당**: `qualityLoop.shouldRetryGeneration()`, `applyAutoFix()`, `buildQualityImprovementPrompt()`
 
-> **타임아웃**: 각 재생성 반복은 `QUALITY_LOOP_ITERATION_TIMEOUT_MS`(기본 120초) 타임아웃 적용. 단일 반복에서 AI 응답이 없으면 해당 반복을 건너뛰고 현재 최선 결과를 유지.
+> **타임아웃**: 각 재생성 반복은 ET 비활성 시 `QUALITY_LOOP_ITERATION_TIMEOUT_MS`(기본 120초), ET 활성 시 `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS`(기본 200초) 타임아웃 적용. ET 응답은 90~150초 소요되므로 별도 설정. 단일 반복에서 AI 응답이 없으면 해당 반복을 건너뛰고 현재 최선 결과를 유지.
 
 ### Step 5: 재생성 코드 재검증
 
@@ -180,7 +180,7 @@ LLM 재시도 전 `applyAutoFix()`가 먼저 실행됩니다. CDN http→https, 
 
 ## 5. Railway에서 렌더링 QC 활성화 방법
 
-현재 `ENABLE_RENDERING_QC=false` (기본값). Railway에서 활성화하려면:
+Railway에서 현재 `ENABLE_RENDERING_QC=true`로 활성화되어 운영 중. 신규 환경 또는 로컬 설정 방법:
 
 **1. Dockerfile 확인** — `node:20-alpine` 기반으로 `apk add chromium` 방식을 사용합니다 (이미 적용됨):
 
@@ -203,6 +203,7 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 | 날짜 | 변경 |
 |------|------|
+| 2026-05-03 | Quality Loop 재활성화: `QUALITY_LOOP_MAX_ITERATIONS=1`(운영 보수 설정, 안정화 후 2로 상향 예정), ET 전용 타임아웃 분리(`QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS=200000`), `QUALITY_LOOP_STRICT_ADOPTION` 기본값 true(AND 채택 모드) |
 | 2026-04-30 | 정확도 게이트 강화: Quality Loop 채택 가드 AND 모드(`QUALITY_LOOP_STRICT_ADOPTION` 토글), 사용자 feedback 매 반복 누적 주입, `STAGE_SKIPPED`/`QUALITY_LOOP_COMPLETED` 이벤트 발행, Stage 2 트리거에 `hardcodedArrayCount` 포함, placeholder blocklist 단일 출처화(`getPlaceholderBlocklistText()`) |
 | 2026-04-29 | Phase 2 품질 개선: 인라인 스크립트 탐지 error→warning, Quality Loop 반복당 타임아웃(`QUALITY_LOOP_ITERATION_TIMEOUT_MS`) 추가 |
 | 2026-04-04 | 초안 작성 — Phase 1(코드 레벨) + Phase 2(렌더링 QC) + 격차 해소 |

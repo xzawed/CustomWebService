@@ -118,6 +118,7 @@
 | 변수 | 기본값 | Railway | 설명 |
 |------|--------|---------|------|
 | `ENABLE_RENDERING_QC` | `false` | ✅ **`true` 운영 중** | Playwright 렌더링 QC 활성화. Alpine 시스템 Chromium 사용 (`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`, PR #94에서 `browserPool.ts`에 executablePath 명시 전달 수정 완료) |
+| `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` | `/usr/bin/chromium` | ✅ **설정됨** | Alpine 이미지 내 Chromium 실행 파일 경로. `playwright-core`는 이 환경변수를 자동으로 읽지 않으므로 `browserPool.ts`에서 `chromium.launch({ executablePath: ... })`로 명시적 전달. |
 | `QUALITY_LOOP_ITERATION_TIMEOUT_MS` | `120000` | ✅ **`150000` 운영 중** | 품질 루프 반복당 타임아웃 (ms). ET 비활성 생성에 적용. 빈 문자열 또는 0 이하 값 설정 시 기본값 120000으로 폴백 |
 | `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` | `200000` | ✅ **`200000` 운영 중** | Extended Thinking 활성 시 품질 루프 반복당 타임아웃 (ms). ET 활성 조건(API ≥ 3개 또는 컨텍스트 ≥ 500자)에서만 사용. 미설정 시 기본값 200000(200초). ET 응답은 90~150초 소요되므로 `QUALITY_LOOP_ITERATION_TIMEOUT_MS`와 별도 관리 |
 | `QUALITY_LOOP_MAX_ITERATIONS` | `2` | ✅ **`1` 운영 중** | 품질 루프 최대 반복 횟수. 기본 2회 (최대 3회 상한). **현재 1회 — ET 타임아웃 분리 후 Quality Loop 재활성화. 운영 안정성 확인 후 2회 상향 예정.** 낮출수록 총 생성 시간 단축 — Railway 300초 타임아웃 초과 방지용 |
