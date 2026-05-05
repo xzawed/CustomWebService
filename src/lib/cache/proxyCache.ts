@@ -41,6 +41,7 @@ class ProxyCache {
     this.cache.clear();
   }
 
+  /** 만료되지 않은 항목 수 반환. O(n) — 전체 순회로 live 항목만 집계 (lazy eviction 방식이므로 LRUMap.size는 만료 항목 포함) */
   get size(): number {
     const now = Date.now();
     let count = 0;

@@ -366,7 +366,7 @@ Avoid: [제외할 요소]
 | `generationPipeline.ts` | 오케스트레이터 (~120줄) — generate/regenerate 공통 진입점 |
 | `stageRunner.ts` | `runStage1()` / `runStage2Function()` / `runStage3()` — SSE + AI 호출 + 파싱 |
 | `generationSaver.ts` | DB 저장, slug 제안(fire-and-forget), 버전 정리, Deep QC, 상태 갱신, SSE complete |
-| `qualityLoop.ts` | `shouldRetryGeneration()` + `runQualityLoop()` (최대 3회, best-of-n 반환, 반복당 타임아웃: ET 비활성 `QUALITY_LOOP_ITERATION_TIMEOUT_MS` 기본 120초, ET 활성 `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` 기본 200초) + AutoFix 통합 |
+| `qualityLoop.ts` | `shouldRetryGeneration()` + `runQualityLoop()` (최대 3회, best-of-n 반환, 반복당 타임아웃: ET 비활성 `QUALITY_LOOP_ITERATION_TIMEOUT_MS` 기본 120초, ET 활성 `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` 기본 200초) + AutoFix 통합. `resolveIterationTimeoutMs(useET)` export — ET 여부에 따라 올바른 타임아웃 반환. 파이프라인 총 예산 가드(`PIPELINE_MAX_DURATION_MS`, 기본 290초): 반복 시작 전 `경과 시간 + iterationTimeout > 예산`이면 스킵 |
 | `autoFix.ts` | `applyAutoFix()` — LLM 재시도 전 규칙 기반 수정 (CDN http→https, TODO 주석 제거, placeholder 교체). AutoFix로 해소 가능한 경우 LLM 호출 생략 |
 | `generationTracker.ts` | 서버 메모리 진행 상태 싱글톤 (모바일 폴링 fallback용) |
 | `featureExtractor.ts` | API 이름 배열로 기능 명세(feature spec) 추출 — Stage 1 컨텍스트 보강용. `ANTHROPIC_API_KEY` 미설정 시 FALLBACK_SPEC 반환, 30초 타임아웃 |

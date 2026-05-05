@@ -90,6 +90,8 @@ LLM 재시도 전 `applyAutoFix()`가 먼저 실행됩니다. CDN http→https, 
 **담당**: `qualityLoop.shouldRetryGeneration()`, `applyAutoFix()`, `buildQualityImprovementPrompt()`
 
 > **타임아웃**: 각 재생성 반복은 ET 비활성 시 `QUALITY_LOOP_ITERATION_TIMEOUT_MS`(기본 120초), ET 활성 시 `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS`(기본 200초) 타임아웃 적용. ET 응답은 90~150초 소요되므로 별도 설정. 단일 반복에서 AI 응답이 없으면 해당 반복을 건너뛰고 현재 최선 결과를 유지.
+>
+> **파이프라인 총 예산 가드**: 반복 시작 전 `경과 시간 + iterationTimeout > PIPELINE_MAX_DURATION_MS`(기본 290초)이면 해당 반복을 스킵. Railway 300초 HTTP 컷 10초 전 안전 종료 보장. `pipelineStartMs`는 `generationPipeline.ts`에서 `Date.now()`로 기록되어 `runQualityLoop()` 옵션으로 전달됨.
 
 ### Step 5: 재생성 코드 재검증
 
@@ -150,14 +152,15 @@ LLM 재시도 전 `applyAutoFix()`가 먼저 실행됩니다. CDN http→https, 
 
 | 항목 | 값 | 환경변수 | 설명 |
 |------|-----|---------|------|
-| 구조 품질 임계값 | 60 | — | structuralScore 미달 시 재생성 |
-| 모바일 품질 임계값 | 60 | — | mobileScore 미달 시 재생성 |
-| Fast QC 통과 | 60 | — | 4개 체크 평균 60점 이상 |
+| 구조 품질 임계값 | 60 | `QC_QUALITY_THRESHOLD` | structuralScore 미달 시 재생성 |
+| 모바일 품질 임계값 | 60 | `QC_MOBILE_THRESHOLD` | mobileScore 미달 시 재생성 |
+| Fast QC 통과 | 60 | `QC_FAST_PASS_THRESHOLD` | 4개 체크 평균 60점 이상 |
 | Deep QC 통과 | 70 | `QC_DEEP_PASS_THRESHOLD` | 8개 체크 평균 70점 이상 (Fast QC 실패 시에만 실행) |
-| Fast QC 타임아웃 | 3초 | — | 초과 시 null 반환, 진행 |
-| Deep QC 타임아웃 | 10초 | — | 초과 시 null 반환, 진행 |
+| Fast QC 타임아웃 | 3초 | `QC_FAST_TIMEOUT_MS` | 초과 시 null 반환, 진행 |
+| Deep QC 타임아웃 | 10초 | `QC_DEEP_TIMEOUT_MS` | 초과 시 null 반환, 진행 |
 | 렌더링 QC 활성화 | **true** | `ENABLE_RENDERING_QC` | Railway에서 활성화됨 (2026-04-15) |
-| 최대 재생성 횟수 | 3회 | — | 품질 루프 최대 3회 |
+| 최대 재생성 횟수 | 3회 | `QUALITY_LOOP_MAX_ITERATIONS` | 품질 루프 최대 3회 (상한), 기본 2회 |
+| 파이프라인 총 예산 | 290초 | `PIPELINE_MAX_DURATION_MS` | Railway 300초 한도 기준 10초 여유. Quality Loop 반복 전 잔여 예산 확인 |
 
 ---
 
@@ -203,6 +206,7 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 | 날짜 | 변경 |
 |------|------|
+| 2026-05-05 | 파이프라인 총 예산 가드 추가(`PIPELINE_MAX_DURATION_MS`, 기본 290초): Quality Loop 반복 시작 전 남은 예산 확인, 초과 예상 시 반복 스킵. `resolveIterationTimeoutMs(useET)` 함수 export (ET 여부에 따른 타임아웃 반환). `proxyCache.size` live count로 변경(lazy eviction → 유효 항목만 집계) |
 | 2026-05-03 | Quality Loop 재활성화: `QUALITY_LOOP_MAX_ITERATIONS=1`(운영 보수 설정, 안정화 후 2로 상향 예정), ET 전용 타임아웃 분리(`QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS=200000`), `QUALITY_LOOP_STRICT_ADOPTION` 기본값 true(AND 채택 모드) |
 | 2026-04-30 | 정확도 게이트 강화: Quality Loop 채택 가드 AND 모드(`QUALITY_LOOP_STRICT_ADOPTION` 토글), 사용자 feedback 매 반복 누적 주입, `STAGE_SKIPPED`/`QUALITY_LOOP_COMPLETED` 이벤트 발행, Stage 2 트리거에 `hardcodedArrayCount` 포함, placeholder blocklist 단일 출처화(`getPlaceholderBlocklistText()`) |
 | 2026-04-29 | Phase 2 품질 개선: 인라인 스크립트 탐지 error→warning, Quality Loop 반복당 타임아웃(`QUALITY_LOOP_ITERATION_TIMEOUT_MS`) 추가 |
