@@ -1,6 +1,6 @@
 # AI 코드 생성 파이프라인
 
-> **최종 업데이트:** 2026-04-29
+> **최종 업데이트:** 2026-05-05
 
 ## 1. 개요
 
@@ -179,11 +179,22 @@ interface FunctionalCheck {
 }
 ```
 
-### 4.3 후처리
-1. **API 키 플레이스홀더 변환**: `{{API_KEY}}` → 환경변수 참조
-2. **코드 포맷팅**: Prettier 적용
-3. **최적화**: 미사용 CSS 제거, JS minify (배포 시)
-4. **메타 태그 추가**: title, description, viewport, og 태그
+### 4.3 후처리 (`src/lib/ai/codeParser.ts`)
+
+`assembleHtml()` 호출 시 다음 순서로 후처리 적용:
+
+**풀 문서 (`</head>` 포함) 경로:**
+1. `ensureCharset()` — `<meta charset="UTF-8">` 자동 삽입
+2. `ensureViewport()` — viewport meta 자동 삽입
+3. `injectCdnTags()` — Tailwind CDN, Pretendard 폰트, Font Awesome 재주입 (DOMPurify가 제거한 `<script>/<link>` 복원)
+4. `injectAlpineScript()` — Alpine.js CDN 주입 (중복 방지)
+5. `injectHeadExtras()` — 파비콘, OG 메타태그, CSS 변수, 프린트 스타일, 모바일 안전 CSS
+6. `injectUserScript()` — 파싱된 JS를 `</body>` 앞에 `<script>` 태그로 삽입
+7. `injectUnsplashAttribution()` — `unsplash.com` URL 감지 시 "Photos by Unsplash" 귀속 문구 삽입 (Unsplash ToS 준수)
+8. `optimizeImages()` — `<img>` lazy loading, decoding="async", 크기 속성 자동 추가
+
+**프래그먼트 경로 (`buildFromFragment`):**
+완전한 HTML 문서 골격 생성 → `optimizeImages()` → `injectUnsplashAttribution()`
 
 ---
 
@@ -355,7 +366,7 @@ Avoid: [제외할 요소]
 | `generationPipeline.ts` | 오케스트레이터 (~120줄) — generate/regenerate 공통 진입점 |
 | `stageRunner.ts` | `runStage1()` / `runStage2Function()` / `runStage3()` — SSE + AI 호출 + 파싱 |
 | `generationSaver.ts` | DB 저장, slug 제안(fire-and-forget), 버전 정리, Deep QC, 상태 갱신, SSE complete |
-| `qualityLoop.ts` | `shouldRetryGeneration()` + `runQualityLoop()` (최대 3회, best-of-n 반환, 반복당 타임아웃 `QUALITY_LOOP_ITERATION_TIMEOUT_MS` 기본 120초) + AutoFix 통합 |
+| `qualityLoop.ts` | `shouldRetryGeneration()` + `runQualityLoop()` (최대 3회, best-of-n 반환, 반복당 타임아웃: ET 비활성 `QUALITY_LOOP_ITERATION_TIMEOUT_MS` 기본 120초, ET 활성 `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` 기본 200초) + AutoFix 통합 |
 | `autoFix.ts` | `applyAutoFix()` — LLM 재시도 전 규칙 기반 수정 (CDN http→https, TODO 주석 제거, placeholder 교체). AutoFix로 해소 가능한 경우 LLM 호출 생략 |
 | `generationTracker.ts` | 서버 메모리 진행 상태 싱글톤 (모바일 폴링 fallback용) |
 | `featureExtractor.ts` | API 이름 배열로 기능 명세(feature spec) 추출 — Stage 1 컨텍스트 보강용. `ANTHROPIC_API_KEY` 미설정 시 FALLBACK_SPEC 반환, 30초 타임아웃 |
