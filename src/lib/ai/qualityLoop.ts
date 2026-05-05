@@ -252,6 +252,13 @@ function applyAutoFixStep(
   return 'partial';
 }
 
+export function resolveIterationTimeoutMs(useET: boolean): number {
+  const timeoutEnvKey = useET ? 'QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS' : 'QUALITY_LOOP_ITERATION_TIMEOUT_MS';
+  const defaultTimeoutMs = useET ? 200_000 : 120_000;
+  const v = Number.parseInt(process.env[timeoutEnvKey] ?? '', 10);
+  return Number.isNaN(v) || v <= 0 ? defaultTimeoutMs : v;
+}
+
 /**
  * LLM 재시도 한 회를 실행해 best 상태를 업데이트한다.
  * AI 호출 실패·빈 응답·채택 실패는 모두 조용히 처리한다.
@@ -262,18 +269,15 @@ async function runLlmRetryIteration(
     systemPrompt: string;
     userFeedback: string | undefined;
     aiProvider: IAiProvider;
+    iterationTimeoutMs: number;
     useET: boolean;
     projectId: string;
     attempt: number;
   },
 ): Promise<void> {
-  const { systemPrompt, userFeedback, aiProvider, useET, projectId, attempt } = options;
+  const { systemPrompt, userFeedback, aiProvider, iterationTimeoutMs, useET, projectId, attempt } = options;
   try {
     const improvementPrompt = buildQualityImprovementPrompt(state.parsed, state.quality, state.qcReport, userFeedback);
-    const timeoutEnvKey = useET ? 'QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS' : 'QUALITY_LOOP_ITERATION_TIMEOUT_MS';
-    const defaultTimeoutMs = useET ? 200_000 : 120_000;
-    const _loopVal = Number.parseInt(process.env[timeoutEnvKey] ?? '', 10);
-    const iterationTimeoutMs = Number.isNaN(_loopVal) || _loopVal <= 0 ? defaultTimeoutMs : _loopVal;
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(
         () => reject(new Error(`Quality loop iteration timed out after ${iterationTimeoutMs}ms`)),
@@ -324,7 +328,12 @@ export interface QualityLoopRunOptions {
   useET: boolean;
   projectId: string;
   userFeedback?: string;
+  /** Date.now() at pipeline entry — used for Railway 300s total budget guard */
+  pipelineStartMs?: number;
 }
+
+const _maxDurationEnvVal = Number.parseInt(process.env.PIPELINE_MAX_DURATION_MS ?? '', 10);
+const PIPELINE_BUDGET_MS = Number.isNaN(_maxDurationEnvVal) || _maxDurationEnvVal <= 0 ? 290_000 : _maxDurationEnvVal;
 
 /** 품질 기준 미달 시 최대 N회 재생성 시도, 최선 버전 반환 */
 export async function runQualityLoop(
@@ -333,7 +342,7 @@ export async function runQualityLoop(
   initialQcReport: QcReport | null,
   options: QualityLoopRunOptions,
 ): Promise<QualityLoopResult> {
-  const { stage2SystemPrompt, stage2FunctionSystemPrompt, aiProvider, sse, useET, projectId, userFeedback } = options;
+  const { stage2SystemPrompt, stage2FunctionSystemPrompt, aiProvider, sse, useET, projectId, userFeedback, pipelineStartMs } = options;
   const state: BestState = {
     parsed: initialParsed,
     quality: initialQuality,
@@ -344,6 +353,7 @@ export async function runQualityLoop(
 
   const maxIterations = resolveMaxIterations();
   const qualityLoopProgress = buildProgressSchedule(maxIterations);
+  const iterationTimeoutMs = resolveIterationTimeoutMs(useET);
 
   for (let attempt = 0; attempt < maxIterations; attempt++) {
     if (!shouldRetryGeneration(state.quality, state.qcReport)) break;
@@ -351,6 +361,17 @@ export async function runQualityLoop(
     // AutoFix: deterministic rules before LLM retry — saves tokens when fixable
     const autoFixOutcome = applyAutoFixStep(state, projectId, attempt);
     if (autoFixOutcome === 'resolved') break;
+
+    // Railway 300s 총 예산 가드 — elapsed + 이번 반복 예상 시간이 예산 초과 시 스킵
+    if (pipelineStartMs !== undefined) {
+      const elapsed = Date.now() - pipelineStartMs;
+      if (elapsed + iterationTimeoutMs > PIPELINE_BUDGET_MS) {
+        logger.warn('Quality loop iteration skipped — insufficient pipeline time budget', {
+          projectId, elapsed, iterationTimeoutMs, pipelineBudgetMs: PIPELINE_BUDGET_MS,
+        });
+        break;
+      }
+    }
 
     iterationsRun++;
 
@@ -369,7 +390,7 @@ export async function runQualityLoop(
     // function-fix prompt; design/layout issues use the design polish prompt.
     const systemPrompt = hasFunctionalIssue(state.quality) ? stage2FunctionSystemPrompt : stage2SystemPrompt;
 
-    await runLlmRetryIteration(state, { systemPrompt, userFeedback, aiProvider, useET, projectId, attempt });
+    await runLlmRetryIteration(state, { systemPrompt, userFeedback, aiProvider, iterationTimeoutMs, useET, projectId, attempt });
   }
 
   eventBus.emit({

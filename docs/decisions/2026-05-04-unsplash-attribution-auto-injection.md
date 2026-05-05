@@ -43,7 +43,7 @@ Unsplash URL이 없는 HTML은 함수가 원본 그대로 반환하며 성능 �
 - AI가 생성한 HTML에는 드물게 `</body>` 태그가 중첩되거나 잘못된 위치에 나타날 수 있음
 - `lastIndexOf`는 실제 문서의 마지막 `</body>` 위치를 보장하여 항상 body 끝에 삽입됨
 
-`</body>` 태그가 없는 HTML 단편(fragment)의 경우: 문자열 끝에 귀속 문구를 추가한다.
+`</body>` 태그가 없는 HTML의 경우: 원본을 그대로 반환한다(삽입하지 않음). `</body>` 없이 끝에 강제 삽입하면 HTML 구조가 더 손상될 수 있으므로, 이 경우는 안전하게 건너뛴다.
 
 ---
 
@@ -113,7 +113,7 @@ AI에게 귀속 문구를 직접 삽입하지 말도록 명시적으로 안내�
 - **다른 이미지 소스**: 현재 Unsplash만 처리. Pexels, Pixabay 등 다른 무료 이미지 소스도 귀속이 필요한 경우 별도 처리 필요
 - **Tailwind 없는 HTML**: Tailwind CDN이 없는 HTML에서는 클래스가 적용되지 않지만 귀속 문구 텍스트 자체는 정상 표시됨
 - **빌더 미리보기**: 미리보기 경로(`preview/[projectId]/route.ts`)와 게시 경로(`site/[slug]/route.ts`) 모두 `codeParser.ts`를 통하므로 양쪽에 동일하게 적용됨
-- **이미 게시된 서비스**: 기존에 게시된 HTML은 재생성하지 않으면 귀속 문구가 없을 수 있음. 향후 마이그레이션 또는 서빙 시 실시간 주입 검토 가능
+- **이미 게시된 서비스**: `site/[slug]/route.ts`는 서빙 시마다 DB의 raw 파트(`codeHtml`, `codeCss`, `codeJs`)를 `assembleHtml()`로 재조합하므로, `injectUnsplashAttribution()`이 기존 서비스에도 자동 적용됨. 별도 마이그레이션 불필요
 
 ---
 

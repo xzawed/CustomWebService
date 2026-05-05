@@ -329,6 +329,7 @@ export async function runGenerationPipeline(
   const { codeRepo, projectService, rateLimitService, projectRepo } = services;
 
   let aiProvider: IAiProvider | undefined;
+  const pipelineStartMs = Date.now();
 
   generationTracker.start(projectId, userId);
 
@@ -400,7 +401,7 @@ export async function runGenerationPipeline(
     const userFeedback = typeof extraMetadata?.userFeedback === 'string' ? extraMetadata.userFeedback : undefined;
     const { parsed: finalParsed, quality, qcReport, qualityLoopUsed } = await runQualityLoop(
       parsed, initialQuality, initialQcReport,
-      { stage2SystemPrompt: input.stage2SystemPrompt, stage2FunctionSystemPrompt: input.stage2FunctionSystemPrompt, aiProvider, sse, useET, projectId, userFeedback },
+      { stage2SystemPrompt: input.stage2SystemPrompt, stage2FunctionSystemPrompt: input.stage2FunctionSystemPrompt, aiProvider, sse, useET, projectId, userFeedback, pipelineStartMs },
     );
 
     // ── 저장 ─────────────────────────────────────────────────────────────────

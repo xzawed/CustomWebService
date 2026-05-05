@@ -42,7 +42,12 @@ class ProxyCache {
   }
 
   get size(): number {
-    return this.cache.size;
+    const now = Date.now();
+    let count = 0;
+    for (const [, entry] of this.cache) {
+      if (now <= entry.expiresAt) count++;
+    }
+    return count;
   }
 }
 

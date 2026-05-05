@@ -114,6 +114,7 @@ pnpm test:coverage    # 커버리지 리포트
 - `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` — ET 활성화 시 Quality Loop 반복당 타임아웃 (기본: 200000ms = 200초). ET 응답이 최대 150초 소요되므로 일반 타임아웃(`QUALITY_LOOP_ITERATION_TIMEOUT_MS`)과 별도 설정
 - `QUALITY_LOOP_MAX_ITERATIONS` — Quality Loop 최대 반복 횟수 (기본: 2회, 상한: 3회)
 - `QUALITY_LOOP_STRICT_ADOPTION` — Quality Loop retry 채택 가드 (기본: `true`. `false`로 설정 시 한쪽 점수 향상만으로도 채택하는 기존 OR 로직 복원 — 운영 데이터 비교용 롤백 스위치)
+- `PIPELINE_MAX_DURATION_MS` — 파이프라인 총 허용 시간 (기본: 290000ms = 290초). Quality Loop 시작 시 `경과 시간 + iterationTimeout > 이 값`이면 반복을 건너뜀. Railway 300초 한도를 고려한 안전 마진 확보용
 - `QC_QUALITY_THRESHOLD`, `QC_MOBILE_THRESHOLD` — Quality Loop 재시도 트리거 점수 임계값 (각 기본: 60)
 - `RATE_LIMIT_BYPASS_USER_IDS` — 쉼표 구분 userId 목록. 포함된 계정은 일일 생성 한도 검사 스킵 (관리자/개발자 우회용)
 - 전체 환경변수 목록은 [docs/reference/env-vars.md](docs/reference/env-vars.md) 참조
@@ -224,13 +225,16 @@ pnpm test:coverage    # 커버리지 리포트
 1. **Railway 배포 상태** — `railway deployment list --json` (최신 배포 status·커밋 확인)
 2. **SonarCloud 품질 상태** — 아래 우선순위로 확인:
    - **(기본)** SonarQube MCP 도구로 `xzawed_CustomWebService` 프로젝트 이슈·품질 게이트 조회
-   - **(차선 — MCP 미로드 시)** SonarCloud REST API로 대체:
+   - **(차선 — MCP 미로드 시)** SonarCloud REST API로 대체 (`SONARCLOUD_TOKEN` 환경변수 또는 `~/.sonar-token` 파일에서 읽기):
      ```bash
+     # 토큰 설정: echo "토큰값" > ~/.sonar-token && chmod 600 ~/.sonar-token
+     # 또는: export SONARCLOUD_TOKEN=토큰값
+     SONAR_TOKEN="${SONARCLOUD_TOKEN:-$(cat ~/.sonar-token 2>/dev/null)}"
      # 품질 게이트
-     curl -s -u "d9298987059a0e9855b0876cf17e2ad5357b9cb6:" \
+     curl -s -u "$SONAR_TOKEN:" \
        "https://sonarcloud.io/api/qualitygates/project_status?projectKey=xzawed_CustomWebService"
      # 신규 이슈
-     curl -s -u "d9298987059a0e9855b0876cf17e2ad5357b9cb6:" \
+     curl -s -u "$SONAR_TOKEN:" \
        "https://sonarcloud.io/api/issues/search?projectKeys=xzawed_CustomWebService&resolved=false&ps=5"
      ```
 
