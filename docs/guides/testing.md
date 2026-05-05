@@ -16,11 +16,11 @@
           ──┼──────────┼──
          │    통합     │  ~130개 (API Routes, Vitest)
         ────┼──────────┼────
-       │       단위    │  ~1,080개 (lib, providers, services, repositories)
+       │       단위    │  ~1,330개 (lib, providers, services, repositories)
        ──────────────────
 ```
 
-**총 119개 Vitest 파일, 1,466개 테스트 + 3개 Playwright E2E 파일**
+**총 129개 Vitest 파일, 1,716개 테스트 + 3개 Playwright E2E 파일**
 
 ### 핵심 원칙
 
@@ -181,7 +181,7 @@
 
 | 파일 | 엔드포인트 | 주요 검증 항목 |
 |------|-----------|---------------|
-| `proxy.test.ts` | `GET /api/v1/proxy` | **SSRF 방지**: loopback/RFC1918/AWS 메타데이터/IPv6(`[::1]`/`[fe80::1]`) 6종 차단, 분당 60회 rate limit, upstream 타임아웃 502 |
+| `proxy.test.ts` | `GET /api/v1/proxy` | **SSRF 방지**: loopback/RFC1918/AWS 메타데이터/IPv6(`[::1]`/`[fe80::1]`) 6종 차단, 분당 60회 rate limit, upstream 타임아웃 502, **응답 캐시**: `cache_ttl_seconds` 설정 API에서 MISS→HIT 전환, `X-Cache` 헤더, POST/4xx 미캐시 |
 | `admin.test.ts` | 관리자 API | Bearer 토큰 인증, IP 스푸핑 방지, CORS 헤더, QC rate limit |
 
 #### 배포·게시·관리
@@ -371,7 +371,7 @@ lint (ESLint)
   ↓
 type-check (tsc --noEmit)
   ↓
-test (pnpm test — 1,466개)
+test (pnpm test — 1,716개)
   ↓
 커버리지 업로드 (Codecov + SonarCloud)
   ↓
@@ -394,10 +394,10 @@ build (Next.js standalone)
 
 | 지표 | 달성값 |
 |------|--------|
-| lines | **71.77%** |
-| statements | **70.76%** |
-| branches | **67.18%** |
-| functions | **65.79%** |
+| lines | **85%+** (PR #99, Codecov 기준) |
+| statements | **84%+** (PR #99, Codecov 기준) |
+| branches | **70%+** (PR #99, Codecov 기준) |
+| functions | **80%+** (PR #99, Codecov 기준) |
 
 **CI 임계값** (미달 시 CI 실패):
 

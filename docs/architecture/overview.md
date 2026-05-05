@@ -1,7 +1,7 @@
 # 시스템 아키텍처
 
-> **최종 업데이트:** 2026-04-26  
-> **구현 상태:** 운영 중 (1,466개 테스트 통과)
+> **최종 업데이트:** 2026-05-05  
+> **구현 상태:** 운영 중 (1,716개 테스트 통과)
 
 ---
 
@@ -23,7 +23,7 @@
 │   │ 카탈로그    │ │ 빌더(Step) │ │ 대시보드  │ │ 랜딩/인증    │  │
 │   │ 페이지     │ │ 동적 N-step│ │ 페이지   │ │ 페이지      │  │
 │   └────────────┘ └────────────┘ └──────────┘ └─────────────┘  │
-│          호스팅: Railway (무료 Trial)                            │
+│          호스팅: Railway (Pro 플랜)                              │
 └───────────────────────────┬────────────────────────────────────┘
                             │ /api/v1/*
                             ▼
@@ -243,13 +243,27 @@ src/
 │   │   ├── qualityLoop.ts         # shouldRetryGeneration + runQualityLoop (최대 3회 재시도)
 │   │   ├── generationTracker.ts   # 서버 메모리 진행 상태 싱글톤 (모바일 폴링용)
 │   │   ├── promptBuilder.ts
-│   │   ├── codeParser.ts
-│   │   └── codeValidator.ts
+│   │   ├── codeParser.ts          # HTML 조립·후처리 (Unsplash 귀속 포함)
+│   │   ├── codeValidator.ts       # 보안/품질 정적 검증
+│   │   ├── autoFix.ts             # LLM 재시도 전 규칙 기반 자동 수정
+│   │   ├── categoryDesignMap.ts   # 카테고리별 디자인 테마 매핑
+│   │   ├── featureExtractor.ts    # API 기능 명세 추출
+│   │   ├── placeholderPatterns.ts # placeholder 탐지 패턴
+│   │   ├── preferencesRecommender.ts # UI 설정 추천
+│   │   ├── slugSuggester.ts       # AI 기반 slug 제안
+│   │   └── sseWriter.ts           # SSE 스트림 유틸리티
+│   ├── cache/
+│   │   └── proxyCache.ts         # LRU+TTL 인메모리 캐시 (프록시 응답, 최대 500항목)
+│   ├── constants/
+│   │   └── cdn.ts                # CDN URL 상수 (Tailwind, Pretendard, Font Awesome)
 │   ├── deploy/
 │   │   ├── githubService.ts       # ✅ GitHub REST API 연동
 │   │   └── railwayService.ts      # ✅ Railway GraphQL API 연동
 │   ├── config/
-│   │   └── features.ts           # 설정 기반 비즈니스 규칙
+│   │   ├── features.ts           # 설정 기반 비즈니스 규칙
+│   │   ├── providers.ts          # DB/Auth Provider 선택
+│   │   ├── qc.ts                 # QC 관련 설정
+│   │   └── rateLimit.ts          # Rate limit 설정
 │   ├── events/
 │   │   ├── eventBus.ts           # pub/sub 이벤트 버스 (on/emit, fire-and-forget 에러 격리)
 │   │   └── eventPersister.ts     # registerEventPersister() — 모든 DomainEvent 자동 DB 기록
@@ -261,7 +275,12 @@ src/
 │   │   ├── ko.ts                 # 한국어 메시지 (26개 — 에러·서비스·배포)
 │   │   └── types.ts              # MessageKey 타입 (자동완성 지원)
 │   ├── qc/
-│   │   └── deepQcRunner.ts       # Deep QC + ICodeRepository로 메타데이터 업데이트
+│   │   ├── index.ts              # QC 진입점
+│   │   ├── deepQcRunner.ts       # 비동기 Deep QC 실행 + ICodeRepository 메타데이터 업데이트
+│   │   ├── renderingQc.ts        # Fast/Deep QC 오케스트레이터
+│   │   ├── qcChecks.ts           # 개별 체크 함수 (12개)
+│   │   ├── featureSmokeTest.ts   # 기능 스모크 테스트
+│   │   └── browserPool.ts        # Playwright 브라우저 풀 (세마포어)
 │   └── utils/
 │       ├── errors.ts             # 커스텀 에러 클래스 (t() 기반 한국어 메시지)
 │       └── logger.ts             # 구조적 로깅
