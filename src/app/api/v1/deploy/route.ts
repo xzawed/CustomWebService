@@ -15,14 +15,6 @@ export async function POST(request: Request): Promise<Response> {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const limits = getLimits();
-    const supabaseForLimit = await createClient();
-    const rateLimitRepo = createRateLimitRepository(supabaseForLimit);
-    const allowed = await rateLimitRepo.checkAndIncrementDailyDeployLimit(user.id, limits.maxDeployPerDay);
-    if (!allowed) {
-      throw new RateLimitError(`일일 배포 한도(${limits.maxDeployPerDay}회)를 초과했습니다.`);
-    }
-
     let projectId: string;
     let platform: DeployPlatform;
     try {
@@ -37,11 +29,20 @@ export async function POST(request: Request): Promise<Response> {
       throw err;
     }
 
+    const provider = getDbProvider();
+    const limits = getLimits();
+    const supabaseForLimit = provider === 'supabase' ? await createClient() : undefined;
+    const rateLimitRepo = createRateLimitRepository(supabaseForLimit);
+    const allowed = await rateLimitRepo.checkAndIncrementDailyDeployLimit(user.id, limits.maxDeployPerDay);
+    if (!allowed) {
+      throw new RateLimitError(`일일 배포 한도(${limits.maxDeployPerDay}회)를 초과했습니다.`);
+    }
+
     // SSE stream for deployment progress
     const encoder = new TextEncoder();
     let isCancelled = false;
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+    const supabase = provider === 'supabase' ? await createClient() : undefined;
 
     const stream = new ReadableStream({
       async start(controller) {

@@ -12,11 +12,6 @@ export async function POST(request: Request): Promise<Response> {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-
-    const rateLimitService = createRateLimitService(supabase);
-    await rateLimitService.checkAndIncrementDailyLimit(user.id);
-
     let context: string;
     try {
       const body = await request.json();
@@ -28,6 +23,11 @@ export async function POST(request: Request): Promise<Response> {
       }
       throw err;
     }
+
+    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
+
+    const rateLimitService = createRateLimitService(supabase);
+    await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
     // Fetch all active APIs from catalog
     const catalogService = createCatalogService(supabase);

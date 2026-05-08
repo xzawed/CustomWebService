@@ -77,6 +77,8 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     if (generationTracker.isGenerating(projectId)) {
+      await pendingDecrement?.().catch(() => {});
+      pendingDecrement = undefined;
       return Response.json(
         { success: false, error: { code: 'GENERATION_IN_PROGRESS', message: '이미 생성 중입니다.' } },
         { status: 409 },

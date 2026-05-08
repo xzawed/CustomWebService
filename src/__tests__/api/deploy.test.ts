@@ -96,6 +96,9 @@ describe('POST /api/v1/deploy', () => {
     const { POST } = await import('@/app/api/v1/deploy/route');
     const response = await POST(makeRequest({ platform: 'railway' }));
     expect(response.status).toBe(400);
+
+    const { createRateLimitRepository } = await import('@/repositories/factory');
+    expect(createRateLimitRepository).not.toHaveBeenCalled();
   });
 
   it('잘못된 JSON이면 400을 반환한다', async () => {
@@ -110,6 +113,9 @@ describe('POST /api/v1/deploy', () => {
     });
     const response = await POST(request);
     expect(response.status).toBe(400);
+
+    const { createRateLimitRepository } = await import('@/repositories/factory');
+    expect(createRateLimitRepository).not.toHaveBeenCalled();
   });
 
   it('지원하지 않는 플랫폼이면 400을 반환한다', async () => {
