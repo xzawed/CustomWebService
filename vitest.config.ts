@@ -12,6 +12,10 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
       include: [
+        'src/app/**/callback/route.ts',
+        'src/app/**/login/page.tsx',
+        'src/app/layout.tsx',
+        'src/hooks/**',
         'src/lib/**',
         'src/services/**',
         'src/providers/**',
