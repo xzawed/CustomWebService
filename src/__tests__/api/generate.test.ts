@@ -307,6 +307,26 @@ describe('POST /api/v1/generate', () => {
     expect(response.status).toBe(429);
   });
 
+  it('이미 생성 중이면 409를 반환하고 차감한 일일 한도를 복구한다', async () => {
+    await setupHappyPath();
+
+    const decrementMock = vi.fn().mockResolvedValue(undefined);
+    const { createRateLimitService } = await import('@/services/factory');
+    vi.mocked(createRateLimitService).mockReturnValue({
+      checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+      decrementDailyLimit: decrementMock,
+    } as never);
+
+    const { generationTracker } = await import('@/lib/ai/generationTracker');
+    vi.spyOn(generationTracker, 'isGenerating').mockReturnValueOnce(true);
+
+    const { POST } = await import('@/app/api/v1/generate/route');
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
+
+    expect(response.status).toBe(409);
+    expect(decrementMock).toHaveBeenCalledWith('user-1');
+  });
+
   it('AI 생성 실패 시 SSE error 이벤트를 전송하고 레이트리밋을 보상한다', async () => {
     await setupHappyPath();
 

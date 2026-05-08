@@ -110,6 +110,9 @@ describe('POST /api/v1/suggest-preferences', () => {
     const { POST } = await import('@/app/api/v1/suggest-preferences/route');
     const response = await POST(makeRawRequest('not-json'));
     expect(response.status).toBe(400);
+
+    const { createRateLimitService } = await import('@/services/factory');
+    expect(createRateLimitService).not.toHaveBeenCalled();
   });
 
   it('context가 너무 짧으면(19자) 400을 반환한다', async () => {
@@ -126,6 +129,9 @@ describe('POST /api/v1/suggest-preferences', () => {
     const { POST } = await import('@/app/api/v1/suggest-preferences/route');
     const response = await POST(makeRequest({ context: '날씨와 뉴스를 결합한 대시보드 서비스를 만들고 싶어요.' }));
     expect(response.status).toBe(400);
+
+    const { createRateLimitService } = await import('@/services/factory');
+    expect(createRateLimitService).not.toHaveBeenCalled();
   });
 
   it('apiIds 6개 이상이면 400을 반환한다', async () => {

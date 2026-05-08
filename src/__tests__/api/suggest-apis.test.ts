@@ -92,6 +92,9 @@ describe('POST /api/v1/suggest-apis', () => {
     const { POST } = await import('@/app/api/v1/suggest-apis/route');
     const response = await POST(makeRequest({}));
     expect(response.status).toBe(400);
+
+    const { createRateLimitService } = await import('@/services/factory');
+    expect(createRateLimitService).not.toHaveBeenCalled();
   });
 
   it('context 50자 미만이면 400을 반환한다', async () => {
@@ -113,6 +116,9 @@ describe('POST /api/v1/suggest-apis', () => {
     });
     const response = await POST(request);
     expect(response.status).toBe(400);
+
+    const { createRateLimitService } = await import('@/services/factory');
+    expect(createRateLimitService).not.toHaveBeenCalled();
   });
 
   it('레이트리밋 초과 시 429를 반환한다', async () => {
