@@ -23,6 +23,8 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const nonce = (await headers()).get('x-nonce') ?? '';
+  const app = <ThemeProvider>{children}</ThemeProvider>;
+
   return (
     <html lang="ko" data-theme="sky">
       <head>
@@ -42,11 +44,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         />
       </head>
       <body className="noise min-h-screen antialiased">
-        {/* SessionProvider는 AUTH_PROVIDER=authjs 시 useSession()에 컨텍스트를 제공합니다.
-            Supabase 모드에서는 빈 컨텍스트 역할만 하며 동작에 영향을 주지 않습니다. */}
-        <SessionProvider>
-          <ThemeProvider>{children}</ThemeProvider>
-        </SessionProvider>
+        {process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'authjs'
+          ? <SessionProvider>{app}</SessionProvider>
+          : app}
       </body>
     </html>
   );

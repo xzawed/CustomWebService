@@ -15,13 +15,22 @@ function safeRedirect(next: string | null): string {
   return ALLOWED.some((p) => next.startsWith(p)) ? next : '/dashboard';
 }
 
+function resolveRedirectOrigin(requestOrigin: string): string {
+  // Keep OAuth callback redirects on the same origin that received the PKCE
+  // cookies. Falling back to NEXT_PUBLIC_APP_URL is only for unusual local
+  // binding addresses that should never be exposed to the browser.
+  if (/^https?:\/\/(0\.0\.0\.0|\[::\])(?::\d+)?$/i.test(requestOrigin)) {
+    return process.env.NEXT_PUBLIC_APP_URL ?? requestOrigin;
+  }
+  return requestOrigin;
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin: requestOrigin } = new URL(request.url);
   const code = searchParams.get('code');
   const next = safeRedirect(searchParams.get('next'));
 
-  // Use NEXT_PUBLIC_APP_URL if set to avoid 0.0.0.0 binding address issues
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? requestOrigin;
+  const origin = resolveRedirectOrigin(requestOrigin);
 
   if (code) {
     const cookieStore = await cookies();

@@ -3,6 +3,13 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 
+function getSafeRedirectParam(): string | null {
+  const redirect = new URLSearchParams(window.location.search).get('redirect');
+  if (!redirect) return null;
+  if (/^(\/\/|[a-z][a-z0-9+\-.]*:)/i.test(redirect)) return null;
+  return redirect.startsWith('/') ? redirect : null;
+}
+
 export default function LoginPage() {
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<'google' | 'github' | null>(null);
@@ -19,11 +26,16 @@ export default function LoginPage() {
     // Supabase mode — only create the client here
     const { createClient } = await import('@/lib/supabase/client');
     const supabase = createClient();
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+    const callbackUrl = new URL('/callback', window.location.origin);
+    const redirect = getSafeRedirectParam();
+    if (redirect) {
+      callbackUrl.searchParams.set('next', redirect);
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${baseUrl}/callback`,
+        redirectTo: callbackUrl.toString(),
       },
     });
 
