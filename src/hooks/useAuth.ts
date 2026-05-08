@@ -99,7 +99,9 @@ function mapAuthJsUser(sessionUser: {
 
 function useAuthJsAuth(): ReturnType<typeof useSupabaseAuth> {
   const router = useRouter();
-  const { data: session, status } = useSession(); // always called for Rules of Hooks
+  const sessionResult = useSession();
+  const session = sessionResult?.data ?? null;
+  const status = sessionResult?.status ?? 'unauthenticated';
 
   const isEnabled = process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'authjs';
 
