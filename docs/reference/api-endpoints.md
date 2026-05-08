@@ -810,7 +810,7 @@ API 키 삭제
 
 ## 14. 관리자 API (Admin)
 
-> `ADMIN_API_KEY` 헤더(`X-Admin-Key`) 필수. 일반 사용자 접근 불가.
+> `Authorization: Bearer {ADMIN_API_KEY}` 헤더 필수. 일반 사용자 접근 불가.
 
 ### GET /api/v1/admin/qc-stats
 QC 통계 조회

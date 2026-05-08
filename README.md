@@ -6,8 +6,8 @@
 [![status](https://img.shields.io/badge/status-v1.0.0%20Live-brightgreen?style=flat-square)](https://xzawed.xyz)
 [![Next.js](https://img.shields.io/badge/Next.js-16+-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![AI](https://img.shields.io/badge/AI-Claude%20Opus%204.7-blueviolet?style=flat-square)](https://anthropic.com)
-[![Tests](https://img.shields.io/badge/Tests-1078%20passed-success?style=flat-square)](./docs/guides/testing.md)
-[![Coverage](https://img.shields.io/badge/Coverage-71%25-yellow?style=flat-square)](./docs/guides/testing.md)
+[![Tests](https://img.shields.io/badge/Vitest-1725%20listed-success?style=flat-square)](./docs/guides/testing.md)
+[![Coverage](https://img.shields.io/badge/Coverage-85%25%2B-yellow?style=flat-square)](./docs/guides/testing.md)
 [![Deploy](https://img.shields.io/badge/Deploy-Railway-8A2BE2?style=flat-square&logo=railway)](https://railway.app)
 
 **🌐 서비스 URL**: [xzawed.xyz](https://xzawed.xyz) &nbsp;|&nbsp; 🇺🇸 [English](./README.en.md)
@@ -114,7 +114,7 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 ```
 src/
 ├── app/
-│   ├── api/v1/          # 🔌 REST API 엔드포인트 (22개)
+│   ├── api/v1/          # 🔌 REST API route.ts 파일 (23개)
 │   ├── (auth)/          # 🔐 인증 페이지
 │   ├── (main)/          # 🏠 메인 페이지 (빌더, 카탈로그, 대시보드)
 │   └── site/[slug]/     # 🌐 서브도메인 서빙
@@ -138,11 +138,11 @@ src/
 
 | 항목 | 내용 |
 |------|------|
-| ✅ 총 테스트 수 | **1,078개** (단위 · 통합 · 컴포넌트 · E2E) |
+| ✅ 테스트 목록 | **Vitest 1,725개 + Playwright 33개** (`vitest list`, `playwright test --list` 기준) |
 | 🔬 단위 테스트 | Vitest + happy-dom — AI 파이프라인, 보안 검증, 레이트리밋, Circuit Breaker, 배포 서비스 등 |
 | 🔗 통합 테스트 | Vitest + MSW — API 라우트 인증·입력·권한·비즈니스 로직 전 경로 |
 | 🌐 E2E 테스트 | Playwright — 3종 디바이스 (모바일 · 태블릿 · 데스크톱) |
-| 📊 커버리지 | **71% lines** (lib/services/providers/repositories 대상) · Codecov + SonarCloud 연동 |
+| 📊 커버리지 | **85%+ lines** (lib/services/providers/repositories/components 대상) · Codecov + SonarCloud 연동 |
 
 ```bash
 pnpm test              # 전체 테스트
