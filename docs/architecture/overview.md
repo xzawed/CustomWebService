@@ -1,7 +1,7 @@
 # 시스템 아키텍처
 
 > **최종 업데이트:** 2026-05-05  
-> **구현 상태:** 운영 중 (1,716개 테스트 통과)
+> **구현 상태:** 운영 중 (2026-05-08 기준 Vitest 목록 1,725개, Playwright 목록 33개)
 
 ---
 
@@ -130,7 +130,8 @@ src/
 │   │   ├── popular-services/route.ts
 │   │   ├── user-api-keys/route.ts
 │   │   ├── admin/                # 관리자 전용
-│   │   │   └── qc-stats/route.ts
+│   │   │   ├── qc-stats/route.ts
+│   │   │   └── trigger-qc/route.ts # POST
 │   │   └── health/route.ts       # GET
 │   ├── layout.tsx
 │   └── page.tsx                  # 랜딩 페이지

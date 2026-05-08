@@ -20,7 +20,9 @@
        ──────────────────
 ```
 
-**총 129개 Vitest 파일, 1,716개 테스트 + 3개 Playwright E2E 파일**
+**현재 테스트 목록:** 132개 Vitest 파일, 1,725개 Vitest 테스트 + 3개 Playwright E2E 파일, 33개 Playwright 프로젝트별 테스트
+
+> 확인 명령: `pnpm exec vitest list`, `pnpm exec playwright test --list` (2026-05-08 기준). 실제 통과 여부는 `pnpm test`와 `pnpm test:e2e` 실행 결과를 기준으로 판단합니다.
 
 ### 핵심 원칙
 
@@ -371,7 +373,7 @@ lint (ESLint)
   ↓
 type-check (tsc --noEmit)
   ↓
-test (pnpm test — 1,716개)
+test (pnpm test — Vitest 목록 1,725개 기준)
   ↓
 커버리지 업로드 (Codecov + SonarCloud)
   ↓
@@ -388,9 +390,9 @@ build (Next.js standalone)
 
 ## 6. 커버리지 기준
 
-**대상 디렉터리**: `src/lib/**`, `src/services/**`, `src/providers/**`, `src/repositories/**`
+**대상 디렉터리**: `src/lib/**`, `src/services/**`, `src/providers/**`, `src/repositories/**`, `src/components/**`
 
-**현재 달성값** (로컬 기준):
+**현재 달성값** (최근 문서화 기준):
 
 | 지표 | 달성값 |
 |------|--------|
