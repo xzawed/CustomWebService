@@ -890,3 +890,78 @@ QC 통계 조회
 | `QC_DISABLED` | 400 | `ENABLE_RENDERING_QC`가 활성화되지 않음 |
 | `NOT_FOUND` | 404 | 해당 프로젝트의 생성된 코드 없음 |
 | `INVALID_INPUT` | 400 | `projectId` 누락 |
+
+### POST /api/v1/admin/test-generation
+관리자 전용 생성 파이프라인 부하/안정성 테스트 엔드포인트. 인증된 사용자 세션 없이 `ADMIN_API_KEY`만으로 전체 코드 생성 파이프라인(Stage1·2·3 + Quality Loop)을 한 번 실행하고 결과를 JSON으로 반환합니다.
+
+> 일일 생성 한도(`MAX_DAILY_GENERATIONS`)·프로젝트 수 한도(`MAX_PROJECTS_PER_USER`)를 우회합니다. 일반 사용자 흐름 검증이 아닌, 관리자가 수동/스크립트 호출로 안정성을 측정하는 용도입니다.
+
+**Request:**
+```http
+POST /api/v1/admin/test-generation
+Authorization: Bearer <ADMIN_API_KEY>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "userId": "11111111-...",
+  "apiIds": ["uuid1", "uuid2", "uuid3"],
+  "context": "선택 사항. 사용자 서비스 설명 (20~2000자, 기본값 있음)",
+  "projectName": "선택 사항. 기본값: [자동테스트] YYYY-MM-DD HH:MM:SS",
+  "cleanup": true
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `userId` | UUID | ✅ | 테스트 프로젝트의 소유자 (DB에 존재하는 사용자) |
+| `apiIds` | UUID[] | ✅ | 카탈로그 API ID 3~5개 |
+| `context` | string | ❌ | 서비스 설명 (20~2000자) |
+| `projectName` | string | ❌ | 프로젝트 이름 (1~100자) |
+| `cleanup` | boolean | ❌ | `true`(기본)면 파이프라인 완료 후 프로젝트 자동 삭제. `false`면 보존 |
+
+**성공 응답 (HTTP 200):**
+```json
+{
+  "success": true,
+  "data": {
+    "projectId": "uuid",
+    "cleanedUp": true,
+    "durationMs": 92345,
+    "apiIds": ["..."],
+    "complete": {
+      "projectId": "uuid",
+      "version": 1,
+      "previewUrl": "/api/v1/preview/uuid",
+      "qcResult": { "score": 82, "passed": true, "issues": [] }
+    },
+    "progressEvents": [{"step": "analyzing", "progress": 5, "message": "..."}]
+  }
+}
+```
+
+**파이프라인 실패 응답 (HTTP 200, success: false):**
+```json
+{
+  "success": false,
+  "data": {
+    "projectId": "uuid",
+    "cleanedUp": true,
+    "durationMs": 4567,
+    "apiIds": ["..."],
+    "error": { "message": "Stage 1 실패: ..." },
+    "progressEvents": [...]
+  }
+}
+```
+
+**에러 응답 형식:** 표준 `{ success: false, error: { code, message } }`
+
+| 에러 코드 | HTTP | 설명 |
+|-----------|------|------|
+| `FORBIDDEN` | 403 | `Authorization` 누락 / 잘못된 `ADMIN_API_KEY` / IP 분당 한도 초과 |
+| `INVALID_INPUT` | 400 | Zod 검증 실패 (`apiIds` 3개 미만, UUID 형식 오류, 길이 초과 등) |
+
+**연관 스크립트:** [scripts/runGenerationLoadTest.ts](../../scripts/runGenerationLoadTest.ts) — 골든셋 API 무작위 조합으로 N회 반복 호출하여 성공률·평균 응답 시간 집계.
