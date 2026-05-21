@@ -15,6 +15,7 @@ export default defineConfig({
         'src/app/**/callback/route.ts',
         'src/app/**/login/page.tsx',
         'src/app/layout.tsx',
+        'src/app/api/v1/admin/**/route.ts',
         'src/hooks/**',
         'src/lib/**',
         'src/services/**',
