@@ -42,6 +42,7 @@ function makeRequest(method = 'GET') {
 
 describe('GET /api/v1/admin/debug', () => {
   beforeEach(() => {
+    vi.resetModules();
     vi.clearAllMocks();
     requireMock.mockReturnValue({});
   });
