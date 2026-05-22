@@ -53,7 +53,7 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
          ↓  조건부: 품질 점수 80 미만 시
 🎨 Stage 3 (디자인)     — 카테고리별 테마 적용 (금융→modern-dark, 날씨→ocean-blue 등)  (65→90%)
          ↓
-🔁 Quality Loop         — 최대 3회 재시도, best-of-n 품질 비교 선택
+🔁 Quality Loop         — 기본 2회 재시도(최대 3회), best-of-n 품질 비교 선택
          ↓
 ⚡ Fast QC              — Playwright 브라우저 렌더링 검증 (콘솔 에러·가로 스크롤·터치 타겟)
          ↓

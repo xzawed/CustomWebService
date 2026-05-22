@@ -1,6 +1,6 @@
 # 개발 가이드
 
-> **최종 업데이트:** 2026-04-12
+> **최종 업데이트:** 2026-05-22
 
 ---
 
@@ -142,4 +142,5 @@ pnpm type-check       # TypeScript 검사
 pnpm lint             # ESLint
 pnpm lint:fix         # ESLint 자동 수정
 pnpm format           # Prettier 포맷팅
+pnpm format:check     # 포맷 검사
 ```

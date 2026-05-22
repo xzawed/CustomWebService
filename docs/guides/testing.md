@@ -373,7 +373,7 @@ lint (ESLint)
   ↓
 type-check (tsc --noEmit)
   ↓
-test (pnpm test — Vitest 목록 1,725개 기준)
+test (pnpm test:coverage — Vitest 목록 1,725개 기준)
   ↓
 커버리지 업로드 (Codecov + SonarCloud)
   ↓
@@ -390,7 +390,7 @@ build (Next.js standalone)
 
 ## 6. 커버리지 기준
 
-**대상 디렉터리**: `src/lib/**`, `src/services/**`, `src/providers/**`, `src/repositories/**`, `src/components/**`
+**대상 디렉터리**: `src/app/**/callback/route.ts`, `src/app/**/login/page.tsx`, `src/app/layout.tsx`, `src/app/api/v1/admin/**/route.ts`, `src/hooks/**`, `src/lib/**`, `src/services/**`, `src/providers/**`, `src/repositories/**`, `src/components/**`
 
 **현재 달성값** (최근 문서화 기준):
 

@@ -25,12 +25,14 @@
 ### 2.2 데이터 흐름
 
 ```
-[입력]                    [처리]                      [출력]
+[입력]                    [처리]                              [출력]
 
-선택된 API 목록    →  1. Stage 1: 구조 + API 호출  →  HTML 파일
-API 상세 정보      →  2. 정적 QC + Fast QC         →  CSS 파일
-사용자 컨텍스트    →  3. Stage 2: 기능 검증·수정    →  JS 파일
-exampleCall 필드   →  4. Stage 3: 디자인 폴리시     →  설정 파일
+선택된 API 목록    →  0. Stage 0: 기능 사양 추출          →  HTML 파일
+API 상세 정보      →     (extractFeaturesOrNull, best-effort) →  CSS 파일
+사용자 컨텍스트    →  1. Stage 1: 구조 + API 호출          →  JS 파일
+exampleCall 필드   →  2. 정적 QC + Fast QC
+                   →  3. Stage 2: 기능 검증·수정 (조건부)
+                   →  4. Stage 3: 디자인 폴리시 (조건부)
                    →  5. 저장 + Deep QC + 알림
 ```
 
@@ -203,11 +205,11 @@ interface FunctionalCheck {
 AI는 HTML·CSS·JS를 별도 블록으로 생성하고, `assembleHtml(html, css, js)` (`src/lib/ai/codeParser.ts`)가 **단일 index.html 파일**로 조립한다.
 
 ```
-DB 저장 구조 (code_versions 테이블):
-├── html      # CSS·JS가 인라인으로 합쳐진 완성형 index.html
-├── css       # AI 원본 CSS (별도 저장)
-├── js        # AI 원본 JS (별도 저장)
-└── metadata  # QC 점수, templateId, 생성 시각 등
+DB 저장 구조 (generated_codes 테이블):
+├── code_html  # CSS·JS가 인라인으로 합쳐진 완성형 index.html
+├── code_css   # AI 원본 CSS (별도 저장)
+├── code_js    # AI 원본 JS (별도 저장)
+└── metadata   # QC 점수, templateId, 생성 시각 등
 ```
 
 서빙 시 `/site/[slug]/route.ts`가 DB에서 html 컬럼을 읽어 `text/html`로 직접 응답한다.
@@ -351,6 +353,7 @@ Avoid: [제외할 요소]
 코드 생성 완료 후 `docs/guides/qc-process.md`의 QC 파이프라인이 자동 실행된다.
 
 생성 흐름:
+0. **Stage 0** (best-effort): `extractFeaturesOrNull(projectContext, apis)` — API 이름으로 기능 명세 추출 후 Stage 1 시스템 프롬프트에 기능 체크리스트 주입. 실패해도 파이프라인 계속 진행
 1. Stage 1 → `codeValidator.validateAll()` (보안 차단) → `evaluateQuality()` (품질 점수, fetchCallCount 포함)
 2. **조건부**: `fetchCallCount=0`, `placeholderCount>0`, `hardcodedArrayCount>0`, 프록시 미사용(`!hasProxyCall && fetchCallCount>0`), 또는 Fast QC 실패 시에만 Stage 2 기능 검증 실행. 통과 시 Stage 1 코드 직행
 3. **조건부**: `structuralScore >= 80 && mobileScore >= 70 && fetchCallCount > 0 && placeholderCount === 0 && !needsStage2` 충족 시 Stage 3 스킵
@@ -363,7 +366,7 @@ Avoid: [제외할 요소]
 
 | 파일 | 역할 |
 |------|------|
-| `generationPipeline.ts` | 오케스트레이터 (~120줄) — generate/regenerate 공통 진입점 |
+| `generationPipeline.ts` | 오케스트레이터 — generate/regenerate 공통 진입점 |
 | `stageRunner.ts` | `runStage1()` / `runStage2Function()` / `runStage3()` — SSE + AI 호출 + 파싱 |
 | `generationSaver.ts` | DB 저장, slug 제안(fire-and-forget), 버전 정리, Deep QC, 상태 갱신, SSE complete |
 | `qualityLoop.ts` | `shouldRetryGeneration()` + `runQualityLoop()` (최대 3회, best-of-n 반환, 반복당 타임아웃: ET 비활성 `QUALITY_LOOP_ITERATION_TIMEOUT_MS` 기본 120초, ET 활성 `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` 기본 200초) + AutoFix 통합. `resolveIterationTimeoutMs(useET)` export — ET 여부에 따라 올바른 타임아웃 반환. 파이프라인 총 예산 가드(`PIPELINE_MAX_DURATION_MS`, 기본 290초): 반복 시작 전 `경과 시간 + iterationTimeout > 예산`이면 스킵 |
@@ -373,7 +376,10 @@ Avoid: [제외할 요소]
 | `preferencesRecommender.ts` | 사용자 API 선택 기반 UI 설정 추천 — 레이아웃·색상·컴포넌트 패턴 반환. `ANTHROPIC_API_KEY` 미설정 시 FALLBACK_RESULT 반환, 30초 타임아웃 |
 
 `handlePipelineFailure()` (generationPipeline.ts 내부): Rate Limit 복구, 실패 이벤트 발행(`eventBus.emit`), Tracker 실패 표시  
+**Stage 2 fallback**: Stage 2 AI 호출 실패 시 Stage 1 결과로 폴백하며 `STAGE2_FALLBACK_USED` 이벤트 발행  
 **Stage 3 fallback**: Stage 3 AI 호출 실패 시 Stage 2 결과로 폴백하며 `STAGE3_FALLBACK_USED` 이벤트 발행 → `platform_events` 테이블 자동 기록 (빈도 추적 용도)
+
+**파이프라인 타임아웃 가드**: `pipelineStartMs`(파이프라인 시작 시각)를 기록하고, AbortController(`pipelineAbortController`)로 `resolvePipelineBudgetMs() - 20,000ms` 시점에 Stage 2/3 AI 호출을 abort한다. Stage 1은 fallback이 없으므로 abort 대상 제외. Railway 300초 HTTP 컷 이전에 안전하게 응답을 완료하기 위한 안전 마진.
 
 **이벤트 흐름**: 생성 성공/실패 시 `eventBus.emit()` → `eventPersister` 구독자가 자동으로 `platform_events` 테이블에 기록 (수동 `persistAsync` 이중 호출 없음)
 

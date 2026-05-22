@@ -121,7 +121,7 @@
 | `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` | `/usr/bin/chromium` | ✅ **설정됨** | Alpine 이미지 내 Chromium 실행 파일 경로. `playwright-core`는 이 환경변수를 자동으로 읽지 않으므로 `browserPool.ts`에서 `chromium.launch({ executablePath: ... })`로 명시적 전달. |
 | `QUALITY_LOOP_ITERATION_TIMEOUT_MS` | `120000` | ✅ **`150000` 운영 중** | 품질 루프 반복당 타임아웃 (ms). ET 비활성 생성에 적용. 빈 문자열 또는 0 이하 값 설정 시 기본값 120000으로 폴백 |
 | `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` | `200000` | ✅ **`200000` 운영 중** | Extended Thinking 활성 시 품질 루프 반복당 타임아웃 (ms). ET 활성 조건(API ≥ 3개 또는 컨텍스트 ≥ 500자)에서만 사용. 미설정 시 기본값 200000(200초). ET 응답은 90~150초 소요되므로 `QUALITY_LOOP_ITERATION_TIMEOUT_MS`와 별도 관리 |
-| `QUALITY_LOOP_MAX_ITERATIONS` | `2` | ✅ **`1` 운영 중** | 품질 루프 최대 반복 횟수. 기본 2회 (최대 3회 상한). **현재 1회 — ET 타임아웃 분리 후 Quality Loop 재활성화. 운영 안정성 확인 후 2회 상향 예정.** 낮출수록 총 생성 시간 단축 — Railway 300초 타임아웃 초과 방지용 |
+| `QUALITY_LOOP_MAX_ITERATIONS` | `2` | ✅ **`2` 운영 중** | 품질 루프 최대 반복 횟수. 기본 2회 (최대 3회 상한). **현재 2회 운영 중.** 낮출수록 총 생성 시간 단축 — Railway 300초 타임아웃 초과 방지용 |
 | `QUALITY_LOOP_STRICT_ADOPTION` | `true` | ➖ | 채택 가드: `true`(기본)는 한 점수 향상 + 다른 점수 동등 이상일 때만 retry 채택(시소 진동 방지). `false`로 설정 시 기존 OR 로직(한쪽 향상) 복원 — 운영 데이터 비교용 롤백 스위치 |
 | `PIPELINE_MAX_DURATION_MS` | `290000` | ➖ | 파이프라인 총 허용 시간(ms). Quality Loop 시작 전 `경과 시간 + iterationTimeout > 이 값`이면 반복 스킵. Railway 300초 한도를 고려해 기본값 290초(10초 여유). 미설정 시 290000 자동 사용 |
 | `QC_QUALITY_THRESHOLD` | `60` | ➖ | 정적 QC 구조 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |

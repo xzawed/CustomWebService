@@ -288,6 +288,6 @@ GET /api/v1/admin/qc-stats
 Authorization: Bearer ${ADMIN_API_KEY}
 
 # 수동 QC 트리거
-POST /api/v1/admin/qc-trigger
+POST /api/v1/admin/trigger-qc
 Authorization: Bearer ${ADMIN_API_KEY}
 ```
