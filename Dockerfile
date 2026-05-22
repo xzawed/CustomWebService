@@ -21,12 +21,18 @@ ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 RUN mkdir -p /app/public && pnpm build
-# playwright-core: pnpm symlinks cause __dirname to resolve to .pnpm path at runtime,
-# but browsers.json is not traced there by nft. npm install creates a flat node_modules
-# entry so __dirname === /app/.next/standalone/node_modules/playwright-core/lib at runtime.
+# playwright-core: pnpm symlinks cause __dirname to resolve to .pnpm path at runtime.
+# Install in an isolated temp dir (npm flat layout, no symlinks), then copy real files
+# into standalone — ensures __dirname resolves correctly inside coreBundle.js.
+# We also rm the existing nft-traced symlink first so cp targets a real directory.
 RUN PW_VER=$(node -p "require('/app/node_modules/playwright-core/package.json').version") && \
-    cd /app/.next/standalone && \
-    npm install "playwright-core@${PW_VER}" --no-save --no-package-lock --legacy-peer-deps
+    mkdir -p /tmp/pw-root && \
+    printf '{"name":"pw","private":true}' > /tmp/pw-root/package.json && \
+    npm install --prefix /tmp/pw-root "playwright-core@${PW_VER}" --no-package-lock && \
+    rm -rf /app/.next/standalone/node_modules/playwright-core && \
+    mkdir -p /app/.next/standalone/node_modules && \
+    cp -r /tmp/pw-root/node_modules/playwright-core /app/.next/standalone/node_modules/playwright-core && \
+    rm -rf /tmp/pw-root
 
 # ── Stage 3: Production runner ──
 FROM node:20-alpine AS runner
