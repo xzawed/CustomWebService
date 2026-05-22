@@ -62,7 +62,7 @@ Playwright headless Chromium으로 실제 렌더링 검증:
 **환경변수**: `ENABLE_RENDERING_QC=true`  
 **담당**: `renderingQc.runFastQc()`
 
-### Step 4: 이슈 판단 → 자동 재생성 (최대 3회)
+### Step 4: 이슈 판단 → 자동 재생성 (기본 2회, 최대 3회)
 
 아래 조건 중 하나라도 해당하면 자동 재생성:
 
@@ -207,7 +207,7 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 | 날짜 | 변경 |
 |------|------|
 | 2026-05-05 | 파이프라인 총 예산 가드 추가(`PIPELINE_MAX_DURATION_MS`, 기본 290초): Quality Loop 반복 시작 전 남은 예산 확인, 초과 예상 시 반복 스킵. `resolveIterationTimeoutMs(useET)` 함수 export (ET 여부에 따른 타임아웃 반환). `proxyCache.size` live count로 변경(lazy eviction → 유효 항목만 집계) |
-| 2026-05-03 | Quality Loop 재활성화: `QUALITY_LOOP_MAX_ITERATIONS=1`(운영 보수 설정, 안정화 후 2로 상향 예정), ET 전용 타임아웃 분리(`QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS=200000`), `QUALITY_LOOP_STRICT_ADOPTION` 기본값 true(AND 채택 모드) |
+| 2026-05-03 | Quality Loop 재활성화: `QUALITY_LOOP_MAX_ITERATIONS=2`(기본 2회, 최대 3회 상한), ET 전용 타임아웃 분리(`QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS=200000`), `QUALITY_LOOP_STRICT_ADOPTION` 기본값 true(AND 채택 모드) |
 | 2026-04-30 | 정확도 게이트 강화: Quality Loop 채택 가드 AND 모드(`QUALITY_LOOP_STRICT_ADOPTION` 토글), 사용자 feedback 매 반복 누적 주입, `STAGE_SKIPPED`/`QUALITY_LOOP_COMPLETED` 이벤트 발행, Stage 2 트리거에 `hardcodedArrayCount` 포함, placeholder blocklist 단일 출처화(`getPlaceholderBlocklistText()`) |
 | 2026-04-29 | Phase 2 품질 개선: 인라인 스크립트 탐지 error→warning, Quality Loop 반복당 타임아웃(`QUALITY_LOOP_ITERATION_TIMEOUT_MS`) 추가 |
 | 2026-04-04 | 초안 작성 — Phase 1(코드 레벨) + Phase 2(렌더링 QC) + 격차 해소 |

@@ -965,3 +965,38 @@ Content-Type: application/json
 | `INVALID_INPUT` | 400 | Zod 검증 실패 (`apiIds` 3개 미만, UUID 형식 오류, 길이 초과 등) |
 
 **연관 스크립트:** [scripts/runGenerationLoadTest.ts](../../scripts/runGenerationLoadTest.ts) — 골든셋 API 무작위 조합으로 N회 반복 호출하여 성공률·평균 응답 시간 집계.
+
+### GET /api/v1/admin/debug
+`playwright-core`, `pg`, `drizzle-orm` 등 주요 npm 패키지의 모듈 로드 상태를 진단합니다. standalone 배포 후 500 오류 원인 규명(패키지 누락 여부 확인)에 사용합니다.
+
+**Request:**
+```http
+GET /api/v1/admin/debug
+Authorization: Bearer <ADMIN_API_KEY>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "nodeVersion": "v20.x.x",
+    "platform": "linux",
+    "arch": "x64",
+    "nodeEnv": "production",
+    "modules": {
+      "playwright-core": "ok",
+      "@anthropic-ai/sdk": "ok",
+      "drizzle-orm": "ok",
+      "drizzle-orm/node-postgres": "ok",
+      "pg": "ok"
+    }
+  }
+}
+```
+
+모듈 로드 실패 시 해당 모듈 값이 `"FAIL: Cannot find module '...'"` 형태로 반환됩니다.
+
+| 에러 코드 | HTTP | 설명 |
+|-----------|------|------|
+| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |

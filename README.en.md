@@ -7,6 +7,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16+-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![AI](https://img.shields.io/badge/AI-Claude%20Opus%204.7-blueviolet?style=flat-square)](https://anthropic.com)
 [![Tests](https://img.shields.io/badge/Vitest-1725%20listed-success?style=flat-square)](./docs/guides/testing.md)
+[![Coverage](https://img.shields.io/badge/Coverage-85%25%2B-yellow?style=flat-square)](./docs/guides/testing.md)
 [![Deploy](https://img.shields.io/badge/Deploy-Railway-8A2BE2?style=flat-square&logo=railway)](https://railway.app)
 
 **🌐 Live**: [xzawed.xyz](https://xzawed.xyz) &nbsp;|&nbsp; 🇰🇷 [한국어](./README.md)
@@ -52,7 +53,7 @@ CustomWebService lets anyone — without coding knowledge — build and publish 
          ↓  conditional: quality score < 80
 🎨 Stage 3 (Design)               — Category-based theme injection (finance→modern-dark, weather→ocean-blue) (65→90%)
          ↓
-🔁 Quality Loop                   — Up to 3 retries, best-of-n selection
+🔁 Quality Loop                   — Default 2 retries (up to 3), best-of-n selection
          ↓
 ⚡ Fast QC                        — Playwright rendering check (console errors, horizontal scroll, touch targets)
          ↓
@@ -103,7 +104,7 @@ CustomWebService lets anyone — without coding knowledge — build and publish 
 | 🔐 Auth | Supabase Auth (default) / Auth.js v5 + NextAuth (optional) |
 | 🤖 AI | Claude API (Anthropic SDK, claude-opus-4-7 default) |
 | 🧪 Testing | Vitest, happy-dom, MSW, Playwright |
-| ⚙️ CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
+| ⚙️ CI/CD | GitHub Actions → lint → type-check → test → build (Railway auto-deploy on push) |
 | 📦 Package Manager | pnpm |
 
 ---

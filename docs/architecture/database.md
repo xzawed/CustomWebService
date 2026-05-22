@@ -65,16 +65,16 @@
 │ created_at       │                    │ endpoints (JSONB)  │
 └──────────────────┘                    │ tags[]             │
                                         │ changelog (JSONB)  │ ★
-┌──────────────────┐                    │ created_at         │
-│  event_log       │ ★                 │ updated_at         │
-├──────────────────┤                    └────────────────────┘
-│ id (PK)          │
-│ event_type       │                    ┌────────────────────┐
-│ payload (JSONB)  │                    │  feature_flags     │ ★
-│ user_id (FK)     │                    ├────────────────────┤
-│ project_id (FK)  │                    │ id (PK)            │
-│ created_at       │                    │ flag_name          │
-└──────────────────┘                    │ enabled            │
+┌──────────────────────┐                │ created_at         │
+│  platform_events     │ ★             │ updated_at         │
+├──────────────────────┤               └────────────────────┘
+│ id (PK)              │
+│ type                 │               ┌────────────────────┐
+│ payload (JSONB)      │               │  feature_flags     │ ★
+│ user_id (FK)         │               ├────────────────────┤
+│ project_id (FK)      │               │ id (PK)            │
+│ created_at           │               │ flag_name          │
+└──────────────────────┘               │ enabled            │
                                         │ rules (JSONB)      │
                                         │ updated_at         │
                                         └────────────────────┘
@@ -134,7 +134,7 @@ CREATE INDEX idx_organizations_slug ON organizations(slug);
   "maxProjects": 50,
   "maxMembersCount": 5,
   "allowedDeployPlatforms": ["railway", "github_pages"],
-  "defaultAiProvider": "grok"
+  "defaultAiProvider": "anthropic"
 }
 ```
 
@@ -202,6 +202,9 @@ CREATE TABLE projects (
     -- ★ 확장성 컬럼
     metadata JSONB DEFAULT '{}',              -- 유연한 메타데이터
     current_version INTEGER DEFAULT 0,        -- 현재 활성 코드 버전
+    slug TEXT,                                -- 퍼블리시 슬러그 (서브도메인용)
+    suggested_slugs TEXT[],                   -- AI 제안 슬러그 목록
+    published_at TIMESTAMPTZ,                 -- 퍼블리시 일시 (NULL이면 미게시)
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -209,6 +212,7 @@ CREATE TABLE projects (
 CREATE INDEX idx_projects_user ON projects(user_id);
 CREATE INDEX idx_projects_org ON projects(organization_id);
 CREATE INDEX idx_projects_status ON projects(status);
+CREATE INDEX idx_projects_slug ON projects(slug);
 ```
 
 **metadata 구조:**
@@ -236,8 +240,8 @@ CREATE TABLE generated_codes (
     framework VARCHAR(20) DEFAULT 'vanilla',
     ai_prompt_used TEXT,
     -- ★ 확장성 컬럼
-    ai_provider VARCHAR(30),                  -- grok, openai, ollama
-    ai_model VARCHAR(50),                     -- grok-3-mini, gpt-4o-mini
+    ai_provider VARCHAR(30),                  -- anthropic (현재 유일하게 사용)
+    ai_model VARCHAR(50),                     -- claude-opus-4-7, claude-sonnet-4-6 등
     generation_time_ms INTEGER,               -- 생성 소요 시간
     token_usage JSONB DEFAULT '{}',           -- { input: N, output: N }
     dependencies TEXT[] DEFAULT '{}',          -- ["chart.js@4.4", "leaflet@1.9"]
@@ -278,20 +282,20 @@ CREATE TABLE user_api_keys (
 CREATE INDEX idx_user_api_keys_user ON user_api_keys(user_id);
 ```
 
-### 2.8 event_log (이벤트 로그) - ★ 신규
+### 2.8 platform_events (도메인 이벤트 로그) - ★ 신규
 ```sql
-CREATE TABLE event_log (
+CREATE TABLE platform_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_type VARCHAR(50) NOT NULL,           -- PROJECT_CREATED, CODE_GENERATED 등
+    type TEXT NOT NULL,                        -- PROJECT_CREATED, CODE_GENERATED 등
     payload JSONB NOT NULL DEFAULT '{}',
     user_id UUID REFERENCES users(id),
     project_id UUID REFERENCES projects(id),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_event_log_type ON event_log(event_type);
-CREATE INDEX idx_event_log_user ON event_log(user_id);
-CREATE INDEX idx_event_log_created ON event_log(created_at);
+CREATE INDEX idx_platform_events_type ON platform_events(type);
+CREATE INDEX idx_platform_events_user ON platform_events(user_id);
+CREATE INDEX idx_platform_events_created ON platform_events(created_at);
 
 -- 90일 이상 된 로그 자동 삭제 (용량 관리)
 -- Supabase Edge Function 또는 pg_cron으로 스케줄링
@@ -324,7 +328,7 @@ CREATE TABLE feature_flags (
 INSERT INTO feature_flags (flag_name, enabled, description) VALUES
 ('enable_dark_mode', false, '다크 모드 UI'),
 ('enable_code_viewer', true, '생성 코드 보기 기능'),
-('enable_ollama_fallback', false, 'Ollama 로컬 LLM 폴백'),
+('enable_extended_thinking', false, 'Claude Extended Thinking 강제 활성화'),
 ('enable_template_system', true, '코드 생성 템플릿'),
 ('enable_multi_language', false, '다국어 지원'),
 ('enable_team_features', false, '팀/조직 기능'),
@@ -369,9 +373,9 @@ ALTER TABLE user_api_keys ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users own api keys" ON user_api_keys
     FOR ALL USING (user_id = auth.uid());
 
--- event_log: 본인 이벤트만 조회
-ALTER TABLE event_log ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can read own events" ON event_log
+-- platform_events: 본인 이벤트만 조회
+ALTER TABLE platform_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can read own events" ON platform_events
     FOR SELECT USING (user_id = auth.uid());
 
 -- feature_flags: 모든 인증 사용자 읽기
@@ -388,7 +392,7 @@ CREATE POLICY "Authenticated read flags" ON feature_flags
 supabase/migrations/
 ├── 001_initial_schema.sql       # users, api_catalog, projects, project_apis, generated_codes
 ├── 002_add_organizations.sql    # organizations, memberships
-├── 003_add_extensibility.sql    # metadata 컬럼, api_version, event_log
+├── 003_add_extensibility.sql    # metadata 컬럼, api_version, platform_events
 ├── 004_add_feature_flags.sql    # feature_flags
 ├── 005_add_user_api_keys.sql    # user_api_keys
 └── 006_add_indexes.sql          # 성능 인덱스 추가

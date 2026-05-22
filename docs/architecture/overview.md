@@ -238,7 +238,7 @@ src/
 │   │   ├── server.ts             # 서버 클라이언트
 │   │   └── middleware.ts
 │   ├── ai/
-│   │   ├── generationPipeline.ts  # 오케스트레이터 (~120줄) — generate/regenerate 공통
+│   │   ├── generationPipeline.ts  # 오케스트레이터 — generate/regenerate 공통
 │   │   ├── stageRunner.ts         # runStage1 / runStage2Function / runStage3
 │   │   ├── generationSaver.ts     # DB 저장 + slug 제안 + 버전 정리 + 이벤트 + SSE complete
 │   │   ├── qualityLoop.ts         # shouldRetryGeneration + runQualityLoop (최대 3회 재시도)
@@ -290,7 +290,7 @@ src/
 │   ├── schemas.ts                # Zod 공용 스키마 (generateSchema, createProjectSchema 등 15개)
 │   ├── api.ts
 │   ├── project.ts
-│   ├── events.ts                 # DomainEvent 유니온 타입 (16개 이벤트)
+│   ├── events.ts                 # DomainEvent 유니온 타입 (17개 이벤트)
 │   └── qc.ts
 │
 └── templates/                    # 코드 생성 템플릿 (11개)
@@ -423,7 +423,7 @@ export interface ICodeTemplate {
 ## 5. 이벤트 시스템
 
 ```typescript
-// src/types/events.ts — 16개 DomainEvent 유니온 타입
+// src/types/events.ts — 17개 DomainEvent 유니온 타입
 export type DomainEvent =
   | { type: 'USER_SIGNED_UP'; payload: { userId: string } }
   | { type: 'PROJECT_CREATED'; payload: { projectId: string; userId: string; apiCount: number } }
@@ -438,6 +438,7 @@ export type DomainEvent =
   | { type: 'API_QUOTA_WARNING'; payload: { service: string; usage: number; limit: number } }
   | { type: 'QC_REPORT_COMPLETED'; payload: { ... } }
   | { type: 'QC_REPORT_FAILED'; payload: { ... } }
+  | { type: 'STAGE2_FALLBACK_USED'; payload: { projectId: string; error: string } }
   | { type: 'STAGE3_FALLBACK_USED'; payload: { projectId: string; error: string } }
   | { type: 'STAGE_SKIPPED'; payload: { projectId: string; stage: 'stage2'|'stage3'; reason: string } }
   | { type: 'QUALITY_LOOP_COMPLETED'; payload: { projectId: string; iterations: number; improved: boolean; finalStructuralScore: number; finalMobileScore: number } };

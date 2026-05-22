@@ -68,6 +68,10 @@ export type DomainEvent =
       payload: { projectId: string; stage: 'fast' | 'deep'; error: string };
     }
   | {
+      type: 'STAGE2_FALLBACK_USED';
+      payload: { projectId: string; error: string };
+    }
+  | {
       type: 'STAGE3_FALLBACK_USED';
       payload: { projectId: string; error: string };
     }
@@ -165,9 +169,13 @@ unsubscribe(); // on() 반환값을 호출하면 구독 취소
 ## EventRepository (감사 로그)
 
 모든 도메인 이벤트는 `platform_events` 테이블에 비동기 영속화됨.  
-**파일:** `src/repositories/eventRepository.ts`  
-**사용 예시:**
+**파일:** `src/repositories/eventRepository.ts`
+
+**현재 표준 패턴:** `eventPersister`(`src/lib/events/eventPersister.ts`)가 `eventBus`를 구독하여 모든 `DomainEvent`를 자동으로 `platform_events`에 기록합니다. 서버 시작 시 `registerEventPersister()`를 1회 호출하면 이후 모든 `eventBus.emit()` 호출이 자동으로 DB에 기록됩니다.
+
+**레거시 패턴 (직접 호출 — 현재 사용하지 않음):**
 ```typescript
+// ⚠️ 레거시 — eventPersister 도입 이전 방식. 현재는 사용하지 않음.
 const eventRepo = createEventRepository();
 eventRepo.persistAsync(event); // 실패해도 메인 흐름 차단 안 함
 ```
@@ -200,6 +208,7 @@ eventBus.emit({
 
 | 이벤트 | 발행처 | 용도 |
 |--------|--------|------|
+| `STAGE2_FALLBACK_USED` | `generationPipeline.ts` Stage 2 catch | Stage 2 기능 검증 실패 시 Stage 1 결과로 폴백한 빈도 추적 |
 | `STAGE3_FALLBACK_USED` | `generationPipeline.ts` Stage 3 catch | Stage 3 디자인 폴리시 실패 시 Stage 2 결과로 폴백한 빈도 추적 |
 | `STAGE_SKIPPED` | `generationPipeline.ts` Stage 2/3 skip 분기 | Stage 2/3 진입 없이 통과된 비율(파이프라인 효율성) — `payload.stage`로 'stage2'/'stage3' 구분 |
 | `QUALITY_LOOP_COMPLETED` | `qualityLoop.ts` 종료 직후 (loop 미진입 포함, `iterations=0`으로도 발행) | Quality Loop 평균 반복 횟수, 개선 성공률, 최종 점수 분포 |
