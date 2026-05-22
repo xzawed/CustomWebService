@@ -4,6 +4,9 @@ import { withSentryConfig } from '@sentry/nextjs';
 const nextConfig: NextConfig = {
   output: 'standalone',
   poweredByHeader: false,
+  // playwright-core is used only for rendering QC (ENABLE_RENDERING_QC=true).
+  // It must not be bundled by webpack — standalone mode copies it to node_modules.
+  serverExternalPackages: ['playwright-core'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.supabase.co' },
