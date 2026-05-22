@@ -2,6 +2,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { runGenerationPipeline, type PipelineInput, type PipelineServices } from '@/lib/ai/generationPipeline';
 import type { SseWriter } from '@/lib/ai/sseWriter';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
+import { resolvePipelineBudgetMs } from '@/lib/ai/qualityLoop';
 
 vi.mock('@/providers/ai/AiProviderFactory', () => ({
   AiProviderFactory: { createForTask: vi.fn() },
@@ -18,6 +19,7 @@ vi.mock('@/lib/ai/codeValidator', () => ({
 vi.mock('@/lib/ai/qualityLoop', () => ({
   shouldRetryGeneration: vi.fn(() => false),
   buildQualityImprovementPrompt: vi.fn(() => 'improve'),
+  resolvePipelineBudgetMs: vi.fn(() => 290_000),
   runQualityLoop: vi.fn().mockImplementation(async (parsed: unknown, quality: unknown, qcReport: unknown) => ({
     parsed,
     quality,
@@ -194,5 +196,44 @@ describe('runGenerationPipeline (3-stage)', () => {
     const eventNames = (sse.send as ReturnType<typeof vi.fn>).mock.calls.map((c: unknown[]) => c[0]);
     expect(eventNames).toContain('error');
     expect(mockAiProvider.generateCodeStream).toHaveBeenCalledTimes(1);
+  });
+
+  it('Stage 2 실패 시 Stage 1 결과로 fallback하고 파이프라인을 계속 실행한다', async () => {
+    // Stage 1 성공, Stage 2 실패, Stage 3 성공
+    mockAiProvider.generateCodeStream
+      .mockResolvedValueOnce({ content: '<div>stage1</div>', provider: 'claude', model: 'claude-sonnet-4-6', durationMs: 1000, tokensUsed: { input: 100, output: 200 } })
+      .mockRejectedValueOnce(new Error('Stage 2 AI 오류'))
+      .mockResolvedValueOnce({ content: '<div>stage3</div>', provider: 'claude', model: 'claude-sonnet-4-6', durationMs: 800, tokensUsed: { input: 80, output: 160 } });
+
+    const sse = makeSse();
+    await runGenerationPipeline(makeInput(), sse, makeServices());
+
+    const eventNames = (sse.send as ReturnType<typeof vi.fn>).mock.calls.map((c: unknown[]) => c[0]);
+    // Stage 2 fallback → Stage 3까지 계속 → complete
+    expect(eventNames).toContain('complete');
+    expect(eventNames).not.toContain('error');
+
+    // stage2_fallback progress 이벤트 전송 확인
+    const progressSteps = (sse.send as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) => c[0] === 'progress')
+      .map((c: unknown[]) => (c[1] as { step: string }).step);
+    expect(progressSteps).toContain('stage2_fallback');
+  });
+
+  it('pipelineBudgetMs - 20s 시점에 abort 콜백이 호출된다', async () => {
+    vi.useFakeTimers();
+    vi.mocked(resolvePipelineBudgetMs).mockReturnValueOnce(20_001); // abort timer = 1ms
+
+    const sse = makeSse();
+    const pipeline = runGenerationPipeline(makeInput(), sse, makeServices());
+
+    // 1ms 경과 → abort 콜백 실행
+    await vi.advanceTimersByTimeAsync(1);
+    await pipeline;
+
+    vi.useRealTimers();
+    // abort이 발생해도 Stage 2 fallback 덕분에 complete까지 정상 진행
+    const eventNames = (sse.send as ReturnType<typeof vi.fn>).mock.calls.map((c: unknown[]) => c[0]);
+    expect(eventNames).toContain('complete');
   });
 });

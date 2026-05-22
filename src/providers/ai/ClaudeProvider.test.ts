@@ -123,17 +123,17 @@ describe('ClaudeProvider', () => {
 
     it('기본 max_tokens는 48000이다', async () => {
       await provider.generateCode({ system: 'sys', user: 'user' });
-      expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ max_tokens: 48000 }));
+      const callArg = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArg).toHaveProperty('max_tokens', 48000);
     });
 
     it('system 프롬프트를 cache_control 블록 배열로 전달한다', async () => {
       await provider.generateCode({ system: 'test-system', user: 'test-user' });
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          system: [{ type: 'text', text: 'test-system', cache_control: { type: 'ephemeral' } }],
-          messages: [{ role: 'user', content: 'test-user' }],
-        })
-      );
+      const callArg = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArg).toMatchObject({
+        system: [{ type: 'text', text: 'test-system', cache_control: { type: 'ephemeral' } }],
+        messages: [{ role: 'user', content: 'test-user' }],
+      });
     });
 
     it('extendedThinking 활성화 시 thinking 파라미터가 전달된다', async () => {

@@ -24,6 +24,7 @@ vi.mock('@/lib/ai/stageRunner', () => ({
 }));
 vi.mock('@/lib/ai/qualityLoop', () => ({
   runQualityLoop: vi.fn(),
+  resolvePipelineBudgetMs: vi.fn(() => 290_000),
 }));
 vi.mock('@/lib/ai/featureExtractor', () => ({
   extractFeatures: vi.fn(),

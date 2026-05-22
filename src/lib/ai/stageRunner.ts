@@ -20,6 +20,7 @@ export async function runStage1(
   aiProvider: IAiProvider,
   sse: SseWriter,
   useET: boolean,
+  abortSignal?: AbortSignal,
 ): Promise<StageResult> {
   let lastProgressUpdate = Date.now();
   const streamStartTime = Date.now();
@@ -27,7 +28,7 @@ export async function runStage1(
   sse.send('progress', { step: 'stage1_generating', progress: 5, message: `1단계: 구조 및 기능 생성 중...${useET ? ' (심층 분석)' : ''}` });
 
   const response = await aiProvider.generateCodeStream(
-    { system: systemPrompt, user: userPrompt, extendedThinking: useET },
+    { system: systemPrompt, user: userPrompt, extendedThinking: useET, abortSignal },
     (_chunk: string, accumulated: string) => {
       if (sse.isCancelled()) return;
       const now = Date.now();
@@ -66,6 +67,7 @@ export async function runStage2Function(
   fastQcIssues: string[] | null,
   aiProvider: IAiProvider,
   sse: SseWriter,
+  abortSignal?: AbortSignal,
 ): Promise<StageResult> {
   sse.send('progress', { step: 'stage1_complete', progress: 30, message: '구조 완성. 기능 검증 중...' });
   sse.send('progress', { step: 'stage2_function_generating', progress: 35, message: '2단계: 기능 버그 수정 중...' });
@@ -75,7 +77,7 @@ export async function runStage2Function(
   const streamStartTime = Date.now();
 
   const response = await aiProvider.generateCodeStream(
-    { system: systemPrompt, user: userPrompt },
+    { system: systemPrompt, user: userPrompt, abortSignal },
     (_chunk: string, accumulated: string) => {
       if (sse.isCancelled()) return;
       const now = Date.now();
@@ -110,6 +112,7 @@ export async function runStage3(
   sse: SseWriter,
   /** Stage 2가 스킵되어 stage2_function_complete 이벤트가 이미 발행된 경우 true */
   stage2FunctionCompleteAlreadySent = false,
+  abortSignal?: AbortSignal,
 ): Promise<StageResult> {
   if (!stage2FunctionCompleteAlreadySent) {
     sse.send('progress', { step: 'stage2_function_complete', progress: 65, message: '기능 검증 완성. 디자인 적용 중...' });
@@ -122,7 +125,7 @@ export async function runStage3(
   const streamStartTime = Date.now();
 
   const response = await aiProvider.generateCodeStream(
-    { system: systemPrompt, user: userPrompt },
+    { system: systemPrompt, user: userPrompt, abortSignal },
     (_chunk: string, accumulated: string) => {
       if (sse.isCancelled()) return;
       const now = Date.now();

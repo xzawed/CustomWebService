@@ -96,6 +96,7 @@ vi.mock('@/lib/ai/categoryDesignMap', () => ({
 vi.mock('@/lib/ai/qualityLoop', () => ({
   shouldRetryGeneration: vi.fn().mockReturnValue(false),
   buildQualityImprovementPrompt: vi.fn().mockReturnValue('improvement prompt'),
+  resolvePipelineBudgetMs: vi.fn(() => 290_000),
   runQualityLoop: vi.fn().mockImplementation(async (parsed: unknown, quality: unknown, qcReport: unknown) => ({
     parsed,
     quality,

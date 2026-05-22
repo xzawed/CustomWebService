@@ -5,6 +5,8 @@ export interface AiPrompt {
   maxTokens?: number;
   /** Stage 1 구조 생성 시 확장 사고(extended thinking) 활성화 */
   extendedThinking?: boolean;
+  /** 파이프라인 전체 예산 초과 시 Railway 300s 컷 전 안전 종료용 AbortSignal */
+  abortSignal?: AbortSignal;
 }
 
 export interface AiResponse {
