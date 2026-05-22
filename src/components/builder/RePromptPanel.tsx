@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Sparkles, Wand2, Loader2, ChevronDown, ChevronUp, RotateCcw, CheckCircle2 } from 'lucide-react';
 
 type RegenStatus = 'idle' | 'suggesting' | 'generating' | 'done' | 'error';
@@ -18,6 +18,8 @@ export default function RePromptPanel({ projectId, onRegenerationComplete }: ReP
   const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const mountedRef = useRef(true);
+  useEffect(() => { return () => { mountedRef.current = false; }; }, []);
 
   const fetchSuggestions = useCallback(async (currentFeedback?: string) => {
     setStatus('suggesting');
@@ -69,6 +71,7 @@ export default function RePromptPanel({ projectId, onRegenerationComplete }: ReP
       const pollForRegeneration = async (projectId: string) => {
         const MAX_ATTEMPTS = 120;
         for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          if (!mountedRef.current) return;
           try {
             const res = await fetch(`/api/v1/generate/status/${projectId}`);
             if (!res.ok) break;

@@ -3,11 +3,6 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { renderComponent, screen, fireEvent, waitFor } from '@/test/helpers/component';
 import type { ApiCatalogItem } from '@/types/api';
 
-vi.mock('@/lib/encryption', () => ({
-  maskApiKey: vi.fn().mockReturnValue('sk-1***'),
-  decryptApiKey: vi.fn().mockReturnValue('sk-12345-full'),
-}));
-
 vi.mock('@/components/settings/ApiKeyCard', () => ({
   ApiKeyCard: ({
     api,
@@ -89,10 +84,9 @@ describe('ApiKeyPageClient', () => {
     renderComponent(
       <ApiKeyPageClient
         apis={[apis[0]]}
-        initialSavedKeys={[{ apiId: 'api-1', encryptedKey: 'enc-abc', isVerified: true }]}
+        initialSavedKeys={[{ apiId: 'api-1', maskedKey: 'sk-1***', isVerified: true }]}
       />
     );
-    // decryptApiKey → 'sk-12345-full', maskApiKey → 'sk-1***'
     expect(screen.getByTestId('masked-key-api-1').textContent).toBe('sk-1***');
   });
 
@@ -127,7 +121,7 @@ describe('ApiKeyPageClient', () => {
     renderComponent(
       <ApiKeyPageClient
         apis={[apis[0]]}
-        initialSavedKeys={[{ apiId: 'api-1', encryptedKey: 'enc-abc', isVerified: false }]}
+        initialSavedKeys={[{ apiId: 'api-1', maskedKey: 'enc-***', isVerified: false }]}
       />
     );
 

@@ -59,11 +59,11 @@ describe('buildSiteCsp()', () => {
     expect(csp).toContain("'unsafe-eval'");
   });
 
-  it('default-src self / img-src 와일드카드 / connect-src 와일드카드 포함', () => {
+  it("default-src self / img-src 와일드카드 / connect-src https wss 포함", () => {
     const csp = buildSiteCsp("'none'");
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain('img-src * data: blob:');
-    expect(csp).toContain('connect-src *');
+    expect(csp).toContain("connect-src 'self' https: wss:");
   });
 });
 

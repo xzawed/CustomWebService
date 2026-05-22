@@ -13,7 +13,8 @@ export async function GET(request: Request): Promise<Response> {
       verifyAdminKey(request);
 
       const url = new URL(request.url);
-      const days = parseInt(url.searchParams.get('days') ?? '7', 10);
+      const daysRaw = parseInt(url.searchParams.get('days') ?? '7', 10);
+      const days = Number.isNaN(daysRaw) || daysRaw <= 0 ? 7 : daysRaw;
       const now = new Date();
       const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 

@@ -4,14 +4,6 @@ import { useState } from 'react';
 import { Key } from 'lucide-react';
 import { ApiKeyCard } from '@/components/settings/ApiKeyCard';
 import type { ApiCatalogItem } from '@/types/api';
-import { maskApiKey, decryptApiKey } from '@/lib/encryption';
-
-interface ServerKey {
-  apiId: string;
-  encryptedKey: string;
-  isVerified: boolean;
-}
-
 interface SavedKey {
   apiId: string;
   maskedKey: string;
@@ -20,21 +12,11 @@ interface SavedKey {
 
 interface Props {
   apis: ApiCatalogItem[];
-  initialSavedKeys: ServerKey[];
-}
-
-function toMasked(serverKey: ServerKey): SavedKey {
-  let maskedKey = '****';
-  try {
-    maskedKey = maskApiKey(decryptApiKey(serverKey.encryptedKey));
-  } catch {
-    // 복호화 실패 시 기본값
-  }
-  return { apiId: serverKey.apiId, maskedKey, isVerified: serverKey.isVerified };
+  initialSavedKeys: SavedKey[];
 }
 
 export function ApiKeyPageClient({ apis, initialSavedKeys }: Props) {
-  const [savedKeys, setSavedKeys] = useState<SavedKey[]>(initialSavedKeys.map(toMasked));
+  const [savedKeys, setSavedKeys] = useState<SavedKey[]>(initialSavedKeys);
 
   async function handleSave(apiId: string, key: string) {
     const res = await fetch('/api/v1/user-api-keys', {
