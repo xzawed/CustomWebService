@@ -1,6 +1,6 @@
 # 배포 가이드
 
-> **최종 업데이트:** 2026-04-12  
+> **최종 업데이트:** 2026-05-22  
 > **플랫폼:** Railway (자동 배포, main 브랜치 push 시)
 
 ---
@@ -129,7 +129,40 @@ Railway 대시보드 → Variables 탭에서 설정.
 
 ---
 
-## 4. 도메인 설정
+## 4. Playwright QC 환경 구성 (Dockerfile)
+
+`ENABLE_RENDERING_QC=true` 시 서버에서 Chromium을 실행하여 렌더링 품질을 검사합니다. 이 환경을 구성하는 데 중요한 두 가지 사항이 있습니다.
+
+### Alpine Chromium 패키지
+
+Stage 3 (runner)에서 시스템 Chromium을 직접 설치합니다:
+
+```dockerfile
+RUN apk add --no-cache chromium nss freetype harfbuzz ca-certificates ttf-freefont
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
+```
+
+Railway 환경변수 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`도 함께 설정해야 합니다.
+
+### playwright-core browsers.json 복사 (nft 동적 require 우회)
+
+Next.js standalone 빌드는 nft(Node File Tracer)로 필요한 파일만 복사합니다. playwright-core의 `coreBundle.js`가 `require(path.join(__dirname, '..', 'browsers.json'))`으로 `browsers.json`을 동적 로드하는데, nft는 동적 require를 추적하지 못해 standalone에서 파일이 누락됩니다.
+
+Dockerfile Stage 2에서 빌드 후 명시적으로 복사합니다:
+
+```dockerfile
+RUN find /app/.next/standalone/node_modules -path "*/playwright-core/lib/coreBundle.js" | \
+    while read f; do \
+      dest="$(dirname "$(dirname "$f")")/browsers.json"; \
+      [ ! -f "$dest" ] && cp /app/node_modules/playwright-core/browsers.json "$dest"; \
+    done
+```
+
+> **playwright-core 버전 업그레이드 시 주의**: `lib/coreBundle.js` 경로가 변경되면 복사가 되지 않아 런타임에만 크래시가 발생합니다(`browsers.json` 파일 부재). Dockerfile에 검증 단계가 포함되어 빌드 시 조기 감지됩니다.
+
+---
+
+## 6. 도메인 설정
 
 ### Cloudflare DNS 설정
 
@@ -168,7 +201,7 @@ Supabase Dashboard → Authentication → URL Configuration:
 
 ---
 
-## 5. 무료 티어 한도
+## 7. 무료 티어 한도
 
 | 서비스 | 무료 한도 | 예상 사용량 | 여유도 |
 |--------|-----------|------------|--------|

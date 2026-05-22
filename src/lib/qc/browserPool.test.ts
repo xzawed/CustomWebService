@@ -214,6 +214,51 @@ describe('browserPool', () => {
     });
   });
 
+  describe('browser crash recovery (isConnected=false)', () => {
+    it('disconnected browser is replaced on next getPage() call', async () => {
+      process.env.ENABLE_RENDERING_QC = 'true';
+      const { getPage } = await importBrowserPool();
+
+      await getPage();
+      expect(chromiumLaunchMock).toHaveBeenCalledTimes(1);
+
+      // Simulate crash: next isConnected() check returns false
+      mockBrowser.isConnected.mockReturnValue(false);
+
+      const page2 = await getPage();
+      expect(page2).not.toBeNull();
+      expect(chromiumLaunchMock).toHaveBeenCalledTimes(2); // re-launched
+    });
+
+    it('crash while waiters are queued — all queued callers receive null without deadlock', async () => {
+      process.env.ENABLE_RENDERING_QC = 'true';
+      delete process.env.QC_MAX_CONCURRENT_PAGES; // MAX = 2
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+
+      try {
+        const { getPage } = await importBrowserPool();
+
+        // Fill semaphore (2 slots)
+        await getPage();
+        await getPage();
+
+        // Third caller queues — will block until semaphore or timeout
+        const p3 = getPage();
+
+        // Simulate browser crash — getBrowser() will drain waitQueue with resolve(false)
+        mockBrowser.isConnected.mockReturnValue(false);
+
+        // Advance past semaphore timeout so queued caller resolves
+        await vi.advanceTimersByTimeAsync(11_000);
+
+        const page3 = await p3;
+        expect(page3).toBeNull(); // resolved (not deadlocked)
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe('semaphore timeout', () => {
     beforeEach(() => {
       vi.useFakeTimers();

@@ -29,6 +29,12 @@ RUN find /app/.next/standalone/node_modules -path "*/playwright-core/lib/coreBun
       dest="$(dirname "$(dirname "$f")")/browsers.json"; \
       [ ! -f "$dest" ] && cp /app/node_modules/playwright-core/browsers.json "$dest" && echo "copied browsers.json → $dest"; \
     done
+# Fail fast if coreBundle.js is present but browsers.json is still missing —
+# guards against silent failure when playwright-core upgrades change lib/ structure.
+RUN if find /app/.next/standalone/node_modules -path "*/playwright-core/lib/coreBundle.js" -print -quit | grep -q .; then \
+      find /app/.next/standalone/node_modules -path "*/playwright-core/browsers.json" -print -quit | grep -q . || \
+      { echo "ERROR: playwright-core/browsers.json missing in standalone after copy — update Dockerfile copy script after playwright-core upgrade"; exit 1; }; \
+    fi
 
 # ── Stage 3: Production runner ──
 FROM node:20-alpine AS runner

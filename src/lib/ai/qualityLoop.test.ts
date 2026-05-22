@@ -932,7 +932,7 @@ describe('resolveIterationTimeoutMs', () => {
 });
 
 describe('runQualityLoop — 파이프라인 예산 가드', () => {
-  beforeEach(() => { vi.useFakeTimers(); });
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] }); });
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllEnvs();
