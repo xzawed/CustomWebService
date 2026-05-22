@@ -54,6 +54,10 @@ export type DomainEvent =
       payload: { projectId: string; stage: 'fast' | 'deep'; error: string };
     }
   | {
+      type: 'STAGE2_FALLBACK_USED';
+      payload: { projectId: string; error: string };
+    }
+  | {
       type: 'STAGE3_FALLBACK_USED';
       payload: { projectId: string; error: string };
     }

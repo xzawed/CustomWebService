@@ -2,7 +2,7 @@ import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import type { IAiProvider } from '@/providers/ai/IAiProvider';
 import { assembleHtml } from '@/lib/ai/codeParser';
 import { validateAll, evaluateQuality } from '@/lib/ai/codeValidator';
-import { runQualityLoop } from '@/lib/ai/qualityLoop';
+import { runQualityLoop, resolvePipelineBudgetMs } from '@/lib/ai/qualityLoop';
 import { runFastQc, isQcEnabled } from '@/lib/qc';
 import { eventBus } from '@/lib/events/eventBus';
 import { logger } from '@/lib/utils/logger';
@@ -137,17 +137,28 @@ async function resolveStage2(
   aiProvider: IAiProvider,
   sse: SseWriter,
   projectId: string,
+  abortSignal?: AbortSignal,
 ): Promise<StageResult> {
   if (needsStage2) {
-    return runStage2Function(
-      stage1Result.parsed,
-      input.stage2FunctionSystemPrompt,
-      input.buildStage2FunctionUserPrompt,
-      staticQcIssues,
-      stage1FastQcIssues,
-      aiProvider,
-      sse,
-    );
+    try {
+      return await runStage2Function(
+        stage1Result.parsed,
+        input.stage2FunctionSystemPrompt,
+        input.buildStage2FunctionUserPrompt,
+        staticQcIssues,
+        stage1FastQcIssues,
+        aiProvider,
+        sse,
+        abortSignal,
+      );
+    } catch (stage2Err) {
+      const stage2ErrMsg = stage2Err instanceof Error ? stage2Err.message : String(stage2Err);
+      logger.warn('Stage 2 (function fix) failed — falling back to Stage 1 result', { projectId, error: stage2ErrMsg });
+      eventBus.emit({ type: 'STAGE2_FALLBACK_USED', payload: { projectId, error: stage2ErrMsg } });
+      sse.send('progress', { step: 'stage2_fallback', progress: 65, message: '기능 검증 중 오류 — 1단계 결과로 진행합니다.' });
+      generationTracker.updateProgress(projectId, 65, 'stage2_fallback', '기능 검증 중 오류 — 1단계 결과로 진행합니다.');
+      return { ...stage1Result, durationMs: 0, tokensUsed: { input: 0, output: 0 } };
+    }
   }
   sse.send('progress', { step: 'stage1_complete', progress: 30, message: '구조 완성. 기능 검증 스킵 (품질 충분).' });
   generationTracker.updateProgress(projectId, 30, 'stage1_complete', '구조 완성. 기능 검증 스킵 (품질 충분).');
@@ -168,6 +179,7 @@ async function resolveStage3(
   aiProvider: IAiProvider,
   sse: SseWriter,
   projectId: string,
+  abortSignal?: AbortSignal,
 ): Promise<StageResult> {
   if (skipStage3) {
     sse.send('progress', { step: 'stage3_skipped', progress: 85, message: '디자인 검증 완료 — 품질 충분, 폴리시 스킵.' });
@@ -179,7 +191,7 @@ async function resolveStage3(
     return { ...stage2Result, durationMs: 0, tokensUsed: { input: 0, output: 0 }, userPrompt: '' };
   }
   try {
-    return await runStage3(stage2Result.parsed, input.stage2SystemPrompt, input.buildStage2UserPrompt, aiProvider, sse, !needsStage2);
+    return await runStage3(stage2Result.parsed, input.stage2SystemPrompt, input.buildStage2UserPrompt, aiProvider, sse, !needsStage2, abortSignal);
   } catch (stage3Err) {
     const stage3ErrMsg = stage3Err instanceof Error ? stage3Err.message : String(stage3Err);
     logger.warn('Stage 3 (design polish) failed — falling back to Stage 2 result', { projectId, error: stage3ErrMsg });
@@ -331,6 +343,16 @@ export async function runGenerationPipeline(
   let aiProvider: IAiProvider | undefined;
   const pipelineStartMs = Date.now();
 
+  // Railway 300s HTTP 컷 전 안전 종료: pipelineBudgetMs - 20s 시점에 Stage 2/3 API 호출을 abort.
+  // Stage 2/3는 abort 시 fallback(이전 Stage 결과)으로 graceful 처리됨.
+  // Stage 1은 fallback 없으므로 abort 대상에서 제외 (abort 이전에 완료되도록 충분한 마진).
+  const pipelineAbortController = new AbortController();
+  const pipelineAbortTimer = setTimeout(
+    () => pipelineAbortController.abort(),
+    resolvePipelineBudgetMs() - 20_000,
+  );
+  const pipelineSignal = pipelineAbortController.signal;
+
   generationTracker.start(projectId, userId);
 
   try {
@@ -350,8 +372,10 @@ export async function runGenerationPipeline(
     }
 
     // ── Stage 1: 구조·기능 생성 (5→28%) ───────────────────────────────────────
+    // Stage 1은 abort signal을 받지 않음 — fallback 없어 abort 시 파이프라인 전체 실패
     const stage1Result = await runStage1(stage1SystemPrompt, input.stage1UserPrompt, aiProvider, sse, useET);
     const stage1Code = stage1Result.parsed;
+    logger.info('Stage 1 completed', { projectId, useET, durationMs: stage1Result.durationMs, elapsedMs: Date.now() - pipelineStartMs });
 
     // Stage 1 정적 QC — stage2Function에 전달
     const stage1Validation = validateAll(stage1Code.html, stage1Code.css, stage1Code.js);
@@ -362,7 +386,10 @@ export async function runGenerationPipeline(
     logger.info('Stage 2 necessity evaluated', { projectId, needsStage2, fetchCallCount: stage1Quality.fetchCallCount, placeholderCount: stage1Quality.placeholderCount, hardcodedArrayCount: stage1Quality.hardcodedArrayCount, stage1FastQcPassed });
 
     // ── Stage 2: 기능 검증 (30→65%) ─────────────────────────────────────────
-    const stage2Result = await resolveStage2(stage1Result, needsStage2, input, staticQcIssues, stage1FastQcIssues, aiProvider, sse, projectId);
+    const stage2Result = await resolveStage2(stage1Result, needsStage2, input, staticQcIssues, stage1FastQcIssues, aiProvider, sse, projectId, pipelineSignal);
+    if (needsStage2) {
+      logger.info('Stage 2 completed', { projectId, durationMs: stage2Result.durationMs, elapsedMs: Date.now() - pipelineStartMs });
+    }
 
     // ── Stage 3: 디자인·폴리시 (65→90%) ────────────────────────────────────
     const preStage3Quality = evaluateQuality(stage2Result.parsed.html, stage2Result.parsed.css, stage2Result.parsed.js);
@@ -374,7 +401,10 @@ export async function runGenerationPipeline(
       !needsStage2;
     logger.info('Stage 3 necessity evaluated', { projectId, skipStage3, structuralScore: preStage3Quality.structuralScore, mobileScore: preStage3Quality.mobileScore });
 
-    const stage3Result = await resolveStage3(stage2Result, skipStage3, needsStage2, input, aiProvider, sse, projectId);
+    const stage3Result = await resolveStage3(stage2Result, skipStage3, needsStage2, input, aiProvider, sse, projectId, pipelineSignal);
+    if (!skipStage3) {
+      logger.info('Stage 3 completed', { projectId, durationMs: stage3Result.durationMs, elapsedMs: Date.now() - pipelineStartMs });
+    }
 
     // ── 검증 ────────────────────────────────────────────────────────────────
     sse.send('progress', { step: 'validating', progress: 85, message: '코드 검증 중...' });
@@ -424,5 +454,7 @@ export async function runGenerationPipeline(
       { rateLimitService },
       sse,
     );
+  } finally {
+    clearTimeout(pipelineAbortTimer);
   }
 }

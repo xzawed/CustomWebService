@@ -113,7 +113,7 @@ export class ClaudeProvider implements IAiProvider {
           thinking: { type: 'adaptive' as const },
           output_config: { effort: 'high' as const },
         }),
-      });
+      }, { signal: prompt.abortSignal });
 
       const textBlock = result.content.find(
         (b): b is Anthropic.TextBlock => b.type === 'text',
@@ -151,7 +151,7 @@ export class ClaudeProvider implements IAiProvider {
           thinking: { type: 'adaptive' as const },
           output_config: { effort: 'high' as const },
         }),
-      });
+      }, { signal: prompt.abortSignal });
 
       let accumulated = '';
 

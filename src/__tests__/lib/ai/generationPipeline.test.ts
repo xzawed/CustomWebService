@@ -18,6 +18,7 @@ vi.mock('@/lib/ai/codeValidator', () => ({
 vi.mock('@/lib/ai/qualityLoop', () => ({
   shouldRetryGeneration: vi.fn(() => false),
   buildQualityImprovementPrompt: vi.fn(() => 'improve'),
+  resolvePipelineBudgetMs: vi.fn(() => 290_000),
   runQualityLoop: vi.fn().mockImplementation(async (parsed: unknown, quality: unknown, qcReport: unknown) => ({
     parsed,
     quality,
