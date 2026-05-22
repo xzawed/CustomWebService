@@ -20,7 +20,11 @@ ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
-RUN mkdir -p /app/public && pnpm build
+RUN mkdir -p /app/public && pnpm build && \
+    # playwright-core is excluded from webpack bundling (serverExternalPackages) but pnpm symlinks
+    # can cause nft to miss it during standalone trace. Copy it explicitly.
+    mkdir -p /app/.next/standalone/node_modules && \
+    cp -rL /app/node_modules/playwright-core /app/.next/standalone/node_modules/playwright-core
 
 # ── Stage 3: Production runner ──
 FROM node:20-alpine AS runner
