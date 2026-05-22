@@ -353,7 +353,8 @@ export async function runGenerationPipeline(
   );
   const pipelineSignal = pipelineAbortController.signal;
 
-  generationTracker.start(projectId, userId);
+  // route.ts에서 이미 start()를 호출했으므로 여기서는 중복 호출하지 않는다.
+  // (route.ts에서 isGenerating 체크 직후 start()를 호출하여 TOCTOU 레이스 제거)
 
   try {
     sse.send('progress', { step: 'analyzing', progress: 5, message: '분석 중...' });
@@ -433,6 +434,15 @@ export async function runGenerationPipeline(
       parsed, initialQuality, initialQcReport,
       { stage2SystemPrompt: input.stage2SystemPrompt, stage2FunctionSystemPrompt: input.stage2FunctionSystemPrompt, aiProvider, sse, useET, projectId, userFeedback, pipelineStartMs },
     );
+
+    // Quality Loop가 새 코드를 생성했을 수 있으므로 보안 검증을 재실행한다.
+    if (qualityLoopUsed) {
+      const finalValidation = validateAll(finalParsed.html, finalParsed.css, finalParsed.js);
+      if (finalValidation.errors.length > 0) {
+        logger.warn('Quality loop output failed security validation', { projectId, errors: finalValidation.errors });
+        throw new Error(`생성된 코드에 보안 문제가 감지되었습니다: ${finalValidation.errors.join(', ')}`);
+      }
+    }
 
     // ── 저장 ─────────────────────────────────────────────────────────────────
     await saveGeneratedCode(

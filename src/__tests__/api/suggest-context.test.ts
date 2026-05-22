@@ -16,6 +16,20 @@ vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock('@/lib/config/providers', () => ({
+  getDbProvider: vi.fn().mockReturnValue('supabase'),
+}));
+
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('@/services/factory', () => ({
+  createRateLimitService: vi.fn().mockReturnValue({
+    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
 // ---------- Test data ----------
 const mockUser = { id: 'user-1', email: 'test@test.com', name: null, avatarUrl: null };
 const mockApis = [
@@ -152,10 +166,7 @@ describe('POST /api/v1/suggest-context', () => {
     expect(json.data.suggestions).toEqual([]);
   });
 
-  it('일일 생성 한도를 소비하지 않는다', async () => {
-    // suggest-context는 코드 생성 한도와 무관하게 동작해야 한다.
-    // createRateLimitService가 임포트되지 않으므로, 이 테스트는
-    // 정상 요청이 rate limit 없이 통과되는지 확인한다.
+  it('일일 생성 한도를 소비한다', async () => {
     await setupAuth();
 
     const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
@@ -173,7 +184,6 @@ describe('POST /api/v1/suggest-context', () => {
     const { POST } = await import('@/app/api/v1/suggest-context/route');
     const response = await POST(makeRequest({ apis: mockApis }));
 
-    // rate limit 없이 성공해야 한다
     expect(response.status).toBe(200);
     const json = await response.json();
     expect(json.success).toBe(true);

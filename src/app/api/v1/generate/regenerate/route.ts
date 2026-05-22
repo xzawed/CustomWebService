@@ -91,6 +91,9 @@ export async function POST(request: Request): Promise<Response> {
         { status: 409 },
       );
     }
+    // isGenerating 체크와 파이프라인 시작 사이의 TOCTOU 레이스를 닫기 위해
+    // ReadableStream 생성 전에 즉시 tracker 상태를 설정한다.
+    generationTracker.start(projectId, user.id);
 
     const stage1SystemPrompt = buildStage1SystemPrompt();
     const stage1UserPrompt = buildStage1RegenerationUserPrompt(

@@ -224,9 +224,17 @@ async function resolveApiKey(
     } catch { /* 조회 실패 시 플랫폼 키로 폴백 */ }
   }
 
-  // 2) 플랫폼 공용 키 (환경변수)
+  // 2) 플랫폼 공용 키 (환경변수) — 플랫폼 핵심 시크릿은 접근 차단
   if (!resolvedKey && cfg.env_var) {
-    resolvedKey = process.env[cfg.env_var];
+    const SENSITIVE_ENV_VARS = new Set([
+      'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY',
+      'ANTHROPIC_API_KEY', 'GITHUB_TOKEN', 'RAILWAY_TOKEN',
+      'ADMIN_API_KEY', 'ENCRYPTION_KEY', 'NEXTAUTH_SECRET',
+      'DATABASE_URL', 'DIRECT_URL',
+    ]);
+    if (!SENSITIVE_ENV_VARS.has(cfg.env_var)) {
+      resolvedKey = process.env[cfg.env_var];
+    }
   }
 
   if (resolvedKey && cfg.param_name) {

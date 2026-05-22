@@ -2,6 +2,7 @@ import { getDbProvider } from '@/lib/config/providers';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createProjectRepository, createCatalogRepository } from '@/repositories/factory';
+import { createRateLimitService } from '@/services/factory';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { AuthRequiredError, NotFoundError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { suggestModificationSchema } from '@/types/schemas';
@@ -26,8 +27,11 @@ export async function POST(request: Request): Promise<Response> {
       throw err;
     }
 
-    // Verify ownership via service client (RLS bypass for project lookup)
     const serviceSupabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
+    const rateLimitService = createRateLimitService(serviceSupabase);
+    await rateLimitService.checkAndIncrementDailyLimit(user.id);
+
+    // Verify ownership via service client (RLS bypass for project lookup)
     const projectRepo = createProjectRepository(serviceSupabase);
     const project = await projectRepo.findById(projectId);
     if (!project || project.userId !== user.id) {
