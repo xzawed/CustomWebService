@@ -642,4 +642,43 @@ describe('runGenerationPipeline()', () => {
       expect(calls[0][3].userFeedback).toBeUndefined();
     });
   });
+
+  describe('quality loop 보안 재검증 (H-4)', () => {
+    it('qualityLoopUsed=true이고 재검증 통과 시 파이프라인을 완료한다', async () => {
+      (runQualityLoop as Mock).mockResolvedValueOnce({
+        parsed: makeStageResult().parsed,
+        quality: makeQualityMetrics(),
+        qcReport: null,
+        qualityLoopUsed: true,
+      });
+      // validateAll은 beforeEach에서 기본값으로 errors:[] 반환 → 재검증 통과
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(saveGeneratedCode).toHaveBeenCalledOnce();
+    });
+
+    it('qualityLoopUsed=true이고 재검증 실패 시 SSE error 이벤트를 전송하고 저장하지 않는다', async () => {
+      (runQualityLoop as Mock).mockResolvedValueOnce({
+        parsed: makeStageResult().parsed,
+        quality: makeQualityMetrics(),
+        qcReport: null,
+        qualityLoopUsed: true,
+      });
+      // 초기 검증(2회)은 통과, quality loop 후 재검증(3번째)은 실패
+      (validateAll as Mock)
+        .mockReturnValueOnce({ errors: [], warnings: [] })
+        .mockReturnValueOnce({ errors: [], warnings: [] })
+        .mockReturnValueOnce({ errors: ['eval() 사용 금지'], warnings: [] });
+
+      const sse = makeSse();
+      const services = makeServices();
+      await runGenerationPipeline(makeInput(), sse as never, services);
+
+      expect(saveGeneratedCode).not.toHaveBeenCalled();
+      expect(sse.events.find(e => e.event === 'error')).toBeDefined();
+      expect(services.rateLimitService.decrementDailyLimit).toHaveBeenCalledWith('user-1');
+    });
+  });
 });
