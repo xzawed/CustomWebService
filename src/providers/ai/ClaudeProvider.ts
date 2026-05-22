@@ -15,6 +15,7 @@ function getErrorStatus(error: unknown): number | undefined {
 }
 
 function isRetryableError(error: unknown): boolean {
+  if (error instanceof Error && error.name === 'AbortError') return false;
   const status = getErrorStatus(error);
   if (status !== undefined && RETRYABLE_STATUS_CODES.has(status)) {
     return true;

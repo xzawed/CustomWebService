@@ -3,6 +3,7 @@ import { getAuthUser } from '@/lib/auth/index';
 import { getDbProvider } from '@/lib/config/providers';
 import { createClient } from '@/lib/supabase/server';
 import { createCatalogRepository } from '@/repositories/factory';
+import { decryptApiKey, maskApiKey } from '@/lib/encryption';
 import { ApiKeyPageClient } from './ApiKeyPageClient';
 
 export const dynamic = 'force-dynamic';
@@ -42,11 +43,11 @@ export default async function ApiKeysPage() {
 
       <ApiKeyPageClient
         apis={apiKeyApis}
-        initialSavedKeys={savedKeys.map((k) => ({
-          apiId: k.api_id,
-          encryptedKey: k.encrypted_key,
-          isVerified: k.is_verified ?? false,
-        }))}
+        initialSavedKeys={savedKeys.map((k) => {
+          let maskedKey = '****';
+          try { maskedKey = maskApiKey(decryptApiKey(k.encrypted_key)); } catch { /* 복호화 실패 시 기본값 */ }
+          return { apiId: k.api_id, maskedKey, isVerified: k.is_verified ?? false };
+        })}
       />
     </div>
   );

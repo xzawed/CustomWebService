@@ -526,6 +526,15 @@ describe('ClaudeProvider', () => {
       expect(mockCreate).toHaveBeenCalledTimes(2);
       expect(result.content).toBe('ok after plain error');
     });
+
+    it('AbortError → 즉시 throw (재시도 없음)', async () => {
+      mockCreate.mockReset();
+      const abortError = Object.assign(new Error('The operation was aborted'), { name: 'AbortError' });
+      mockCreate.mockRejectedValueOnce(abortError);
+
+      await expect(provider.generateCode({ system: 'sys', user: 'user' })).rejects.toThrow('The operation was aborted');
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('checkAvailability()', () => {

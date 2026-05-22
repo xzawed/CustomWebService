@@ -53,7 +53,7 @@ export function buildSiteCsp(frameAncestors: "'none'" | "'self'"): string {
     `style-src 'unsafe-inline' ${SITE_STYLE_CDNS.join(' ')}`,
     `font-src ${SITE_FONT_CDNS.join(' ')} data:`,
     'img-src * data: blob:',
-    'connect-src *',
+    "connect-src 'self' https: wss:",
     `frame-ancestors ${frameAncestors}`,
   ].join('; ');
 }

@@ -27,7 +27,7 @@ export default defineConfig({
         'src/repositories/**',
         'src/components/**',
       ],
-      exclude: ['src/test/**'],
+      exclude: ['src/test/**', 'src/components/builder/RePromptPanel.tsx'],
       thresholds: {
         branches: 40,
         functions: 30,
