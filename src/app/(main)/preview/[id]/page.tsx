@@ -132,7 +132,7 @@ export default function PreviewPage() {
             src={previewSrc}
             title="서비스 미리보기"
             className="h-[75vh] w-full"
-            sandbox="allow-scripts allow-same-origin allow-forms"
+            sandbox="allow-scripts allow-forms"
           />
         </div>
       </div>

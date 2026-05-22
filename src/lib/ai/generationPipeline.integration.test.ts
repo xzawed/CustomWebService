@@ -189,11 +189,11 @@ describe('runGenerationPipeline()', () => {
       expect(saveGeneratedCode).toHaveBeenCalledOnce();
     });
 
-    it('tracker.start → updateProgress(5) 호출', async () => {
+    it('tracker.start는 route.ts에서 호출되므로 pipeline 내부에서는 호출되지 않는다', async () => {
       const sse = makeSse();
       await runGenerationPipeline(makeInput(), sse as never, makeServices());
 
-      expect(generationTracker.start).toHaveBeenCalledWith('proj-1', 'user-1');
+      expect(generationTracker.start).not.toHaveBeenCalled();
       expect(generationTracker.updateProgress).toHaveBeenCalledWith(
         'proj-1', 5, 'analyzing', expect.any(String),
       );
