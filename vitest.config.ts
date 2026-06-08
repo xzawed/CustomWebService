@@ -8,6 +8,13 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     exclude: ['node_modules/**', 'e2e/**'],
+    // 기본 5000ms는 full-suite 병렬 실행 시 너무 빠듯하다. 고코어 머신/CI에서
+    // 워커가 CPU를 오버구독하면 단일 메인스레드 Vite 서버가 모듈 변환을 직렬화하여,
+    // 라우트 그래프를 cold-import하는 첫 테스트가 간헐적으로 ~6.5s까지 치솟아 타임아웃났다.
+    // (maxWorkers=4 진단 시 0건 — 경합 기인 cold-import 지연이지 실제 hang은 아님.)
+    // 워커 percentage 캡은 저코어 CI를 직렬화시키므로, 머신 독립적인 타임아웃 마진으로 해소한다.
+    testTimeout: 15_000,
+    hookTimeout: 15_000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
