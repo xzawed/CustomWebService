@@ -57,8 +57,10 @@ function handleStatusData(
     return 'stop';
   }
   if (data.status === 'failed') {
-    // 동작 보존: throw → 호출부 catch에서 마지막 시도일 때만 failGeneration
-    throw new Error(data.error ?? '코드 생성에 실패했습니다.');
+    // 서버가 'failed'를 보고하면 터미널 상태다. 즉시 실패 처리한다.
+    // (이전엔 throw하여 마지막 시도까지 재시도 → 최대 2분간 무의미하게 폴링하던 동작을 개선)
+    deps.failGeneration(data.error ?? '코드 생성에 실패했습니다.');
+    return 'stop';
   }
   if (data.status === 'not_found') {
     deps.failGeneration('프로젝트를 찾을 수 없습니다. 대시보드에서 확인해주세요.');

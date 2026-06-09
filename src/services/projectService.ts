@@ -62,8 +62,14 @@ export class ProjectService {
     };
     const project = await this.projectRepo.create(createData);
 
-    // Use repository method instead of direct Supabase access
-    await this.projectRepo.insertProjectApis(project.id, input.apiIds);
+    // Supabase JS 클라이언트는 다중 문 트랜잭션을 지원하지 않으므로, project 연결(API) 삽입이
+    // 실패하면 best-effort로 방금 만든 project를 삭제해 고아 레코드를 방지한다.
+    try {
+      await this.projectRepo.insertProjectApis(project.id, input.apiIds);
+    } catch (err) {
+      await this.projectRepo.delete(project.id).catch(() => {});
+      throw err;
+    }
 
     eventBus.emit({
       type: 'PROJECT_CREATED',

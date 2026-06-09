@@ -74,21 +74,20 @@ function settledResults(
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`QC timeout after ${ms}ms`)), ms)
-    ),
-  ]);
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`QC timeout after ${ms}ms`)), ms);
+  });
+  // race가 끝나면 타이머를 정리해 누수를 막는다(성공 시 타이머가 만료까지 살아있던 문제).
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
 }
 
 async function withCheckTimeout<T>(fn: () => Promise<T>, name: string, timeoutMs = QC_TIMEOUTS.CHECK_MS): Promise<T> {
-  return Promise.race([
-    fn(),
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Check timeout: ${name}`)), timeoutMs)
-    ),
-  ]);
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`Check timeout: ${name}`)), timeoutMs);
+  });
+  return Promise.race([fn(), timeout]).finally(() => clearTimeout(timeoutId));
 }
 
 // ---------------------------------------------------------------------------

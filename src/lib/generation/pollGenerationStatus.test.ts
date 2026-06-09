@@ -149,7 +149,7 @@ describe('pollGenerationStatus', () => {
     expect(deps.delay).not.toHaveBeenCalled();
   });
 
-  it("status: 'failed'는 즉시 실패하지 않고 maxAttempts까지 재시도 후 실패 (기존 quirk 보존)", async () => {
+  it("status: 'failed'는 터미널 상태로 즉시 실패한다 (재시도하지 않음)", async () => {
     const fetchFn = vi
       .fn()
       .mockResolvedValue(makeRes({ data: { status: 'failed', error: '생성 실패함' } }));
@@ -157,8 +157,9 @@ describe('pollGenerationStatus', () => {
 
     await pollGenerationStatus('p', deps);
 
-    expect(fetchFn).toHaveBeenCalledTimes(3);
-    expect(deps.delay).toHaveBeenCalledTimes(2); // 마지막 시도 전까지만 대기
+    // 서버가 보고한 failed는 즉시 종료 — 무의미한 재시도(최대 2분) 없음
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(deps.delay).not.toHaveBeenCalled();
     expect(deps.failGeneration).toHaveBeenCalledTimes(1);
     expect(deps.failGeneration).toHaveBeenCalledWith('생성 실패함');
   });
