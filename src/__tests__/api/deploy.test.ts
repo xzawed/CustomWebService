@@ -295,4 +295,57 @@ describe('POST /api/v1/deploy', () => {
 
     expect(text).toContain('게시된 코드가 없습니다.');
   });
+
+  it('Supabase 클라이언트를 한 번만 생성한다 (증가 후 클라이언트 생성 실패로 인한 환불 누락 방지)', async () => {
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+    const { createRateLimitRepository } = await import('@/repositories/factory');
+    vi.mocked(createRateLimitRepository).mockReturnValue({
+      checkAndIncrementDailyDeployLimit: vi.fn().mockResolvedValue(true),
+      decrementDailyDeployLimit: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    const { createDeployService } = await import('@/services/factory');
+    vi.mocked(createDeployService).mockReturnValue({
+      deploy: vi.fn().mockResolvedValue({ deployUrl: 'https://x', repoUrl: '' }),
+    } as never);
+
+    const { createClient } = await import('@/lib/supabase/server');
+
+    const { POST } = await import('@/app/api/v1/deploy/route');
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111', platform: 'railway' }));
+    await readSseText(response);
+
+    // 단일 클라이언트 공유 — 증가 후 두 번째 createClient throw로 환불을 건너뛰는 창을 차단
+    expect(vi.mocked(createClient)).toHaveBeenCalledTimes(1);
+  });
+
+  it('postgres 모드에서는 createClient를 호출하지 않고 배포한다', async () => {
+    const { getDbProvider } = await import('@/lib/config/providers');
+    vi.mocked(getDbProvider).mockReturnValue('postgres');
+
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+    const { createRateLimitRepository } = await import('@/repositories/factory');
+    vi.mocked(createRateLimitRepository).mockReturnValue({
+      checkAndIncrementDailyDeployLimit: vi.fn().mockResolvedValue(true),
+      decrementDailyDeployLimit: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    const { createDeployService } = await import('@/services/factory');
+    vi.mocked(createDeployService).mockReturnValue({
+      deploy: vi.fn().mockResolvedValue({ deployUrl: 'https://x', repoUrl: '' }),
+    } as never);
+
+    const { createClient } = await import('@/lib/supabase/server');
+
+    const { POST } = await import('@/app/api/v1/deploy/route');
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111', platform: 'railway' }));
+
+    expect(response.status).toBe(200);
+    // postgres 모드: supabase 클라이언트 미생성(supabase = undefined 분기)
+    expect(vi.mocked(createClient)).not.toHaveBeenCalled();
+  });
 });
