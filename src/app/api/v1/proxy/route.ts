@@ -239,8 +239,15 @@ async function resolveApiKey(
 
   if (resolvedKey && cfg.param_name) {
     if (cfg.param_in === 'header') {
+      // 가능하면 헤더 주입을 선호한다 (URL에 키가 남지 않음).
       headers[cfg.param_name] = resolvedKey;
     } else {
+      // param_in='query': 업스트림 API가 쿼리 파라미터 인증만 지원하는 경우(예: 기상청/
+      // OpenWeather의 serviceKey·appid). 이 경우 키가 요청 URL에 포함되어 업스트림 서버의
+      // 액세스 로그에 남을 수 있다(쿼리 인증 API의 구조적 한계, 우리 측에서 제거 불가).
+      // 우리 측 방어: 이 URL은 fetch에만 사용되고 로깅/에러 메시지/응답 헤더로 노출되지 않는다
+      // (proxy 라우트에 targetUrl 로깅 없음 확인). 키는 복호화된 평문이므로 헤더 인증이
+      // 가능한 카탈로그 항목은 param_in='header'로 등록하는 것을 권장한다.
       targetUrl.searchParams.set(cfg.param_name, resolvedKey);
     }
   }

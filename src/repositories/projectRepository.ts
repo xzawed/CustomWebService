@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { BaseRepository } from './base/BaseRepository';
 import type { Project, ProjectMetadata } from '@/types/project';
 import type { IProjectRepository } from '@/repositories/interfaces';
+import { NotFoundError } from '@/lib/utils/errors';
 
 export class ProjectRepository extends BaseRepository<Project> implements IProjectRepository {
   constructor(supabase: SupabaseClient) {
@@ -86,6 +87,9 @@ export class ProjectRepository extends BaseRepository<Project> implements IProje
       .single();
 
     if (error) throw error;
+    // 방어적 가드: .single()은 0행이면 PGRST116 error를 내므로 정상적으로 data는 non-null이지만,
+    // findBySlug와 일관되게 null도 명시적으로 처리하여 toDomain(null) 런타임 크래시를 차단한다.
+    if (!data) throw new NotFoundError('프로젝트', id);
     return this.toDomain(data);
   }
 
