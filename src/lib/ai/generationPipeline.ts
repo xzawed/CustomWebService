@@ -188,7 +188,9 @@ async function resolveStage3(
       type: 'STAGE_SKIPPED',
       payload: { projectId, stage: 'stage3', reason: 'pre-stage3 quality sufficient (structuralScore>=80, mobileScore>=70, fetch present, no placeholder, stage2 unneeded)' },
     });
-    return { ...stage2Result, durationMs: 0, tokensUsed: { input: 0, output: 0 }, userPrompt: '' };
+    // userPrompt는 stage2Result의 값(실제 사용된 프롬프트)을 보존한다.
+    // (이전엔 ''로 덮어써 aiPromptUsed 메타데이터가 유실되어 어떤 프롬프트가 쓰였는지 추적 불가했음)
+    return { ...stage2Result, durationMs: 0, tokensUsed: { input: 0, output: 0 } };
   }
   try {
     return await runStage3(stage2Result.parsed, input.stage2SystemPrompt, input.buildStage2UserPrompt, aiProvider, sse, !needsStage2, abortSignal);
@@ -198,7 +200,8 @@ async function resolveStage3(
     eventBus.emit({ type: 'STAGE3_FALLBACK_USED', payload: { projectId, error: stage3ErrMsg } });
     sse.send('progress', { step: 'stage3_fallback', progress: 85, message: '디자인 적용 중 오류 — 기능 검증 버전으로 진행합니다.' });
     generationTracker.updateProgress(projectId, 85, 'stage3_fallback', '디자인 적용 중 오류 — 기능 검증 버전으로 진행합니다.');
-    return { ...stage2Result, durationMs: 0, tokensUsed: { input: 0, output: 0 }, userPrompt: '' };
+    // fallback 시에도 stage2Result.userPrompt를 보존 (위와 동일 사유)
+    return { ...stage2Result, durationMs: 0, tokensUsed: { input: 0, output: 0 } };
   }
 }
 

@@ -108,6 +108,20 @@ describe('pollGenerationStatus', () => {
     expect(deps.completeGeneration).not.toHaveBeenCalled();
   });
 
+  it("status: 'not_found'이면 프로젝트 미존재 메시지로 실패한다", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(makeRes({ data: { status: 'not_found' } }));
+    const deps = makeDeps({ fetchFn });
+
+    await pollGenerationStatus('p', deps);
+
+    expect(deps.failGeneration).toHaveBeenCalledTimes(1);
+    expect(deps.failGeneration).toHaveBeenCalledWith(
+      '프로젝트를 찾을 수 없습니다. 대시보드에서 확인해주세요.',
+    );
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(deps.completeGeneration).not.toHaveBeenCalled();
+  });
+
   it("completed인데 result가 없으면 'unknown'과 동일 처리 (동작 보존)", async () => {
     const fetchFn = vi.fn().mockResolvedValue(makeRes({ data: { status: 'completed' } }));
     const deps = makeDeps({ fetchFn });
