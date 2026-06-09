@@ -15,6 +15,21 @@ export default defineConfig({
     // 워커 percentage 캡은 저코어 CI를 직렬화시키므로, 머신 독립적인 타임아웃 마진으로 해소한다.
     testTimeout: 15_000,
     hookTimeout: 15_000,
+    // happy-dom 환경 옵션. PreviewFrame 등 iframe을 렌더하는 컴포넌트 테스트에서
+    // happy-dom이 iframe src(`/api/v1/preview/...` → localhost:3000)를 실제 로드 시도하며
+    // `DOMException NetworkError`를 로그에 다수 출력하던 노이즈를 차단한다. (타임아웃 원인은 아님)
+    // v20에서 `disableIframePageLoading`은 deprecated → `navigation.disableChildFrameNavigation` 사용.
+    // `disableFallbackToSetURL`(기본 false)은 유지되므로 iframe.src 속성은 그대로 반영되어
+    // PreviewFrame 테스트의 src 단언은 깨지지 않는다 (BrowserSettingsFactory deep-merge 확인됨).
+    environmentOptions: {
+      happyDOM: {
+        settings: {
+          navigation: {
+            disableChildFrameNavigation: true,
+          },
+        },
+      },
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],

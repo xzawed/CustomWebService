@@ -92,10 +92,14 @@ hookTimeout: 15_000,
 ## 후속 과제 (이번 범위 밖, 예방)
 
 - CI(2–4 vCPU + v8 coverage)에서 실제 타임아웃이 발생하는지 모니터링. 발생 위치(로컬 vs CI)에 따라
-  워커 전략 재검토.
+  워커 전략 재검토. **(미해결 — 운영 모니터링)**
 - vitest 4.1.8이 fork-pool 타임아웃 회귀 수정(PR #8705/#9027)을 포함하는지 미확정 — 추후 패치 시 확인.
-- 예방적 하드닝(별도 PR): MSW `onUnhandledRequest:'error'` + `/api/v1/preview` 핸들러,
-  `PreviewFrame` iframe `src` happy-dom 로드 노이즈 차단, `builder/page.tsx` `pollForCompletion`에
-  테스트가 생길 경우 fake timers + afterEach 언마운트.
-- `@/lib/config/providers`를 import하는 라우트를 테스트하면서 mock을 빠뜨린 다른 api 파일이 없는지
-  주기적 감사(현재는 이 2개만 누락이었음).
+  **(미해결 — 운영 모니터링)**
+- ✅ **완료** (브랜치 `test/test-flakiness-followups`): 예방적 하드닝 —
+  MSW `onUnhandledRequest:'error'` + `*/api/v1/preview`·`*/api/v1/generate/status` 핸들러 추가,
+  `PreviewFrame` iframe `src` happy-dom 로드 노이즈 차단(`navigation.disableChildFrameNavigation`),
+  `health.test.ts` cold-import 하드닝(api 라우트 테스트 16/16 일관). `builder/page.tsx`
+  `pollForCompletion` 가드는 해당 테스트가 생길 때 적용(현재 마운트 테스트 없어 무해). 상세:
+  [docs/superpowers/plans/2026-06-09-test-flakiness-followups.md](../superpowers/plans/2026-06-09-test-flakiness-followups.md)
+- ✅ **확인 완료**: `@/lib/config/providers`를 import하면서 mock을 빠뜨린 api 라우트 테스트 —
+  `health.test.ts`가 마지막 누락분이었고 이번에 해소. 현재 16/16 모두 차단 패턴 적용.
