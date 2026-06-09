@@ -40,7 +40,6 @@ vi.mock('@/lib/config/features', () => ({
     maxRegenerations: 5,
     contextMinLength: 50,
     contextMaxLength: 2000,
-    generationTimeoutMs: 120000,
   }),
 }));
 

@@ -13,6 +13,10 @@ export interface ApiKeyGuide {
   tips?: string[];
 }
 
+// 가이드에 노출되는 게시 도메인은 배포 환경에 따라 다르므로 NEXT_PUBLIC_APP_URL을 사용한다
+// (sitemap.ts·adminAuth.ts와 동일한 env+폴백 패턴). 하드코딩 시 self-host/테스트 도메인에서 오안내됨.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://xzawed.xyz';
+
 /**
  * API 이름 → 발급 가이드 매핑
  * 비개발자(노인 포함)도 이해할 수 있도록 최대한 쉬운 표현 사용
@@ -264,8 +268,7 @@ const GUIDES: Record<string, ApiKeyGuide> = {
       },
       {
         title: '2단계: 애플리케이션 등록',
-        description:
-          '로그인 후 [Application 등록] 화면에서 애플리케이션 이름을 입력하고, "사용 API" 목록에서 [Maps]를 선택하세요. 그 아래 서비스 URL에 https://xzawed.xyz 를 입력하고 [등록하기]를 클릭하세요.',
+        description: `로그인 후 [Application 등록] 화면에서 애플리케이션 이름을 입력하고, "사용 API" 목록에서 [Maps]를 선택하세요. 그 아래 서비스 URL에 ${APP_URL} 를 입력하고 [등록하기]를 클릭하세요.`,
       },
       {
         title: '3단계: Client ID 복사',
