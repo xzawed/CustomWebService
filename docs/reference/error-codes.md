@@ -83,8 +83,8 @@ export async function POST(request: Request): Promise<Response> {
 // 성공
 { "success": true, "data": T }
 
-// 실패  
-{ "success": false, "error": "에러 메시지" }
+// 실패 (handleApiError() 표준 형식 — error는 객체)
+{ "success": false, "error": { "code": "ERROR_CODE", "message": "..." } }
 ```
 
-> **참고:** `handleApiError()`는 에러 응답을 `{ "success": false, "error": { "code": "ERROR_CODE", "message": "..." } }` 형태로 반환합니다. `jsonResponse()` 유틸리티는 항상 `Content-Type: application/json; charset=utf-8` 헤더를 포함합니다.
+> **참고:** `handleApiError()`(`src/lib/utils/errors.ts`)는 모든 에러를 위 객체 형식(`error.code` + `error.message`)으로 반환합니다. 위 "Route Handler 에러 처리 패턴"의 수동 `catch` 예시는 `error: error.message`(문자열)를 사용하는 레거시 패턴이므로, 신규 라우트는 `handleApiError(error)` 사용을 권장합니다. `jsonResponse()` 유틸리티는 항상 `Content-Type: application/json; charset=utf-8` 헤더를 포함합니다.

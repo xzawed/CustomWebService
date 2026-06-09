@@ -1,6 +1,6 @@
 # 시스템 아키텍처
 
-> **최종 업데이트:** 2026-05-05  
+> **최종 업데이트:** 2026-06-09  
 > **구현 상태:** 운영 중 (2026-06-09 기준 Vitest 목록 1,837개, Playwright 목록 33개)
 
 ---
@@ -42,9 +42,10 @@
 ┌────────────────────────────────────────────────────────────────┐
 │                   Service Layer (비즈니스 로직)                   │
 │                                                                │
-│   CatalogService   ProjectService   GenerationService          │
-│   DeployService    AuthService      GalleryService             │
-│   RateLimitService                                              │
+│   CatalogService   ProjectService                              │
+│   DeployService    RateLimitService                            │
+│   (인증 = src/lib/auth/, 생성 오케스트레이션 = generationPipeline.ts │
+│    — 서비스 클래스 아님)                                          │
 │                                                                │
 │   ┌─────────────────────────────────────────────────────────┐  │
 │   │ EventBus (도메인 이벤트 발행/구독)                         │  │
@@ -102,7 +103,7 @@ src/
 │   │   ├── builder/page.tsx
 │   │   ├── dashboard/page.tsx
 │   │   └── preview/[id]/page.tsx
-│   ├── api/v1/                   # API Routes (v1 버저닝)
+│   ├── api/v1/                   # API Routes (v1 버저닝, route.ts 25개 — 전체 목록은 docs/reference/api-endpoints.md 참조)
 │   │   ├── catalog/
 │   │   │   ├── route.ts          # GET /api/v1/catalog
 │   │   │   ├── [id]/route.ts
@@ -137,19 +138,24 @@ src/
 │   └── page.tsx                  # 랜딩 페이지
 │
 ├── __tests__/                    # 통합 테스트
-│   └── api/                      # API Route 통합 테스트 (13파일)
+│   └── api/                      # API Route 통합 테스트 (18파일)
 │       ├── health.test.ts
+│       ├── catalog.test.ts
 │       ├── projects.test.ts
 │       ├── generate.test.ts
 │       ├── preview.test.ts
 │       ├── proxy.test.ts
+│       ├── site.test.ts
 │       ├── admin.test.ts
+│       ├── admin-debug.test.ts
+│       ├── admin-test-generation.test.ts
 │       ├── deploy.test.ts
 │       ├── projects-publish.test.ts
 │       ├── projects-rollback.test.ts
 │       ├── projects-slug-check.test.ts
 │       ├── suggest-apis.test.ts
 │       ├── suggest-context.test.ts
+│       ├── suggest-modification.test.ts
 │       └── suggest-preferences.test.ts
 │
 ├── test/                         # 테스트 유틸리티
@@ -196,15 +202,14 @@ src/
 │   ├── deployStore.ts            # 배포 상태
 │   └── authStore.ts              # 인증 상태
 │
-├── services/                     # Service Layer (비즈니스 로직)
+├── services/                     # Service Layer (비즈니스 로직 — 실제 4개 서비스)
 │   ├── factory.ts                # createProjectService, createCatalogService 등 팩토리 함수
 │   ├── catalogService.ts
 │   ├── projectService.ts
-│   ├── generationService.ts
 │   ├── deployService.ts
-│   ├── galleryService.ts
-│   ├── rateLimitService.ts
-│   └── authService.ts            # 인증/사용자 관리 (첫 로그인 시 users 레코드 생성)
+│   └── rateLimitService.ts
+│   # 인증 = src/lib/auth/ (getAuthUser 등), 생성 오케스트레이션 = src/lib/ai/generationPipeline.ts
+│   # — 둘 다 services/ 의 서비스 클래스가 아님
 │
 ├── repositories/                 # Repository Layer (데이터 접근)
 │   ├── interfaces/               # 9개 Repository 인터페이스 (IProjectRepository 등)
