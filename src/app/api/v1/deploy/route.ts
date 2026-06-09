@@ -5,7 +5,7 @@ import { createDeployService } from '@/services/factory';
 import { createRateLimitRepository } from '@/repositories/factory';
 import type { DeployPlatform } from '@/providers/deploy/DeployProviderFactory';
 import { eventBus } from '@/lib/events/eventBus';
-import { AuthRequiredError, RateLimitError, ValidationError, handleApiError } from '@/lib/utils/errors';
+import { AppError, AuthRequiredError, RateLimitError, ValidationError, handleApiError } from '@/lib/utils/errors';
 import { logger } from '@/lib/utils/logger';
 import { getLimits } from '@/lib/config/features';
 import { deploySchema } from '@/types/schemas';
@@ -81,6 +81,10 @@ export async function POST(request: Request): Promise<Response> {
             error: error instanceof Error ? error.message : 'Unknown',
           });
 
+          // 배포가 실패했으므로 이미 증가시킨 일일 배포 카운터를 환불한다(best-effort).
+          // generate 라우트의 decrementDailyLimit 보상 패턴과 동일. 실패해도 무시.
+          await rateLimitRepo.decrementDailyDeployLimit(user.id).catch(() => {});
+
           eventBus.emit({
             type: 'DEPLOYMENT_FAILED',
             payload: {
@@ -89,8 +93,11 @@ export async function POST(request: Request): Promise<Response> {
             },
           });
 
+          // 사용자에게는 안전한 메시지만 노출한다. AppError(검증/권한 등 사용자 대상 에러)는
+          // 메시지를 그대로 쓰고, 그 외(배포 프로바이더의 내부 에러: projectId·repo 경로 등 포함)는
+          // 일반 문구로 마스킹하여 내부 구현 정보 노출을 차단한다. 내부 상세는 위 logger에만 기록됨.
           send('error', {
-            message: error instanceof Error ? error.message : '배포에 실패했습니다.',
+            message: error instanceof AppError ? error.message : '배포 중 오류가 발생했습니다.',
           });
         } finally {
           controller.close();

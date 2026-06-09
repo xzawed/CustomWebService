@@ -203,6 +203,7 @@ describe('POST /api/v1/deploy', () => {
     const { createRateLimitRepository } = await import('@/repositories/factory');
     vi.mocked(createRateLimitRepository).mockReturnValue({
       checkAndIncrementDailyDeployLimit: vi.fn().mockResolvedValue(true),
+      decrementDailyDeployLimit: vi.fn().mockResolvedValue(undefined),
     } as never);
 
     const { createDeployService } = await import('@/services/factory');
@@ -221,5 +222,77 @@ describe('POST /api/v1/deploy', () => {
     expect(vi.mocked(eventBus.emit)).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'DEPLOYMENT_FAILED' })
     );
+  });
+
+  it('배포 실패 시 일일 배포 카운터를 환불(decrement)한다', async () => {
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+    const decrementMock = vi.fn().mockResolvedValue(undefined);
+    const { createRateLimitRepository } = await import('@/repositories/factory');
+    vi.mocked(createRateLimitRepository).mockReturnValue({
+      checkAndIncrementDailyDeployLimit: vi.fn().mockResolvedValue(true),
+      decrementDailyDeployLimit: decrementMock,
+    } as never);
+
+    const { createDeployService } = await import('@/services/factory');
+    vi.mocked(createDeployService).mockReturnValue({
+      deploy: vi.fn().mockRejectedValue(new Error('Repo not found for project: secret-proj')),
+    } as never);
+
+    const { POST } = await import('@/app/api/v1/deploy/route');
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111', platform: 'railway' }));
+    await readSseText(response);
+
+    expect(decrementMock).toHaveBeenCalledWith('user-1');
+  });
+
+  it('배포 실패 시 내부 에러 메시지(프로바이더 원문)를 클라이언트에 노출하지 않는다', async () => {
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+    const { createRateLimitRepository } = await import('@/repositories/factory');
+    vi.mocked(createRateLimitRepository).mockReturnValue({
+      checkAndIncrementDailyDeployLimit: vi.fn().mockResolvedValue(true),
+      decrementDailyDeployLimit: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    const { createDeployService } = await import('@/services/factory');
+    vi.mocked(createDeployService).mockReturnValue({
+      deploy: vi.fn().mockRejectedValue(new Error('Repo not found for project: secret-proj-id')),
+    } as never);
+
+    const { POST } = await import('@/app/api/v1/deploy/route');
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111', platform: 'railway' }));
+    const text = await readSseText(response);
+
+    expect(text).toContain('event: error');
+    // 내부 구현 정보(repo 경로/projectId)는 마스킹되어야 함
+    expect(text).not.toContain('secret-proj-id');
+    expect(text).not.toContain('Repo not found');
+    expect(text).toContain('배포 중 오류가 발생했습니다');
+  });
+
+  it('AppError(사용자 대상 에러)는 메시지를 그대로 노출한다', async () => {
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+    const { createRateLimitRepository } = await import('@/repositories/factory');
+    vi.mocked(createRateLimitRepository).mockReturnValue({
+      checkAndIncrementDailyDeployLimit: vi.fn().mockResolvedValue(true),
+      decrementDailyDeployLimit: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    const { ValidationError } = await import('@/lib/utils/errors');
+    const { createDeployService } = await import('@/services/factory');
+    vi.mocked(createDeployService).mockReturnValue({
+      deploy: vi.fn().mockRejectedValue(new ValidationError('게시된 코드가 없습니다.')),
+    } as never);
+
+    const { POST } = await import('@/app/api/v1/deploy/route');
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111', platform: 'railway' }));
+    const text = await readSseText(response);
+
+    expect(text).toContain('게시된 코드가 없습니다.');
   });
 });
