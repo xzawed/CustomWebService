@@ -62,16 +62,18 @@ src/
 ```bash
 pnpm dev              # 개발 서버 (Turbopack)
 pnpm build            # 프로덕션 빌드
-pnpm lint             # ESLint 검사
+pnpm lint             # ESLint 검사 (CI 게이트)
 pnpm lint:fix         # ESLint 자동 수정
-pnpm type-check       # TypeScript 타입 검사
-pnpm format           # Prettier 포맷팅
-pnpm format:check     # 포맷 검사
-pnpm test             # 전체 테스트
-pnpm test:unit        # 단위 테스트 (lib, providers)
-pnpm test:integration # 통합 테스트 (API routes)
+pnpm type-check       # TypeScript 타입 검사 (CI 게이트)
+pnpm test             # 전체 테스트 (CI는 test:coverage로 전체 실행)
+pnpm test:unit        # 단위 테스트 (lib, providers, services, repositories)
+pnpm test:integration # 통합 테스트 (API routes — src/__tests__/api + src/app/api)
 pnpm test:coverage    # 커버리지 리포트
+pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요, CI에서 실행)
 ```
+
+> 포맷팅은 ESLint 규칙으로 통합 관리한다. `prettier`는 의존성에 없으며 `format`/`format:check`
+> 스크립트는 제거됨(2026-06-09 감사). 포맷은 `pnpm lint`/`lint:fix`로 처리.
 
 ## 코딩 컨벤션
 
@@ -154,6 +156,7 @@ pnpm test:coverage    # 커버리지 리포트
 | 보안 감사 발견 항목 수정 ADR (C-1·H-2~H-11, PR #129·#131, 2026-05-23) | [docs/decisions/2026-05-23-security-audit-findings.md](docs/decisions/2026-05-23-security-audit-findings.md) |
 | Vitest full-suite 플래키 타임아웃 해소 ADR (config/providers mock + testTimeout, 2026-06-09) | [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md) |
 | 테스트 플래키 타임아웃 잔여·후속 작업 핸드오프 (항목 1·2·3·4·6 완료, 5는 상시 모니터링, 2026-06-09) | [docs/superpowers/plans/2026-06-09-test-flakiness-followups.md](docs/superpowers/plans/2026-06-09-test-flakiness-followups.md) |
+| 서비스 종합 건강 감사 및 발견 16건 수정 ADR (2026-06-09) | [docs/decisions/2026-06-09-service-health-audit-fixes.md](docs/decisions/2026-06-09-service-health-audit-fixes.md) |
 
 - [README.md](README.md) — 프로젝트 전체 개요
 - [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) — PR 템플릿
@@ -226,6 +229,9 @@ pnpm test:coverage    # 커버리지 리포트
 - **SonarCloud vs Codecov 지표 불일치**: Codecov/Vitest는 `vitest.config.ts`의 `coverage.include` 범위(`src/lib/**`, `src/services/**`, `src/providers/**`, `src/repositories/**`, `src/components/**`)를 측정. SonarCloud는 전체 TypeScript를 더 넓게 측정할 수 있어 두 숫자는 구조적으로 차이가 날 수 있으며, 단순 설정 오류로 단정하지 않는다.
 - **temperature deprecated (Claude 4.x)**: Claude 4.x 모델(`claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`)은 `temperature` 파라미터를 지원하지 않음. ClaudeProvider에서 완전히 제거됨 (Extended Thinking 포함). `IAiPrompt.temperature` 필드는 legacy 호환용으로 유지하나 실제 API 호출에 사용하지 않음
 - **인메모리 rate limit 한계**: proxy의 Map 기반 리밋은 서버 재시작 시 초기화됨 (분당 카운터라 보안 영향 낮음). Railway 단일 인스턴스 전제 — 멀티 인스턴스 전환 시 Redis 등 외부 저장소 필요 (generationTracker와 동일 제약)
+- **배포 레이트리밋 환불은 migration 021 필요**: 배포 실패 시 `decrement_daily_deploy` PG 함수(migration `021_deploy_rate_limit_decrement.sql`)로 일일 배포 카운터를 환불한다. **Supabase에 021을 적용해야 동작**하며, 미적용 시 환불 호출은 best-effort로 무시되어 안전(에러 swallow). generate의 `decrement_daily_generation`(migration 007)과 동일 보상 패턴
+- **생성 상태 폴링 `not_found` 처리**: `/api/v1/generate/status`는 프로젝트 미존재·권한 없음 시 `status: 'not_found'`를 반환한다. `pollGenerationStatus`의 `GenerationStatusData.status` union에 `'not_found'`가 포함되어야 하며(누락 시 'unknown'으로 오처리되어 잘못된 사용자 메시지 표시), 전용 핸들러로 "프로젝트를 찾을 수 없습니다" 메시지를 낸다
+- **레이트리밋 우회 로깅**: `RATE_LIMIT_BYPASS_USER_IDS` 우회 적용 시 `logger.info('Rate limit bypass applied', ...)` 감사 로그를 남긴다(무로깅 우회는 운영 사각지대)
 
 ## 세션 시작 체크리스트 (필수)
 
