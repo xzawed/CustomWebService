@@ -114,6 +114,18 @@ describe('ProjectService.create()', () => {
     ).rejects.toThrow(ValidationError);
   });
 
+  it('insertProjectApis 실패 시 생성된 project를 삭제하고 에러를 전파한다 (고아 방지)', async () => {
+    (projectRepo.delete as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (projectRepo.insertProjectApis as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('API 연결 실패')
+    );
+
+    await expect(service.create('user-1', validInput)).rejects.toThrow('API 연결 실패');
+
+    // Supabase 비트랜잭션 → 부분 실패 시 best-effort로 고아 project 삭제
+    expect(projectRepo.delete).toHaveBeenCalledWith('proj-1');
+  });
+
   it('프로젝트가 20개 이상이면 ValidationError를 던진다', async () => {
     (projectRepo.findByUserId as ReturnType<typeof vi.fn>).mockResolvedValue(Array(20).fill({ id: 'p' }));
     await expect(service.create('user-1', validInput)).rejects.toThrow(ValidationError);

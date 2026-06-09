@@ -278,16 +278,18 @@ async function runLlmRetryIteration(
   const { systemPrompt, userFeedback, aiProvider, iterationTimeoutMs, useET, projectId, attempt } = options;
   try {
     const improvementPrompt = buildQualityImprovementPrompt(state.parsed, state.quality, state.qcReport, userFeedback);
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(
         () => reject(new Error(`Quality loop iteration timed out after ${iterationTimeoutMs}ms`)),
         iterationTimeoutMs,
-      )
-    );
+      );
+    });
+    // race 종료 후 타이머를 정리한다. 성공 시에도 타이머가 만료(최대 200초)까지 살아남던 누수 차단.
     const retryResponse = await Promise.race([
       aiProvider.generateCode({ system: systemPrompt, user: improvementPrompt, extendedThinking: useET }),
       timeoutPromise,
-    ]);
+    ]).finally(() => clearTimeout(timeoutId));
     const retryParsed = parseGeneratedCode(retryResponse.content);
 
     if (!retryParsed.html) {

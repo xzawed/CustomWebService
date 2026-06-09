@@ -130,6 +130,18 @@ describe('browserPool', () => {
       expect(chromiumLaunchMock).toHaveBeenCalledTimes(1);
       expect(mockBrowser.newContext).toHaveBeenCalledTimes(2);
     });
+
+    it('동시 첫 호출 시 브라우저를 한 번만 실행한다 (launch 경쟁 제거)', async () => {
+      process.env.ENABLE_RENDERING_QC = 'true';
+      const { getPage } = await importBrowserPool();
+
+      // 두 호출을 동시에 시작 — 공유 launch promise가 없으면 각자 chromium.launch()를 실행해 두 번 호출됨
+      const [page1, page2] = await Promise.all([getPage(), getPage()]);
+
+      expect(page1).toBe(mockPage);
+      expect(page2).toBe(mockPage);
+      expect(chromiumLaunchMock).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('releasePage()', () => {

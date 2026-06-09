@@ -45,6 +45,19 @@ function releaseSemaphore(): void {
 // --- Browser singleton ---
 
 let browserInstance: Browser | null = null;
+// 동시 첫 호출이 각자 chromium.launch()를 실행해 여러 브라우저를 띄우고 싱글톤 참조를 덮어쓰며
+// 하나를 누수시키는 경쟁을 막기 위해, 진행 중인 launch promise를 공유한다.
+let browserLaunchPromise: Promise<Browser> | null = null;
+
+async function launchChromium(): Promise<Browser> {
+  logger.info('[QC] Launching Chromium browser');
+  const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  return chromium.launch({
+    headless: true,
+    ...(executablePath && { executablePath }),
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+  });
+}
 
 async function getBrowser(): Promise<Browser | null> {
   if (!isQcEnabled()) return null;
@@ -69,13 +82,11 @@ async function getBrowser(): Promise<Browser | null> {
       browserInstance = null;
     }
 
-    logger.info('[QC] Launching Chromium browser');
-    const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
-    browserInstance = await chromium.launch({
-      headless: true,
-      ...(executablePath && { executablePath }),
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+    // 진행 중인 launch가 있으면 그 promise를 공유(중복 실행 방지). 실패 시 promise를 비워 재시도 허용.
+    browserLaunchPromise ??= launchChromium().finally(() => {
+      browserLaunchPromise = null;
     });
+    browserInstance = await browserLaunchPromise;
     return browserInstance;
   } catch (err) {
     logger.error('[QC] Failed to launch browser', {

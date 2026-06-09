@@ -39,13 +39,16 @@ function useSupabaseAuth() {
   useEffect(() => {
     if (!supabase) return; // not in supabase mode
 
-    // Get initial session
+    // Get initial session. rejection 핸들러가 없으면 스토리지/클라이언트 실패 시 unhandled
+    // rejection이 발생하고 인증 상태가 미결로 남는다 → catch로 null 처리하여 항상 최종화.
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(mapSupabaseUser(session.user));
       } else {
         setUser(null);
       }
+    }).catch(() => {
+      setUser(null);
     });
 
     // Listen for auth changes
