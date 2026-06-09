@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ICatalogRepository } from '@/repositories/interfaces';
 
 // Supabase 서버 클라이언트 mock
 vi.mock('@/lib/supabase/server', () => ({
@@ -6,23 +7,48 @@ vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(),
 }));
 
-/** DB 쿼리 체인 전체를 지원하는 mock 팩토리 */
-function makeDbMock(dbError: Error | null = null) {
-  const queryChain = {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    gte: vi.fn().mockReturnThis(),
-    single: vi.fn().mockResolvedValue({ error: dbError, count: 5 }),
-  };
-  // count 쿼리도 지원
-  Object.assign(queryChain.select.mockReturnValue(queryChain), {});
-  queryChain.select.mockReturnValue({ ...queryChain, error: dbError, count: 5 });
+// pg/drizzle cold-import 차단 — health/route.ts는 세 경로로 native 그래프를 끌어온다:
+//   1. getDbProvider     → @/lib/config/providers → @/lib/db/failover(pg)
+//   2. getFailoverStatus → @/lib/db/failover(pg) 직접
+//   3. createCatalogRepository → @/repositories/factory → @/lib/db/connection(drizzle) + @/repositories/drizzle
+// 형제 api 테스트 11개와 동일하게 근원에서 절단하여 병렬 full-suite 경합 시 cold-import
+// 타임아웃 위험을 제거한다. 상세: docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md
+vi.mock('@/lib/config/providers', () => ({
+  getDbProvider: vi.fn().mockReturnValue('supabase'),
+}));
+vi.mock('@/lib/db/failover', () => ({
+  getFailoverStatus: vi.fn().mockReturnValue({
+    state: 'normal',
+    consecutiveFailures: 0,
+    lastTripTime: null,
+    enabled: true,
+  }),
+}));
+vi.mock('@/repositories/factory', () => ({
+  createCatalogRepository: vi.fn(),
+}));
 
+/**
+ * catalog 리포지토리 mock. route는 `repo.ping()`과 `repo.getUsageCounts(today)`만 사용한다.
+ * @param ping - ping() 반환값 (DB 연결 정상 여부)
+ */
+function makeCatalogRepo(ping = true): ICatalogRepository {
   return {
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockResolvedValue({ error: dbError, count: 5 }),
+    ping: vi.fn().mockResolvedValue(ping),
+    getUsageCounts: vi.fn().mockResolvedValue({
+      todayGenerations: 5,
+      totalProjects: 10,
+      totalUsers: 3,
     }),
-  };
+  } as unknown as ICatalogRepository;
+}
+
+/** ping()이 reject되는 catalog 리포지토리 mock (DB 예외 시뮬레이션). */
+function makeFailingCatalogRepo(error: Error): ICatalogRepository {
+  return {
+    ping: vi.fn().mockRejectedValue(error),
+    getUsageCounts: vi.fn(),
+  } as unknown as ICatalogRepository;
 }
 
 const TEST_ADMIN_KEY = 'test-admin-key-12345';
@@ -57,8 +83,8 @@ describe('GET /api/v1/health', () => {
   });
 
   it('DB 연결 정상 시 healthy 또는 degraded 상태를 반환한다', async () => {
-    const { createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createServiceClient).mockResolvedValue(makeDbMock() as never);
+    const { createCatalogRepository } = await import('@/repositories/factory');
+    vi.mocked(createCatalogRepository).mockReturnValue(makeCatalogRepo(true));
 
     const { GET } = await import('@/app/api/v1/health/route');
     const response = await GET(makeDetailedRequest());
@@ -75,8 +101,8 @@ describe('GET /api/v1/health', () => {
   });
 
   it('DB 연결 실패 시 unhealthy 상태를 반환한다', async () => {
-    const { createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createServiceClient).mockResolvedValue(makeDbMock(new Error('connection failed')) as never);
+    const { createCatalogRepository } = await import('@/repositories/factory');
+    vi.mocked(createCatalogRepository).mockReturnValue(makeCatalogRepo(false));
 
     const { GET } = await import('@/app/api/v1/health/route');
     const response = await GET(makeDetailedRequest());
@@ -87,8 +113,12 @@ describe('GET /api/v1/health', () => {
   });
 
   it('DB 예외 발생 시 unhealthy 상태를 반환한다', async () => {
-    const { createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createServiceClient).mockRejectedValue(new Error('cannot connect'));
+    // repo.ping()이 throw → route의 외부 try/catch가 잡아 database=error 처리.
+    // (createServiceClient를 건드리지 않아 detailed 테스트 간 mock 구현 누출이 없다.)
+    const { createCatalogRepository } = await import('@/repositories/factory');
+    vi.mocked(createCatalogRepository).mockReturnValue(
+      makeFailingCatalogRepo(new Error('cannot connect')),
+    );
 
     const { GET } = await import('@/app/api/v1/health/route');
     const response = await GET(makeDetailedRequest());
@@ -99,8 +129,8 @@ describe('GET /api/v1/health', () => {
   });
 
   it('응답에 usage 필드가 포함된다', async () => {
-    const { createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createServiceClient).mockResolvedValue(makeDbMock() as never);
+    const { createCatalogRepository } = await import('@/repositories/factory');
+    vi.mocked(createCatalogRepository).mockReturnValue(makeCatalogRepo(true));
 
     const { GET } = await import('@/app/api/v1/health/route');
     const response = await GET(makeDetailedRequest());

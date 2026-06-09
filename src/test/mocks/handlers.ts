@@ -1,6 +1,17 @@
 import { http, HttpResponse } from 'msw';
 
 export const handlers = [
+  // 자동 fetch를 내는 컴포넌트 테스트(예: 미래의 PreviewFrame iframe·폴링)가 MSW에 도달할 때
+  // onUnhandledRequest:'error'로 빨갛게 죽지 않도록 안전한 기본 응답을 제공한다.
+  // 현재 어떤 테스트도 이 경로를 실제로 타지 않으며, 향후 추가될 때를 위한 예방적 핸들러다.
+  // (origin은 happy-dom 기본 http://localhost:3000 — 와일드카드 `*`로 매칭)
+  http.get('*/api/v1/preview/:projectId', () =>
+    HttpResponse.html('<!DOCTYPE html><html lang="ko"><body>preview</body></html>'),
+  ),
+  http.get('*/api/v1/generate/status/:projectId', ({ params }) =>
+    HttpResponse.json({ projectId: params.projectId, status: 'completed' }),
+  ),
+
   // Anthropic Claude API mock
   http.post('https://api.anthropic.com/v1/messages', () => {
     return HttpResponse.json({

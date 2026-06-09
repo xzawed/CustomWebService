@@ -1,8 +1,18 @@
 # 테스트 플래키 타임아웃 — 잔여·후속 작업 핸드오프
 
 - 날짜: 2026-06-09
-- 상태: 다음 세션 인계용 (이번 세션은 PR #139까지 완료)
+- 상태: **예방 항목 1·2·3 완료** (브랜치 `test/test-flakiness-followups`) — 항목 4·5·6만 잔존
 - 선행 ADR: [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](../../decisions/2026-06-09-test-flaky-timeout-contention-fix.md)
+
+## 이 브랜치(`test/test-flakiness-followups`)에서 완료된 것
+
+| # | 작업 | 결과 |
+|---|------|------|
+| 1 | `health.test.ts` cold-import 하드닝 | `@/lib/config/providers`·`@/lib/db/failover`·`@/repositories/factory` mock 3개 추가 + detailed 테스트를 `createCatalogRepository` wiring으로 재작성. **import 330ms → 25ms**, 5/5 통과. api 라우트 테스트 16/16 모두 native 그래프 차단 일관 달성 |
+| 2 | `NetworkError`/`DOMException` 로그 flood 차단 | `vitest.config.ts`에 `environmentOptions.happyDOM.settings.navigation.disableChildFrameNavigation = true` 추가 (v20에서 `disableIframePageLoading`은 deprecated). `disableFallbackToSetURL`(기본 false) 보존으로 `iframe.src` 단언 무영향. full-suite 노이즈 0건 |
+| 3 | MSW `onUnhandledRequest:'warn' → 'error'` + 핸들러 | `src/test/setup.ts` 전환 + `handlers.ts`에 `*/api/v1/preview/:id`·`*/api/v1/generate/status/:projectId` 예방 핸들러 추가. 전체 1776 테스트 통과(신규 실패 0건) |
+
+검증: 전체 스위트 3회 연속 green(138 파일 / 1776 테스트), 노이즈 0건, `type-check`·`lint` 통과.
 
 ## 이번 세션에서 완료된 것 (PR #139, main 머지됨)
 
@@ -15,9 +25,15 @@
 
 ## 잔여 작업
 
-### 1. `health.test.ts` cold-import 하드닝 — 우선순위: 낮음
+### 1. `health.test.ts` cold-import 하드닝 — ✅ 완료 (이 브랜치)
 
-**현황**: api 라우트를 import하는 테스트 16개 중 `health.test.ts`만 무거운 그래프를 차단하는
+> 아래 분석대로 mock 3개 + `createCatalogRepository` wiring으로 구현 완료. 실제 구현 시
+> `vi.clearAllMocks()`가 **구현은 유지**(호출 이력만 초기화)하는 점 때문에 "DB 예외" 테스트의
+> `createServiceClient.mockRejectedValue`가 다음 테스트로 누출되는 함정이 있었다 → DB 예외를
+> `createServiceClient` 거부 대신 **`repo.ping()` 거부**로 구동하여 모든 detailed 테스트가
+> `createCatalogRepository` 하나로만 동작하도록 통일해 해소했다.
+
+**현황(당시)**: api 라우트를 import하는 테스트 16개 중 `health.test.ts`만 무거운 그래프를 차단하는
 mock이 없다. R0-only 검증 단계에서 **실제로 타임아웃 희생자로 등장**했던 파일이다. 현재는 R1의
 15s 마진이 커버하므로 **활성 실패는 아니다** — 일관성/속도 차원의 심층 방어 항목.
 
@@ -57,9 +73,15 @@ mock 반환값을 명시적으로 wiring해야 한다(현재는 `createServiceCl
 **대안**: 굳이 손대지 않아도 R1 마진으로 안전하다. 일관성을 위해서만 적용. (참고: 형제 api 테스트
 11개는 `@/lib/config/providers` + `@/repositories/factory`를 함께 모킹하는 패턴)
 
-### 2. `NetworkError` 로그 flood 차단 — 우선순위: 낮음 (노이즈)
+### 2. `NetworkError` 로그 flood 차단 — ✅ 완료 (이 브랜치)
 
-**현황**: full-suite 로그에 `DOMException NetworkError: fetch … http://localhost:3000/api/v1/preview/proj-1?t=…`가
+> 아래 "택1" 중 **happy-dom 설정 비활성화**로 구현. v20에서 `disableIframePageLoading`은
+> deprecated → `navigation.disableChildFrameNavigation = true` 사용. `vitest.config.ts`의
+> `environmentOptions.happyDOM.settings`로 전역 적용. (BrowserSettingsFactory가 navigation을
+> deep-merge하므로 `disableFallbackToSetURL: false` 기본값이 보존되어 `iframe.src` 속성은
+> 그대로 반영 → PreviewFrame src 단언 무영향.)
+
+**현황(당시)**: full-suite 로그에 `DOMException NetworkError: fetch … http://localhost:3000/api/v1/preview/proj-1?t=…`가
 다수 출력된다. **타임아웃 원인 아님** — [PreviewFrame.tsx:83-85](../../../src/components/builder/PreviewFrame.tsx)의
 `<iframe src={previewUrl}>`(`previewUrl = /api/v1/preview/${projectId}?t=…`)를 happy-dom이 로드 시도하면서
 발생. [PreviewFrame.test.tsx](../../../src/components/builder/PreviewFrame.test.tsx)가
@@ -73,9 +95,14 @@ mock 반환값을 명시적으로 wiring해야 한다(현재는 `createServiceCl
 
 **검증**: full-suite 로그에 `NetworkError`/`preview` fetch 메시지 0건.
 
-### 3. MSW `onUnhandledRequest: 'warn' → 'error'` + 핸들러 — 우선순위: 낮음 (예방)
+### 3. MSW `onUnhandledRequest: 'warn' → 'error'` + 핸들러 — ✅ 완료 (이 브랜치)
 
-**현황**: [src/test/setup.ts:4](../../../src/test/setup.ts)가 `'warn'`. 현재는 어떤 테스트도 MSW에
+> `'error'` 전환 + `handlers.ts`에 `*/api/v1/preview/:projectId`(HTML),
+> `*/api/v1/generate/status/:projectId`(JSON) 예방 핸들러 추가. 전체 1776 테스트 통과 →
+> 현재 MSW 미처리 요청을 내는 테스트가 없음을 실측 확인(아래 caveat대로 항상 빨갛게 죽지는
+> 않으므로, 전체 통과는 "미처리 요청 부재"의 충분 증거는 아니나 회귀 없음은 확정).
+
+**현황(당시)**: [src/test/setup.ts:4](../../../src/test/setup.ts)가 `'warn'`. 현재는 어떤 테스트도 MSW에
 도달하는 미처리 요청을 내지 않지만(모두 stub/직접 호출), 미래에 자동 fetch 컴포넌트 테스트가
 추가되면 무성히 행(hang)으로 빠질 수 있다.
 
@@ -105,9 +132,8 @@ fork-pool 타임아웃 회귀(이슈 #8766/#8968)는 PR #8705/#9027로 부분 �
 
 ## 권장 실행 순서 (다음 세션)
 
-1. (선택) 1번 `health.test.ts` 하드닝 — 작지만 mock 3개 + repo wiring 필요, R1이 이미 커버하므로 급하지 않음.
-2. (선택) 2번 NetworkError flood 차단 — 로그 가독성 개선. 3번 MSW 전환과 묶어 한 PR로.
-3. 4번은 builder/page.tsx 테스트를 **실제로 작성할 때** 함께.
-4. 5·6번은 운영 모니터링 — 코드 변경 트리거 시에만.
+- ~~1·2·3번~~ → ✅ 브랜치 `test/test-flakiness-followups`에서 완료 (위 표 참조).
+1. 4번은 builder/page.tsx 테스트를 **실제로 작성할 때** 함께 (현재 마운트 테스트 없어 무해).
+2. 5·6번은 운영 모니터링 — 코드 변경 트리거 시에만.
 
-모두 **활성 버그가 아닌 예방/일관성** 항목이다. 우선순위 낮음 — 다른 기능 작업과 함께 묶어 처리해도 무방.
+남은 항목(4·5·6)도 **활성 버그가 아닌 예방/모니터링** 항목이다. 우선순위 낮음 — 다른 기능 작업과 함께 묶어 처리해도 무방.
