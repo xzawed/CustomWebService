@@ -38,6 +38,7 @@ export default defineConfig({
         'src/app/**/login/page.tsx',
         'src/app/layout.tsx',
         'src/app/api/v1/admin/**/route.ts',
+        'src/app/api/v1/deploy/route.ts',
         'src/app/api/v1/generate/route.ts',
         'src/app/api/v1/proxy/route.ts',
         'src/app/api/v1/suggest-context/route.ts',
