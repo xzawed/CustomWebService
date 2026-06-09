@@ -31,8 +31,12 @@ export async function POST(request: Request): Promise<Response> {
 
     const provider = getDbProvider();
     const limits = getLimits();
-    const supabaseForLimit = provider === 'supabase' ? await createClient() : undefined;
-    const rateLimitRepo = createRateLimitRepository(supabaseForLimit);
+    // 단일 Supabase 클라이언트를 레이트리밋·배포에 공유한다. createClient() 실패가 카운터 증가
+    // '이전'에만 발생하도록 하여 증가 후 환불 누락 창을 구조적으로 제거한다.
+    // (이전엔 증가 후 두 번째 createClient()가 throw하면 stream 밖에서 500이 나면서 환불 catch를
+    //  건너뛰어 일일 배포 카운터가 미환불로 소진될 수 있었음 — Codex 교차검증 지적)
+    const supabase = provider === 'supabase' ? await createClient() : undefined;
+    const rateLimitRepo = createRateLimitRepository(supabase);
     const allowed = await rateLimitRepo.checkAndIncrementDailyDeployLimit(user.id, limits.maxDeployPerDay);
     if (!allowed) {
       throw new RateLimitError(`일일 배포 한도(${limits.maxDeployPerDay}회)를 초과했습니다.`);
@@ -41,8 +45,6 @@ export async function POST(request: Request): Promise<Response> {
     // SSE stream for deployment progress
     const encoder = new TextEncoder();
     let isCancelled = false;
-
-    const supabase = provider === 'supabase' ? await createClient() : undefined;
 
     const stream = new ReadableStream({
       async start(controller) {
