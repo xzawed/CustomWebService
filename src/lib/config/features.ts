@@ -7,7 +7,6 @@ export interface FeatureLimits {
   maxDeployPerDay: number;
   contextMinLength: number;
   contextMaxLength: number;
-  generationTimeoutMs: number;
 }
 
 function env(key: string, defaultValue: number): number {
@@ -26,7 +25,6 @@ const DEFAULT_LIMITS: FeatureLimits = {
   maxDeployPerDay: env('MAX_DEPLOY_PER_DAY', 5),
   contextMinLength: env('CONTEXT_MIN_LENGTH', 50),
   contextMaxLength: env('CONTEXT_MAX_LENGTH', 2000),
-  generationTimeoutMs: env('GENERATION_TIMEOUT_MS', 120000),
 };
 
 const PLAN_OVERRIDES: Record<string, Partial<FeatureLimits>> = {

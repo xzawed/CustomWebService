@@ -19,11 +19,12 @@ export function getDb(): DrizzleDb {
     throw new Error('DATABASE_URL 환경변수가 설정되지 않았습니다.');
   }
 
+  // 풀 설정은 배포 환경(DB 성능·네트워크)에 따라 튜닝할 수 있도록 환경변수로 노출(기본값 폴백).
   _pool = new Pool({
     connectionString,
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
+    max: Number.parseInt(process.env.DB_POOL_MAX ?? '', 10) || 10,
+    idleTimeoutMillis: Number.parseInt(process.env.DB_IDLE_TIMEOUT_MS ?? '', 10) || 30000,
+    connectionTimeoutMillis: Number.parseInt(process.env.DB_CONNECTION_TIMEOUT_MS ?? '', 10) || 5000,
   });
 
   _db = drizzle(_pool, { schema });

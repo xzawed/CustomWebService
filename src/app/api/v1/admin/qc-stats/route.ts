@@ -44,6 +44,15 @@ export async function GET(request: Request): Promise<Response> {
           .gte('created_at', from.toISOString()),
       ]);
 
+      // Supabase 쿼리 에러를 검사한다. 무시하면 count/data가 0·빈배열로 폴백되어 DB 장애 시에도
+      // 정상(0 메트릭)으로 보고되는 은폐가 발생한다 → 에러를 surface하여 500으로 응답.
+      const queryError =
+        failureCountResult.error ??
+        stage3FallbackResult.error ??
+        stageSkippedResult.error ??
+        qualityLoopResult.error;
+      if (queryError) throw queryError;
+
       const failureCount = failureCountResult.count ?? 0;
       const stage3FallbackCount = stage3FallbackResult.count ?? 0;
       const stageSkippedRows = (stageSkippedResult.data ?? []) as Array<{ payload: { stage?: string } | null }>;

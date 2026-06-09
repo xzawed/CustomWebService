@@ -63,4 +63,21 @@ describe('GET /api/v1/admin/qc-stats', () => {
     const json = await response.json();
     expect(json.data.period.days).toBe(14);
   });
+
+  it('Supabase 쿼리 에러 시 0 메트릭으로 은폐하지 않고 500을 반환한다', async () => {
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    vi.mocked(createServiceClient).mockResolvedValueOnce({
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            gte: () =>
+              Promise.resolve({ count: null, data: null, error: { code: 'XX000', message: 'db down' } }),
+          }),
+        }),
+      }),
+    } as never);
+
+    const response = await GET(makeRequest());
+    expect(response.status).toBe(500);
+  });
 });
