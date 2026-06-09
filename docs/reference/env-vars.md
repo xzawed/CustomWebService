@@ -21,12 +21,15 @@
 | 변수 | 값 | 필수 조건 | Railway | 설명 |
 |------|----|----------|---------|------|
 | `DB_PROVIDER` | `supabase` (기본) \| `postgres` | 항상 | ➖ | 미설정 시 `supabase` 기본값 |
-| `AUTH_PROVIDER` | `supabase` (기본) \| `authjs` | 항상 | ➖ | 미설정 시 `supabase` 기본값 |
+| `AUTH_PROVIDER` | `supabase` (기본) \| `authjs` | 항상 | ➖ | 미설정 시 `supabase` 기본값. `authjs` 선택 시 아래 `AUTH_*` 전용 변수 필요. 코드 위치: `src/lib/config/providers.ts` `getAuthProvider()` |
 | `NEXT_PUBLIC_AUTH_PROVIDER` | `supabase` (기본) \| `authjs` | 항상 | ➖ | 클라이언트 컴포넌트용 빌드 타임 상수 |
 | `DATABASE_URL` | PostgreSQL 연결 문자열 | `DB_PROVIDER=postgres` 시 필수 | ❌ | 온프레미스 DB URL |
-| `AUTH_SECRET` | 임의 시크릿 | `AUTH_PROVIDER=authjs` 시 필수 | ❌ | NextAuth 세션 서명 키 |
-| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth 자격증명 | `AUTH_PROVIDER=authjs` 시 필수 | ❌ | |
-| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | GitHub OAuth 자격증명 | `AUTH_PROVIDER=authjs` 시 필수 | ❌ | |
+| `DB_POOL_MAX` | 양의 정수 (기본 `10`) | `DB_PROVIDER=postgres` 시 선택 | ➖ | pg.Pool 최대 연결 수. 숫자 아님·0 설정 시 `10`으로 폴백. 코드 위치: `src/lib/db/connection.ts` |
+| `DB_IDLE_TIMEOUT_MS` | ms (기본 `30000`) | `DB_PROVIDER=postgres` 시 선택 | ➖ | pg.Pool idle 연결 타임아웃 (ms). 미설정·0 시 `30000`으로 폴백 |
+| `DB_CONNECTION_TIMEOUT_MS` | ms (기본 `5000`) | `DB_PROVIDER=postgres` 시 선택 | ➖ | pg.Pool 신규 연결 획득 타임아웃 (ms). 미설정·0 시 `5000`으로 폴백 |
+| `AUTH_SECRET` | 임의 시크릿 | `AUTH_PROVIDER=authjs` 시 필수 | ❌ | NextAuth(Auth.js) 세션 서명 키. authjs 전용 변수 |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth 자격증명 | `AUTH_PROVIDER=authjs` 시 필수 | ❌ | authjs 전용. `src/lib/auth/authjs-config.ts`에서 사용 |
+| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | GitHub OAuth 자격증명 | `AUTH_PROVIDER=authjs` 시 필수 | ❌ | authjs 전용. `src/lib/auth/authjs-config.ts`에서 사용 |
 
 ---
 
@@ -35,6 +38,7 @@
 | 변수 | 필수 | Railway | 설명 |
 |------|------|---------|------|
 | `ANTHROPIC_API_KEY` | ✅ | ✅ | Claude API 키 |
+| `AI_PROVIDER` | 선택 | ➖ | AI Provider 선택. 현재 허용값은 `claude` 하나뿐 (기본). 그 외 값 설정 시 `AiProviderFactory.create()`가 `Unknown AI provider` 에러를 던짐. 코드 위치: `src/providers/ai/AiProviderFactory.ts` |
 | `AI_MODEL_SUGGESTION` | 선택 | ➖ | 컨텍스트 추천용 모델 (기본: `claude-haiku-4-5`). 허용값: `claude-haiku-4-5` · `claude-sonnet-4-6` · `claude-opus-4-6` · `claude-opus-4-7` |
 | `AI_MODEL_GENERATION` | 선택 | ➖ | 코드 생성용 모델 (기본: `claude-opus-4-7`). 허용값 동일. **주의**: 날짜 suffix 포함 ID(예: `claude-haiku-4-5-20251001`)는 Anthropic 404 반환 |
 | `ET_COMPLEXITY_THRESHOLD` | 선택 | ➖ | Extended Thinking 활성화 복잡도 임계값 (기본: `35`). 0-100 점수 중 이 값 이상이면 ET 활성화. **빈 문자열 또는 0 이하 값 설정 시 기본값 35로 폴백** |
@@ -83,6 +87,7 @@
 | `SENTRY_PROJECT` | 선택 | ❌ | Sentry 프로젝트 슬러그 |
 | `SENTRY_AUTH_TOKEN` | 선택 | ❌ | Sentry 소스맵 업로드 토큰 |
 | `SLACK_WEBHOOK_URL` | 선택 | ❌ | Slack 알림 Webhook URL. 미설정 시 알림 스킵. `slackAlert()` + `errorRateMonitor`에서 사용 |
+| `ERROR_RATE_ALERT_THRESHOLD` | 선택 | ➖ | 코드 생성 실패율 알림 임계값 (기본: `5`). 5분 윈도우 내 `CODE_GENERATION_FAILED` 횟수가 이 값 이상이면 Slack 알림 1회 발송 (윈도우 내 중복 알림 방지). 인메모리·단일 인스턴스 전제. 코드 위치: `src/lib/monitoring/errorRateMonitor.ts` |
 
 ---
 
@@ -98,7 +103,6 @@
 | `MAX_CODE_VERSIONS` | `10` | ➖ | 프로젝트당 최대 코드 버전 수. 초과 시 오래된 버전 삭제 |
 | `CONTEXT_MIN_LENGTH` | `50` | ➖ | 컨텍스트 최소 길이 (자) |
 | `CONTEXT_MAX_LENGTH` | `2000` | ➖ | 컨텍스트 최대 길이 (자) |
-| `GENERATION_TIMEOUT_MS` | `120000` | ➖ | 생성 타임아웃 (ms) |
 | `ANTHROPIC_TIMEOUT_MS` | `270000` | ➖ | Anthropic SDK 호출 타임아웃 (ms). Railway 300초 HTTP 컷 전 안전 종료를 위해 270초로 설정. 운영 환경에서 더 긴 응답을 허용하려면 조정 |
 
 ---
@@ -110,6 +114,7 @@
 | `RATE_LIMIT_PER_MIN` | `60` | ➖ | proxy + admin 라우트 분당 요청 한도 (사용자/IP 단위) |
 | `MAX_CONCURRENT_RATE_LIMIT_USERS` | `1000` | ➖ | rate limit Map의 LRU evict 임계값 (활성 사용자/IP 한도). 초과 시 가장 오래된 항목 자동 evict — Railway 단일 인스턴스 메모리 누적 차단 |
 | `RATE_LIMIT_BYPASS_USER_IDS` | `` (빈 문자열) | ➖ | 쉼표 구분 userId 목록. 포함된 계정은 일일 생성 한도(`MAX_DAILY_GENERATIONS`) 검사 스킵. 관리자·개발자 계정 우회용. 코드 위치: `src/services/rateLimitService.ts` `checkAndIncrementDailyLimit()` |
+| `PROXY_CACHE_MAX_ENTRIES` | `500` | ➖ | 프록시 응답 캐시(`proxyCache`)의 LRU 최대 항목 수. 빈 문자열·숫자 아님·0 이하 값 설정 시 기본값 500으로 폴백. 인메모리·per-instance — 서버 재시작 시 초기화. 코드 위치: `src/lib/cache/proxyCache.ts` |
 
 ---
 

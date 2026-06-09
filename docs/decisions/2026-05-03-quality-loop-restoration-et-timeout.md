@@ -117,4 +117,4 @@ const adopted = strictAdoption
 - `docs/reference/env-vars.md` — 신규 환경변수 `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS`, `QUALITY_LOOP_STRICT_ADOPTION` 문서화
 - [ADR 2026-04-29](2026-04-29-generation-success-rate-improvement.md) — Quality Loop 기능 최초 도입 배경
 - [ADR 2026-05-03 프로덕션 인시던트](2026-05-03-production-incident-et-api-migration.md) — Quality Loop 비활성화 원인 설명
-- [구현 계획](../superpowers/plans/2026-05-03-quality-loop-restoration.md) — PR #99 작업 계획 문서
+- PR #99 작업 계획 문서 (구현 계획 — 별도 보관)

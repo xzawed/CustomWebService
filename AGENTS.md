@@ -32,7 +32,7 @@ src/
 │   ├── (auth)/      # 인증 관련 페이지
 │   ├── (main)/      # 메인 페이지 그룹
 │   └── site/        # 서브도메인 서빙 ([slug])
-├── components/      # UI 컴포넌트 (builder/, catalog/, dashboard/, gallery/, layout/, settings/, ui/)
+├── components/      # UI 컴포넌트 (builder/, catalog/, dashboard/, layout/, settings/, ui/)
 ├── hooks/           # 커스텀 React hooks
 ├── lib/             # 유틸리티
 │   ├── ai/          # AI 파이프라인 — generationPipeline(오케스트레이터), stageRunner, generationSaver, qualityLoop, generationTracker
@@ -64,8 +64,6 @@ pnpm build            # 프로덕션 빌드
 pnpm lint             # ESLint 검사
 pnpm lint:fix         # ESLint 자동 수정
 pnpm type-check       # TypeScript 타입 검사
-pnpm format           # Prettier 포맷팅
-pnpm format:check     # 포맷 검사
 pnpm test             # 전체 테스트
 pnpm test:unit        # 단위 테스트 (lib, providers)
 pnpm test:integration # 통합 테스트 (API routes)
@@ -146,7 +144,6 @@ pnpm test:coverage    # 커버리지 리포트
 | API 카탈로그 전수 검증 ADR (62개, 2026-05-01) | [docs/decisions/2026-05-01-api-catalog-verification.md](docs/decisions/2026-05-01-api-catalog-verification.md) |
 | API 카탈로그 즉시 사용 가능 기준 정리 ADR (23개 활성, 2026-05-01) | [docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md](docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md) |
 | 프로덕션 인시던트 회고 ADR — ET API 마이그레이션 및 연쇄 장애 (2026-05-03) | [docs/decisions/2026-05-03-production-incident-et-api-migration.md](docs/decisions/2026-05-03-production-incident-et-api-migration.md) |
-| Quality Loop 재활성화 및 ET 타임아웃 분리 구현 계획 | [docs/superpowers/plans/2026-05-03-quality-loop-restoration.md](docs/superpowers/plans/2026-05-03-quality-loop-restoration.md) |
 | Quality Loop 재활성화 및 ET 타임아웃 분리 ADR (PR #99, 2026-05-03) | [docs/decisions/2026-05-03-quality-loop-restoration-et-timeout.md](docs/decisions/2026-05-03-quality-loop-restoration-et-timeout.md) |
 | 프록시 응답 캐시 구현 ADR (PR #101, 2026-05-04) | [docs/decisions/2026-05-04-proxy-response-cache.md](docs/decisions/2026-05-04-proxy-response-cache.md) |
 | Unsplash Attribution 자동 삽입 ADR (PR #102, 2026-05-04) | [docs/decisions/2026-05-04-unsplash-attribution-auto-injection.md](docs/decisions/2026-05-04-unsplash-attribution-auto-injection.md) |

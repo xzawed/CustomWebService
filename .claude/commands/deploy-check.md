@@ -7,7 +7,6 @@
 ```bash
 pnpm lint
 pnpm type-check
-pnpm format:check
 ```
 
 ### 2단계: 테스트
