@@ -1,7 +1,7 @@
 # 테스트 플래키 타임아웃 — 잔여·후속 작업 핸드오프
 
 - 날짜: 2026-06-09
-- 상태: **예방 항목 1·2·3 완료** (브랜치 `test/test-flakiness-followups`) — 항목 4·5·6만 잔존
+- 상태: **항목 1·2·3·4·6 완료**, 항목 5는 운영 모니터링(코드 작업 없음)으로 상시 유지
 - 선행 ADR: [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](../../decisions/2026-06-09-test-flaky-timeout-contention-fix.md)
 
 ## 이 브랜치(`test/test-flakiness-followups`)에서 완료된 것
@@ -111,29 +111,43 @@ mock 반환값을 명시적으로 wiring해야 한다(현재는 `createServiceCl
 개별 요청을 halt하지만 비동기 전파상 테스트를 항상 빨갛게 만들지는 않는다(MSW #946/#943) — 필요 시
 글로벌 fetch 스텁/afterEach 네트워크 스파이로 보강.
 
-### 4. `builder/page.tsx` `pollForCompletion` 테스트 가드 — 우선순위: 낮음 (예방)
+### 4. `builder/page.tsx` `pollForCompletion` 테스트 가드 — ✅ 완료 (추출 + 단위테스트)
 
-**현황**: 레포 내 **유일한 실제 fetch-poll 루프**([builder/page.tsx](../../../src/app/(main)/builder/page.tsx)
-`pollForCompletion`, `setTimeout(1000)` 슬립)이지만 이를 마운트하는 테스트가 **없어서** 현재 무해.
+> **"안전한 마운트 스모크 vs 추출+단위테스트" 선택지에서 사용자가 추출을 승인.** 폴링 로직을
+> `handleGenerate` 클로저에서 [src/lib/generation/pollGenerationStatus.ts](../../../src/lib/generation/pollGenerationStatus.ts)로
+> **동작 보존** 추출하고, `page.tsx`는 thin 래퍼로 교체. 의존성(`fetchFn`·`delay`·콜백)을
+> 주입받아 `pollGenerationStatus.test.ts` **12 케이스**로 전 경로 검증 (generating/completed/
+> unknown/failed-quirk/!res.ok/네트워크 throw/timeout/폴백/순서/interval, fake-timer 기본 delay 1건).
+> DI-delay(즉시 resolve)로 대다수를 결정적으로 검증하고, 기본 `setTimeout` 경로는
+> `vi.useFakeTimers()` + `runAllTimersAsync()`로 1건 커버. 레포 유일 fetch-poll 루프에 실제 커버리지 확보.
 
-**조치**: 향후 builder/page.tsx 테스트 작성 시 **반드시** `vi.useFakeTimers()`로 슬립 제어 +
-언마운트 후 timer advance + `/api/v1/generate/status/:projectId` MSW 핸들러 제공. (유지보수자 가이드:
-async 작업이 테스트보다 오래 살아남으면 RPC 채널 닫힘 → 행 발생.)
+**조치(완료)**: 폴링을 순수·주입형 함수로 추출 → 단위 테스트. **발견한 기존 quirk(미수정, 보존)**:
+`status:'failed'`는 즉시 실패하지 않고 `throw` → catch에서 마지막 시도일 때만 실패시키므로,
+'failed'가 지속되면 `maxAttempts`(120)까지 재시도 후 실패한다. 추출은 동작 변경 없이 보존만 했으며,
+개선은 별도 사안. (향후 `builder/page.tsx`를 **마운트**하는 테스트를 쓸 땐 여전히
+`vi.useFakeTimers()` + 언마운트 후 timer advance + status MSW 핸들러를 지킬 것.)
 
 ## 후속 모니터링 (코드 아님)
 
-### 5. CI 타임아웃 발생 위치 추적
-이번 PR은 CI(Unit&Integration) 통과. 다만 타임아웃이 로컬 32코어(오버구독)에서인지 CI(2–4 vCPU +
-v8 coverage)에서인지 미확정. CI에서 재발하면 워커 전략(저코어에서는 이미 워커 적음) 재검토.
+### 5. CI 타임아웃 발생 위치 추적 — 🔄 상시 모니터링 (코드 작업 없음)
+현재 CI(Unit&Integration·E2E·Build·Lint) 전부 green이라 추적할 타임아웃 이벤트가 없다. **트리거**:
+CI 로그에 `Test timed out` 재발 시. **대응**: 발생 위치(로컬 32코어 오버구독 vs CI 2–4 vCPU +
+v8 coverage)에 따라 워커 전략 재검토(저코어 CI는 이미 워커가 적어 percentage 캡은 역효과).
+지금 시점 코드 변경 없음.
 
-### 6. vitest 4.1.8 fork-pool 회귀 수정 포함 여부
-fork-pool 타임아웃 회귀(이슈 #8766/#8968)는 PR #8705/#9027로 부분 수정됨. 설치 버전 4.1.8이 이를
-포함하는지 changelog로 미확정. 추후 패치 bump 시 확인 — 포함되면 R1 마진을 낮춰도 될 수 있음.
+### 6. vitest 4.1.8 fork-pool 회귀 수정 포함 여부 — ✅ 확인 완료
+**조사 결과(2026-06-09)**: vitest 4.x는 tinypool을 제거하고 풀을 재작성했고, fork-pool 타임아웃
+회귀 추적 이슈는 **#8766**(2025-10-22 closed)·**#8968**(2025-11-14 **COMPLETED**)이다(핸드오프가
+적었던 "PR #8705/#9027"은 부정확). 두 이슈 모두 4.1.0(2026-03-12)·**설치본 4.1.8(2026-06-01)**
+출시보다 4~7개월 앞서 해결됨 → **4.1.8은 이 수정을 포함한다.**
 
-## 권장 실행 순서 (다음 세션)
+**그러나 R1 마진(15s)은 낮추지 않는다.** #8766/#8968은 풀 워커 spawn/terminate 타임아웃
+(`[vitest-pool]: Timeout starting forks runner`)이고, 우리가 겪은 건 **경합 기인 cold-import의
+테스트레벨 `Test timed out in 5000ms`** — 메커니즘이 다르다(ADR에서 fork-pool 가설 기각). 별개
+사안이라 마진 인하 근거가 없다.
 
-- ~~1·2·3번~~ → ✅ 브랜치 `test/test-flakiness-followups`에서 완료 (위 표 참조).
-1. 4번은 builder/page.tsx 테스트를 **실제로 작성할 때** 함께 (현재 마운트 테스트 없어 무해).
-2. 5·6번은 운영 모니터링 — 코드 변경 트리거 시에만.
+## 마무리
 
-남은 항목(4·5·6)도 **활성 버그가 아닌 예방/모니터링** 항목이다. 우선순위 낮음 — 다른 기능 작업과 함께 묶어 처리해도 무방.
+항목 1·2·3·4·6은 완료(브랜치 `test/test-flakiness-followups`, `test/builder-poll-extraction`).
+항목 5만 상시 모니터링으로 남으며 코드 트리거 시에만 대응한다. 전부 **활성 버그가 아닌
+예방/일관성/모니터링** 항목이었다.

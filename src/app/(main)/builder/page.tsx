@@ -28,6 +28,7 @@ import { useGenerationStore } from '@/stores/generationStore';
 import { useBuilderModeStore } from '@/stores/builderModeStore';
 import type { BuilderMode } from '@/stores/builderModeStore';
 import { LIMITS } from '@/lib/config/features';
+import { pollGenerationStatus } from '@/lib/generation/pollGenerationStatus';
 import type { ApiCatalogItem, Category } from '@/types/api';
 import type { RelevanceGateResult } from '@/types/project';
 import { ChevronLeft, ChevronRight, Sparkles, Loader2, RefreshCw } from 'lucide-react';
@@ -210,45 +211,18 @@ export default function BuilderPage() {
 
       if (!reader) throw new Error('스트림을 읽을 수 없습니다.');
 
-      const pollForCompletion = async (projectId: string) => {
-        const MAX_ATTEMPTS = 120; // 2 minutes at 1s intervals
-        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-          try {
-            const res = await fetch(`/api/v1/generate/status/${projectId}`);
-            if (!res.ok) break;
-            const { data } = (await res.json()) as {
-              data: {
-                status: 'generating' | 'completed' | 'failed' | 'unknown';
-                progress?: number;
-                message?: string;
-                result?: { projectId: string; version: number };
-                error?: string;
-              };
-            };
-            if (data.status === 'generating') {
-              updateProgress(data.progress ?? 0, data.message ?? '생성 중...');
-            } else if (data.status === 'completed' && data.result) {
-              completeGeneration(data.result.projectId, data.result.version);
-              resetContext();
-              clearApis();
-              return;
-            } else if (data.status === 'failed') {
-              throw new Error(data.error ?? '코드 생성에 실패했습니다.');
-            } else {
-              // 'unknown' — tracker entry expired or server restarted
-              failGeneration('연결이 복구되지 않았습니다. 대시보드에서 결과를 확인해주세요.');
-              return;
-            }
-          } catch (err) {
-            if (attempt === MAX_ATTEMPTS - 1) {
-              failGeneration(err instanceof Error ? err.message : '폴링 중 오류 발생');
-              return;
-            }
-          }
-          await new Promise<void>((resolve) => setTimeout(resolve, 1000));
-        }
-        failGeneration('생성 시간이 초과되었습니다. 대시보드에서 확인해주세요.');
-      };
+      // 폴링 로직은 @/lib/generation/pollGenerationStatus로 추출 (단위 테스트 대상).
+      // 동작 보존: completed 시 completeGeneration → resetContext → clearApis.
+      const pollForCompletion = (pid: string): Promise<void> =>
+        pollGenerationStatus(pid, {
+          updateProgress,
+          completeGeneration,
+          failGeneration,
+          onCompleted: () => {
+            resetContext();
+            clearApis();
+          },
+        });
 
       let buffer = '';
       let done = false;

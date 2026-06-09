@@ -91,15 +91,19 @@ hookTimeout: 15_000,
 
 ## 후속 과제 (이번 범위 밖, 예방)
 
-- CI(2–4 vCPU + v8 coverage)에서 실제 타임아웃이 발생하는지 모니터링. 발생 위치(로컬 vs CI)에 따라
-  워커 전략 재검토. **(미해결 — 운영 모니터링)**
-- vitest 4.1.8이 fork-pool 타임아웃 회귀 수정(PR #8705/#9027)을 포함하는지 미확정 — 추후 패치 시 확인.
-  **(미해결 — 운영 모니터링)**
+- 🔄 CI(2–4 vCPU + v8 coverage)에서 실제 타임아웃이 발생하는지 모니터링. 발생 위치(로컬 vs CI)에 따라
+  워커 전략 재검토. **(상시 모니터링 — 현재 CI green, 코드 작업 없음)**
+- ✅ **확인 완료**: vitest 4.1.8의 fork-pool 회귀 수정 포함 여부 — 추적 이슈 #8766(2025-10-22)·
+  #8968(2025-11-14 COMPLETED)은 설치본 4.1.8(2026-06-01)보다 앞서 해결 → **4.1.8은 포함**. 다만
+  해당 이슈는 풀 워커 spawn/terminate 타임아웃이고 본 사안은 경합 기인 cold-import 지연이라 **별개** —
+  R1 마진(15s)은 유지한다. (핸드오프의 "PR #8705/#9027" 표기는 부정확, 실제는 위 두 이슈.)
 - ✅ **완료** (브랜치 `test/test-flakiness-followups`): 예방적 하드닝 —
   MSW `onUnhandledRequest:'error'` + `*/api/v1/preview`·`*/api/v1/generate/status` 핸들러 추가,
   `PreviewFrame` iframe `src` happy-dom 로드 노이즈 차단(`navigation.disableChildFrameNavigation`),
-  `health.test.ts` cold-import 하드닝(api 라우트 테스트 16/16 일관). `builder/page.tsx`
-  `pollForCompletion` 가드는 해당 테스트가 생길 때 적용(현재 마운트 테스트 없어 무해). 상세:
+  `health.test.ts` cold-import 하드닝(api 라우트 테스트 16/16 일관). 상세:
   [docs/superpowers/plans/2026-06-09-test-flakiness-followups.md](../superpowers/plans/2026-06-09-test-flakiness-followups.md)
+- ✅ **완료** (브랜치 `test/builder-poll-extraction`): `builder/page.tsx`의 `pollForCompletion`을
+  [src/lib/generation/pollGenerationStatus.ts](../../src/lib/generation/pollGenerationStatus.ts)로
+  동작 보존 추출 + fake-timer 포함 단위 테스트 12건. 레포 유일 fetch-poll 루프에 커버리지 확보.
 - ✅ **확인 완료**: `@/lib/config/providers`를 import하면서 mock을 빠뜨린 api 라우트 테스트 —
   `health.test.ts`가 마지막 누락분이었고 이번에 해소. 현재 16/16 모두 차단 패턴 적용.
