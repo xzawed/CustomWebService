@@ -1,7 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { RateLimitService } from '@/services/rateLimitService';
 import { RateLimitError } from '@/lib/utils/errors';
 import type { IRateLimitRepository } from '@/repositories/interfaces';
+
+vi.mock('@/lib/utils/logger', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
 
 function makeRepo(opts: {
   allowed?: boolean;
@@ -52,6 +56,38 @@ describe('RateLimitService', () => {
       const service = new RateLimitService(repo);
       await service.checkAndIncrementDailyLimit('user-abc');
       expect(repo.checkAndIncrementDailyLimit).toHaveBeenCalledWith('user-abc', expect.any(Number));
+    });
+
+    describe('RATE_LIMIT_BYPASS_USER_IDS', () => {
+      afterEach(() => {
+        vi.unstubAllEnvs();
+      });
+
+      it('우회 목록의 userId는 리밋 검사를 건너뛰고 감사 로그를 남긴다', async () => {
+        vi.stubEnv('RATE_LIMIT_BYPASS_USER_IDS', 'admin-1, admin-2');
+        const { logger } = await import('@/lib/utils/logger');
+        const repo = makeRepo({ allowed: true });
+        const service = new RateLimitService(repo);
+
+        await expect(service.checkAndIncrementDailyLimit('admin-2')).resolves.toBeUndefined();
+
+        // 리밋 검사(증가)는 건너뛴다
+        expect(repo.checkAndIncrementDailyLimit).not.toHaveBeenCalled();
+        // 우회는 무로깅이 아니라 감사 로그를 남겨야 한다
+        expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+          'Rate limit bypass applied',
+          expect.objectContaining({ userId: 'admin-2' })
+        );
+      });
+
+      it('우회 목록에 없는 userId는 정상적으로 리밋 검사를 수행한다', async () => {
+        vi.stubEnv('RATE_LIMIT_BYPASS_USER_IDS', 'admin-1');
+        const repo = makeRepo({ allowed: true });
+        const service = new RateLimitService(repo);
+
+        await service.checkAndIncrementDailyLimit('normal-user');
+        expect(repo.checkAndIncrementDailyLimit).toHaveBeenCalledWith('normal-user', expect.any(Number));
+      });
     });
   });
 

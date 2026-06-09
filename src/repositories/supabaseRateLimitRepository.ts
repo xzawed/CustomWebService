@@ -36,4 +36,11 @@ export class SupabaseRateLimitRepository implements IRateLimitRepository {
     if (error) throw error;
     return data as boolean;
   }
+
+  async decrementDailyDeployLimit(userId: string): Promise<void> {
+    const { error } = await this.supabase.rpc('decrement_daily_deploy', {
+      p_user_id: userId,
+    });
+    if (error) throw error;
+  }
 }

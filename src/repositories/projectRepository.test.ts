@@ -400,6 +400,20 @@ describe('ProjectRepository', () => {
         repo.updateSlug('proj-1', 'new-slug', new Date()),
       ).rejects.toEqual(dbError);
     });
+
+    it('data가 null이고 error도 없으면 NotFoundError를 던진다 (방어적 가드)', async () => {
+      const chain = makeSingleChain({ data: null, error: null });
+      const supabase = {
+        from: vi.fn().mockReturnValue(chain),
+        rpc: vi.fn(),
+      } as unknown as SupabaseClient;
+      const repo = new ProjectRepository(supabase);
+
+      // findBySlug와 일관되게 null data를 명시 처리 — toDomain(null) 크래시 대신 NotFoundError
+      await expect(
+        repo.updateSlug('proj-1', 'new-slug', new Date()),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    });
   });
 
   // ---------- toDomain mapping ----------

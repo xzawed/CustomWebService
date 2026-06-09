@@ -29,6 +29,11 @@ class ProxyCache {
     return { body: entry.body, contentType: entry.contentType, status: entry.status };
   }
 
+  // ⚠️ 응답 본문을 인메모리(per-instance)에 평문으로 보관한다. 현재 캐시는 `cacheTtlSeconds`가
+  // 명시된 공개 API(예: 기상청 날씨 — 비민감 데이터)에만 활성화되며, auth 키는 캐시 응답이 아닌
+  // 아웃바운드로 주입되므로(buildCacheKey도 auth 키 제외) 민감정보가 캐시에 담기지 않는다.
+  // 향후 민감 데이터를 반환하는 API에 cacheTtlSeconds를 부여한다면, 카탈로그에 캐시 민감도
+  // 플래그를 추가하고 해당 응답은 캐시에서 제외하거나 at-rest 암호화를 적용할 것.
   set(key: string, value: Omit<CacheEntry, 'expiresAt'>, ttlMs: number): void {
     this.cache.set(key, { ...value, expiresAt: Date.now() + ttlMs });
   }

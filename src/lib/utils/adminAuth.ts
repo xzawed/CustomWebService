@@ -17,7 +17,9 @@ const rateLimitMap = new LRUMap<string, { count: number; resetAt: number }>(MAX_
 function checkRateLimit(ip: string): void {
   const now = Date.now();
   const entry = rateLimitMap.get(ip);
-  if (!entry || now > entry.resetAt) {
+  // now >= resetAt: 윈도우 경계(정확히 reset 시각)에 도착한 요청도 새 윈도우로 리셋한다.
+  // proxy/route.ts의 레이트리밋 로직과 동일하게 맞춤(이전엔 `>`라 경계 요청이 만료된 윈도우를 증가시켰음).
+  if (!entry || now >= entry.resetAt) {
     rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
     return;
   }

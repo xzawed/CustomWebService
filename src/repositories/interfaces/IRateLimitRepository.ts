@@ -3,4 +3,6 @@ export interface IRateLimitRepository {
   decrementDailyLimit(userId: string): Promise<void>;
   getCurrentUsage(userId: string): Promise<number>;
   checkAndIncrementDailyDeployLimit(userId: string, limit: number): Promise<boolean>;
+  /** Compensating decrement for a failed deployment (mirrors decrementDailyLimit). */
+  decrementDailyDeployLimit(userId: string): Promise<void>;
 }

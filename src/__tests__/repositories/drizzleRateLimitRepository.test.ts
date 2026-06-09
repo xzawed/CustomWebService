@@ -132,4 +132,20 @@ describe('DrizzleRateLimitRepository', () => {
       );
     });
   });
+
+  // ─── decrementDailyDeployLimit ────────────────────────────────────────────
+  describe('decrementDailyDeployLimit()', () => {
+    it('decrement_daily_deploy를 실행한다', async () => {
+      vi.mocked(mockDb.execute).mockResolvedValue({ rows: [] } as never);
+
+      await repo.decrementDailyDeployLimit('user-1');
+      expect(mockDb.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('DB 에러를 그대로 던진다', async () => {
+      vi.mocked(mockDb.execute).mockRejectedValue(new Error('배포 감소 실패'));
+
+      await expect(repo.decrementDailyDeployLimit('user-1')).rejects.toThrow('배포 감소 실패');
+    });
+  });
 });

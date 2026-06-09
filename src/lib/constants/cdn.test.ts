@@ -82,3 +82,49 @@ describe('SITE_CSP / PREVIEW_CSP', () => {
     expect(siteWithoutFrame).toBe(previewWithoutFrame);
   });
 });
+
+// CSP "내용" 검증: 단순 substring 존재가 아니라 문법·완전성을 확인하여,
+// 향후 buildSiteCsp 리팩터가 빈 디렉티브·trailing 세미콜론·중복·누락을 만들면 잡아낸다.
+describe('CSP 문법·완전성', () => {
+  const REQUIRED_DIRECTIVES = [
+    'default-src',
+    'script-src',
+    'style-src',
+    'font-src',
+    'img-src',
+    'connect-src',
+    'frame-ancestors',
+  ];
+
+  for (const [label, csp] of [
+    ['SITE_CSP', SITE_CSP],
+    ['PREVIEW_CSP', PREVIEW_CSP],
+    ["buildSiteCsp('self')", buildSiteCsp("'self'")],
+  ] as const) {
+    describe(label, () => {
+      const segments = csp.split('; ');
+
+      it('빈 디렉티브나 dangling 세미콜론이 없다', () => {
+        expect(csp).not.toMatch(/;\s*;/); // 연속 세미콜론
+        expect(csp.trim()).not.toMatch(/;\s*$/); // 끝 세미콜론
+        for (const seg of segments) {
+          expect(seg.trim().length).toBeGreaterThan(0);
+          // 각 세그먼트는 "디렉티브명 ..."로 시작해야 함
+          expect(seg.trim().split(/\s+/)[0]).toMatch(/^[a-z-]+$/);
+        }
+      });
+
+      it('필수 디렉티브를 모두 포함한다', () => {
+        const names = segments.map((s) => s.trim().split(/\s+/)[0]);
+        for (const d of REQUIRED_DIRECTIVES) {
+          expect(names).toContain(d);
+        }
+      });
+
+      it('중복된 디렉티브가 없다', () => {
+        const names = segments.map((s) => s.trim().split(/\s+/)[0]);
+        expect(new Set(names).size).toBe(names.length);
+      });
+    });
+  }
+});

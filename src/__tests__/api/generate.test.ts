@@ -300,6 +300,36 @@ describe('POST /api/v1/generate', () => {
     expect(text).toContain('"step":"analyzing"');
   });
 
+  it('스트리밍이 여러 청크로 도착해도 누적하여 complete 이벤트를 발행한다', async () => {
+    await setupHappyPath();
+
+    // 단일 청크 mock 대신 다중 청크(누적 버퍼)로 실제 스트리밍 동작을 재현
+    const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
+    vi.mocked(AiProviderFactory.createForTask).mockReturnValue({
+      name: 'claude',
+      generateCodeStream: vi.fn().mockImplementation(
+        (_prompt: unknown, onChunk: (chunk: string, accumulated: string) => void) => {
+          const full = mockAiResponse.content;
+          const size = Math.max(1, Math.ceil(full.length / 3));
+          let acc = '';
+          for (let i = 0; i < full.length; i += size) {
+            const chunk = full.slice(i, i + size);
+            acc += chunk;
+            onChunk(chunk, acc);
+          }
+          return Promise.resolve(mockAiResponse);
+        },
+      ),
+    } as never);
+
+    const { POST } = await import('@/app/api/v1/generate/route');
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
+    const text = await response.text();
+
+    // 다중 청크 누적이 SSE 핸들러를 깨뜨리지 않고 정상 완료되어야 한다
+    expect(text).toContain('event: complete');
+  });
+
   it('레이트리밋 초과 시 429를 반환한다', async () => {
     const { getAuthUser } = await import('@/lib/auth/index');
     vi.mocked(getAuthUser).mockResolvedValue(mockUser);

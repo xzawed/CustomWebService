@@ -44,4 +44,10 @@ export class DrizzleRateLimitRepository implements IRateLimitRepository {
     const row = result.rows[0] as { result: boolean } | undefined;
     return row?.result ?? false;
   }
+
+  async decrementDailyDeployLimit(userId: string): Promise<void> {
+    await this.db.execute(
+      sql`SELECT decrement_daily_deploy(${userId}::uuid)`
+    );
+  }
 }

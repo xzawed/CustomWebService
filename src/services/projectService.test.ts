@@ -291,6 +291,27 @@ describe('ProjectService.publish()', () => {
     expect(result.slug).toBe('my-service-2');
   });
 
+  it('assignUniqueSlug: 2차 23505까지 발생하면 타임스탬프 폴백으로 최종 게시한다', async () => {
+    const { isUniqueViolation } = await import('@/lib/db/errors');
+    vi.mocked(isUniqueViolation).mockReturnValue(true);
+
+    (projectRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(baseProject);
+    (projectRepo.findBySlug as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+    const fallbackProject = { ...baseProject, slug: 'my-service-fallback', status: 'published' };
+    // 1차(finalSlug)·2차(retrySlug) 모두 23505 → 타임스탬프 폴백(3차)에서 성공
+    (projectRepo.updateSlug as ReturnType<typeof vi.fn>)
+      .mockRejectedValueOnce(new Error('duplicate key 23505'))
+      .mockRejectedValueOnce(new Error('duplicate key 23505'))
+      .mockResolvedValueOnce(fallbackProject);
+
+    const result = await service.publish('proj-1', 'user-1', 'my-service');
+
+    // 이전엔 2차 23505가 미캐치로 전파됐으나, 이제 타임스탬프 폴백으로 한 번 더 시도한다
+    expect(projectRepo.updateSlug).toHaveBeenCalledTimes(3);
+    expect(result.status).toBe('published');
+  });
+
   it('생성 완료되지 않은 프로젝트는 ValidationError', async () => {
     (projectRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
       ...baseProject,

@@ -305,7 +305,10 @@ async function runLlmRetryIteration(
     if (shouldAdoptRetry(state.quality, retryQuality, state.qcReport, retryQcReport)) {
       state.parsed = retryParsed;
       state.quality = retryQuality;
-      if (retryQcReport) state.qcReport = retryQcReport;
+      // 채택된 코드(retryParsed)와 QC 리포트를 항상 동기화한다. retryQcReport가 null이면
+      // (retry QC 실패) qcReport도 null로 갱신 — 이전 코드 기준의 스테일 점수를 새 코드에
+      // 잘못 매핑하지 않도록 한다. downstream은 qcReport: QcReport | null을 이미 처리한다.
+      state.qcReport = retryQcReport;
       state.qualityLoopUsed = true;
     }
   } catch (retryErr) {

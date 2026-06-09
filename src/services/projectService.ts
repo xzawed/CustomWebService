@@ -119,19 +119,29 @@ export class ProjectService {
 
     const finalSlug = await this.assignUniqueSlug(baseSlug);
 
-    // 레이스 대비: 23505 unique 위반 시 1회 재시도
+    // 레이스 대비: 23505 unique 위반 시 재시도
     try {
       const published = await this.projectRepo.updateSlug(id, finalSlug, new Date());
       this.emitPublishedEvent(id, userId, finalSlug);
       return published;
     } catch (err) {
-      if (isUniqueViolation(err)) {
-        const retrySlug = await this.assignUniqueSlug(baseSlug);
+      if (!isUniqueViolation(err)) throw err;
+
+      // 1차 재시도: 새 후보 slug 재할당
+      const retrySlug = await this.assignUniqueSlug(baseSlug);
+      try {
         const published = await this.projectRepo.updateSlug(id, retrySlug, new Date());
         this.emitPublishedEvent(id, userId, retrySlug);
         return published;
+      } catch (retryErr) {
+        // 2차 레이스(동시 게시): 재시도마저 23505면 타임스탬프로 고유성을 사실상 보장하는
+        // 최종 slug로 한 번 더 시도한다. 그래도 실패하면 호출부(route handler)로 전파된다.
+        if (!isUniqueViolation(retryErr)) throw retryErr;
+        const fallbackSlug = `${baseSlug}-${Date.now().toString(36)}`;
+        const published = await this.projectRepo.updateSlug(id, fallbackSlug, new Date());
+        this.emitPublishedEvent(id, userId, fallbackSlug);
+        return published;
       }
-      throw err;
     }
   }
 

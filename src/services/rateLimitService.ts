@@ -36,7 +36,11 @@ export class RateLimitService {
    */
   async checkAndIncrementDailyLimit(userId: string): Promise<void> {
     const bypassIds = (process.env.RATE_LIMIT_BYPASS_USER_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-    if (bypassIds.includes(userId)) return;
+    if (bypassIds.includes(userId)) {
+      // 무로깅 우회는 운영 가시성 사각지대를 만든다. 우회 적용 시 감사 로그를 남긴다.
+      logger.info('Rate limit bypass applied', { userId, source: 'RATE_LIMIT_BYPASS_USER_IDS' });
+      return;
+    }
 
     const limits = getLimits();
     try {

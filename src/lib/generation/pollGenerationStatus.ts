@@ -14,7 +14,9 @@
  */
 
 export interface GenerationStatusData {
-  status: 'generating' | 'completed' | 'failed' | 'unknown';
+  // 'not_found' — /api/v1/generate/status 엔드포인트가 프로젝트 미존재·권한 없음 시 반환.
+  // (이전엔 union에 없어 'unknown'으로 잘못 처리되어 "연결 복구 안됨" 오메시지가 표시되었음)
+  status: 'generating' | 'completed' | 'failed' | 'not_found' | 'unknown';
   progress?: number;
   message?: string;
   result?: { projectId: string; version: number };
@@ -40,15 +42,39 @@ export interface PollGenerationStatusDeps {
 const defaultDelay = (ms: number): Promise<void> =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** 한 번의 상태 응답을 처리. 'continue'=폴링 지속, 'stop'=종료. ('failed'는 throw하여 호출부 catch로 전파) */
+function handleStatusData(
+  data: GenerationStatusData,
+  deps: Pick<PollGenerationStatusDeps, 'updateProgress' | 'completeGeneration' | 'failGeneration' | 'onCompleted'>,
+): 'continue' | 'stop' {
+  if (data.status === 'generating') {
+    deps.updateProgress(data.progress ?? 0, data.message ?? '생성 중...');
+    return 'continue';
+  }
+  if (data.status === 'completed' && data.result) {
+    deps.completeGeneration(data.result.projectId, data.result.version);
+    deps.onCompleted?.();
+    return 'stop';
+  }
+  if (data.status === 'failed') {
+    // 동작 보존: throw → 호출부 catch에서 마지막 시도일 때만 failGeneration
+    throw new Error(data.error ?? '코드 생성에 실패했습니다.');
+  }
+  if (data.status === 'not_found') {
+    deps.failGeneration('프로젝트를 찾을 수 없습니다. 대시보드에서 확인해주세요.');
+    return 'stop';
+  }
+  // 'unknown' (또는 result 없는 completed) — tracker entry expired or server restarted
+  deps.failGeneration('연결이 복구되지 않았습니다. 대시보드에서 결과를 확인해주세요.');
+  return 'stop';
+}
+
 export async function pollGenerationStatus(
   projectId: string,
   deps: PollGenerationStatusDeps,
 ): Promise<void> {
   const {
-    updateProgress,
-    completeGeneration,
     failGeneration,
-    onCompleted,
     delay = defaultDelay,
     // 언바운드 호출 시 일부 런타임에서 "Illegal invocation"이 나므로 래핑하여 전달한다.
     fetchFn = (input, init) => fetch(input, init),
@@ -61,19 +87,7 @@ export async function pollGenerationStatus(
       const res = await fetchFn(`/api/v1/generate/status/${projectId}`);
       if (!res.ok) break;
       const { data } = (await res.json()) as { data: GenerationStatusData };
-      if (data.status === 'generating') {
-        updateProgress(data.progress ?? 0, data.message ?? '생성 중...');
-      } else if (data.status === 'completed' && data.result) {
-        completeGeneration(data.result.projectId, data.result.version);
-        onCompleted?.();
-        return;
-      } else if (data.status === 'failed') {
-        throw new Error(data.error ?? '코드 생성에 실패했습니다.');
-      } else {
-        // 'unknown' — tracker entry expired or server restarted
-        failGeneration('연결이 복구되지 않았습니다. 대시보드에서 결과를 확인해주세요.');
-        return;
-      }
+      if (handleStatusData(data, deps) === 'stop') return;
     } catch (err) {
       if (attempt === maxAttempts - 1) {
         failGeneration(err instanceof Error ? err.message : '폴링 중 오류 발생');
