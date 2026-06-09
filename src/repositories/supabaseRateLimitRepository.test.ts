@@ -138,4 +138,27 @@ describe('SupabaseRateLimitRepository', () => {
       await expect(repo.checkAndIncrementDailyDeployLimit('u1', 5)).rejects.toEqual(dbError);
     });
   });
+
+  // ---------- decrementDailyDeployLimit ----------
+
+  describe('decrementDailyDeployLimit()', () => {
+    it('decrement_daily_deploy RPC를 호출한다', async () => {
+      const { supabase, rpc } = makeSupabase();
+      rpc.mockResolvedValueOnce({ data: null, error: null });
+
+      const repo = new SupabaseRateLimitRepository(supabase);
+      await repo.decrementDailyDeployLimit('u1');
+
+      expect(rpc).toHaveBeenCalledWith('decrement_daily_deploy', { p_user_id: 'u1' });
+    });
+
+    it('에러 발생 시 throw한다', async () => {
+      const { supabase, rpc } = makeSupabase();
+      const dbError = { code: 'P0001', message: 'decrement error' };
+      rpc.mockResolvedValueOnce({ data: null, error: dbError });
+
+      const repo = new SupabaseRateLimitRepository(supabase);
+      await expect(repo.decrementDailyDeployLimit('u1')).rejects.toEqual(dbError);
+    });
+  });
 });
