@@ -65,6 +65,7 @@
 |------|------|---------|------|
 | `NEXT_PUBLIC_ROOT_DOMAIN` | ✅ | ✅ | 서브도메인 루트 도메인 (예: `xzawed.xyz`) |
 | `GITHUB_TOKEN` | 배포 시 | ❌ | GitHub API 토큰 (사용자 서비스 자동 배포용) |
+| `GITHUB_ORG` | 배포 시 | ❌ | GitHub 조직명 (생성 서비스 배포용; 미설정 시 `githubService`가 `GITHUB_ORG is not set` 에러). 코드 위치: `src/lib/deploy/githubService.ts` |
 | `RAILWAY_TOKEN` | 배포 시 | ❌ | Railway API 토큰 |
 
 ---

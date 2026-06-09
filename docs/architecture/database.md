@@ -390,17 +390,29 @@ CREATE POLICY "Authenticated read flags" ON feature_flags
 
 ```
 supabase/migrations/
-├── 001_initial_schema.sql       # users, api_catalog, projects, project_apis, generated_codes
-├── 002_add_organizations.sql    # organizations, memberships
-├── 003_add_extensibility.sql    # metadata 컬럼, api_version, platform_events
-├── 004_add_feature_flags.sql    # feature_flags
-├── 005_add_user_api_keys.sql    # user_api_keys
-└── 006_add_indexes.sql          # 성능 인덱스 추가
+├── 001_initial_schema.sql             # 초기 스키마 (users, api_catalog, projects 등)
+├── 002_slug.sql                       # slug 컬럼
+├── 003_helpers.sql                    # 헬퍼 함수
+├── 004_fix_memberships_rls.sql        # memberships RLS 수정
+├── 005_api_key_env_vars.sql           # API 키 환경변수
+├── 006_user_api_keys.sql              # user_api_keys 테이블
+├── 007_atomic_rate_limit.sql          # 원자적 일일 생성 레이트리밋 (decrement_daily_generation 포함)
+├── 008_platform_events.sql            # platform_events 테이블
+├── 009_gallery.sql                    # 갤러리
+├── 010_catalog_verification_fields.sql # 카탈로그 검증 필드
+├── 016_suggested_slugs.sql            # AI 제안 slug 컬럼
+├── 017_deploy_rate_limit.sql          # 배포 레이트리밋
+├── 018_performance_indexes.sql        # 성능 인덱스
+├── 019_admin_stats_indexes.sql        # 관리자 통계 인덱스
+├── 020_api_cache_ttl.sql              # API 캐시 TTL
+└── 021_deploy_rate_limit_decrement.sql # 배포 카운터 환불 (decrement_daily_deploy)
 
 supabase/
 ├── seed.sql                     # API 카탈로그 + 피처 플래그 초기 데이터
 └── seed_dev.sql                 # 개발용 테스트 데이터
 ```
+
+> 위 목록은 실제 `supabase/migrations/` 기준이다 (011–015 번호는 존재하지 않음). 마이그레이션은 통합·재번호될 수 있으므로 확정 목록은 항상 `supabase/migrations/` 디렉터리를 참조한다.
 
 ---
 

@@ -66,7 +66,7 @@ CustomWebService lets anyone — without coding knowledge — build and publish 
 |---------|---------------|---------|
 | 🧠 **Model Tiering** | Opus 4.7 (generation) / Haiku 4.5 (recommendations) | Cost optimization |
 | 💾 **Prompt Caching** | `cache_control: ephemeral` | Reduce repeated input token costs |
-| 🤔 **Conditional Extended Thinking** | Activated when APIs ≥ 3 or context ≥ 500 chars | Spend reasoning budget only on complex requests |
+| 🤔 **Conditional Extended Thinking** | Complexity scoring (API count · auth type · endpoints · context · payment signals, 35pt threshold) | Spend reasoning budget only on complex requests |
 | 📡 **EventBus** | 12 domain events, pub/sub + auto DB audit log | Separation of concerns |
 | ⚛️ **Atomic Rate Limiting** | `UPDATE WHERE count < limit RETURNING` | Prevent race conditions on concurrent requests |
 | 🔌 **Circuit Breaker** | 3 failures → TRIPPED, 60s recovery probe | Contain DB failure propagation |
@@ -114,7 +114,7 @@ CustomWebService lets anyone — without coding knowledge — build and publish 
 ```
 src/
 ├── app/
-│   ├── api/v1/          # 🔌 REST API route.ts files (23)
+│   ├── api/v1/          # 🔌 REST API route.ts files (25)
 │   ├── (auth)/          # 🔐 Auth pages
 │   ├── (main)/          # 🏠 Main pages (builder, catalog, dashboard)
 │   └── site/[slug]/     # 🌐 Subdomain serving
