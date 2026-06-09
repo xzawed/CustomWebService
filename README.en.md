@@ -6,7 +6,7 @@
 [![status](https://img.shields.io/badge/status-v1.0.0%20Live-brightgreen?style=flat-square)](https://xzawed.xyz)
 [![Next.js](https://img.shields.io/badge/Next.js-16+-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![AI](https://img.shields.io/badge/AI-Claude%20Opus%204.7-blueviolet?style=flat-square)](https://anthropic.com)
-[![Tests](https://img.shields.io/badge/Vitest-1725%20listed-success?style=flat-square)](./docs/guides/testing.md)
+[![Tests](https://img.shields.io/badge/Vitest-1837%20listed-success?style=flat-square)](./docs/guides/testing.md)
 [![Coverage](https://img.shields.io/badge/Coverage-85%25%2B-yellow?style=flat-square)](./docs/guides/testing.md)
 [![Deploy](https://img.shields.io/badge/Deploy-Railway-8A2BE2?style=flat-square&logo=railway)](https://railway.app)
 
@@ -138,7 +138,7 @@ src/
 
 | Item | Details |
 |------|---------|
-| ✅ Test inventory | **1,725 Vitest tests + 33 Playwright tests** (`vitest list`, `playwright test --list`) |
+| ✅ Test inventory | **1,837 Vitest tests + 33 Playwright tests** (`vitest list`, `playwright test --list`) |
 | 🔬 Unit tests | Vitest + happy-dom — AI pipeline, security validation, rate limiting, Circuit Breaker |
 | 🔗 Integration tests | Vitest + MSW — API route auth, input validation, permissions, business logic |
 | 🌐 E2E tests | Playwright — 3 device types (mobile · tablet · desktop) |

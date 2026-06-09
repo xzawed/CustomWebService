@@ -1,7 +1,7 @@
 # 시스템 아키텍처
 
 > **최종 업데이트:** 2026-05-05  
-> **구현 상태:** 운영 중 (2026-05-08 기준 Vitest 목록 1,725개, Playwright 목록 33개)
+> **구현 상태:** 운영 중 (2026-06-09 기준 Vitest 목록 1,837개, Playwright 목록 33개)
 
 ---
 
@@ -501,7 +501,6 @@ export interface FeatureLimits {
   maxDeployPerDay: number;
   contextMinLength: number;
   contextMaxLength: number;
-  generationTimeoutMs: number;
 }
 
 function env(key: string, defaultValue: number): number {
@@ -520,7 +519,6 @@ const DEFAULT_LIMITS: FeatureLimits = {
   maxDeployPerDay: env('MAX_DEPLOY_PER_DAY', 5),
   contextMinLength: env('CONTEXT_MIN_LENGTH', 50),
   contextMaxLength: env('CONTEXT_MAX_LENGTH', 2000),
-  generationTimeoutMs: env('GENERATION_TIMEOUT_MS', 120000),
 };
 
 const PLAN_OVERRIDES: Record<string, Partial<FeatureLimits>> = {

@@ -20,7 +20,7 @@
        ──────────────────
 ```
 
-**현재 테스트 목록:** 132개 Vitest 파일, 1,725개 Vitest 테스트 + 3개 Playwright E2E 파일, 33개 Playwright 프로젝트별 테스트
+**현재 테스트 목록:** 142개 Vitest 파일, 1,837개 Vitest 테스트 + 3개 Playwright E2E 파일, 33개 Playwright 프로젝트별 테스트
 
 > 확인 명령: `pnpm exec vitest list`, `pnpm exec playwright test --list` (2026-05-08 기준). 실제 통과 여부는 `pnpm test`와 `pnpm test:e2e` 실행 결과를 기준으로 판단합니다.
 
@@ -373,7 +373,7 @@ lint (ESLint)
   ↓
 type-check (tsc --noEmit)
   ↓
-test (pnpm test:coverage — Vitest 목록 1,725개 기준)
+test (pnpm test:coverage — Vitest 목록 1,837개 기준)
   ↓
 커버리지 업로드 (Codecov + SonarCloud)
   ↓

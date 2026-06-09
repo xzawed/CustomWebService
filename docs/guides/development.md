@@ -141,6 +141,4 @@ pnpm test:coverage    # 커버리지 리포트
 pnpm type-check       # TypeScript 검사
 pnpm lint             # ESLint
 pnpm lint:fix         # ESLint 자동 수정
-pnpm format           # Prettier 포맷팅
-pnpm format:check     # 포맷 검사
 ```
