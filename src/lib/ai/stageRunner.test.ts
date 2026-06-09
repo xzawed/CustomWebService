@@ -378,3 +378,50 @@ describe('runStage3()', () => {
     expect(progressSteps).toContain('stage3_generating');
   });
 });
+
+// ---------------------------------------------------------------------------
+// 에러 전파: stage runner는 자체 catch가 없으므로 generateCodeStream rejection·
+// parseGeneratedCode throw를 그대로 상위(파이프라인의 resolveStage2/3 fallback)로 전파해야 한다.
+// (이전엔 성공 경로만 검증되어, 에러가 삼켜지거나 잘못된 형태로 전파되는 회귀를 못 잡았음)
+// ---------------------------------------------------------------------------
+describe('에러 전파', () => {
+  let provider: ReturnType<typeof makeMockProvider>;
+  let sse: ReturnType<typeof makeMockSse>;
+  const buildUserPrompt = vi.fn().mockReturnValue('user');
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    provider = makeMockProvider();
+    sse = makeMockSse();
+  });
+
+  it('runStage1: generateCodeStream이 reject하면 그대로 전파한다', async () => {
+    provider.generateCodeStream.mockRejectedValue(new Error('AI 스트림 실패'));
+    await expect(runStage1('s', 'u', provider, sse, false)).rejects.toThrow('AI 스트림 실패');
+  });
+
+  it('runStage1: parseGeneratedCode가 throw하면 그대로 전파한다', async () => {
+    const { parseGeneratedCode } = await import('@/lib/ai/codeParser');
+    vi.mocked(parseGeneratedCode).mockImplementationOnce(() => {
+      throw new Error('파싱 실패');
+    });
+    await expect(runStage1('s', 'u', provider, sse, false)).rejects.toThrow('파싱 실패');
+  });
+
+  it('runStage2Function: generateCodeStream이 reject하면 그대로 전파한다', async () => {
+    provider.generateCodeStream.mockRejectedValue(new Error('기능 단계 실패'));
+    await expect(
+      runStage2Function(mockParsedCode, 's', buildUserPrompt, [], null, provider, sse),
+    ).rejects.toThrow('기능 단계 실패');
+  });
+
+  it('runStage3: parseGeneratedCode가 throw하면 그대로 전파한다', async () => {
+    const { parseGeneratedCode } = await import('@/lib/ai/codeParser');
+    vi.mocked(parseGeneratedCode).mockImplementationOnce(() => {
+      throw new Error('디자인 파싱 실패');
+    });
+    await expect(
+      runStage3(mockParsedCode, 's', buildUserPrompt, provider, sse, false),
+    ).rejects.toThrow('디자인 파싱 실패');
+  });
+});
