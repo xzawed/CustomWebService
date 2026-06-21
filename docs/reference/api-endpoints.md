@@ -1000,3 +1000,33 @@ Authorization: Bearer <ADMIN_API_KEY>
 | 에러 코드 | HTTP | 설명 |
 |-----------|------|------|
 | `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
+
+### GET /api/v1/admin/keys-verify
+"플랫폼 키 의존" API(`auth_type=api_key` + `auth_config.env_var`, `default_key` 없음)의 키 유효성을 **배포 런타임의 env 키로 실제 인증 요청을 보내** 검증합니다. Railway sealed 변수는 배포 런타임에만 주입되므로 이 진단은 **반드시 배포 환경에서** 실행돼야 합니다(로컬 `railway run`은 sealed 미주입). 키 값은 응답에 노출되지 않습니다. 검증 로직은 [src/lib/catalog/keyCheck.ts](../../src/lib/catalog/keyCheck.ts).
+
+**Request:**
+```http
+GET /api/v1/admin/keys-verify
+Authorization: Bearer <ADMIN_API_KEY>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "generatedAt": "2026-06-21T...",
+    "summary": { "total": 6, "valid": 6, "invalid": 0, "missing": 0, "rateLimited": 0, "needsPrefixFix": [] },
+    "results": [
+      { "name": "카카오 로컬 (지도·장소 검색)", "envVar": "API_KEY_F1EC6F97", "verdict": "VALID", "httpStatus": 200, "detail": "인증 성공" }
+    ]
+  }
+}
+```
+
+- `verdict`: `VALID` / `INVALID`(키 거부·만료) / `MISSING`(env 미설정) / `RATE_LIMITED` / `ERROR` / `NO_ENDPOINT`
+- `needsPrefixFix`: raw 주입은 401이지만 prefix(`KakaoAK `/`Client-ID `) 적용 시 성공한 API 목록 — 프록시가 prefix를 적용해야 함을 의미
+
+| 에러 코드 | HTTP | 설명 |
+|-----------|------|------|
+| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
