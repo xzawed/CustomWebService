@@ -106,7 +106,7 @@ TTL 값은 각 API의 데이터 갱신 주기를 기반으로 설정했다. 기�
 ## 관련 파일
 
 - `src/lib/cache/proxyCache.ts` — LRU+TTL 인메모리 캐시 모듈 (신규)
-- `src/app/api/v1/proxy/[...path]/route.ts` — 캐시 조회/저장 통합, 관측성 헤더 추가
-- `supabase/migrations/020_add_cache_ttl_to_api_catalog.sql` — `cache_ttl_seconds` 컬럼 추가
+- `src/app/api/v1/proxy/route.ts` — 캐시 조회/저장 통합, 관측성 헤더 추가
+- `supabase/migrations/020_api_cache_ttl.sql` — `cache_ttl_seconds` 컬럼 추가
 - `src/types/` — API 카탈로그 타입에 `cache_ttl_seconds` 필드 추가
 - `docs/reference/api-endpoints.md` — 프록시 엔드포인트 캐시 동작 설명 추가

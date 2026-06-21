@@ -112,8 +112,7 @@ const adopted = strictAdoption
 
 ## 관련 파일
 
-- `src/lib/ai/qualityLoop.ts` — 타임아웃 분리 로직, AND/OR 채택 조건 구현
-- `src/lib/config/index.ts` — `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` 환경변수 설정 추가
+- `src/lib/ai/qualityLoop.ts` — 타임아웃 분리 로직, AND/OR 채택 조건 구현, `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` 등 ET 타임아웃 환경변수를 `process.env`로 직접 읽음
 - `docs/reference/env-vars.md` — 신규 환경변수 `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS`, `QUALITY_LOOP_STRICT_ADOPTION` 문서화
 - [ADR 2026-04-29](2026-04-29-generation-success-rate-improvement.md) — Quality Loop 기능 최초 도입 배경
 - [ADR 2026-05-03 프로덕션 인시던트](2026-05-03-production-incident-et-api-migration.md) — Quality Loop 비활성화 원인 설명

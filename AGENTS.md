@@ -38,6 +38,7 @@ src/
 │   ├── ai/          # AI 파이프라인 — generationPipeline(오케스트레이터), stageRunner, generationSaver, qualityLoop, generationTracker
 │   ├── auth/        # 인증 추상화 — getAuthUser, authjs-config (AUTH_PROVIDER 분기)
 │   ├── cache/       # proxyCache.ts — LRU+TTL 인메모리 캐시 (프록시 응답 서버사이드 캐시)
+│   ├── catalog/     # API 카탈로그 헬스체크·키 검증 (healthCheck, keyCheck)
 │   ├── config/      # 환경변수 기반 설정 (features, providers, rateLimit, qc 등)
 │   ├── constants/   # 공용 상수 — cdn.ts (CSP CDN 화이트리스트, buildSiteCsp)
 │   ├── db/          # Drizzle 연결(connection)·schema·failover (DB_PROVIDER=postgres 경로)
@@ -75,6 +76,14 @@ pnpm test:unit        # 단위 테스트 (lib, providers, services, repositories
 pnpm test:integration # 통합 테스트 (API routes — src/__tests__/api + src/app/api)
 pnpm test:coverage    # 커버리지 리포트
 pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요, CI에서 실행)
+```
+
+### 카탈로그 운영 스크립트
+
+```bash
+pnpm catalog:healthcheck       # DB(api_catalog) 활성 API 라이브 헬스체크 (scripts/verifyCatalog.ts)
+pnpm catalog:healthcheck:write # 헬스체크 결과를 DB에 반영
+pnpm keys:verify               # 플랫폼 API 키 설정 검증 (scripts/verifyPlatformKeys.ts)
 ```
 
 > 포맷팅은 ESLint에 통합됨 (별도 `pnpm format`/`prettier` 명령 없음).
@@ -143,7 +152,7 @@ pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요, CI에서 �
 | 배포/운영 작업 | [docs/guides/deployment.md](docs/guides/deployment.md) |
 | DB/Auth Provider 전환 | [docs/decisions/provider-migration.md](docs/decisions/provider-migration.md) |
 | 설계 결정 배경 | [docs/decisions/](docs/decisions/) |
-| 2단계 생성 파이프라인 설계 (초기 설계 문서) | [docs/superpowers/specs/2026-04-14-two-stage-generation-design.md](docs/superpowers/specs/2026-04-14-two-stage-generation-design.md) |
+| 2단계 생성 파이프라인 설계 (초기 설계 문서, 현재 3-Stage로 확장됨 — 설계 원칙 참고용) | [docs/superpowers/specs/2026-04-14-two-stage-generation-design.md](docs/superpowers/specs/2026-04-14-two-stage-generation-design.md) |
 | Repository 유틸리티 추출 ADR | [docs/decisions/2026-04-26-repository-utils-extraction.md](docs/decisions/2026-04-26-repository-utils-extraction.md) |
 | CI ESLint 마이그레이션 ADR | [docs/decisions/2026-04-26-ci-eslint-migration.md](docs/decisions/2026-04-26-ci-eslint-migration.md) |
 | 커버리지 개선 회고 (PR #45·#46) | [docs/decisions/2026-04-26-coverage-improvement-retrospective.md](docs/decisions/2026-04-26-coverage-improvement-retrospective.md) |
@@ -161,6 +170,7 @@ pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요, CI에서 �
 | Vitest full-suite 플래키 타임아웃 해소 ADR (config/providers mock + testTimeout, 2026-06-09) | [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md) |
 | 테스트 플래키 타임아웃 잔여·후속 작업 핸드오프 (2026-06-09) | [docs/superpowers/plans/2026-06-09-test-flakiness-followups.md](docs/superpowers/plans/2026-06-09-test-flakiness-followups.md) |
 | 서비스 종합 건강 감사 및 발견 16건 수정 ADR (2026-06-09) | [docs/decisions/2026-06-09-service-health-audit-fixes.md](docs/decisions/2026-06-09-service-health-audit-fixes.md) |
+| API 카탈로그 동작 검증·헬스 모니터링 자동화 ADR (REST Countries 폐기·DB 기반 헬스체크, 2026-06-21) | [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](docs/decisions/2026-06-21-api-catalog-health-monitoring.md) |
 
 - [README.md](README.md) — 프로젝트 전체 개요
 - [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) — PR 템플릿
@@ -236,6 +246,8 @@ pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요, CI에서 �
 - **배포 레이트리밋 환불은 migration 021 필요**: 배포 실패 시 `decrement_daily_deploy` PG 함수(migration `021_deploy_rate_limit_decrement.sql`)로 일일 배포 카운터를 환불한다. **Supabase에 021을 적용해야 동작**하며, 미적용 시 환불 호출은 best-effort로 무시되어 안전(에러 swallow). generate의 `decrement_daily_generation`(migration 007)과 동일 보상 패턴
 - **생성 상태 폴링 `not_found` 처리**: `/api/v1/generate/status`는 프로젝트 미존재·권한 없음 시 `status: 'not_found'`를 반환한다. `pollGenerationStatus`의 `GenerationStatusData.status` union에 `'not_found'`가 포함되어야 하며(누락 시 'unknown'으로 오처리되어 잘못된 사용자 메시지 표시), 전용 핸들러로 "프로젝트를 찾을 수 없습니다" 메시지를 낸다
 - **레이트리밋 우회 로깅**: `RATE_LIMIT_BYPASS_USER_IDS` 우회 적용 시 `logger.info('Rate limit bypass applied', ...)` 감사 로그를 남긴다(무로깅 우회는 운영 사각지대)
+- **카탈로그 헬스 모니터링**: `.github/workflows/scheduled.yml`이 매일 06:00 KST에 DB(`api_catalog`)의 활성 API 전체를 라이브 검증한다(`pnpm catalog:healthcheck`, 로직 `src/lib/catalog/healthCheck.ts`). BROKEN 감지 시 GitHub Issue를 생성/갱신한다. 이전 하드코딩 8개 목록/4잡 테이블은 폐기됨 — 상세: [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](docs/decisions/2026-06-21-api-catalog-health-monitoring.md). 2026-06-21 REST Countries 폐기(비활성)로 현재 활성 카탈로그는 23개
+- **플랫폼 키 검증 = 배포 런타임 전용**: 플랫폼 제공 API 키 설정 여부는 `GET /api/v1/admin/keys-verify`(ADMIN_API_KEY 보호, 로직 `src/lib/catalog/keyCheck.ts`)로 확인한다. 로컬 검증은 `pnpm keys:verify`(`scripts/verifyPlatformKeys.ts`). 키 미설정 7개(Unsplash·카카오 로컬·카카오 검색·공휴일·기상청 단기·기상청 중기·아파트 실거래가)는 비활성 상태이며, 현재 활성 카탈로그는 23개
 
 ## 세션 시작 체크리스트 (필수)
 

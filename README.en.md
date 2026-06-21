@@ -6,7 +6,7 @@
 [![status](https://img.shields.io/badge/status-v1.0.0%20Live-brightgreen?style=flat-square)](https://xzawed.xyz)
 [![Next.js](https://img.shields.io/badge/Next.js-16+-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![AI](https://img.shields.io/badge/AI-Claude%20Opus%204.7-blueviolet?style=flat-square)](https://anthropic.com)
-[![Tests](https://img.shields.io/badge/Vitest-1837%20listed-success?style=flat-square)](./docs/guides/testing.md)
+[![Tests](https://img.shields.io/badge/Vitest-1886%20listed-success?style=flat-square)](./docs/guides/testing.md)
 [![Coverage](https://img.shields.io/badge/Coverage-85%25%2B-yellow?style=flat-square)](./docs/guides/testing.md)
 [![Deploy](https://img.shields.io/badge/Deploy-Railway-8A2BE2?style=flat-square&logo=railway)](https://railway.app)
 
@@ -67,7 +67,7 @@ CustomWebService lets anyone — without coding knowledge — build and publish 
 | 🧠 **Model Tiering** | Opus 4.7 (generation) / Haiku 4.5 (recommendations) | Cost optimization |
 | 💾 **Prompt Caching** | `cache_control: ephemeral` | Reduce repeated input token costs |
 | 🤔 **Conditional Extended Thinking** | Complexity scoring (API count · auth type · endpoints · context · payment signals, 35pt threshold) | Spend reasoning budget only on complex requests |
-| 📡 **EventBus** | 12 domain events, pub/sub + auto DB audit log | Separation of concerns |
+| 📡 **EventBus** | 17 domain events, pub/sub + auto DB audit log | Separation of concerns |
 | ⚛️ **Atomic Rate Limiting** | `UPDATE WHERE count < limit RETURNING` | Prevent race conditions on concurrent requests |
 | 🔌 **Circuit Breaker** | 3 failures → TRIPPED, 60s recovery probe | Contain DB failure propagation |
 | 📶 **SSE + Polling Fallback** | `visibilitychange` triggers polling switch | Mobile background tab handling |
@@ -114,13 +114,14 @@ CustomWebService lets anyone — without coding knowledge — build and publish 
 ```
 src/
 ├── app/
-│   ├── api/v1/          # 🔌 REST API route.ts files (25)
+│   ├── api/v1/          # 🔌 REST API route.ts files (26)
 │   ├── (auth)/          # 🔐 Auth pages
 │   ├── (main)/          # 🏠 Main pages (builder, catalog, dashboard)
 │   └── site/[slug]/     # 🌐 Subdomain serving
-├── components/          # 🧩 UI components (builder, catalog, dashboard, gallery)
+├── components/          # 🧩 UI components (builder, catalog, dashboard, layout, settings, ui)
 ├── lib/
 │   ├── ai/              # 🤖 Pipeline orchestrator, stageRunner, qualityLoop, featureExtractor
+│   ├── catalog/         # 🩺 API catalog health/key checks (healthCheck, keyCheck)
 │   ├── events/          # 📡 EventBus (pub/sub) + eventPersister (auto DB audit log)
 │   ├── qc/              # 🔬 Playwright rendering QC (Fast/Deep), browserPool
 │   ├── config/          # ⚙️ Environment-variable-driven business rules
@@ -138,7 +139,7 @@ src/
 
 | Item | Details |
 |------|---------|
-| ✅ Test inventory | **1,837 Vitest tests + 33 Playwright tests** (`vitest list`, `playwright test --list`) |
+| ✅ Test inventory | **1,886 Vitest tests (145 files) + 33 Playwright tests** (`vitest list`, `playwright test --list`) |
 | 🔬 Unit tests | Vitest + happy-dom — AI pipeline, security validation, rate limiting, Circuit Breaker |
 | 🔗 Integration tests | Vitest + MSW — API route auth, input validation, permissions, business logic |
 | 🌐 E2E tests | Playwright — 3 device types (mobile · tablet · desktop) |

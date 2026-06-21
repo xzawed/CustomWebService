@@ -6,7 +6,7 @@
 [![status](https://img.shields.io/badge/status-v1.0.0%20Live-brightgreen?style=flat-square)](https://xzawed.xyz)
 [![Next.js](https://img.shields.io/badge/Next.js-16+-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![AI](https://img.shields.io/badge/AI-Claude%20Opus%204.7-blueviolet?style=flat-square)](https://anthropic.com)
-[![Tests](https://img.shields.io/badge/Vitest-1837%20listed-success?style=flat-square)](./docs/guides/testing.md)
+[![Tests](https://img.shields.io/badge/Vitest-1886%20listed-success?style=flat-square)](./docs/guides/testing.md)
 [![Coverage](https://img.shields.io/badge/Coverage-85%25%2B-yellow?style=flat-square)](./docs/guides/testing.md)
 [![Deploy](https://img.shields.io/badge/Deploy-Railway-8A2BE2?style=flat-square&logo=railway)](https://railway.app)
 
@@ -67,7 +67,7 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 | 🧠 **모델 분리** | Opus 4.7 (생성) / Haiku 4.5 (추천·제안) | 비용 최적화 |
 | 💾 **Prompt Caching** | `cache_control: ephemeral` | 반복 호출 입력 토큰 절감 |
 | 🤔 **조건부 Extended Thinking** | 복잡도 스코어링(API 수·인증 방식·엔드포인트·컨텍스트·결제 등 5종 신호, 35pt 임계값) | 복잡한 요청에만 추론 비용 투입 |
-| 📡 **EventBus** | 12개 도메인 이벤트, pub/sub + 자동 DB 감사 로그 | 관심사 분리 |
+| 📡 **EventBus** | 17개 도메인 이벤트, pub/sub + 자동 DB 감사 로그 | 관심사 분리 |
 | ⚛️ **원자적 레이트리밋** | `UPDATE WHERE count < limit RETURNING` | 동시 요청 경쟁 조건 방지 |
 | 🔌 **Circuit Breaker** | 3회 실패 → TRIPPED, 60초 후 복구 프로브 | DB 장애 전파 차단 |
 | 📶 **SSE + 폴링 이중 구조** | `visibilitychange` 감지 → 폴링 전환 | 모바일 백그라운드 탭 대응 |
@@ -114,13 +114,14 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 ```
 src/
 ├── app/
-│   ├── api/v1/          # 🔌 REST API route.ts 파일 (25개)
+│   ├── api/v1/          # 🔌 REST API route.ts 파일 (26개)
 │   ├── (auth)/          # 🔐 인증 페이지
 │   ├── (main)/          # 🏠 메인 페이지 (빌더, 카탈로그, 대시보드)
 │   └── site/[slug]/     # 🌐 서브도메인 서빙
-├── components/          # 🧩 UI 컴포넌트 (builder, catalog, dashboard, gallery)
+├── components/          # 🧩 UI 컴포넌트 (builder, catalog, dashboard, layout, settings, ui)
 ├── lib/
 │   ├── ai/              # 🤖 파이프라인 오케스트레이터, stageRunner, qualityLoop, featureExtractor
+│   ├── catalog/         # 🩺 API 카탈로그 헬스체크·키 검증 (healthCheck, keyCheck)
 │   ├── events/          # 📡 EventBus (pub/sub) + eventPersister (자동 DB 감사 로그)
 │   ├── qc/              # 🔬 Playwright 렌더링 QC (Fast/Deep), browserPool
 │   ├── config/          # ⚙️ 환경변수 기반 비즈니스 규칙
@@ -138,7 +139,7 @@ src/
 
 | 항목 | 내용 |
 |------|------|
-| ✅ 테스트 목록 | **Vitest 1,837개 + Playwright 33개** (`vitest list`, `playwright test --list` 기준) |
+| ✅ 테스트 목록 | **Vitest 1,886개 (145파일) + Playwright 33개** (`vitest list`, `playwright test --list` 기준) |
 | 🔬 단위 테스트 | Vitest + happy-dom — AI 파이프라인, 보안 검증, 레이트리밋, Circuit Breaker, 배포 서비스 등 |
 | 🔗 통합 테스트 | Vitest + MSW — API 라우트 인증·입력·권한·비즈니스 로직 전 경로 |
 | 🌐 E2E 테스트 | Playwright — 3종 디바이스 (모바일 · 태블릿 · 데스크톱) |

@@ -35,10 +35,9 @@
 
 **증상**: SSE 스트림에서 error 이벤트
 **확인 순서**:
-1. `ANTHROPIC_API_KEY` (또는 `XAI_API_KEY`) 환경변수 설정 확인
-2. `AI_PROVIDER` 환경변수 확인 (기본값: `claude`)
-3. API 제공자의 상태 페이지 확인
-4. 레이트리밋 확인 (`MAX_DAILY_GENERATIONS`)
+1. `ANTHROPIC_API_KEY` 환경변수 설정 확인
+2. API 제공자(Anthropic)의 상태 페이지 확인
+3. 레이트리밋 확인 (`MAX_DAILY_GENERATIONS`)
 
 ### 5. 레이트리밋 관련
 

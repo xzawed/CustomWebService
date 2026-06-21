@@ -408,8 +408,7 @@ supabase/migrations/
 └── 021_deploy_rate_limit_decrement.sql # 배포 카운터 환불 (decrement_daily_deploy)
 
 supabase/
-├── seed.sql                     # API 카탈로그 + 피처 플래그 초기 데이터
-└── seed_dev.sql                 # 개발용 테스트 데이터
+└── seed.sql                     # API 카탈로그 + 피처 플래그 초기 데이터
 ```
 
 > 위 목록은 실제 `supabase/migrations/` 기준이다 (011–015 번호는 존재하지 않음). 마이그레이션은 통합·재번호될 수 있으므로 확정 목록은 항상 `supabase/migrations/` 디렉터리를 참조한다.

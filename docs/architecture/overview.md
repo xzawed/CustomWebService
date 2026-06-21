@@ -1,7 +1,7 @@
 # 시스템 아키텍처
 
-> **최종 업데이트:** 2026-06-09  
-> **구현 상태:** 운영 중 (2026-06-09 기준 Vitest 목록 1,837개, Playwright 목록 33개)
+> **최종 업데이트:** 2026-06-22  
+> **구현 상태:** 운영 중 (2026-06-22 기준 Vitest 목록 1,886개(145파일), Playwright 목록 33개)
 
 ---
 
@@ -103,7 +103,7 @@ src/
 │   │   ├── builder/page.tsx
 │   │   ├── dashboard/page.tsx
 │   │   └── preview/[id]/page.tsx
-│   ├── api/v1/                   # API Routes (v1 버저닝, route.ts 25개 — 전체 목록은 docs/reference/api-endpoints.md 참조)
+│   ├── api/v1/                   # API Routes (v1 버저닝, route.ts 26개 — 전체 목록은 docs/reference/api-endpoints.md 참조)
 │   │   ├── catalog/
 │   │   │   ├── route.ts          # GET /api/v1/catalog
 │   │   │   ├── [id]/route.ts
@@ -130,15 +130,18 @@ src/
 │   │   ├── suggest-modification/route.ts
 │   │   ├── popular-services/route.ts
 │   │   ├── user-api-keys/route.ts
-│   │   ├── admin/                # 관리자 전용
+│   │   ├── admin/                # 관리자 전용 (ADMIN_API_KEY 보호)
+│   │   │   ├── debug/route.ts
+│   │   │   ├── keys-verify/route.ts    # GET — 플랫폼 키 검증 (로직: src/lib/catalog/keyCheck.ts)
 │   │   │   ├── qc-stats/route.ts
+│   │   │   ├── test-generation/route.ts
 │   │   │   └── trigger-qc/route.ts # POST
 │   │   └── health/route.ts       # GET
 │   ├── layout.tsx
 │   └── page.tsx                  # 랜딩 페이지
 │
 ├── __tests__/                    # 통합 테스트
-│   └── api/                      # API Route 통합 테스트 (18파일)
+│   └── api/                      # API Route 통합 테스트 (19파일)
 │       ├── health.test.ts
 │       ├── catalog.test.ts
 │       ├── projects.test.ts
@@ -148,6 +151,7 @@ src/
 │       ├── site.test.ts
 │       ├── admin.test.ts
 │       ├── admin-debug.test.ts
+│       ├── admin-keys-verify.test.ts
 │       ├── admin-test-generation.test.ts
 │       ├── deploy.test.ts
 │       ├── projects-publish.test.ts
@@ -260,6 +264,9 @@ src/
 │   │   └── sseWriter.ts           # SSE 스트림 유틸리티
 │   ├── cache/
 │   │   └── proxyCache.ts         # LRU+TTL 인메모리 캐시 (프록시 응답, 최대 500항목)
+│   ├── catalog/                 # API 카탈로그 동작 검증 (2026-06-21 신규)
+│   │   ├── healthCheck.ts        # DB 기반 라이브 헬스체크 분류 (+ co-located test)
+│   │   └── keyCheck.ts           # 플랫폼 키 검증 (+ co-located test)
 │   ├── constants/
 │   │   └── cdn.ts                # CDN URL 상수 (Tailwind, Pretendard, Font Awesome)
 │   ├── deploy/

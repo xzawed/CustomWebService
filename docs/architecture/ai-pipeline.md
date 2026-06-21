@@ -42,7 +42,7 @@ exampleCall 필드   →  2. 정적 QC + Fast QC
 
 ### 3.1 시스템 프롬프트
 
-`src/lib/ai/promptBuilder.ts`의 `buildSystemPrompt(templateHint?)` 함수가 생성. 결과는 모듈 레벨에 캐싱된다.
+`src/lib/ai/promptBuilder.ts`의 `buildStage1SystemPrompt(templateHint?)` 함수가 생성. 결과는 모듈 레벨에 캐싱된다.
 
 **주요 규칙 (실제 구현 기준):**
 1. Vercel, Linear, Spotify 수준의 완성도 — 비개발자가 보기에도 완성형 UI
@@ -262,8 +262,7 @@ DB 저장 구조 (generated_codes 테이블):
   | 의존성 복잡도 (동일 카테고리 다중 API 또는 결제 키워드) | 10pt |
 
 - Stage 1 및 Quality Loop에 동일 조건 적용
-- `budget_tokens: 32000` — Thinking 토큰 최대 허용량
-- Thinking 활성화 시 `temperature: 1` 필수 (Anthropic API 요구사항)
+- 활성화 시 `thinking: { type: 'adaptive' }` + `output_config: { effort: 'high' }`만 전달 (`budget_tokens`·`temperature` 미사용 — Claude 4.x는 `temperature` 미지원이며 `ClaudeProvider`에서 완전히 제거됨)
 - Thinking 토큰은 출력 단가($75/MTok)로 청구
 - 구현: `src/lib/ai/generationPipeline.ts` — `evaluateComplexityScore()` (export), `shouldUseExtendedThinking()` (내부)
 
@@ -304,7 +303,7 @@ DB 저장 구조 (generated_codes 테이블):
   → setTemplate(id) → contextStore.selectedTemplate
   → POST /api/v1/generate { projectId, templateId? }
   → templateRegistry.get(templateId)?.generate(ctx).promptHint
-  → buildSystemPrompt(templateHint)
+  → buildStage1SystemPrompt(templateHint)
       → 시스템 프롬프트 끝에 [템플릿 가이던스] 블록 추가 (max 2000자)
   → AI 생성 (레이아웃 구조 강제 반영)
 ```

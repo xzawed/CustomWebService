@@ -49,8 +49,8 @@
 Route Handler
     │
     └── getAuthUser()          ← lib/auth/index.ts (provider 무관 통합)
-            ├── supabase 모드: getSupabaseAuthUser()  (정적 import 가능)
-            └── authjs 모드:  getAuthJsUser()          (동적 import 필수)
+            ├── supabase 모드: getSupabaseAuthUser(supabase)  (동적 import)
+            └── authjs 모드:  getAuthJsUser()                  (동적 import 필수)
 ```
 
 ### 통합 팩토리 구현
@@ -64,7 +64,11 @@ export async function getAuthUser(): Promise<AuthUser | null> {
     const { getAuthJsUser } = await import('@/lib/auth/authjs-auth');
     return getAuthJsUser();
   }
-  return getSupabaseAuthUser();
+  // Default: Supabase — 이 경로도 동적 import로 처리하고 supabase 클라이언트를 인자로 전달
+  const { createClient } = await import('@/lib/supabase/server');
+  const { getSupabaseAuthUser } = await import('@/lib/auth/supabase-auth');
+  const supabase = await createClient();
+  return getSupabaseAuthUser(supabase);
 }
 ```
 
@@ -93,6 +97,8 @@ const { getAuthJsUser } = await import('@/lib/auth/authjs-auth');
 // ❌ 금지
 import { getAuthJsUser } from '@/lib/auth/authjs-auth';
 ```
+
+> **참고:** 현재 `index.ts`는 supabase 경로(`@/lib/supabase/server`, `@/lib/auth/supabase-auth`)도 동적 import로 처리한다(정적 import 아님). 따라서 정적/동적 import 구분이 두 provider 간의 핵심 차이는 아니며, authjs 경로의 정적 import 금지는 위의 `getDb()` crash 회피 목적이 핵심이다.
 
 ### Provider 전환 방법
 

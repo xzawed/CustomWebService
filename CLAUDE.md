@@ -28,7 +28,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 ```
 src/
 ├── app/             # Next.js App Router (pages, layouts, API routes)
-│   ├── api/         # /api/v1/* REST endpoints
+│   ├── api/         # /api/v1/* REST endpoints (admin/ 하위 진단 라우트: debug, keys-verify, qc-stats, test-generation, trigger-qc)
 │   ├── (auth)/      # 인증 관련 페이지
 │   ├── (main)/      # 메인 페이지 그룹
 │   └── site/        # 서브도메인 서빙 ([slug])
@@ -39,6 +39,7 @@ src/
 │   ├── auth/        # 인증 추상화 — getAuthUser, authjs-config (AUTH_PROVIDER 분기)
 │   ├── cache/       # proxyCache.ts — LRU+TTL 인메모리 캐시 (프록시 응답 서버사이드 캐시)
 │   ├── config/      # 환경변수 기반 설정 (features, providers, rateLimit, qc 등)
+│   ├── catalog/     # API 카탈로그 동작 검증 — healthCheck.ts(DB기반 라이브 검증 분류), keyCheck.ts(플랫폼 키 검증)
 │   ├── constants/   # 공용 상수 — cdn.ts (CSP CDN 화이트리스트, buildSiteCsp)
 │   ├── db/          # Drizzle 연결(connection)·schema·failover (DB_PROVIDER=postgres 경로)
 │   ├── deploy/      # 배포 관련
@@ -75,6 +76,13 @@ pnpm test:unit        # 단위 테스트 (lib, providers, services, repositories
 pnpm test:integration # 통합 테스트 (API routes — src/__tests__/api + src/app/api)
 pnpm test:coverage    # 커버리지 리포트
 pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요, CI에서 실행)
+```
+
+```bash
+# 운영 스크립트 (카탈로그 헬스체크·키 검증)
+pnpm catalog:healthcheck       # DB(api_catalog) 활성 전체를 라이브 검증 (분류만, 쓰기 없음)
+pnpm catalog:healthcheck:write # 라이브 검증 결과를 DB에 반영 (쓰기)
+pnpm keys:verify               # 플랫폼 키 설정 검증 (scripts/verifyPlatformKeys.ts)
 ```
 
 > 포맷팅은 ESLint 규칙으로 통합 관리한다. `prettier`는 의존성에 없으며 `format`/`format:check`

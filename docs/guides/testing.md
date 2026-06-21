@@ -20,7 +20,7 @@
        ──────────────────
 ```
 
-**현재 테스트 목록:** 142개 Vitest 파일, 1,837개 Vitest 테스트 + 3개 Playwright E2E 파일, 33개 Playwright 프로젝트별 테스트
+**현재 테스트 목록:** 145개 Vitest 파일, 1,886개 Vitest 테스트 + 3개 Playwright E2E 파일, 33개 Playwright 프로젝트별 테스트
 
 > 확인 명령: `pnpm exec vitest list`, `pnpm exec playwright test --list` (2026-05-08 기준). 실제 통과 여부는 `pnpm test`와 `pnpm test:e2e` 실행 결과를 기준으로 판단합니다.
 
@@ -167,7 +167,7 @@
 
 ---
 
-### 2.5 API Route 통합 테스트 (18파일, ~130개)
+### 2.5 API Route 통합 테스트 (19파일, ~130개)
 
 `pnpm test:integration`으로 실행 (테스트 대상 라우트: `src/app/api/**`)
 
@@ -187,6 +187,7 @@
 |------|-----------|---------------|
 | `proxy.test.ts` | `GET /api/v1/proxy` | **SSRF 방지**: loopback/RFC1918/AWS 메타데이터/IPv6(`[::1]`/`[fe80::1]`) 6종 차단, 분당 60회 rate limit, upstream 타임아웃 502, **응답 캐시**: `cache_ttl_seconds` 설정 API에서 MISS→HIT 전환, `X-Cache` 헤더, POST/4xx 미캐시 |
 | `admin.test.ts` | 관리자 API | Bearer 토큰 인증, IP 스푸핑 방지, CORS 헤더, QC rate limit |
+| `admin-keys-verify.test.ts` | `GET /api/v1/admin/keys-verify` | `ADMIN_API_KEY` 인증, 플랫폼 키 검증 결과 반환 (로직 `src/lib/catalog/keyCheck.ts`) |
 
 #### 배포·게시·관리
 
@@ -375,7 +376,7 @@ lint (ESLint)
   ↓
 type-check (tsc --noEmit)
   ↓
-test (pnpm test:coverage — Vitest 목록 1,837개 기준)
+test (pnpm test:coverage — Vitest 목록 1,886개 기준)
   ↓
 커버리지 업로드 (Codecov + SonarCloud)
   ↓
