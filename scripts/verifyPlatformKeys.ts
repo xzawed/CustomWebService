@@ -10,6 +10,11 @@
 //       (header면 raw 값, query면 raw 값). 따라서 Kakao "KakaoAK "/Unsplash "Client-ID " 같은
 //       prefix가 환경변수 값에 포함돼야 하는 경우, 누락 시 INVALID로 드러난다 = 프로덕션과 동일한 진실.
 //
+// ⚠️ Railway "sealed variables" 주의: 봉인된 변수는 `railway run`(로컬 CLI)에 주입되지 않는다
+//    (배포 런타임에만 주입). 따라서 봉인된 키는 로컬에서 실행하면 모두 MISSING으로 나온다 — 가짜 음성.
+//    봉인 키의 유효성을 검증하려면 이 스크립트를 *배포 컨텍스트 안*에서 실행해야 한다
+//    (예: 관리자 전용 진단 엔드포인트 또는 배포 환경의 일회성 잡). 로컬 `railway run`은 비봉인 변수만 검증 가능.
+//
 // 키 값은 절대 출력하지 않는다. 결과: VALID / INVALID / MISSING / RATE_LIMITED / ERROR.
 // MISSING 또는 INVALID가 하나라도 있으면 exit code 1.
 

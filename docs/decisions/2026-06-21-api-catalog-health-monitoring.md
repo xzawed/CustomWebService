@@ -64,9 +64,24 @@
 | 5. 키 거버넌스 | **missing** | 키 유효성 검증 도구 제공 | Railway env 정기 점검·만료 알림 자동화 |
 | 6. 문서·추적성 | partial(휴면 컬럼) | 검증 결과 DB 반영 경로 마련 | 검색·추천에서 `verification_status` 소비, SoT 대시보드 |
 
+## 키 거버넌스 검증 결과 (2026-06-21, Railway production)
+
+`railway run`으로 점검한 결과(키 값 비노출):
+
+| 항목 | 결과 |
+|------|------|
+| 존재 확인(6/7) | `API_KEY_UNSPLASH`·`API_KEY_F1EC6F97`(카카오 로컬)·`API_KEY_15B51435`·`API_KEY_7CB8F428`·`API_KEY_00412C2B`·`API_KEY_BDA9BE95`가 production에 **존재**(전부 **sealed**) |
+| **카카오 검색 오설정** | 카탈로그 `auth_config.env_var`가 **`API_KEY_KAKAO`** 인데 이 변수는 Railway에 **존재하지 않음** → 프록시가 키를 못 찾아 401 → **검색 기능 깨짐**. (실제 카카오 키는 `API_KEY_F1EC6F97`/`KAKAO_REST_API_KEY`에 있음) |
+| 유효성 미검증 | sealed 변수는 `railway run`/CLI에 주입되지 않아(배포 런타임 전용) 키 **값의 유효성(정확·만료)** 은 외부에서 검증 불가 |
+| 오펀/중복 변수 | 삭제·비활성 API용 `API_KEY_*` 다수 잔존(예: `_NEWSAPIORG`·`_ODSAY`·`_OPENWEATHERMAP`·`_TAGO`·`_TOURAPI`·`_GEOCODING`·`_ECOS` 등) + ADR식 이름(`DATA_GO_KR_API_KEY`·`KAKAO_REST_API_KEY`·`UNSPLASH_ACCESS_KEY`)과 카탈로그식(`API_KEY_*`) 이름 혼재 |
+
+> **봉인 키 검증 방법**: `keys:verify`를 *배포 컨텍스트 안*에서 실행해야 함(관리자 전용 진단 엔드포인트 권장, ADMIN_API_KEY 보호). 로컬 `railway run`은 비봉인 변수만 검증 가능.
+
 ## 잔여 / 후속 작업
 
-- **🔑 키 유효성 검증(미완)**: Railway 접근 수단(token/CLI/MCP)이 작업 환경에 없어 7개 키의 실제 유효성을 확인하지 못했다. `railway run pnpm keys:verify`로 검증 필요. (사용자 액션 또는 RAILWAY_TOKEN 제공 시 실행)
+- **🔑 카카오 검색 env_var 수정**: `auth_config.env_var` `API_KEY_KAKAO` → `API_KEY_F1EC6F97`(카카오 로컬과 동일 키, ADR 근거) 또는 누락된 `API_KEY_KAKAO`를 Railway에 생성. **사용자 의도 확인 후 적용 예정.**
+- **🔑 봉인 키 유효성 검증 경로**: 관리자 전용 진단 엔드포인트(또는 배포 일회성 잡)에서 `keys:verify` 실행해 6개 sealed 키의 실제 유효성 확인.
+- **🔑 env 변수 정리**: 비활성/삭제 API용 오펀 `API_KEY_*` 정리, 카카오/Unsplash/data.go.kr 이름 규칙 단일화.
 - **프록시 키 주입 형식 점검**: 프록시는 키를 raw로 주입(`headers[param_name]=key`). Kakao는 `Authorization: KakaoAK <key>`, Unsplash는 `Authorization: Client-ID <key>` 형식이 필요 — env 값에 prefix가 포함돼야 함. `keys:verify`로 검증 권장(별도 확인 항목).
 - **`verification_status` 소비(P1)**: 현재 검색·AI 추천이 이 컬럼을 사용하지 않음(휴면). broken 제외·verified 우선 가중치 적용 필요.
 - **라이선스/키 정책**: Open-Meteo 상업 사용 ToS(유료 플랜/셀프호스트), NASA DEMO_KEY→등록 키, data.go.kr 단일키→BYOK/운영계정. (딥리서치 근거)
