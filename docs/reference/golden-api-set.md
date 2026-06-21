@@ -10,7 +10,11 @@
 > TMDB·RAWG → is_active=false (키 등록 필요). The Cat API(auth_type→none 재분류)·NASA DEMO_KEY 신규 추가.
 > 전체 정리 내역: [docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md](../decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md)
 
-> **2026-06-21 업데이트**: 카탈로그 전체에 대한 **DB 기반 일일 헬스체크**(`pnpm catalog:healthcheck`)가 도입됨 — 라이브 검증으로 활성 30개 중 broken 0·degraded 2·key_gated 7 확인. REST Countries는 v3.1 deprecated로 폐기(비활성). ⚠️ 위 "verified 우선 추천"은 현재 코드가 `verification_status`를 검색·추천에서 소비하지 않아 미적용 상태(후속 과제). 상세: [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](../decisions/2026-06-21-api-catalog-health-monitoring.md)
+> **2026-06-21 업데이트**: 카탈로그 전체에 대한 **DB 기반 일일 헬스체크**(`pnpm catalog:healthcheck`)가 도입됨. 라이브 검증 + 배포 런타임 키 검증(`/admin/keys-verify`) 결과:
+> - REST Countries(v3.1 deprecated) 폐기
+> - 키 의존 7개(Unsplash·카카오 로컬/검색·공휴일·기상청 단기/중기·아파트 실거래가) — Railway env 키가 **빈 값(미설정)** 으로 확인되어 **비활성화**
+> - **현재 활성 23개**(전부 키 불필요·즉시 사용 가능): broken 0 · degraded 2(NASA·wheretheiss 지연) · 나머지 정상
+> ⚠️ "verified 우선 추천"은 현재 코드가 `verification_status`를 검색·추천에서 소비하지 않아 미적용(후속 과제). 상세: [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](../decisions/2026-06-21-api-catalog-health-monitoring.md)
 
 ---
 

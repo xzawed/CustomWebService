@@ -66,13 +66,13 @@
 
 ## 키 거버넌스 검증 결과 (2026-06-21, Railway production)
 
-`railway run`으로 점검한 결과(키 값 비노출):
+`railway run`(로컬)으로 점검한 1차 결과(키 값 비노출). ⚠️ "sealed로 추정"했으나 배포 후 진단에서 **빈 값**으로 확정됨 — 아래 "배포 후 키 검증 확정" 참조.
 
-| 항목 | 결과 |
+| 항목 | 결과(1차 추정) |
 |------|------|
-| 존재 확인(6/7) | `API_KEY_UNSPLASH`·`API_KEY_F1EC6F97`(카카오 로컬)·`API_KEY_15B51435`·`API_KEY_7CB8F428`·`API_KEY_00412C2B`·`API_KEY_BDA9BE95`가 production에 **존재**(전부 **sealed**) |
-| **카카오 검색 오설정** | 카탈로그 `auth_config.env_var`가 **`API_KEY_KAKAO`** 인데 이 변수는 Railway에 **존재하지 않음** → 프록시가 키를 못 찾아 401 → **검색 기능 깨짐**. (실제 카카오 키는 `API_KEY_F1EC6F97`/`KAKAO_REST_API_KEY`에 있음) |
-| 유효성 미검증 | sealed 변수는 `railway run`/CLI에 주입되지 않아(배포 런타임 전용) 키 **값의 유효성(정확·만료)** 은 외부에서 검증 불가 |
+| 존재 확인(6/7) | 변수 **이름**은 존재(`API_KEY_UNSPLASH`·`API_KEY_F1EC6F97`·`API_KEY_15B51435`·`API_KEY_7CB8F428`·`API_KEY_00412C2B`·`API_KEY_BDA9BE95`). 값은 CLI에 안 보여 sealed로 추정 → **실제로는 빈 값**(배포 진단으로 확정) |
+| **카카오 검색 오설정** | 카탈로그 `auth_config.env_var`가 **`API_KEY_KAKAO`** 인데 이 변수는 Railway에 **존재하지 않음** → `API_KEY_F1EC6F97`로 정정 적용 |
+| 유효성 미검증(1차) | sealed 추정이라 로컬 검증 불가 → 배포 진단 엔드포인트로 확정 필요(아래) |
 | 오펀/중복 변수 | 삭제·비활성 API용 `API_KEY_*` 다수 잔존(예: `_NEWSAPIORG`·`_ODSAY`·`_OPENWEATHERMAP`·`_TAGO`·`_TOURAPI`·`_GEOCODING`·`_ECOS` 등) + ADR식 이름(`DATA_GO_KR_API_KEY`·`KAKAO_REST_API_KEY`·`UNSPLASH_ACCESS_KEY`)과 카탈로그식(`API_KEY_*`) 이름 혼재 |
 | **프록시 prefix 미적용(잠재)** | `auth_config`에 `prefix`/`header_prefix`(카카오 `KakaoAK `, Unsplash `Client-ID `)가 선언돼 있으나 프록시 `resolveApiKey`는 이를 **적용하지 않고 raw 값 주입**. env 값에 prefix가 없으면 401. (env 값에 prefix가 포함돼 있으면 정상) — **진단 엔드포인트로 확인 필요** |
 
@@ -83,10 +83,21 @@
 - **카카오 검색 env_var 수정 적용**: `API_KEY_KAKAO`(미존재) → `API_KEY_F1EC6F97`(카카오 로컬과 동일 키). [scripts/2026-06-21-fix-kakao-search-envvar.sql](../../scripts/2026-06-21-fix-kakao-search-envvar.sql)
 - **관리자 진단 엔드포인트 신설**: `GET /api/v1/admin/keys-verify` — 배포 런타임 env 키로 실제 인증 요청을 보내 6개 sealed 키 유효성 검증. raw 실패 시 prefix 적용 재시도해 **프록시 prefix 미적용 여부(`needsPrefixFix`)** 까지 진단. 로직은 [src/lib/catalog/keyCheck.ts](../../src/lib/catalog/keyCheck.ts)(단위 테스트 12), 라우트 테스트 4.
 
+## 배포 후 키 검증 확정 (2026-06-21, #150 배포 직후)
+
+배포된 `GET /api/v1/admin/keys-verify`를 ADMIN_API_KEY로 호출한 결과(배포 런타임 내부 실행):
+
+> **7개 키 의존 API 전부 `MISSING`** — `summary: { total: 7, valid: 0, invalid: 0, missing: 7 }`
+
+- **근본 원인 확정**: 해당 env 변수들은 **sealed가 아니라 "이름만 있고 값이 빈" 변수**였다. Railway 변수 표시상 값이 공란이고(masked 아님), sealed라면 배포 런타임에 주입돼야 하나 `process.env`에서 미설정으로 읽힘. 앱의 다른 키(`ANTHROPIC_API_KEY`·`NEXT_PUBLIC_SUPABASE_URL`)는 정상 주입 → env 주입 자체는 정상. 카탈로그식(`API_KEY_*`)·ADR식(`DATA_GO_KR_API_KEY` 등) 이름 **양쪽 모두 빈 값**.
+- **영향**: 7개 키 의존 API(Unsplash·카카오 로컬/검색·공휴일·기상청 단기/중기·아파트 실거래가)는 키가 없어 사용자 선택 시 401 실패 — 사실상 작동 불가. (NASA=DEMO_KEY, The Cat API=무인증 → 영향 없음)
+- **조치 (사용자 승인)**: 7개 `is_active=false` 비활성화. [scripts/2026-06-21-deactivate-empty-key-apis.sql](../../scripts/2026-06-21-deactivate-empty-key-apis.sql). **활성 30 → 23**(전부 키 불필요·즉시 사용 가능), 비활성 18 → 25.
+- **프록시 prefix 검증 보류**: 키가 비어 있어 `needsPrefixFix` 진단 불가. 실제 키 입력 후 재검증 시 확정.
+
 ## 잔여 / 후속 작업
 
-- **🔑 봉인 키 유효성 확정**: 배포 후 `GET /api/v1/admin/keys-verify` 호출로 6개 sealed 키의 실제 유효성 + 프록시 prefix 필요 여부 확정.
-- **🔑 프록시 prefix 적용 수정**: 위 진단에서 `needsPrefixFix`가 나오면 프록시 `resolveApiKey`가 `auth_config.prefix`/`header_prefix`를 적용하도록 수정(단, env 값에 이미 prefix가 있으면 이중 적용되므로 진단 결과 확인 후 진행). `prefix`/`header_prefix` 필드명도 단일화.
+- **🔑 7개 API 재활성화 경로**: 실제 키(data.go.kr·Kakao·Unsplash)를 Railway env(`API_KEY_*`)에 **값까지** 입력 → `is_active=true` 복원 → `GET /api/v1/admin/keys-verify`로 유효성 + 프록시 prefix 적용 여부 확정.
+- **🔑 프록시 prefix 적용 수정**: 키 입력 후 진단에서 `needsPrefixFix`가 나오면 프록시 `resolveApiKey`가 `auth_config.prefix`/`header_prefix`를 적용하도록 수정(단, env 값에 이미 prefix가 있으면 이중 적용되므로 진단 결과 확인 후 진행). `prefix`/`header_prefix` 필드명도 단일화.
 - **🔑 env 변수 정리**: 비활성/삭제 API용 오펀 `API_KEY_*` 정리, 카카오/Unsplash/data.go.kr 이름 규칙 단일화.
 - **`verification_status` 소비(P1)**: 현재 검색·AI 추천이 이 컬럼을 사용하지 않음(휴면). broken 제외·verified 우선 가중치 적용 필요.
 - **라이선스/키 정책**: Open-Meteo 상업 사용 ToS(유료 플랜/셀프호스트), NASA DEMO_KEY→등록 키, data.go.kr 단일키→BYOK/운영계정. (딥리서치 근거)
