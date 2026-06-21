@@ -42,24 +42,36 @@
 
 ### `/api/v1/health` 엔드포인트
 
-UptimeRobot에서 5분마다 호출 → Supabase 일시정지 방지 겸용:
+UptimeRobot에서 5분마다 호출 → Supabase 일시정지 방지 겸용. 인증 없는 공개 호출은 가동 여부 확인용 최소 응답만 반환합니다(UptimeRobot은 이 응답으로 가동 여부만 확인):
 
 ```json
 {
-  "status": "healthy",
+  "status": "ok",
+  "timestamp": "2026-03-20T12:00:00Z"
+}
+```
+
+상세 정보는 `?detailed=true` 쿼리와 `Authorization: Bearer ${ADMIN_API_KEY}` 헤더가 **모두** 있어야 노출됩니다:
+
+```json
+{
+  "status": "ok",
   "timestamp": "2026-03-20T12:00:00Z",
   "checks": {
     "database": "ok",
-    "ai_api": "ok",
-    "deployment": "ok"
+    "ai": "ok",
+    "aiProvider": "claude",
+    "deploy": "ok"
   },
-  "limits": {
-    "db_usage_mb": 45,
-    "db_limit_mb": 500,
-    "daily_generations": 23,
-    "daily_generation_limit": 1500,
-    "active_projects": 87,
-    "project_limit": 200
+  "usage": {
+    "todayGenerations": 23,
+    "totalProjects": 87,
+    "totalUsers": 0,
+    "limits": {
+      "maxDailyGenerationsPerUser": 10,
+      "maxApisPerProject": 0,
+      "maxProjectsPerUser": 0
+    }
   }
 }
 ```
@@ -79,9 +91,9 @@ UptimeRobot에서 5분마다 호출 → Supabase 일시정지 방지 겸용:
 Supabase Dashboard → Authentication → URL Configuration에서 Redirect URLs 확인:
 - `https://xzawed.xyz/callback` 이 목록에 있어야 함
 
-### 카탈로그에 API가 15개만 보임
+### 카탈로그 항목이 비정상적으로 적게 보임
 
-seed.sql을 아직 실행하지 않은 것. Supabase SQL Editor에서 `supabase/seed.sql`을 실행하세요.
+정상 활성 카탈로그는 23개입니다. 이보다 현저히 적게 보이면 seed.sql을 아직 실행하지 않은 것. Supabase SQL Editor에서 `supabase/seed.sql`을 실행하세요.
 
 ### DB 연동 기능 전체 실패 (Supabase 일시정지)
 

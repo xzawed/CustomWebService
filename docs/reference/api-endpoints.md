@@ -67,7 +67,7 @@ API 카탈로그 전체 조회
                 "tags": ["weather", "forecast"]
             }
         ],
-        "total": 30,
+        "total": 23,
         "page": 1,
         "totalPages": 2
     }
@@ -107,9 +107,9 @@ API 카탈로그 전체 조회
 {
     "success": true,
     "data": [
-        { "key": "weather", "label": "날씨", "count": 3, "icon": "🌤" },
-        { "key": "news", "label": "뉴스", "count": 3, "icon": "📰" },
-        { "key": "finance", "label": "금융/환율", "count": 3, "icon": "💱" }
+        { "key": "weather", "label": "날씨", "count": 1, "icon": "🌤" },
+        { "key": "news", "label": "뉴스", "count": 2, "icon": "📰" },
+        { "key": "finance", "label": "금융/환율", "count": 2, "icon": "💱" }
     ]
 }
 ```

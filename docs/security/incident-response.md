@@ -64,17 +64,19 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" "https://xzawed.xyz/api/v1/health
 - 회전 전 현재 키로 모든 암호화된 API 키를 복호화하고 재암호화할 마이그레이션 스크립트 필요
 - 유지보수 창(maintenance window) 동안 실행 권장
 
-### 마이그레이션 절차 (예시)
-```typescript
-// scripts/rotate-encryption-key.ts
-// 1. DB에서 모든 encrypted_api_key 조회
-// 2. OLD_ENCRYPTION_KEY로 복호화
-// 3. NEW_ENCRYPTION_KEY로 재암호화
-// 4. DB 업데이트
-// 5. Railway env에서 ENCRYPTION_KEY = NEW_ENCRYPTION_KEY로 변경
+### 마이그레이션 절차
+```bash
+# scripts/migrate-encryption-key.ts (구현 완료, 멱등)
+# 1. DB에서 모든 encrypted_api_key 조회
+# 2. OLD_ENCRYPTION_KEY로 복호화
+# 3. NEW_ENCRYPTION_KEY로 재암호화
+# 4. DB 업데이트 (supabase .update({encrypted_key}))
+# 5. Railway env에서 ENCRYPTION_KEY = NEW_ENCRYPTION_KEY로 변경
+
+OLD_ENCRYPTION_KEY=<기존키> NEW_ENCRYPTION_KEY=<신규키> pnpm tsx scripts/migrate-encryption-key.ts
 ```
 
-**현재 상태**: ENCRYPTION_KEY 회전은 마이그레이션 스크립트 구현 전까지 보류.
+**현재 상태**: 마이그레이션 스크립트(`scripts/migrate-encryption-key.ts`) 구현 완료. 유지보수 창에서 실행.
 
 > **키 길이 주의**: `openssl rand -hex 32`는 64바이트 hex 문자열을 생성합니다 — 서버 시작 시 경고 로그 발생 후 첫 32바이트만 사용됩니다. 정확히 32바이트 키 생성은 `openssl rand -base64 24`(base64 인코딩 32자) 또는 `python3 -c "import secrets; print(secrets.token_bytes(32).hex()[:32])"` 사용을 권장합니다.
 
@@ -140,4 +142,4 @@ gitleaks detect --source . --config .gitleaks.toml
 
 - [보안 헤더 설정](../../src/middleware.ts) — CSP, HSTS, X-Frame-Options
 - [에러 처리 표준](../../src/lib/utils/errors.ts) — 클라이언트 응답 정보 최소화
-- [gitleaks 룰](.../../.gitleaks.toml) — 시크릿 패턴 정의
+- [gitleaks 룰](../../.gitleaks.toml) — 시크릿 패턴 정의

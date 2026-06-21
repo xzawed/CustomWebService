@@ -18,7 +18,7 @@
 
 **왜**: Railway는 300초 이후 TCP 커넥션을 강제 종료한다. 타임아웃을 270초로 설정하면 Railway 컷오프 전에 파이프라인이 명시적 오류를 반환할 수 있어 사용자에게 더 명확한 피드백을 제공한다. `Retry-After` 헤더를 무시하고 지수 백오프만 사용할 경우 실제 허용 대기 시간보다 훨씬 긴 불필요한 대기가 발생할 수 있다.
 
-**관련 파일**: `src/providers/ClaudeProvider.ts`
+**관련 파일**: `src/providers/ai/ClaudeProvider.ts`
 
 ### 2. Quality Loop 반복당 타임아웃
 
@@ -34,7 +34,7 @@
 
 **왜**: `assembleHtml()`은 DOMPurify를 통해 인라인 스크립트를 자동으로 제거한다. 따라서 인라인 스크립트가 포함된 코드가 생성되더라도 최종 서빙 결과물에는 포함되지 않는다. 이미 자동 제거되는 내용을 이유로 생성 자체를 차단하는 것은 오탐이며, 불필요하게 성공률을 낮추는 결과를 초래했다.
 
-**관련 파일**: `src/lib/qc/validateSecurity.ts`
+**관련 파일**: `src/lib/ai/codeValidator.ts` (`validateSecurity()`)
 
 ### 4. Stage 3 폴백 이벤트 추적
 
@@ -50,7 +50,7 @@
 
 **왜**: 기존 지표는 성공한 생성 건수만 보여줬다. 전체 시도 대비 성공 비율(실성공률)을 계산하려면 실패 건수도 함께 조회해야 하지만 해당 데이터가 API에 노출되지 않았다. 두 지표를 함께 제공함으로써 파이프라인 개선 효과를 정량적으로 측정할 수 있다.
 
-**관련 파일**: `src/app/api/v1/admin/qc/stats/route.ts`
+**관련 파일**: `src/app/api/v1/admin/qc-stats/route.ts`
 
 ## 결과
 
@@ -62,10 +62,10 @@
 
 ## 관련 파일
 
-- `src/providers/ClaudeProvider.ts` — 타임아웃 및 Retry-After 처리
+- `src/providers/ai/ClaudeProvider.ts` — 타임아웃 및 Retry-After 처리
 - `src/lib/ai/qualityLoop.ts` — 반복당 타임아웃
-- `src/lib/qc/validateSecurity.ts` — 인라인 스크립트 강등
+- `src/lib/ai/codeValidator.ts` (`validateSecurity()`) — 인라인 스크립트 강등
 - `src/lib/ai/generationPipeline.ts` — STAGE3_FALLBACK_USED 이벤트 발행
 - `src/types/events.ts` — DomainEvent 유니온 타입에 STAGE3_FALLBACK_USED 추가
-- `src/app/api/v1/admin/qc/stats/route.ts` — failureCount, realSuccessRate 필드 추가
+- `src/app/api/v1/admin/qc-stats/route.ts` — failureCount, realSuccessRate 필드 추가
 - `docs/architecture/events.md` — 이벤트 타입 문서 갱신

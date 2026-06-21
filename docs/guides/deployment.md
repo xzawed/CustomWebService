@@ -93,12 +93,13 @@ GitHub Actions 설정: `.github/workflows/ci.yml`
 
 ### 스케줄 자동화 (`.github/workflows/scheduled.yml`)
 
-| 작업 | 주기 |
-|------|------|
-| 무료 API 상태 점검 | 매일 06:00 KST |
-| DB 용량/한도 체크 | 매일 09:00 KST |
-| 비활성 프로젝트 정리 | 매주 월요일 |
-| 의존성 보안 스캔 (Dependabot) | 매주 월요일 |
+| 작업 | 주기 | 동작 |
+|------|------|------|
+| Scheduled API Health Check | 매일 06:00 KST (cron `0 21 * * *`) | DB(`api_catalog`)의 활성 API 전체를 라이브 검증(`pnpm catalog:healthcheck`). BROKEN 발견 시 GitHub Issue 생성/갱신 |
+
+> 이전의 8개 하드코딩 API 점검·DB 용량 체크·비활성 프로젝트 정리·Dependabot 4잡 구성은 폐기되고, DB 기반 단일 헬스체크 잡으로 전환되었습니다.
+> 검증 로직: `src/lib/catalog/healthCheck.ts`(라이브 검증·분류), 키 검증: `src/lib/catalog/keyCheck.ts` / `scripts/verifyPlatformKeys.ts`(`pnpm keys:verify`).
+> 배경: [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](../decisions/2026-06-21-api-catalog-health-monitoring.md)
 
 ### 사용 도구 및 무료 한도
 

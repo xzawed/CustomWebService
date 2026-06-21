@@ -13,8 +13,7 @@ IAiProvider (인터페이스)
 
 | Provider | SDK | 모델 | 상태 |
 |----------|-----|------|------|
-| ClaudeProvider | @anthropic-ai/sdk | claude-opus-4-7, claude-haiku-4-5 | 기본 |
-| GrokProvider | OpenAI SDK (xAI baseURL) | grok-4 | 롤백용 |
+| ClaudeProvider | @anthropic-ai/sdk | claude-opus-4-7, claude-haiku-4-5 | 기본 (유일한 활성 provider) |
 
 ## 용도별 모델 분리
 
@@ -25,7 +24,7 @@ IAiProvider (인터페이스)
 | `generation` | Claude Opus 4.7 | 웹페이지 코드 생성 |
 | `suggestion` | Claude Haiku 4.5 | 컨텍스트 아이디어 제안 |
 
-Grok 사용 시 태스크 구분 없이 동일 인스턴스 반환.
+`createForTask`는 task+model별 캐시 키(`claude:${task}:${model}`)로 분리된 인스턴스를 반환한다.
 
 ## 호출 지점
 

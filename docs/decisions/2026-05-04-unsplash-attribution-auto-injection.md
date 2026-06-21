@@ -121,4 +121,4 @@ AI에게 귀속 문구를 직접 삽입하지 말도록 명시적으로 안내�
 
 - `src/lib/ai/codeParser.ts` — `injectUnsplashAttribution()` 함수 구현, `processFullDocument()`·`buildFromFragment()` 호출 추가
 - `src/lib/ai/promptBuilder.ts` — AI 귀속 문구 직접 삽입 금지 지침 추가
-- `src/__tests__/codeParser.test.ts` — `injectUnsplashAttribution()` 단위 테스트 추가
+- `src/lib/ai/codeParser.test.ts` — `injectUnsplashAttribution()` 단위 테스트 추가

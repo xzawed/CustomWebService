@@ -154,7 +154,7 @@ LLM 재시도 전 `applyAutoFix()`가 먼저 실행됩니다. CDN http→https, 
 |------|-----|---------|------|
 | 구조 품질 임계값 | 60 | `QC_QUALITY_THRESHOLD` | structuralScore 미달 시 재생성 |
 | 모바일 품질 임계값 | 60 | `QC_MOBILE_THRESHOLD` | mobileScore 미달 시 재생성 |
-| Fast QC 통과 | 60 | `QC_FAST_PASS_THRESHOLD` | 4개 체크 평균 60점 이상 |
+| Fast QC 통과 | 60 | `QC_FAST_PASS_THRESHOLD` | 5개 체크 평균 60점 이상 |
 | Deep QC 통과 | 70 | `QC_DEEP_PASS_THRESHOLD` | 8개 체크 평균 70점 이상 (Fast QC 실패 시에만 실행) |
 | Fast QC 타임아웃 | 3초 | `QC_FAST_TIMEOUT_MS` | 초과 시 null 반환, 진행 |
 | Deep QC 타임아웃 | 10초 | `QC_DEEP_TIMEOUT_MS` | 초과 시 null 반환, 진행 |
@@ -173,6 +173,7 @@ LLM 재시도 전 `applyAutoFix()`가 먼저 실행됩니다. CDN http→https, 
 | 브라우저 풀 | `src/lib/qc/browserPool.ts` |
 | 체크 함수 12개 | `src/lib/qc/qcChecks.ts` |
 | Fast/Deep QC 오케스트레이터 | `src/lib/qc/renderingQc.ts` |
+| Deep QC 비동기 실행/저장 후 업데이트 | `src/lib/qc/deepQcRunner.ts` (`runDeepQcAndUpdate`) |
 | 생성 파이프라인 | `src/app/api/v1/generate/route.ts` |
 | 재생성 파이프라인 | `src/app/api/v1/generate/regenerate/route.ts` |
 | 게시 라우트 | `src/app/api/v1/projects/[id]/publish/route.ts` |

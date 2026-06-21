@@ -16,7 +16,7 @@
 
 ### C-1 (CRITICAL): iframe sandbox allow-same-origin 제거
 
-**파일:** `src/app/(main)/preview/[projectId]/page.tsx`
+**파일:** `src/app/(main)/preview/[id]/page.tsx`
 
 `allow-scripts + allow-same-origin` 조합은 iframe sandbox를 완전히 우회한다. 악성 생성 코드가 부모 DOM에 접근하거나 세션 토큰을 탈취할 수 있었음.
 

@@ -5,23 +5,37 @@
 ```
 src/
 ├── __tests__/           # 통합 테스트 (API routes, services, lib)
-│   ├── api/             # API 라우트 테스트 (11개 파일)
-│   │   ├── generate.test.ts
+│   ├── api/             # API 라우트 테스트 (19개 파일)
+│   │   ├── admin.test.ts
+│   │   ├── admin-debug.test.ts
+│   │   ├── admin-keys-verify.test.ts
+│   │   ├── admin-test-generation.test.ts
+│   │   ├── catalog.test.ts
 │   │   ├── deploy.test.ts
+│   │   ├── generate.test.ts
+│   │   ├── health.test.ts
 │   │   ├── preview.test.ts
 │   │   ├── projects.test.ts
 │   │   ├── projects-publish.test.ts
 │   │   ├── projects-rollback.test.ts
 │   │   ├── projects-slug-check.test.ts
+│   │   ├── proxy.test.ts
+│   │   ├── site.test.ts
 │   │   ├── suggest-apis.test.ts
 │   │   ├── suggest-context.test.ts
-│   │   ├── proxy.test.ts
-│   │   ├── admin.test.ts
-│   │   └── health.test.ts
+│   │   ├── suggest-modification.test.ts
+│   │   └── suggest-preferences.test.ts
 │   ├── repositories/    # 리포지토리 테스트
+│   │   ├── catalogRepository.test.ts
 │   │   ├── codeRepository.test.ts
 │   │   ├── eventRepository.test.ts
-│   │   └── catalogRepository.test.ts
+│   │   ├── drizzleCatalogRepository.test.ts
+│   │   ├── drizzleCodeRepository.test.ts
+│   │   ├── drizzleEventRepository.test.ts
+│   │   ├── drizzleProjectRepository.test.ts
+│   │   ├── drizzleRateLimitRepository.test.ts
+│   │   ├── drizzleUserApiKeyRepository.test.ts
+│   │   └── drizzleUserRepository.test.ts
 │   ├── services/        # 서비스 테스트
 │   │   └── rateLimitService.test.ts
 │   └── lib/
@@ -38,13 +52,26 @@ src/
 │   ├── projectService.test.ts
 │   └── deployService.test.ts
 └── lib/
-    ├── ai/
+    ├── ai/              # 대표 예시 — 실제 18개 *.test.ts
     │   ├── codeParser.test.ts
     │   ├── codeValidator.test.ts
     │   ├── qualityLoop.test.ts
+    │   ├── qualityLoop.adoption.test.ts
     │   ├── categoryDesignMap.test.ts
     │   ├── slugSuggester.test.ts
+    │   ├── autoFix.test.ts
+    │   ├── featureExtractor.test.ts
+    │   ├── generationPipeline.test.ts
+    │   ├── generationSaver.test.ts
+    │   ├── generationTracker.test.ts
+    │   ├── placeholderPatterns.test.ts
+    │   ├── preferencesRecommender.test.ts
+    │   ├── sseWriter.test.ts
+    │   ├── stageRunner.test.ts
     │   └── promptBuilder.test.ts
+    ├── catalog/         # 🩺 카탈로그 헬스체크·키 검증 (신규)
+    │   ├── healthCheck.test.ts
+    │   └── keyCheck.test.ts
     ├── auth/
     │   └── authorize.test.ts
     ├── config/
@@ -63,6 +90,8 @@ pnpm test              # 전체 테스트 실행
 pnpm test:unit         # 단위 테스트 (lib, providers)
 pnpm test:integration  # 통합 테스트 (API routes)
 pnpm test:coverage     # 커버리지 리포트
+pnpm keys:verify       # 플랫폼 API 키 검증 (배포 런타임 전용)
+pnpm catalog:healthcheck  # DB 기반 카탈로그 라이브 헬스체크
 ```
 
 ## 테스트 패턴

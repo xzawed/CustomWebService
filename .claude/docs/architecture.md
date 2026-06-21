@@ -26,7 +26,7 @@ POST /api/v1/generate (SSE 스트리밍)
   ├── RateLimitService.checkAndIncrementDailyLimit()
   ├── ProjectService.getById() + getProjectApiIds()
   ├── CatalogService.getByIds()
-  ├── buildSystemPrompt() + buildUserPrompt()
+  ├── buildStage1SystemPrompt() + buildStage1UserPrompt()
   ├── AiProviderFactory.createForTask('generation')
   │   └── ClaudeProvider.generateCodeStream() [Opus 4.7]
   ├── parseGeneratedCode()
@@ -47,15 +47,14 @@ POST /api/v1/generate (SSE 스트리밍)
 
 ```
 IAiProvider (인터페이스)
-  ├── ClaudeProvider (기본) — @anthropic-ai/sdk
-  │   ├── generation: claude-opus-4-7
-  │   └── suggestion: claude-haiku-4-5
-  └── GrokProvider (롤백용) — OpenAI SDK (xAI baseURL)
+  └── ClaudeProvider (유일한 Provider) — @anthropic-ai/sdk
+      ├── generation: claude-opus-4-7
+      └── suggestion: claude-haiku-4-5
 
 AiProviderFactory
-  ├── create(type?) — 단일 Provider 반환
+  ├── create(type?) — 단일 Provider 반환 ('claude' 외 타입은 throw)
   ├── createForTask(task) — 용도별 모델 분리
-  └── getBestAvailable() — 가용한 Provider 자동 선택
+  └── clearCache() — 인스턴스 캐시 초기화
 ```
 
 ## 컨텍스트 제안 파이프라인
