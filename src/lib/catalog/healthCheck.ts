@@ -68,9 +68,9 @@ export function classifyResponse(input: ClassifyInput): ClassifyResult {
   }
 
   if (httpStatus === 401 || httpStatus === 403) {
-    return authType !== 'none'
-      ? { status: 'key_gated', reason: `인증 필요(${httpStatus}) — 호스트 정상, 플랫폼 키 의존` }
-      : { status: 'broken', reason: `키리스 API가 인증 거부(${httpStatus})` };
+    return authType === 'none'
+      ? { status: 'broken', reason: `키리스 API가 인증 거부(${httpStatus})` }
+      : { status: 'key_gated', reason: `인증 필요(${httpStatus}) — 호스트 정상, 플랫폼 키 의존` };
   }
 
   if (httpStatus === 429) {
@@ -213,15 +213,43 @@ function parseExampleQuery(example: string | undefined): URLSearchParams | null 
  * - base_url에 경로 prefix(예: /api/json/v1/1)가 있어도 보존 (문자열 결합)
  * - example_call의 쿼리 → parameters/params 순으로 쿼리 병합 (auth 파라미터 제외)
  */
+/** path의 {placeholder}를 샘플 값으로 치환 (정규식 미사용 — ReDoS 회피). */
+function fillPathPlaceholders(path: string, usedInPath: Set<string>): string {
+  let out = '';
+  let i = 0;
+  while (i < path.length) {
+    const open = path.indexOf('{', i);
+    if (open === -1) {
+      out += path.slice(i);
+      break;
+    }
+    out += path.slice(i, open);
+    const close = path.indexOf('}', open + 1);
+    if (close === -1) {
+      out += path.slice(open);
+      break;
+    }
+    const key = path.slice(open + 1, close);
+    usedInPath.add(key.toLowerCase());
+    out += encodeURIComponent(sampleFor(key));
+    i = close + 1;
+  }
+  return out;
+}
+
+/** 끝의 슬래시 제거 (정규식 미사용 — ReDoS 회피). */
+function stripTrailingSlashes(s: string): string {
+  let end = s.length;
+  while (end > 0 && s[end - 1] === '/') end -= 1;
+  return s.slice(0, end);
+}
+
 export function buildTestUrl(baseUrl: string, endpoint: TestableEndpoint): string {
   const usedInPath = new Set<string>();
-  const filledPath = endpoint.path.replace(/\{([^}]+)\}/g, (_m, k: string) => {
-    usedInPath.add(k.toLowerCase());
-    return encodeURIComponent(sampleFor(k));
-  });
+  const filledPath = fillPathPlaceholders(endpoint.path, usedInPath);
 
   const joined =
-    baseUrl.replace(/\/+$/, '') + (filledPath.startsWith('/') ? filledPath : `/${filledPath}`);
+    stripTrailingSlashes(baseUrl) + (filledPath.startsWith('/') ? filledPath : `/${filledPath}`);
   const url = new URL(joined);
 
   // 1) example_call의 실제 값이 가장 정확 — 먼저 반영
