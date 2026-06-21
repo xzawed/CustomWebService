@@ -160,11 +160,11 @@ INSERT INTO api_catalog (name, description, category, base_url, auth_type, rate_
   'Frankfurter',
   '유럽중앙은행 기준 환율 조회. 30개국 통화를 실시간으로 변환할 수 있어요. 여행 환율 계산기에 딱!',
   'finance',
-  'https://api.frankfurter.app',
+  'https://api.frankfurter.dev/v1',
   'none',
   300,
   true,
-  'https://www.frankfurter.app/docs/',
+  'https://frankfurter.dev/',
   '[{"method": "GET", "path": "/latest", "description": "최신 환율 조회", "parameters": {"from": "string", "to": "string"}}, {"method": "GET", "path": "/{date}", "description": "특정 날짜 환율 조회", "parameters": {"date": "string"}}]'::jsonb,
   ARRAY['finance', 'currency', 'exchange-rate', 'free', 'no-auth'],
   'v1',
@@ -250,6 +250,9 @@ INSERT INTO api_catalog (name, description, category, base_url, auth_type, auth_
 -- ────────────────────────────────────────
 
 -- 12. REST Countries
+-- ⚠️ 2026-06-21 폐기: v3.1 전 엔드포인트가 deprecated (HTTP 200 + deprecation 에러 본문,
+--    legacy.json 301 리다이렉트). 무료 키리스 대체 없음(v5 유료·키 필요) → is_active=false.
+--    상세: scripts/2026-06-21-deprecate-rest-countries.sql, docs/decisions/2026-06-21-api-catalog-health-monitoring.md
 INSERT INTO api_catalog (name, description, category, base_url, auth_type, rate_limit, is_active, docs_url, endpoints, tags, api_version, cors_supported, requires_proxy) VALUES
 (
   'REST Countries',
@@ -258,7 +261,7 @@ INSERT INTO api_catalog (name, description, category, base_url, auth_type, rate_
   'https://restcountries.com',
   'none',
   500,
-  true,
+  false,
   'https://restcountries.com/',
   '[{"method": "GET", "path": "/v3.1/all", "description": "전체 나라 목록"}, {"method": "GET", "path": "/v3.1/name/{name}", "description": "나라 이름으로 검색", "parameters": {"name": "string"}}]'::jsonb,
   ARRAY['data', 'countries', 'geography', 'free', 'no-auth'],

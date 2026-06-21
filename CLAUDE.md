@@ -162,6 +162,7 @@ pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요, CI에서 �
 | Vitest full-suite 플래키 타임아웃 해소 ADR (config/providers mock + testTimeout, 2026-06-09) | [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md) |
 | 테스트 플래키 타임아웃 잔여·후속 작업 핸드오프 (항목 1·2·3·4·6 완료, 5는 상시 모니터링, 2026-06-09) | [docs/superpowers/plans/2026-06-09-test-flakiness-followups.md](docs/superpowers/plans/2026-06-09-test-flakiness-followups.md) |
 | 서비스 종합 건강 감사 및 발견 16건 수정 ADR (2026-06-09) | [docs/decisions/2026-06-09-service-health-audit-fixes.md](docs/decisions/2026-06-09-service-health-audit-fixes.md) |
+| API 카탈로그 동작 검증 & 헬스 모니터링 자동화 ADR (REST Countries 폐기·DB 기반 헬스체크, 2026-06-21) | [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](docs/decisions/2026-06-21-api-catalog-health-monitoring.md) |
 
 - [README.md](README.md) — 프로젝트 전체 개요
 - [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) — PR 템플릿
@@ -237,6 +238,8 @@ pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요, CI에서 �
 - **배포 레이트리밋 환불은 migration 021 필요**: 배포 실패 시 `decrement_daily_deploy` PG 함수(migration `021_deploy_rate_limit_decrement.sql`)로 일일 배포 카운터를 환불한다. **Supabase에 021을 적용해야 동작**하며, 미적용 시 환불 호출은 best-effort로 무시되어 안전(에러 swallow). generate의 `decrement_daily_generation`(migration 007)과 동일 보상 패턴
 - **생성 상태 폴링 `not_found` 처리**: `/api/v1/generate/status`는 프로젝트 미존재·권한 없음 시 `status: 'not_found'`를 반환한다. `pollGenerationStatus`의 `GenerationStatusData.status` union에 `'not_found'`가 포함되어야 하며(누락 시 'unknown'으로 오처리되어 잘못된 사용자 메시지 표시), 전용 핸들러로 "프로젝트를 찾을 수 없습니다" 메시지를 낸다
 - **레이트리밋 우회 로깅**: `RATE_LIMIT_BYPASS_USER_IDS` 우회 적용 시 `logger.info('Rate limit bypass applied', ...)` 감사 로그를 남긴다(무로깅 우회는 운영 사각지대)
+- **카탈로그 헬스 모니터링**: 일일 `scheduled.yml`이 **DB의 활성 API 전체**를 읽어 업스트림을 라이브 검증한다(`pnpm catalog:healthcheck`, 분류 로직은 `src/lib/catalog/healthCheck.ts` — 단위 테스트 대상). BROKEN(네트워크·5xx·키리스 401·**2xx지만 본문이 에러/deprecation**) 감지 시 exit 1 + GitHub Issue. 키 의존 API(api_key + auth_config.env_var, default_key 없음)는 키 없이 호출 시 401 → `key_gated`로 분류(장애 아님). 헬스체크 대상/도메인은 **하드코딩 금지** — DB가 단일 진실원천. 키 유효성은 `pnpm keys:verify`(Railway env 필요, `railway run`)로 별도 검증하며 프록시와 동일 방식으로 키를 주입한다. 상세: [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](docs/decisions/2026-06-21-api-catalog-health-monitoring.md)
+- **REST Countries 폐기(2026-06-21)**: v3.1 전 엔드포인트가 deprecated(HTTP 200 + deprecation 본문, legacy.json 301). `is_active=false`로 비활성. 무료 키리스 대체 없음(v5 유료) — 필요 시 `mledoze/countries` 데이터셋 번들 권장
 
 ## 세션 시작 체크리스트 (필수)
 

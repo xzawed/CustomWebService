@@ -36,6 +36,8 @@
 
 **변경 후 DB 현황:** 활성 31개, 비활성 17개, 총 48개
 
+> **2026-06-21 갱신**: REST Countries(v3.1 deprecated) 폐기로 활성 31 → **30**, 비활성 17 → 18. 카탈로그 헬스체크가 DB 기반 일일 자동화로 전환됨. 상세: [2026-06-21-api-catalog-health-monitoring.md](2026-06-21-api-catalog-health-monitoring.md)
+
 ---
 
 ## 구현 세부사항
