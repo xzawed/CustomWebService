@@ -99,7 +99,7 @@
 - **🔑 7개 API 재활성화 경로**: 실제 키(data.go.kr·Kakao·Unsplash)를 Railway env(`API_KEY_*`)에 **값까지** 입력 → `is_active=true` 복원 → `GET /api/v1/admin/keys-verify`로 유효성 + 프록시 prefix 적용 여부 확정.
 - **🔑 프록시 prefix 적용 수정**: 키 입력 후 진단에서 `needsPrefixFix`가 나오면 프록시 `resolveApiKey`가 `auth_config.prefix`/`header_prefix`를 적용하도록 수정(단, env 값에 이미 prefix가 있으면 이중 적용되므로 진단 결과 확인 후 진행). `prefix`/`header_prefix` 필드명도 단일화.
 - **🔑 env 변수 정리**: 비활성/삭제 API용 오펀 `API_KEY_*` 정리, 카카오/Unsplash/data.go.kr 이름 규칙 단일화.
-- **`verification_status` 소비(P1)**: 현재 검색·AI 추천이 이 컬럼을 사용하지 않음(휴면). broken 제외·verified 우선 가중치 적용 필요.
+- **`verification_status` 소비(P1)**: ✅ **구현 완료 (2026-06-22, B-2)**. AI 추천(`suggest-apis`)이 broken API를 후보에서 제외하고 verified를 `[검증됨]` 배지로 우선 선택 유도. cron을 `--write`로 전환해 신선도 유지(`SUPABASE_SERVICE_ROLE_KEY` secret 필요 — 미설정 시 read-only degrade). 카탈로그 브라우징은 '가용 유지' 정책상 broken을 숨기지 않음. SoT 대시보드는 후속. 상세: [docs/decisions/2026-06-22-verification-status-consumption.md](2026-06-22-verification-status-consumption.md)
 - **라이선스/키 정책**: Open-Meteo 상업 사용 ToS(유료 플랜/셀프호스트), NASA DEMO_KEY→등록 키, data.go.kr 단일키→BYOK/운영계정. (딥리서치 근거)
 - **seed.sql 전면 재동기화**: 이번엔 REST Countries·Frankfurter만 정정. 삭제된 API(Open Notify·Free Dictionary·LibreTranslate 등) 잔존 — 별도 작업으로 프로덕션 DB와 전면 동기화 필요.
 
