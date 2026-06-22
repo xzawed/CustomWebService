@@ -30,7 +30,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies
@@ -54,16 +54,18 @@ jobs:
             verification-report.json
           retention-days: 14
 
-      # 실패(BROKEN 1개 이상 → exit 1) 시: 중복 방지하며 GitHub Issue 생성/갱신
-      - name: Open or update issue on broken APIs
+      # 헬스체크 실패 시: "실제 API BROKEN" vs "헬스체크 도구 실패"를 구분해 GitHub Issue 생성/갱신.
+      # verification-report.json 부재 = 스크립트가 API 검증 전 크래시 → 도구 오류이지 API 장애가 아니다.
+      - name: Open or update issue on broken APIs or tool failure
         if: failure() && steps.healthcheck.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          if [ -f verification-report.json ] && jq -e '.broken > 0' verification-report.json >/dev/null 2>&1; then
+          # 실제 BROKEN API 감지 (리포트 생성 + broken > 0)
           TITLE="🚨 카탈로그 API 헬스체크 실패 (BROKEN 감지)"
-          # broken 목록 추출 (verification-report.json은 스크립트가 생성)
-          BROKEN=$(jq -r '.apis[] | select(.overallStatus=="broken") | "- **\(.name)** (\(.category)) — \(.endpoints[] | select(.status=="broken") | .reason) [\(.baseUrl)]"' verification-report.json 2>/dev/null | sort -u || echo "(상세 파싱 실패 — 아티팩트 확인)")
+          BROKEN=$(jq -r '.apis[] | select(.overallStatus=="broken") | "- **\(.name)** (\(.category)) — \(.endpoints[] | select(.status=="broken") | .reason) [\(.baseUrl)]"' verification-report.json | sort -u)
           BODY=$(cat <<EOF
           일일 카탈로그 헬스체크에서 **BROKEN** API가 감지되었습니다. (run: ${{ github.run_id }})
 
@@ -74,6 +76,19 @@ jobs:
           - 자세한 절차: docs/decisions/2026-06-21-api-catalog-health-monitoring.md
           EOF
           )
+          else
+          # verification-report.json 부재/파싱 불가 = 헬스체크 도구·환경 실패 (개별 API의 BROKEN 신호 아님)
+          TITLE="⚠️ 카탈로그 헬스체크 실행 실패 (도구 오류)"
+          BODY=$(cat <<EOF
+          카탈로그 헬스체크 스크립트가 **API 검증을 완료하지 못하고 실패**했습니다. (run: ${{ github.run_id }})
+          \`verification-report.json\`이 생성되지 않았으므로 **개별 API의 BROKEN 신호가 아니라 헬스체크 도구·환경 문제**입니다.
+
+          - 로그: 이 워크플로 실행의 "Run catalog health check" 스텝 출력 확인
+          - 흔한 원인: 런타임/의존성 비호환(예: realtime-js가 Node 22+ 네이티브 WebSocket 요구), Supabase 연결 실패, 네트워크 오류
+          - 대응: 위 로그로 원인 진단 후 도구/워크플로 수정. 카탈로그 데이터(is_active/deprecated_at)는 임의 변경 금지.
+          EOF
+          )
+          fi
           EXISTING=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty' || echo "")
           if [ -n "$EXISTING" ]; then
             gh issue comment "$EXISTING" --body "$BODY"
