@@ -27,7 +27,7 @@
 
 - 적용/재현 SQL: [scripts/2026-06-21-deprecate-rest-countries.sql](../../scripts/2026-06-21-deprecate-rest-countries.sql)
 - `supabase/seed.sql`의 REST Countries도 `is_active=false`로 동기화(신규 시드 재유입 방지).
-- **권장 대체**: 오픈 데이터셋(`mledoze/countries`)을 번들/셀프호스트 후 자체 캐시 프록시로 서빙. 국가 데이터는 준-정적이라 주기적 갱신으로 충분 — 외부 의존·요청당 비용 제거. (별도 작업으로 추적)
+- **권장 대체**: 오픈 데이터셋(`mledoze/countries`)을 번들/셀프호스트 후 자체 캐시 프록시로 서빙. 국가 데이터는 준-정적이라 주기적 갱신으로 충분 — 외부 의존·요청당 비용 제거. → ✅ **구현 완료(2026-06-22, B-3)**: `src/data/countries.json` 번들 + `GET /api/v1/countries`·`/[code]` 자체 서빙(키리스·CORS). 설계 [docs/superpowers/specs/2026-06-22-country-data-api-design.md](../superpowers/specs/2026-06-22-country-data-api-design.md). 카탈로그 등록은 배포 후 단계.
 - **DB 현황**: 활성 31 → **30**, 비활성 17 → 18, broken 1, 총 48.
 
 ### 2. 헬스체크를 DB 기반으로 전환 (`.github/workflows/scheduled.yml`)
@@ -60,7 +60,7 @@
 |----------------|---------|-------|------|
 | 2. 검증·등록 | partial(도구 결함) | 도구 결함 수정·전 엔드포인트·DB write-back·단위 테스트 | unverified 15개 일괄 재검증·`--write` 정기 실행 |
 | 3. 모니터링·재검증 | **stale**(8개 하드코딩) | **DB 기반 일일 자동화 + Issue 알림** | 알림 채널(Slack) 연동 |
-| 4. 폐기·교체 | partial | REST Countries 폐기 + 자동 broken 감지로 폐기 트리거 연결 | 교체 API(mledoze/countries) 구현 |
+| 4. 폐기·교체 | partial | REST Countries 폐기 + 자동 broken 감지로 폐기 트리거 연결 | ✅ 교체 API(mledoze/countries) 구현 완료(2026-06-22, B-3) |
 | 5. 키 거버넌스 | **missing** | 키 유효성 검증 도구 제공 | Railway env 정기 점검·만료 알림 자동화 |
 | 6. 문서·추적성 | partial(휴면 컬럼) | 검증 결과 DB 반영 경로 마련 | 검색·추천에서 `verification_status` 소비, SoT 대시보드 |
 
