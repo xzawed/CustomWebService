@@ -116,9 +116,9 @@ INSERT INTO api_catalog (name, description, category, base_url, auth_type, auth_
 INSERT INTO api_catalog (name, description, category, base_url, auth_type, auth_config, rate_limit, is_active, docs_url, endpoints, tags, api_version, cors_supported, requires_proxy, credit_required, cache_ttl_seconds, deprecated_at) VALUES (
   'Dog API', '120종 강아지 사진 20,000장. 품종별로 귀여운 강아지 사진을 볼 수 있어요.', 'image', 'https://dog.ceo', 'none', NULL, '300', true, 'https://dog.ceo/dog-api/', '[{"path": "/api/breeds/image/random", "method": "GET", "description": "랜덤 강아지 사진"}, {"path": "/api/breed/{breed}/images", "method": "GET", "parameters": {"breed": "string"}, "description": "품종별 사진 목록"}]'::jsonb, ARRAY['image','dogs','animals','free','no-auth'], 'v1', true, false, NULL, NULL, NULL);
 
--- Lorem Picsum  [image, active=true]
+-- Lorem Picsum  [image, active=false]  (picsum.photos Cloudflare 522 다운 2026-06-21~, 수동 비활성화)
 INSERT INTO api_catalog (name, description, category, base_url, auth_type, auth_config, rate_limit, is_active, docs_url, endpoints, tags, api_version, cors_supported, requires_proxy, credit_required, cache_ttl_seconds, deprecated_at) VALUES (
-  'Lorem Picsum', '랜덤 고화질 사진 생성. URL에 크기만 넣으면 예쁜 사진이 나와요. 배경 이미지로 딱!', 'image', 'https://picsum.photos', 'none', NULL, '300', true, 'https://picsum.photos/', '[{"path": "/{width}/{height}", "method": "GET", "parameters": {"width": "number", "height": "number"}, "description": "지정 크기 랜덤 이미지"}, {"path": "/v2/list", "method": "GET", "description": "이미지 목록 조회"}]'::jsonb, ARRAY['image','placeholder','photos','free','no-auth'], 'v2', true, false, NULL, NULL, NULL);
+  'Lorem Picsum', '랜덤 고화질 사진 생성. URL에 크기만 넣으면 예쁜 사진이 나와요. 배경 이미지로 딱!', 'image', 'https://picsum.photos', 'none', NULL, '300', false, 'https://picsum.photos/', '[{"path": "/{width}/{height}", "method": "GET", "parameters": {"width": "number", "height": "number"}, "description": "지정 크기 랜덤 이미지"}, {"path": "/v2/list", "method": "GET", "description": "이미지 목록 조회"}]'::jsonb, ARRAY['image','placeholder','photos','free','no-auth'], 'v2', true, false, NULL, NULL, NULL);
 
 -- NASA 오늘의 천문 사진  [image, active=true]
 INSERT INTO api_catalog (name, description, category, base_url, auth_type, auth_config, rate_limit, is_active, docs_url, endpoints, tags, api_version, cors_supported, requires_proxy, credit_required, cache_ttl_seconds, deprecated_at) VALUES (

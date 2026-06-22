@@ -65,6 +65,12 @@
 - **B-2 secret (사용자 액션)**: `SUPABASE_SERVICE_ROLE_KEY`가 GitHub Actions secret에 **없음**(확인됨).
   없으면 cron `catalog:healthcheck:write`가 read-only로 degrade → `verification_status` 미갱신(stale).
   `gh secret set SUPABASE_SERVICE_ROLE_KEY`로 Railway 값 입력 필요(키 값은 사용자만 접근 가능).
-- **Lorem Picsum 다운 (판단 필요)**: picsum.photos가 2026-06-21부터 Cloudflare 522/timeout 지속(24h+).
-  프로덕션에서 `unverified`+active라 AI가 계속 추천 중. B-2 secret 부재로 cron이 `broken` 표기도 못 함.
-  핸드오프 임계값(24~48h)에 도달 — **비활성화/대체 여부 사용자 재논의 대상**.
+## 추가 처리 — Lorem Picsum 비활성화 (2026-06-22)
+
+picsum.photos가 2026-06-21부터 Cloudflare 522/timeout 지속(24h+). 프로덕션에서 `unverified`+active라
+AI가 다운된 API를 계속 추천 중이었고, B-2 secret 부재로 cron이 `broken` 표기도 못 하는 상태였다.
+핸드오프 임계값(24~48h) 도달 → **사용자 결정으로 즉시 비활성화**.
+- 프로덕션 `api_catalog`: `Lorem Picsum` → `is_active=false`, `verification_status='broken'`,
+  `last_verification_note`에 사유·날짜 기록. **`deprecated_at`은 미설정**(영구 폐기가 아닌 일시 장애).
+- 활성 카탈로그 **24 → 23**. seed.sql도 동일하게 `is_active=false`로 반영(미러 정합성).
+- 복구 시 재검증 후 `is_active=true` 복원.
