@@ -1,8 +1,13 @@
 import Link from 'next/link';
 import { ArrowRight, Sparkles, MousePointerClick, Wand2, Globe, Zap, Shield, RefreshCw, BarChart2, Cloud, Newspaper, Building2 } from 'lucide-react';
 import { Footer } from '@/components/layout/Footer';
+import { getActiveApiCount } from '@/lib/catalog/activeApiCount';
 
-export default function LandingPage() {
+// 활성 API 개수를 DB에서 읽어 카피에 주입한다(하드코딩 드리프트 방지). ISR 1시간 캐시로 홈 DB 부하 최소화.
+export const revalidate = 3600;
+
+export default async function LandingPage() {
+  const apiCount = (await getActiveApiCount()) || 23;
   return (
     <div className="min-h-screen noise">
       {/* ── Header ──────────────────────────────────────── */}
@@ -43,7 +48,7 @@ export default function LandingPage() {
           <div className="animate-fade-in mb-8">
             <span className="badge inline-flex items-center gap-2 border border-cyan-500/20 bg-cyan-500/8 text-cyan-400">
               <Sparkles className="h-3.5 w-3.5" />
-              31개 무료 API · AI 코드 자동 생성 · 즉시 게시
+              {apiCount}개 무료 API · AI 코드 자동 생성 · 즉시 게시
             </span>
           </div>
 
@@ -135,7 +140,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-4xl px-6">
           <div className="grid grid-cols-3 gap-8 text-center">
             {[
-              { value: '31+', label: '무료 API' },
+              { value: `${apiCount}`, label: '무료 API' },
               { value: '3단계', label: '간단한 생성 과정' },
               { value: '100%', label: '무료 서비스' },
             ].map((stat, i) => (
@@ -174,7 +179,7 @@ export default function LandingPage() {
                 color: 'from-cyan-500/20 to-cyan-500/5',
                 iconColor: 'text-cyan-400',
                 title: 'API 선택',
-                description: '날씨, 환율, 뉴스, 부동산, 교통 등 31개 무료 API 중에서 원하는 것을 골라 담으세요. 카테고리별로 정리되어 있어 찾기 쉽습니다.',
+                description: `날씨, 환율, 뉴스, 부동산, 교통 등 ${apiCount}개 무료 API 중에서 원하는 것을 골라 담으세요. 카테고리별로 정리되어 있어 찾기 쉽습니다.`,
               },
               {
                 step: 2,
@@ -235,7 +240,7 @@ export default function LandingPage() {
               { icon: <Shield className="h-5 w-5" />, color: 'text-emerald-400 bg-emerald-400/10', title: '완전 무료', desc: '가입, 생성, 게시 모든 과정이 무료입니다. 신용카드가 필요 없습니다.' },
               { icon: <RefreshCw className="h-5 w-5" />, color: 'text-cyan-400 bg-cyan-400/10', title: '재생성 지원', desc: '마음에 들지 않으면 피드백을 입력해 다시 생성할 수 있습니다.' },
               { icon: <Globe className="h-5 w-5" />, color: 'text-violet-400 bg-violet-400/10', title: '즉시 공유', desc: '생성된 서비스는 고유 주소로 누구나 접근할 수 있습니다.' },
-              { icon: <BarChart2 className="h-5 w-5" />, color: 'text-rose-400 bg-rose-400/10', title: '실제 데이터', desc: '31개 무료 API와 연동하여 실제 날씨, 뉴스, 환율 등을 표시합니다.' },
+              { icon: <BarChart2 className="h-5 w-5" />, color: 'text-rose-400 bg-rose-400/10', title: '실제 데이터', desc: `${apiCount}개 무료 API와 연동하여 실제 날씨, 뉴스, 환율 등을 표시합니다.` },
               { icon: <MousePointerClick className="h-5 w-5" />, color: 'text-blue-400 bg-blue-400/10', title: '코딩 불필요', desc: '코드를 전혀 몰라도 됩니다. 말로 설명하면 AI가 다 해결합니다.' },
             ].map((f, i) => (
               <div key={i} className="card p-6">

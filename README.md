@@ -6,7 +6,7 @@
 [![status](https://img.shields.io/badge/status-v1.0.0%20Live-brightgreen?style=flat-square)](https://xzawed.xyz)
 [![Next.js](https://img.shields.io/badge/Next.js-16+-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![AI](https://img.shields.io/badge/AI-Claude%20Opus%204.7-blueviolet?style=flat-square)](https://anthropic.com)
-[![Tests](https://img.shields.io/badge/Vitest-1886%20listed-success?style=flat-square)](./docs/guides/testing.md)
+[![Tests](https://img.shields.io/badge/Vitest-1917%20listed-success?style=flat-square)](./docs/guides/testing.md)
 [![Coverage](https://img.shields.io/badge/Coverage-85%25%2B-yellow?style=flat-square)](./docs/guides/testing.md)
 [![Deploy](https://img.shields.io/badge/Deploy-Railway-8A2BE2?style=flat-square&logo=railway)](https://railway.app)
 
@@ -48,16 +48,16 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 🔍 Stage 0 (기능 추출)  — Claude Haiku, tool use로 기능 사양 자동 추출 → Stage 1 프롬프트 주입
          ↓
 🏗️ Stage 1 (구조·기능)  — 실제 API fetch 호출 코드 생성, 모바일 퍼스트, 보안 규칙 적용  (0→30%)
-         ↓  조건부: fetch 미호출 또는 placeholder 존재 시
+         ↓  조건부: fetch 미호출·placeholder·하드코딩 배열·프록시 미경유 또는 Fast QC 실패 시
 ✅ Stage 2 (기능 검증)  — Stage 1 결과를 AI가 자체 검증·수정                           (30→65%)
-         ↓  조건부: 품질 점수 80 미만 시
-🎨 Stage 3 (디자인)     — 카테고리별 테마 적용 (금융→modern-dark, 날씨→ocean-blue 등)  (65→90%)
+         ↓  조건부: 구조 점수 < 80 또는 모바일 점수 < 70 등 품질 미달 시
+🎨 Stage 3 (디자인)     — 카테고리별 테마 적용 (금융→modern-dark, 날씨→ocean-blue 등)  (65→85%)
          ↓
 🔁 Quality Loop         — 기본 2회 재시도(최대 3회), best-of-n 품질 비교 선택
          ↓
-⚡ Fast QC              — Playwright 브라우저 렌더링 검증 (콘솔 에러·가로 스크롤·터치 타겟)
+⚡ Fast QC              — Playwright 렌더링 검증 (콘솔 에러·가로 스크롤·푸터 가시성·레이아웃 겹침·런타임 placeholder)
          ↓
-🔬 Deep QC              — 상호작용·네트워크·접근성·반응형 심층 검증 (비동기, 선택적)
+🔬 Deep QC              — 상호작용·네트워크·접근성·반응형·터치 타겟 심층 검증 (비동기, 선택적)
 ```
 
 ### ⚙️ 주요 설계 패턴
@@ -79,12 +79,12 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 > AI가 생성한 코드는 신뢰할 수 없습니다. 모든 출력물을 의심하고 서버에서 검증합니다.
 
 **🛡️ AI 생성 코드 정적 검증**
-- `eval()`, `document.write()`, `innerHTML` 직접 할당 차단
+- `eval()` 차단(생성 거부) · `document.write()`·`innerHTML` 직접 할당 경고(warning) 감지
 - OpenAI · Stripe · Google · GitHub · Slack · AWS API 키 하드코딩 패턴 감지
 - CSS `expression()`, `url(javascript:)`, `url(data:)`, `-moz-binding:`, `-webkit-binding:`, `@import` 등 XSS 벡터 차단
 
 **🏰 인프라 보안**
-- Proxy SSRF 방지: loopback(127.0.0.1/::1), RFC1918 사설 IP(10.x/172.16-31.x/192.168.x), AWS 메타데이터 서버(169.254.169.254) 6종 패턴 차단
+- Proxy SSRF 방지: 차단 호스트 7종(loopback `127.0.0.1`/`::1`, `0.0.0.0`/`::`, AWS·클라우드 메타데이터 `169.254.169.254`, Alibaba `100.100.100.200`) + 사설·링크로컬 IP 정규식 8종(RFC1918 10.x/172.16-31.x/192.168.x, 127.x, 169.254.x, 0.x, IPv6 ULA·link-local) 차단 + DNS rebinding 방어
 - `middleware.ts`에서 CSP, HSTS, X-Frame-Options 일괄 적용
 - 사용자 API 키 AES-256-GCM 암호화 저장
 - OAuth PKCE 플로우 (Google, GitHub)
@@ -114,7 +114,7 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 ```
 src/
 ├── app/
-│   ├── api/v1/          # 🔌 REST API route.ts 파일 (26개)
+│   ├── api/v1/          # 🔌 REST API route.ts 파일 (28개)
 │   ├── (auth)/          # 🔐 인증 페이지
 │   ├── (main)/          # 🏠 메인 페이지 (빌더, 카탈로그, 대시보드)
 │   └── site/[slug]/     # 🌐 서브도메인 서빙
@@ -139,11 +139,11 @@ src/
 
 | 항목 | 내용 |
 |------|------|
-| ✅ 테스트 목록 | **Vitest 1,886개 (145파일) + Playwright 33개** (`vitest list`, `playwright test --list` 기준) |
+| ✅ 테스트 목록 | **Vitest 1,917개 (148파일) + Playwright 33개** (`vitest list`, `playwright test --list` 기준) |
 | 🔬 단위 테스트 | Vitest + happy-dom — AI 파이프라인, 보안 검증, 레이트리밋, Circuit Breaker, 배포 서비스 등 |
 | 🔗 통합 테스트 | Vitest + MSW — API 라우트 인증·입력·권한·비즈니스 로직 전 경로 |
 | 🌐 E2E 테스트 | Playwright — 3종 디바이스 (모바일 · 태블릿 · 데스크톱) |
-| 📊 커버리지 | **85%+ lines** (lib/services/providers/repositories/components 대상) · Codecov + SonarCloud 연동 |
+| 📊 커버리지 | **85%+ lines** (Codecov main 측정, lib/services/providers/repositories/components 대상) · Codecov + SonarCloud 연동 |
 
 ```bash
 pnpm test              # 전체 테스트
