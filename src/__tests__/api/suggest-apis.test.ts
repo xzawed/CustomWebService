@@ -70,6 +70,36 @@ async function setupCatalog() {
   } as never);
 }
 
+// verification_status를 가진 카탈로그 — B-2 소비(broken 제외·verified 우선) 검증용
+const mockApisWithStatus = [
+  { id: 'api-1', name: 'Weather API', description: '날씨 정보', category: 'weather', verificationStatus: 'verified' },
+  { id: 'api-2', name: 'News API', description: '뉴스 제공', category: 'news', verificationStatus: 'unverified' },
+  { id: 'api-3', name: 'Broken Image API', description: '깨진 이미지', category: 'image', verificationStatus: 'broken' },
+];
+
+async function setupCatalogWithStatus() {
+  const { createCatalogService } = await import('@/services/factory');
+  vi.mocked(createCatalogService).mockReturnValue({
+    search: vi.fn().mockResolvedValue({ items: mockApisWithStatus, total: mockApisWithStatus.length }),
+  } as never);
+}
+
+function makeAiMock(content: string) {
+  return vi.fn().mockResolvedValue({
+    content,
+    provider: 'claude',
+    model: 'claude-haiku-4-5',
+    durationMs: 100,
+    tokensUsed: { input: 10, output: 10 },
+  });
+}
+
+async function setupAiWith(generateCode: ReturnType<typeof vi.fn>) {
+  const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
+  vi.mocked(AiProviderFactory.createForTask).mockReturnValue({ name: 'claude', generateCode } as never);
+  return generateCode;
+}
+
 // ---------- Tests ----------
 describe('POST /api/v1/suggest-apis', () => {
   beforeEach(() => {
@@ -212,6 +242,58 @@ describe('POST /api/v1/suggest-apis', () => {
         tokensUsed: { input: 80, output: 120 },
       }),
     } as never);
+
+    const { POST } = await import('@/app/api/v1/suggest-apis/route');
+    const response = await POST(makeRequest({ context: validContext }));
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.data.recommendations).toHaveLength(1);
+    expect(json.data.recommendations[0].api.id).toBe('api-1');
+  });
+
+  // ---------- B-2: verification_status 소비 ----------
+  it('broken 상태 API는 AI 후보 목록에서 제외된다', async () => {
+    await setupAuth();
+    await setupCatalogWithStatus();
+    const gen = await setupAiWith(makeAiMock('[]'));
+
+    const { POST } = await import('@/app/api/v1/suggest-apis/route');
+    await POST(makeRequest({ context: validContext }));
+
+    const userPrompt = gen.mock.calls[0][0].user as string;
+    // broken API(api-3)는 후보 목록에 포함되지 않아야 한다
+    expect(userPrompt).not.toContain('Broken Image API');
+    expect(userPrompt).not.toContain('api-3');
+    // 정상/미검증 API는 포함된다
+    expect(userPrompt).toContain('Weather API');
+    expect(userPrompt).toContain('News API');
+  });
+
+  it('verified API에는 후보 목록에 [검증됨] 표시가 붙고 unverified에는 없다', async () => {
+    await setupAuth();
+    await setupCatalogWithStatus();
+    const gen = await setupAiWith(makeAiMock('[]'));
+
+    const { POST } = await import('@/app/api/v1/suggest-apis/route');
+    await POST(makeRequest({ context: validContext }));
+
+    const userPrompt = gen.mock.calls[0][0].user as string;
+    expect(userPrompt).toMatch(/Weather API[^\n]*\[검증됨\]/); // verified → 배지
+    expect(userPrompt).not.toMatch(/News API[^\n]*\[검증됨\]/); // unverified → 배지 없음
+  });
+
+  it('AI가 broken API ID를 추천해도 결과에서 필터링된다', async () => {
+    await setupAuth();
+    await setupCatalogWithStatus();
+    await setupAiWith(
+      makeAiMock(
+        JSON.stringify([
+          { id: 'api-3', reason: 'broken이지만 추천됨' },
+          { id: 'api-1', reason: '정상' },
+        ])
+      )
+    );
 
     const { POST } = await import('@/app/api/v1/suggest-apis/route');
     const response = await POST(makeRequest({ context: validContext }));

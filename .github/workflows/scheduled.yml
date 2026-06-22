@@ -38,11 +38,15 @@ jobs:
 
       - name: Run catalog health check
         id: healthcheck
-        run: pnpm catalog:healthcheck > health-report.json
+        # --write로 verification_status(working/degraded→verified, broken→broken)를 DB에 반영해
+        # 검색·추천이 소비하는 신선도를 유지한다. SUPABASE_SERVICE_ROLE_KEY secret 미설정 시
+        # 스크립트가 자동으로 read-only로 degrade(분류·게이트는 그대로, DB write만 스킵).
+        run: pnpm catalog:healthcheck:write > health-report.json
         env:
-          # 읽기는 anon 키로 충분 (RLS "Anyone can view active APIs").
+          # 읽기는 anon 키로 충분. --write(verification_status 반영)는 service role 키 필요.
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Upload health report
         if: always()

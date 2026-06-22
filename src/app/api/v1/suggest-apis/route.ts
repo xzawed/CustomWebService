@@ -33,8 +33,17 @@ export async function POST(request: Request): Promise<Response> {
     const catalogService = createCatalogService(supabase);
     const { items: allApis } = await catalogService.search({ limit: 100 });
 
-    const apiListForAi = allApis
-      .map((a) => `- [ID:${a.id}] ${a.name} (${a.category}): ${a.description}`)
+    // B-2: 헬스체크가 broken으로 표시한 API는 신규 서비스에 추천하지 않는다.
+    // (카탈로그 브라우징에서는 그대로 노출 — '가용 유지' 정책. 추천 품질만 보호)
+    // verificationStatus 미설정/null은 보수적으로 후보에 유지한다.
+    const candidateApis = allApis.filter((a) => a.verificationStatus !== 'broken');
+
+    // verified API에는 [검증됨] 배지를 달아 동등 관련성 시 우선 선택을 유도한다.
+    const apiListForAi = candidateApis
+      .map(
+        (a) =>
+          `- [ID:${a.id}] ${a.name} (${a.category})${a.verificationStatus === 'verified' ? ' [검증됨]' : ''}: ${a.description}`
+      )
       .join('\n');
 
     const provider = AiProviderFactory.createForTask('suggestion');
@@ -49,6 +58,7 @@ export async function POST(request: Request): Promise<Response> {
 - 서비스 구현에 실질적으로 필요한 API만 선택
 - 최소 1개, 최대 5개
 - 가장 관련성 높은 순서로 정렬
+- 관련성이 비슷하면 [검증됨] 표시가 있는 API를 우선 선택
 - reason은 한국어로 간결하게 작성
 - 마크다운, 코드 블록, 추가 설명 없이 순수 JSON 배열만 반환`,
       user: `## 사용 가능한 API 목록
@@ -93,12 +103,13 @@ ${context}
       return jsonResponse({ success: true, data: { recommendations: [] } });
     }
 
-    // Validate that recommended IDs actually exist in catalog
-    const validIds = new Set(allApis.map((a) => a.id));
+    // Validate against the candidate set (broken APIs excluded) so a hallucinated
+    // or broken ID can never slip into the recommendations.
+    const validIds = new Set(candidateApis.map((a) => a.id));
     const validRecommendations = recommendations.filter((r) => validIds.has(r.id));
 
     // Attach full API info to each recommendation
-    const apiMap = new Map(allApis.map((a) => [a.id, a]));
+    const apiMap = new Map(candidateApis.map((a) => [a.id, a]));
     const enriched = validRecommendations.map((r) => ({
       api: apiMap.get(r.id)!,
       reason: r.reason,

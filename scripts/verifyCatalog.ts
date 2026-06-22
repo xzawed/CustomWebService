@@ -49,15 +49,21 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const SUPABASE_KEY = SERVICE_KEY || ANON_KEY;
-const WRITE = process.argv.includes('--write');
+let WRITE = process.argv.includes('--write');
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('Missing NEXT_PUBLIC_SUPABASE_URL or a Supabase key (SERVICE_ROLE / ANON).');
   process.exit(1);
 }
+// --write는 service role 키가 있어야 동작(RLS write는 service-role 전용).
+// 키가 없으면 크래시 대신 read-only로 graceful degrade한다 — CI(cron)가 secret 미설정
+// 상태에서도 분류·게이트는 그대로 수행하고, broken/verified DB 반영만 건너뛴다.
 if (WRITE && !SERVICE_KEY) {
-  console.error('--write requires SUPABASE_SERVICE_ROLE_KEY (RLS write is service-role only).');
-  process.exit(1);
+  console.error(
+    '⚠️ --write requested but SUPABASE_SERVICE_ROLE_KEY is not set — running read-only (no DB write). ' +
+      'Set SUPABASE_SERVICE_ROLE_KEY to persist verification_status.',
+  );
+  WRITE = false;
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);

@@ -41,6 +41,7 @@ export default defineConfig({
         'src/app/api/v1/deploy/route.ts',
         'src/app/api/v1/generate/route.ts',
         'src/app/api/v1/proxy/route.ts',
+        'src/app/api/v1/suggest-apis/route.ts',
         'src/app/api/v1/suggest-context/route.ts',
         'src/app/api/v1/suggest-modification/route.ts',
         'src/hooks/**',
