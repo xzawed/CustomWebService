@@ -24,7 +24,7 @@ export default async function CatalogPage() {
     <div className="mx-auto max-w-7xl px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>API 카탈로그</h1>
-        <p className="mt-2" style={{ color: 'var(--text-secondary)' }}>30+ 무료 API를 탐색하세요</p>
+        <p className="mt-2" style={{ color: 'var(--text-secondary)' }}>{apisResult.total}개 무료 API를 탐색하세요</p>
       </div>
 
       <CatalogView initialApis={apisResult.items} categories={categoriesResult} />

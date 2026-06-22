@@ -6,7 +6,7 @@
 [![status](https://img.shields.io/badge/status-v1.0.0%20Live-brightgreen?style=flat-square)](https://xzawed.xyz)
 [![Next.js](https://img.shields.io/badge/Next.js-16+-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![AI](https://img.shields.io/badge/AI-Claude%20Opus%204.7-blueviolet?style=flat-square)](https://anthropic.com)
-[![Tests](https://img.shields.io/badge/Vitest-1886%20listed-success?style=flat-square)](./docs/guides/testing.md)
+[![Tests](https://img.shields.io/badge/Vitest-1917%20listed-success?style=flat-square)](./docs/guides/testing.md)
 [![Coverage](https://img.shields.io/badge/Coverage-85%25%2B-yellow?style=flat-square)](./docs/guides/testing.md)
 [![Deploy](https://img.shields.io/badge/Deploy-Railway-8A2BE2?style=flat-square&logo=railway)](https://railway.app)
 
@@ -48,16 +48,16 @@ CustomWebService lets anyone — without coding knowledge — build and publish 
 🔍 Stage 0 (Feature Extraction)  — Haiku + tool_use extracts feature spec → injected into Stage 1 prompt
          ↓
 🏗️ Stage 1 (Structure & Logic)   — Generates real API fetch calls, mobile-first, security rules applied  (0→30%)
-         ↓  conditional: missing fetch calls or placeholder detected
+         ↓  conditional: missing fetch / placeholder / hardcoded array / no-proxy, or Fast QC fail
 ✅ Stage 2 (Validation)           — AI self-reviews and fixes Stage 1 output                            (30→65%)
-         ↓  conditional: quality score < 80
-🎨 Stage 3 (Design)               — Category-based theme injection (finance→modern-dark, weather→ocean-blue) (65→90%)
+         ↓  conditional: structural score < 80 or mobile score < 70
+🎨 Stage 3 (Design)               — Category-based theme injection (finance→modern-dark, weather→ocean-blue) (65→85%)
          ↓
 🔁 Quality Loop                   — Default 2 retries (up to 3), best-of-n selection
          ↓
-⚡ Fast QC                        — Playwright rendering check (console errors, horizontal scroll, touch targets)
+⚡ Fast QC                        — Playwright rendering check (console errors, horizontal scroll, footer visibility, layout overlap, runtime placeholder)
          ↓
-🔬 Deep QC                        — Interaction, network, accessibility, responsive validation (async, optional)
+🔬 Deep QC                        — Interaction, network, accessibility, responsive, touch-target validation (async, optional)
 ```
 
 ### ⚙️ Key Design Patterns
@@ -79,7 +79,7 @@ CustomWebService lets anyone — without coding knowledge — build and publish 
 > AI-generated code is untrusted by default. All output is validated server-side.
 
 **🛡️ Static Analysis of AI Output**
-- Blocks `eval()`, `document.write()`, direct `innerHTML` assignment
+- Blocks `eval()` (rejects generation); flags `document.write()` and direct `innerHTML` assignment as warnings
 - Detects hardcoded API key patterns (OpenAI, Stripe, Google, GitHub, Slack, AWS)
 - Blocks CSS XSS vectors: `expression()`, `url(javascript:)`, `-moz-binding:`
 
@@ -114,7 +114,7 @@ CustomWebService lets anyone — without coding knowledge — build and publish 
 ```
 src/
 ├── app/
-│   ├── api/v1/          # 🔌 REST API route.ts files (26)
+│   ├── api/v1/          # 🔌 REST API route.ts files (28)
 │   ├── (auth)/          # 🔐 Auth pages
 │   ├── (main)/          # 🏠 Main pages (builder, catalog, dashboard)
 │   └── site/[slug]/     # 🌐 Subdomain serving
@@ -139,7 +139,7 @@ src/
 
 | Item | Details |
 |------|---------|
-| ✅ Test inventory | **1,886 Vitest tests (145 files) + 33 Playwright tests** (`vitest list`, `playwright test --list`) |
+| ✅ Test inventory | **1,917 Vitest tests (148 files) + 33 Playwright tests** (`vitest list`, `playwright test --list`) |
 | 🔬 Unit tests | Vitest + happy-dom — AI pipeline, security validation, rate limiting, Circuit Breaker |
 | 🔗 Integration tests | Vitest + MSW — API route auth, input validation, permissions, business logic |
 | 🌐 E2E tests | Playwright — 3 device types (mobile · tablet · desktop) |

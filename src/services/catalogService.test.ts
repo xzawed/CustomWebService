@@ -84,6 +84,35 @@ describe('CatalogService.search()', () => {
   });
 });
 
+describe('CatalogService.countActive()', () => {
+  let service: CatalogService;
+  let repo: ICatalogRepository;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    repo = makeCatalogRepo();
+    service = new CatalogService(repo);
+  });
+
+  it('활성 API 개수(total)를 반환한다', async () => {
+    (repo.search as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [makeItem()], total: 23 });
+
+    const count = await service.countActive();
+
+    expect(count).toBe(23);
+    // 개수만 필요하므로 최소 limit으로 조회한다 (count는 limit과 무관한 exact 값)
+    expect(repo.search).toHaveBeenCalledWith({ limit: 1 });
+  });
+
+  it('활성 API가 없으면 0을 반환한다', async () => {
+    (repo.search as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], total: 0 });
+
+    const count = await service.countActive();
+
+    expect(count).toBe(0);
+  });
+});
+
 describe('CatalogService.getById()', () => {
   let service: CatalogService;
   let repo: ICatalogRepository;
