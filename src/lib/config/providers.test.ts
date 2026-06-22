@@ -64,10 +64,16 @@ describe('getDbProvider()', () => {
     });
   });
 
+  it('DB_PROVIDER=sqlite 이면 sqlite를 반환한다 (필수 env 없음)', () => {
+    withEnv({ DB_PROVIDER: 'sqlite', DATABASE_URL: undefined }, () => {
+      expect(getDbProvider()).toBe('sqlite');
+    });
+  });
+
   it('알 수 없는 DB_PROVIDER 값이면 에러를 던진다', () => {
     withEnv({ DB_PROVIDER: 'mysql' }, () => {
       expect(() => getDbProvider()).toThrow(
-        '알 수 없는 DB_PROVIDER 값: "mysql". "supabase" 또는 "postgres"를 사용하세요.'
+        '알 수 없는 DB_PROVIDER 값: "mysql". "supabase", "postgres", "sqlite" 중 하나를 사용하세요.'
       );
     });
   });

@@ -1,0 +1,149 @@
+# DB 제거 → 임베디드 SQLite 전환 (단일 사용자·셀프호스트) — WBS 계획
+
+- 날짜: 2026-06-22
+- 상태: **계획(승인 대기)** — 실행 전 사용자 승인 필요
+- 근거: 정합성 감사(7차원 persistence surface) + 딥리서치(SQLite/Railway/Auth.js, 출처 포함) + 사용자 범위 결정 3건
+- 관련: [Supabase 사용 요소](../../../CLAUDE.md), provider 추상화([src/lib/config/providers.ts](../../../src/lib/config/providers.ts))
+
+## 1. 목표 & 확정 제약
+
+**목표**: 관리형 DB(Supabase) 및 외부 상태 저장소 의존을 제거하고, **단일 컨테이너 안에서 자체 완결되는 임베디드 SQLite** 영속성으로 전환한다.
+
+**사용자 확정 결정**
+| 항목 | 결정 | 영향 |
+|---|---|---|
+| 배포 모델 | **단일 사용자 / 셀프호스트** | RLS·멀티유저 격리·organizations·gallery·복잡 OAuth 제거 → 범위 급감 |
+| "오프라인" 의미 | **관리형 DB 비의존만** (외부 API 호출 허용) | Claude 생성·프록시·OAuth는 유지 가능. 제품 핵심 보존 |
+| 백업 주권 | 추천 채택 | **자체보관 기본**(Railway 볼륨 스냅샷 + 주기 `.backup` 덤프), Litestream→S3는 옵션 |
+
+**비목표(YAGNI)**: 멀티유저 RBAC, organizations/memberships, gallery/project_likes, 수평 확장(replica), HA/자동 페일오버(LiteFS sunset).
+
+## 2. 타깃 아키텍처
+
+```
+단일 Railway 컨테이너
+├── Next.js 16 standalone (단일 인스턴스 — 이미 전제)
+├── 임베디드 SQLite (/data/app.db, WAL 모드)        ← Railway Volume 마운트(영속)
+│     drizzle-orm/better-sqlite3 (first-party) + 마이그레이터
+├── 인증: Auth.js v5, JWT 세션(무상태, 쿠키 JWE) — DB 어댑터 없음
+│     단일 관리자 계정(Credentials) 권장 / OAuth는 옵션
+├── 백업: 볼륨 스냅샷 + 주기 SQLite .backup 덤프(자체보관)  ← Litestream→S3는 옵션
+└── 외부 호출 유지: Claude API(생성), 프록시 대상 API, (옵션)OAuth IdP
+```
+
+**구현 전략(핵심)**: 기존 provider 추상화(`DB_PROVIDER`)에 **`sqlite` 경로를 추가**하고, 이미 존재하는 Drizzle(postgres) 레포 7종을 **SQLite 방언으로 미러링**한다. 추상화 seam(`IRepository`·factory)을 유지해 리프트-앤-시프트가 아닌 **어댑터 교체**로 진행 → 리스크·작업량 최소화. 최종 정리 단계에서 Supabase/postgres 경로를 제거.
+
+## 3. 리서치 검증 사실 (출처 기반 — WBS 전제)
+
+- **단일 인스턴스 천장**: 볼륨 붙은 Railway 서비스는 replica 불가, 동일 볼륨 다중 마운트 금지, 재배포 시 짧은 다운타임. 현 앱이 이미 단일 인스턴스 전제라 **수용**. (railway docs)
+- **볼륨 용량**: Free 0.5GB / Hobby 5GB / Pro 50GB(→1TB). OLTP엔 충분.
+- **데이터 계층**: `drizzle-orm/better-sqlite3` first-party + 마이그레이터. WAL 권장(읽기-쓰기 동시성↑). **SQLite는 단일 writer**(WAL도 동시 쓰기 불가, SQLITE_BUSY) → 원자적 카운터는 `BEGIN IMMEDIATE` 직렬화. `synchronous=NORMAL` 기본(크리티컬 쓰기는 FULL).
+- **인증**: Auth.js v5 **JWT = 어댑터 없으면 기본**(무상태). **Next 16 Node 미들웨어**로 과거 edge 분리 제약 완화. 즉시 무효화 불가 → 짧은 TTL/재로그인으로 완화(단일 사용자라 위험 낮음).
+- **백업**: Litestream = DR(HA 아님), WAL→S3 연속 복제, **~1s 손실창**. S3 의존이 주권과 충돌 → **자체보관 우선** 결정.
+
+## 4. WBS (Work Breakdown Structure)
+
+> 규모: S(≤0.5d) · M(0.5~2d) · L(2~5d). 선행 = 선행 작업 패키지 ID. AC = 수용기준.
+
+### Phase 0 — 선행·결정·안전망 (규모 M)
+| ID | 작업 | 선행 | 규모 | AC |
+|---|---|---|---|---|
+| P0.1 | **Railway Volume 생성 + `/data` 마운트** (없으면 데이터 소실 — 최우선) | — | S | 컨테이너 재배포 후에도 `/data` 파일 잔존 확인 |
+| P0.2 | Supabase 프로덕션 **전체 백업**(현행 데이터 export) — 컷오버 안전망 | — | S | api_catalog·projects·generated_codes 등 덤프 보관 |
+| P0.3 | 인증 방식 확정(권장: Auth.js Credentials 단일 관리자 + JWT) | — | S | ADR 한 줄 결정 기록 |
+| P0.4 | 백업 전략 확정(권장: 볼륨 스냅샷 + 주기 `.backup`; Litestream 옵션) | P0.1 | S | 백업·복구 절차 문서화 |
+| P0.5 | 죽은 테이블/기능 확정 제외 목록(organizations·memberships·project_likes·gallery·event_log) 코드 사용처 재확인 | — | S | 제외 대상 0 사용처 확인 |
+
+### Phase 1 — 데이터 계층: SQLite 어댑터 (규모 L)
+| ID | 작업 | 선행 | 규모 | AC |
+|---|---|---|---|---|
+| P1.1 | `better-sqlite3` + `drizzle-orm/better-sqlite3` 도입, DB 연결(WAL·synchronous·busy_timeout pragma) | P0.1 | M | `:memory:` 및 파일 DB 연결·pragma 적용 테스트 |
+| P1.2 | SQLite 스키마 정의(기존 Drizzle 스키마 → SQLite 방언; 죽은 테이블 제외, 단일 사용자로 단순화) | P1.1,P0.5 | M | drizzle 마이그레이션 생성·적용 |
+| P1.3 | `sqlite` 를 `DB_PROVIDER`에 추가, factory 분기 | P1.1 | S | `getDbProvider()='sqlite'` 경로 동작 |
+| P1.4 | 7개 IRepository의 SQLite 구현(Drizzle postgres 구현 미러) — Project·User·Code·Catalog·Event·RateLimit·UserApiKey | P1.2,P1.3 | L | 각 레포 메서드 단위 테스트(`:memory:` SQLite 실DB) |
+| P1.5 | **원자적 레이트리밋 재현** — `BEGIN IMMEDIATE` 트랜잭션 test-and-set + 환불(GREATEST 0) + 일자 만료 | P1.4 | M | 동시(직렬) 요청 한도 초과 차단·환불 정확성 테스트 |
+| P1.6 | JOIN 집계(`countTodayGenerations`·`getApiUsageFromProjects`)·검색(ilike→LIKE)·페이지네이션·버전 채번 SQLite 재구현 | P1.4 | M | 집계·검색·페이지네이션 결과 동등성 테스트 |
+
+### Phase 2 — 인증 교체 (규모 M, 셀프호스트로 축소) 
+| ID | 작업 | 선행 | 규모 | AC |
+|---|---|---|---|---|
+| P2.1 | Auth.js v5 JWT 세션 구성(어댑터 없음), 단일 관리자 Credentials provider | P0.3 | M | 로그인→JWT 쿠키 발급·검증 |
+| P2.2 | 미들웨어 세션 검증을 Auth.js(Node 런타임)로 전환, Supabase `updateSession` 제거 | P2.1 | M | 보호 경로 게이팅 동작, Edge 임포트 위반 0 |
+| P2.3 | `getAuthUser` 추상화를 Auth.js로 연결(33개 소비처는 추상화 뒤라 무변경) | P2.1 | S | 인증 소비처 회귀 없음 |
+| P2.4 | RLS 의존 제거 — 단일 소유자라 `assertOwner` 자명화/소거, OAuth 콜백 부트스트랩 제거 | P2.3 | S | 권한 경계 단순화, 노출 회귀 테스트 |
+
+### Phase 3 — 직접-DB/RPC/service-role 정리 (규모 M)
+| ID | 작업 | 선행 | 규모 | AC |
+|---|---|---|---|---|
+| P3.1 | `.rpc()` 6곳 → SQLite 레포 메서드로 재배선 | P1.5 | S | RPC 호출 0건 |
+| P3.2 | `createServiceClient` 10개 파일 → SQLite 레포 + 단일 사용자 인가로 재작성(proxy 키 resolve·user-api-keys·suggest-modification·admin·callback 등) | P1.4,P2.3 | M | service-role 개념 소거, 키 resolve 동작 |
+| P3.3 | raw `.from()` 5파일(qc-stats·keys-verify·proxy·settings·callback) 재배선 | P3.2 | S | raw supabase 접근 0건 |
+
+### Phase 4 — 서빙/런타임 검증 (규모 M)
+| ID | 작업 | 선행 | 규모 | AC |
+|---|---|---|---|---|
+| P4.1 | `/site/[slug]` 서빙·preview·코드저장 트랜잭션(INSERT+UPDATE)·버전 고유성 SQLite 경로 검증 | P1.4 | M | 게시→서브도메인 서빙 E2E 통과 |
+| P4.2 | 인메모리 상태(generationTracker·proxyCache·errorRateMonitor) 유지 확인(단일 인스턴스라 무변경) | — | S | 회귀 없음 |
+| P4.3 | 배포 상태머신(projects.status 전이) + 배포 레이트리밋/환불 SQLite 검증 | P1.5,P4.1 | S | 배포 흐름·환불 동작 |
+
+### Phase 5 — 설정·번들 데이터 (규모 S)
+| ID | 작업 | 선행 | 규모 | AC |
+|---|---|---|---|---|
+| P5.1 | `api_catalog`(49행) 시드 → SQLite 시드 스크립트(기존 seed.sql 변환) | P1.2 | S | 시드 후 23 활성 동작 |
+| P5.2 | `verification_status` cron `--write` 경로를 SQLite write로 전환 | P5.1,P1.4 | S | cron이 SQLite 갱신 |
+| P5.3 | `feature_flags`(7) → SQLite 시드 또는 config 파일 | P1.2 | S | 플래그 읽기 동작 |
+
+### Phase 6 — 인프라/배포 (규모 M)
+| ID | 작업 | 선행 | 규모 | AC |
+|---|---|---|---|---|
+| P6.1 | Dockerfile: `better-sqlite3` 네이티브 빌드(빌드 의존), 볼륨 경로, 부팅 시 마이그레이션 실행 | P1.2 | M | 컨테이너 부팅→마이그레이션→서비스 정상 |
+| P6.2 | 환경변수 정리(Supabase 제거), `DB_PROVIDER=sqlite`·`AUTH_PROVIDER` 단일화, supabase-js 의존 제거 | P3.3,P2.2 | S | Supabase env 0건에서 부팅 |
+| P6.3 | (옵션) Litestream 사이드카(S3 허용 시) 또는 주기 `.backup` 크론(자체보관) | P0.4 | M | 백업 산출물 생성·복구 리허설 |
+| P6.4 | `pnpm test:prod` standalone 헬스체크 + 배포 검증 | P6.1,P6.2 | S | 헬스 200, 핵심 플로우 동작 |
+
+### Phase 7 — 테스트 재작성 (규모 L)
+| ID | 작업 | 선행 | 규모 | AC |
+|---|---|---|---|---|
+| P7.1 | 레포 구현 테스트 14파일 → SQLite `:memory:` 실DB 테스트로 **단순화**(손모킹 폐기 — 오히려 쉬워짐) | P1.4 | L | 레포 커버리지 회복 |
+| P7.2 | 인증 테스트(Auth.js JWT), 미들웨어 테스트 재작성 | P2.2 | M | 인증 경로 커버 |
+| P7.3 | API 라우트 21·서비스 4 테스트의 모킹 타깃 교체(인터페이스 경계 덕에 저영향) | P3.3 | M | 라우트 테스트 통과 |
+| P7.4 | factory/connection/failover 인프라 테스트 단일화·정리 | P6.2 | S | 죽은 테스트 제거 |
+
+### Phase 8 — 데이터 이관·컷오버·문서 (규모 M)
+| ID | 작업 | 선행 | 규모 | AC |
+|---|---|---|---|---|
+| P8.1 | (기존 데이터 보존 시) Supabase→SQLite 이관 스크립트 + 검증. 셀프호스트 신규 시작이면 생략 | P0.2,P1.2 | M | 행수·무결성 대조 통과 |
+| P8.2 | Supabase/postgres/Drizzle-pg 경로 및 미사용 의존 제거 | P7.4 | M | 빌드·테스트 그린, 의존 정리 |
+| P8.3 | 문서 전면 갱신(CLAUDE.md·README·아키텍처·ADR), 배포/백업 운영 가이드 | P8.2 | M | 코드-문서 정합 |
+
+## 5. 마일스톤(권장 순서)
+
+1. **M1 기반**: P0 전체 + P1.1~P1.3 (볼륨·백업·SQLite 연결·provider 분기) — *데이터 소실 방지 확보*
+2. **M2 데이터계층**: P1.4~P1.6 + P7.1 (레포 + 레이트리밋 + 레포 테스트)
+3. **M3 인증**: P2 전체 + P7.2 (Supabase Auth 탈피)
+4. **M4 배선정리**: P3 + P4 + P5 (직접-DB 제거, 서빙·설정 검증)
+5. **M5 배포·정리**: P6 + P7.3~P7.4 + P8 (인프라·테스트·컷오버·문서)
+
+## 6. 리스크 & 완화 (감사+리서치)
+
+| 리스크 | 심각도 | 완화 |
+|---|---|---|
+| 볼륨 없이 SQLite 채택 시 데이터 영구 소실 | High | **P0.1을 절대 선행**. 볼륨 검증 전 컷오버 금지 |
+| 원자적 레이트리밋 약화 → Claude 과금 폭증 | High | `BEGIN IMMEDIATE` 직렬화 + 증가/환불 동일 DB. 단일 사용자라 동시성 낮아 위험 추가 감소 |
+| 권한 경계 회귀(노출) | Med→Low | 단일 사용자라 격리 부담 급감. 그래도 `assertOwner` 게이트 + 회귀 테스트 |
+| 단일 인스턴스 천장(확장 불가) | Med | 현 규모 무해. 성장 시 외부 저장소 재이관 경로를 ADR로 사전 문서화. IRepository 유지로 재이관 비용 최소화 |
+| ~1s 백업 손실창(Litestream) / 스냅샷 간격 | Med | 자체보관 기본 + 주기 짧게. 크리티컬 쓰기 `synchronous=FULL` |
+| better-sqlite3 네이티브 빌드(Docker·Node 22) | Med | 멀티스테이지 빌드 검증, 프리빌트 확인 |
+
+## 7. 미결정(실행 중 확정) — 추천 default 명시
+- **백업 매체**: 자체보관(볼륨 스냅샷 + `.backup`) *권장 기본*; S3 허용 시 Litestream 추가(옵션).
+- **인증 방식**: Auth.js Credentials 단일 관리자 *권장*; OAuth 유지 원하면 Auth.js OAuth provider(외부 IdP 호출).
+- **카탈로그 보관**: SQLite 테이블 유지 *권장*(cron write 단순); 대안은 JSON 번들(countries 방식).
+- **기존 데이터**: 셀프호스트 신규 시작이면 이관 생략; 보존 필요 시 P8.1.
+
+## 8. 출처(딥리서치)
+- Railway Volumes/Scaling: docs.railway.com/volumes/reference, /deployments/scaling
+- Litestream: litestream.io/how-it-works, /alternatives, /tips; fly.io/blog/litestream-revamped
+- Drizzle SQLite: orm.drizzle.team/docs/get-started-sqlite
+- better-sqlite3 WAL/synchronous: github.com/WiseLibs/better-sqlite3 (docs/performance.md)
+- Auth.js 세션/edge: authjs.dev/concepts/session-strategies, /guides/edge-compatibility

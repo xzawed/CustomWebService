@@ -53,8 +53,17 @@ coverage/
 playwright-report/
 test-results/
 
-# drizzle-kit output (regenerated via drizzle-kit generate)
-/drizzle/
+# drizzle-kit output: pg 경로는 재생성(미커밋); sqlite는 런타임 마이그레이션이라 커밋한다
+/drizzle/*
+!/drizzle/sqlite/
+
+# SQLite DB 파일 (DB_PROVIDER=sqlite) — 스키마/마이그레이션만 커밋, 데이터는 커밋 금지
+/data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
 
 # claude — settings.local.json(시크릿)만 제외, settings.json(훅/권한)은 버전 관리
 .claude/settings.local.json
