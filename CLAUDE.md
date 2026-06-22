@@ -41,6 +41,7 @@ src/
 │   ├── config/      # 환경변수 기반 설정 (features, providers, rateLimit, qc 등)
 │   ├── catalog/     # API 카탈로그 동작 검증 — healthCheck.ts(DB기반 라이브 검증 분류), keyCheck.ts(플랫폼 키 검증)
 │   ├── constants/   # 공용 상수 — cdn.ts (CSP CDN 화이트리스트, buildSiteCsp)
+│   ├── countries/   # 자체 호스팅 국가 데이터 API 로직 — transform(mledoze 변환), query(region/search 필터·코드 조회), types
 │   ├── db/          # Drizzle 연결(connection)·schema·failover (DB_PROVIDER=postgres 경로)
 │   ├── deploy/      # 배포 관련
 │   ├── events/      # EventBus (pub/sub) + eventPersister (전체 이벤트 자동 DB 기록)
@@ -59,6 +60,7 @@ src/
 ├── stores/          # Zustand 스토어
 ├── templates/       # 코드 생성 템플릿
 ├── types/           # TypeScript 타입 정의 — schemas.ts (Zod 공용 스키마), project.ts, api.ts, events.ts 등
+├── data/            # 생성 데이터 산출물 — countries.json (scripts/generateCountries.ts로 mledoze에서 생성, 커밋·번들)
 ├── __tests__/       # 테스트 파일 (+ 소스 옆 co-located *.test.ts)
 └── test/            # 테스트 헬퍼, 설정
 ```
@@ -250,7 +252,7 @@ pnpm keys:verify               # 플랫폼 키 설정 검증 (scripts/verifyPlat
 - **레이트리밋 우회 로깅**: `RATE_LIMIT_BYPASS_USER_IDS` 우회 적용 시 `logger.info('Rate limit bypass applied', ...)` 감사 로그를 남긴다(무로깅 우회는 운영 사각지대)
 - **카탈로그 헬스 모니터링**: 일일 `scheduled.yml`이 **DB의 활성 API 전체**를 읽어 업스트림을 라이브 검증한다(`pnpm catalog:healthcheck:write`, 분류 로직은 `src/lib/catalog/healthCheck.ts` — 단위 테스트 대상). BROKEN(네트워크·5xx·키리스 401·**2xx지만 본문이 에러/deprecation**) 감지 시 exit 1 + GitHub Issue. 키 의존 API(api_key + auth_config.env_var, default_key 없음)는 키 없이 호출 시 401 → `key_gated`로 분류(장애 아님). 헬스체크 대상/도메인은 **하드코딩 금지** — DB가 단일 진실원천. 키 유효성은 `pnpm keys:verify`(Railway env 필요, `railway run`)로 별도 검증하며 프록시와 동일 방식으로 키를 주입한다. 상세: [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](docs/decisions/2026-06-21-api-catalog-health-monitoring.md)
 - **verification_status 신선도·소비 (B-2, 2026-06-22)**: cron이 `--write`로 `verification_status`(working/degraded→verified, broken→broken)를 DB에 반영해 신선도를 유지한다. **`--write`는 `SUPABASE_SERVICE_ROLE_KEY`가 GitHub Actions secret에 있어야 실제 write** — 미설정 시 `verifyCatalog.ts`가 자동으로 read-only로 degrade(분류·게이트는 그대로). **소비**: AI 추천(`POST /api/v1/suggest-apis`)이 `verificationStatus==='broken'` API를 후보에서 제외하고 `verified`에는 `[검증됨]` 배지로 우선 선택을 유도한다(broken ID는 candidate 기반 validId로 이중 차단). **카탈로그 브라우징(`search()`)은 broken을 숨기지 않는다** — '가용 유지' 정책(예: picsum 일시 장애)과의 정합성. ⚠️ `DrizzleCatalogRepository`(postgres provider)는 `verification_status`를 매핑하지 않아 그 경로에선 필터가 fail-open(비활성 경로라 운영 무영향)
-- **REST Countries 폐기(2026-06-21)**: v3.1 전 엔드포인트가 deprecated(HTTP 200 + deprecation 본문, legacy.json 301). `is_active=false`로 비활성. 무료 키리스 대체 없음(v5 유료) — 필요 시 `mledoze/countries` 데이터셋 번들 권장
+- **REST Countries 폐기(2026-06-21) → 자체 호스팅 대체(2026-06-22, B-3)**: v3.1 전 엔드포인트가 deprecated(HTTP 200 + deprecation 본문, legacy.json 301)라 `is_active=false`. 대체로 **mledoze/countries(ODbL) 큐레이티드 서브셋**을 `src/data/countries.json`에 번들하고 `GET /api/v1/countries`(목록, `?region=`/`?search=`)·`/api/v1/countries/[code]`(cca2/cca3 단건)로 자체 서빙(키리스·CORS·`max-age=86400`). 생성 사이트가 프록시 없이 직접 fetch(사이트 CSP `connect-src https:`가 허용). 데이터 갱신은 `pnpm tsx scripts/generateCountries.ts`로 재생성(준-정적). 라우트는 thin, 로직은 `src/lib/countries/`(transform·query, 100% 커버). **카탈로그 등록은 배포 후 단계**(라우트가 프로덕션에 라이브여야 헬스체크가 200) — 미배포 상태에서 row 추가 금지. 설계: [docs/superpowers/specs/2026-06-22-country-data-api-design.md](docs/superpowers/specs/2026-06-22-country-data-api-design.md)
 - **플랫폼 키 검증 = 배포 런타임 전용**: 키 의존 API의 env 키(`API_KEY_*`) 유효성은 배포 컨텍스트에서만 검증 가능 — 관리자 진단 엔드포인트 **`GET /api/v1/admin/keys-verify`**(ADMIN_API_KEY 보호, 로직 `src/lib/catalog/keyCheck.ts`)를 배포 환경에서 호출한다. 로컬 `railway run`은 sealed/빈 변수를 구분 못 함. **2026-06-21 확정 사실**: 키 의존 API의 env 변수들은 **이름만 있고 값이 빈 상태**였음(sealed 아님). 배포 진단에서 7개 전부 MISSING → 키 의존 API 7개를 **`is_active=false` 비활성화**(활성 30→**23**, 전부 키 불필요·즉시 사용 가능). 재활성화하려면 Railway env에 **실제 키 값**을 입력 후 `is_active=true` 복원 + `keys-verify` 재검증. 또한 카탈로그 `auth_config.env_var` 이름이 실제 Railway 변수명과 일치해야 함(불일치 시 401): **카카오 검색이 존재하지 않는 `API_KEY_KAKAO`를 참조**했던 버그 → `API_KEY_F1EC6F97`로 정정
 - **프록시 키 prefix 미적용(잠재 버그)**: `auth_config`의 `prefix`/`header_prefix`(카카오 `KakaoAK `, Unsplash `Client-ID `)를 프록시 `resolveApiKey`가 적용하지 않고 raw 값을 주입한다. env 값에 prefix가 포함돼 있어야 동작 — `keys-verify`의 `needsPrefixFix`로 확인 후 프록시 수정 여부 결정(env 값에 이미 prefix가 있으면 이중 적용 주의)
 - **Node 22+ 필수 (supabase-js 2.108+ eager WebSocket 가드)**: `@supabase/supabase-js` 2.108부터 `realtime-js`가 **생성자(eager)에서** 네이티브 WebSocket 부재 시 throw한다. Node < 22에서는 `createClient()`/`createServerClient()` **생성 호출 자체가 크래시**(`Error: Node.js N detected without native WebSocket support.`) — realtime 미사용이어도 발생. 그래서 Dockerfile·전 워크플로·`package.json engines`를 **Node 22**로 고정했다(`node:22-alpine`, `node-version: 22`, `engines.node: ">=22"`). **Node 버전을 20으로 내리지 말 것**(프로덕션 전 페이지 + 헬스체크가 클라이언트 생성 시점에 다운). supabase-js bump 시 런타임 요구사항 변동 확인. 상세: [docs/decisions/2026-06-22-node22-supabase-websocket-fix.md](docs/decisions/2026-06-22-node22-supabase-websocket-fix.md)

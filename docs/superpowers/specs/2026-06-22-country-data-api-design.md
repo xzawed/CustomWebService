@@ -1,7 +1,7 @@
 # 자체 호스팅 국가 데이터 API (REST Countries 대체) — 설계
 
 - 날짜: 2026-06-22
-- 상태: 승인됨 (구현 대기)
+- 상태: 구현 완료 (PR `feat/country-data-api`) — 카탈로그 등록만 배포 후 단계
 - 배경: 잔여작업 감사 **B-3**. REST Countries v3.1 전면 deprecated(2026-06-21 비활성)로 무료·키리스 국가 데이터 공백. 무료 키리스 v3.1 대체 없음(v5 유료).
 - 선행: [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](../../decisions/2026-06-21-api-catalog-health-monitoring.md) (REST Countries 폐기 결정 1·WBS 4)
 
@@ -29,6 +29,8 @@ mledoze/countries 데이터셋의 **큐레이티드 서브셋**을 레포에 번
 - 준-정적이라 수동/주기 재실행(빌드 의존 아님). 변환 로직(순수 함수)은 단위 테스트 대상.
 
 ### 큐레이티드 스키마 (국가당)
+> mledoze `countries.json` 실측 필드 기준(2026-06-22 확인): `population`·`flags`(png/svg)·`timezones`는
+> **소스에 없음** → `population` 제외, `area`(km²) 사용, `flagSvg`는 flagcdn URL로 구성.
 ```ts
 interface Country {
   name: { common: string; official: string; ko: string | null }; // translations.kor.common
@@ -39,15 +41,16 @@ interface Country {
   region: string;               // "Asia"
   subregion: string | null;
   flag: string;                 // emoji "🇰🇷"
-  flagSvg: string | null;       // flags.svg URL
-  currencies: Record<string, { name: string; symbol: string }>;
+  flagSvg: string | null;       // `https://flagcdn.com/${cca2}.svg` (구성, img-src * 허용)
+  currencies: Record<string, { name: string; symbol: string | null }>;
   languages: Record<string, string>;
-  population: number;
-  latlng: [number, number] | [];
+  area: number | null;          // km² (mledoze area)
+  latlng: number[];             // [lat, lng]
   callingCode: string | null;   // idd.root(+suffix) — suffix 1개면 결합, 아니면 root
+  tld: string | null;           // top-level domain 첫 항목 ".kr"
 }
 ```
-- `src/data/countries.ts` (또는 `.json` + 타입) — 라우트가 import해 standalone 번들.
+- `src/data/countries.json` (생성 산출물, 커밋) — 라우트가 import해 standalone 번들. 타입은 `src/lib/countries/types.ts`.
 - 예상 크기: 약 수백 KB(전체 ~3MB 대비 대폭 축소).
 
 ## 서빙 라우트
