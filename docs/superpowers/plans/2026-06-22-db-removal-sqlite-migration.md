@@ -1,9 +1,23 @@
 # DB 제거 → 임베디드 SQLite 전환 (단일 사용자·셀프호스트) — WBS 계획
 
-- 날짜: 2026-06-22
-- 상태: **계획(승인 대기)** — 실행 전 사용자 승인 필요
+- 날짜: 2026-06-22 (착수 2026-06-23)
+- 상태: **실행 중** — 승인 완료(현 프로덕션 제자리 전환). 진행 현황은 §0 참조.
 - 근거: 정합성 감사(7차원 persistence surface) + 딥리서치(SQLite/Railway/Auth.js, 출처 포함) + 사용자 범위 결정 3건
 - 관련: [Supabase 사용 요소](../../../CLAUDE.md), provider 추상화([src/lib/config/providers.ts](../../../src/lib/config/providers.ts))
+
+## 0. 진행 현황 (2026-06-23)
+
+브랜치 `feat/sqlite-migration` (origin 백업됨). 누적 테스트 204 통과, type-check·lint clean. **프로덕션 무영향**(sqlite·local 모두 `DB_PROVIDER`/`AUTH_PROVIDER` opt-in, 기존 Supabase 기본값 유지).
+
+| Phase | 상태 | 커밋 |
+|---|---|---|
+| **Phase 1 — 데이터 계층** (P1.1~1.6) | ✅ 완료 | `69ac078`, `122819d` |
+| **Phase 2 — 인증** | 🔵 코어(P2.1) 완료, 나머지 대기 | `18e4d64` |
+| Phase 3~8 | ⬜ 대기 | — |
+
+- **완료**: SQLite 스키마(9테이블)·연결(WAL/FK)·마이그레이션(`drizzle/sqlite/`, 커밋)·`DB_PROVIDER=sqlite` / 7개 SQLite 레포(159테스트)·원자적 레이트리밋(`db.transaction`+`UPDATE…WHERE count<limit RETURNING`)·factory 배선 / `AUTH_PROVIDER=local`(Auth.js Credentials 단일 관리자 + JWT 무상태, scrypt 비번, `getAuthUser` 분기).
+- **다음(Phase 2 나머지)**: ① `/api/auth/[...nextauth]/route.ts` 핸들러 ② 미들웨어 local 세션 검증 전환(Supabase `updateSession` 대체) ③ 로그인 페이지 Credentials 폼 ④ 관리자 `users` 시드 + `scripts/hashAdminPassword.ts`.
+- **컷오버 전 사용자 준비물**: Railway 영속 볼륨(P0.1), env `AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`·(선택)`SQLITE_PATH`·`ADMIN_USER_ID`.
 
 ## 1. 목표 & 확정 제약
 
