@@ -1,7 +1,7 @@
 # 자체 호스팅 국가 데이터 API (REST Countries 대체) — 설계
 
 - 날짜: 2026-06-22
-- 상태: 구현 완료 (PR `feat/country-data-api`) — 카탈로그 등록만 배포 후 단계
+- 상태: **완료** — 구현(PR #158 배포 라이브) + **카탈로그 등록 완료(2026-06-22)**. 등록 ADR: [2026-06-22-catalog-registration-and-seed-resync.md](../../decisions/2026-06-22-catalog-registration-and-seed-resync.md)
 - 배경: 잔여작업 감사 **B-3**. REST Countries v3.1 전면 deprecated(2026-06-21 비활성)로 무료·키리스 국가 데이터 공백. 무료 키리스 v3.1 대체 없음(v5 유료).
 - 선행: [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](../../decisions/2026-06-21-api-catalog-health-monitoring.md) (REST Countries 폐기 결정 1·WBS 4)
 
