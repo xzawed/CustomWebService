@@ -171,6 +171,7 @@ pnpm keys:verify               # 플랫폼 키 설정 검증 (scripts/verifyPlat
 | 테스트 플래키 타임아웃 잔여·후속 작업 핸드오프 (항목 1·2·3·4·6 완료, 5는 상시 모니터링, 2026-06-09) | [docs/superpowers/plans/2026-06-09-test-flakiness-followups.md](docs/superpowers/plans/2026-06-09-test-flakiness-followups.md) |
 | 서비스 종합 건강 감사 및 발견 16건 수정 ADR (2026-06-09) | [docs/decisions/2026-06-09-service-health-audit-fixes.md](docs/decisions/2026-06-09-service-health-audit-fixes.md) |
 | API 카탈로그 동작 검증 & 헬스 모니터링 자동화 ADR (REST Countries 폐기·DB 기반 헬스체크, 2026-06-21) | [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](docs/decisions/2026-06-21-api-catalog-health-monitoring.md) |
+| Node 22 전면 상향 ADR (supabase-js 2.108 eager WebSocket 가드 대응·#154 오탐 근본 원인, 2026-06-22) | [docs/decisions/2026-06-22-node22-supabase-websocket-fix.md](docs/decisions/2026-06-22-node22-supabase-websocket-fix.md) |
 
 - [README.md](README.md) — 프로젝트 전체 개요
 - [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) — PR 템플릿
@@ -250,6 +251,7 @@ pnpm keys:verify               # 플랫폼 키 설정 검증 (scripts/verifyPlat
 - **REST Countries 폐기(2026-06-21)**: v3.1 전 엔드포인트가 deprecated(HTTP 200 + deprecation 본문, legacy.json 301). `is_active=false`로 비활성. 무료 키리스 대체 없음(v5 유료) — 필요 시 `mledoze/countries` 데이터셋 번들 권장
 - **플랫폼 키 검증 = 배포 런타임 전용**: 키 의존 API의 env 키(`API_KEY_*`) 유효성은 배포 컨텍스트에서만 검증 가능 — 관리자 진단 엔드포인트 **`GET /api/v1/admin/keys-verify`**(ADMIN_API_KEY 보호, 로직 `src/lib/catalog/keyCheck.ts`)를 배포 환경에서 호출한다. 로컬 `railway run`은 sealed/빈 변수를 구분 못 함. **2026-06-21 확정 사실**: 키 의존 API의 env 변수들은 **이름만 있고 값이 빈 상태**였음(sealed 아님). 배포 진단에서 7개 전부 MISSING → 키 의존 API 7개를 **`is_active=false` 비활성화**(활성 30→**23**, 전부 키 불필요·즉시 사용 가능). 재활성화하려면 Railway env에 **실제 키 값**을 입력 후 `is_active=true` 복원 + `keys-verify` 재검증. 또한 카탈로그 `auth_config.env_var` 이름이 실제 Railway 변수명과 일치해야 함(불일치 시 401): **카카오 검색이 존재하지 않는 `API_KEY_KAKAO`를 참조**했던 버그 → `API_KEY_F1EC6F97`로 정정
 - **프록시 키 prefix 미적용(잠재 버그)**: `auth_config`의 `prefix`/`header_prefix`(카카오 `KakaoAK `, Unsplash `Client-ID `)를 프록시 `resolveApiKey`가 적용하지 않고 raw 값을 주입한다. env 값에 prefix가 포함돼 있어야 동작 — `keys-verify`의 `needsPrefixFix`로 확인 후 프록시 수정 여부 결정(env 값에 이미 prefix가 있으면 이중 적용 주의)
+- **Node 22+ 필수 (supabase-js 2.108+ eager WebSocket 가드)**: `@supabase/supabase-js` 2.108부터 `realtime-js`가 **생성자(eager)에서** 네이티브 WebSocket 부재 시 throw한다. Node < 22에서는 `createClient()`/`createServerClient()` **생성 호출 자체가 크래시**(`Error: Node.js N detected without native WebSocket support.`) — realtime 미사용이어도 발생. 그래서 Dockerfile·전 워크플로·`package.json engines`를 **Node 22**로 고정했다(`node:22-alpine`, `node-version: 22`, `engines.node: ">=22"`). **Node 버전을 20으로 내리지 말 것**(프로덕션 전 페이지 + 헬스체크가 클라이언트 생성 시점에 다운). supabase-js bump 시 런타임 요구사항 변동 확인. 상세: [docs/decisions/2026-06-22-node22-supabase-websocket-fix.md](docs/decisions/2026-06-22-node22-supabase-websocket-fix.md)
 
 ## 세션 시작 체크리스트 (필수)
 
