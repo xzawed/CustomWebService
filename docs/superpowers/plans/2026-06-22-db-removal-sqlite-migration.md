@@ -41,6 +41,7 @@
   - **P6.2 잔여**: `@supabase/*` 의존 제거는 Phase 8(supabase 경로 제거와 함께). **P6.3 이연**(옵션 백업 크론) + P5.2 verification cron 컨테이너 내부화.
 - **완료(Phase 7 — 테스트 정리, 컷오버 전 가능 범위)**: P7.2(인증·미들웨어 테스트)는 Phase 2에서 완료. P7.3 라우트 테스트 모킹 일관화 — Phase 3에서 getDbProvider를 추가한 라우트(test-generation·qc-stats·trigger-qc) 테스트(`admin-test-generation`·`admin`)에 `@/lib/config/providers` 모킹 추가(native pg cold-init 차단). **P7.1**(supabase/Drizzle 레포 테스트 → `:memory:` 단순화)·**P7.4**(factory/connection/failover 테스트 정리)는 **Phase 8에서 supabase/postgres 레포를 제거할 때 동반**(현재 supabase 레포는 프로덕션 경로라 테스트를 선제거하면 안 됨).
 - **🚦 현재 위치 = 컷오버 게이트**: Phase 1~6 + 검증(P4.1)·테스트 정리(P7.2/P7.3)까지 **프로덕션 무영향으로 완료**. sqlite/local 스택이 docker로 빌드·실행·검증됨. **Phase 8(컷오버)부터는 프로덕션 supabase 경로를 제거**하므로 "무영향" 불변식을 깨는 비가역 변경 — **사용자 승인 + Railway 볼륨 준비 후** 진행한다.
+- **컷오버 준비물 작성 완료(프로덕션 무변경)**: ① **단계별 런북** [docs/guides/sqlite-cutover-runbook.md](../../guides/sqlite-cutover-runbook.md)(볼륨·env·빌드인자·스위치·검증·롤백·P8.2 제거·백업). ② **데이터 이관 스크립트**(P8.1, 선택) `scripts/migrateSupabaseToSqlite.ts`(`pnpm cutover:migrate --out ./app.db [--user <id>]`) — self-contained(마이그레이션+카탈로그/플래그/관리자 시드+사용자 데이터 복사, user_id→단일 관리자 리맵). 산출 app.db를 볼륨 `/data`로 업로드. 둘 다 작성·type-check 통과, 실행은 사용자 컷오버 시점.
 - **컷오버 전 사용자 준비물**: **Railway 영속 볼륨(P0.1) `/data` 마운트**(없으면 재배포마다 소실), env `AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`(`pnpm admin:hash`로 생성)·(선택)`ADMIN_NAME`·`SQLITE_PATH`·`ADMIN_USER_ID`, 빌드 `--build-arg NEXT_PUBLIC_AUTH_PROVIDER=local`.
 
 ## 1. 목표 & 확정 제약

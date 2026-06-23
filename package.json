@@ -25,7 +25,8 @@
     "catalog:healthcheck:write": "tsx scripts/verifyCatalog.ts --write",
     "keys:verify": "tsx scripts/verifyPlatformKeys.ts",
     "admin:hash": "tsx scripts/hashAdminPassword.ts",
-    "seed:generate": "tsx scripts/generateSqliteSeed.ts"
+    "seed:generate": "tsx scripts/generateSqliteSeed.ts",
+    "cutover:migrate": "tsx scripts/migrateSupabaseToSqlite.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
