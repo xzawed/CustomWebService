@@ -17,8 +17,10 @@
 | **Phase 4 — 서빙/런타임 검증** | 🔵 P4.1 서빙 검증 완료, P4.3 일부 대기 | (검증, 코드 무변경) |
 | **Phase 5 — 설정·번들 데이터 시드** | 🔵 P5.1·P5.3 완료, P5.2 이연 | `1ff1834` |
 | **Phase 6 — 인프라/배포** | 🔵 P6.1·P6.4 완료(docker 검증), P6.2 일부·P6.3 이연 | `c5adbdf` |
-| **Phase 7 — 테스트 정리** | 🔵 P7.2·P7.3 완료, P7.1·P7.4는 Phase 8 동반 | (이번 커밋) |
-| **Phase 8 — 컷오버** | ⬜ 대기 (사용자 게이트) | — |
+| **Phase 7 — 테스트 정리** | 🔵 P7.2·P7.3 완료, P7.1·P7.4는 Phase 8 동반 | `c343ab0` |
+| **Phase 8 — 컷오버** | ✅ **프로덕션 전환 완료 (2026-06-23)** | `#162`·`#163`·`#164` → `28acede`+`4c528f3d` |
+
+> **🎉 2026-06-23 프로덕션 컷오버 완료**: xzawed.xyz가 sqlite+local 인증으로 라이브 전환·영속 볼륨 마운트. 컷오버 중 함정 3건 수정(Railway VOLUME 미지원 #163 / NextAuth `AUTH_TRUST_HOST=true` / Railway 볼륨 root-소유 → entrypoint chown+su-exec #164, 이 과정에서 약 20분 다운 후 복구). 잔여: `ENCRYPTION_KEY` 설정·관리자 로그인 E2E·P8.2(supabase 코드 제거)·P8.3(문서). 상세: 핸드오프 메모리 `project_db_sqlite_migration_handoff.md`.
 
 - **완료(Phase 1)**: SQLite 스키마(9테이블)·연결(WAL/FK)·마이그레이션(`drizzle/sqlite/`, 커밋)·`DB_PROVIDER=sqlite` / 7개 SQLite 레포(159테스트)·원자적 레이트리밋(`db.transaction`+`UPDATE…WHERE count<limit RETURNING`)·factory 배선.
 - **완료(Phase 2)**: `AUTH_PROVIDER=local`(Auth.js Credentials 단일 관리자 + JWT 무상태, scrypt 비번, `getAuthUser` 분기) / **P2.2** edge-safe 분할 설정(`local-auth-base`+`local-auth-edge`) + 미들웨어 `local` 세션 게이팅(`enforceAuthGate`) / `/api/auth/[...nextauth]/route.ts` provider 디스패치 핸들러 / **P2.3·P2.4** 로그인 페이지 Credentials 폼 + 관리자 `users` 멱등 시드(`seedAdmin`)·부팅 부트스트랩(`bootstrap`, instrumentation 배선 — P6.1 부팅 마이그레이션 일부 선반영) + `scripts/hashAdminPassword.ts`(`pnpm admin:hash`).
