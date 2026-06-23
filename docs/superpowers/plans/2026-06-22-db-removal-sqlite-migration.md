@@ -13,8 +13,9 @@
 |---|---|---|
 | **Phase 1 — 데이터 계층** (P1.1~1.6) | ✅ 완료 | `69ac078`, `122819d` |
 | **Phase 2 — 인증** | ✅ 기능 완료 (P2.1~P2.3; P2.4 정리는 Phase 3 동반) | `18e4d64`, `c67ec18` |
-| **Phase 3 — 직접-DB/RPC 정리** | ✅ 완료 (callback·repo `.rpc`는 Phase 8 이연) | `a9688f2`, `4b7b75a`, `768da35` + (이번 커밋) |
-| Phase 4~8 | ⬜ 대기 | — |
+| **Phase 3 — 직접-DB/RPC 정리** | ✅ 완료 (callback·repo `.rpc`는 Phase 8 이연) | `a9688f2`, `4b7b75a`, `768da35`, `7cddeef` |
+| **Phase 4 — 서빙/런타임 검증** | 🔵 P4.1 서빙 검증 완료, P4.3 일부 대기 | (검증, 코드 무변경) |
+| Phase 5~8 | ⬜ 대기 | — |
 
 - **완료(Phase 1)**: SQLite 스키마(9테이블)·연결(WAL/FK)·마이그레이션(`drizzle/sqlite/`, 커밋)·`DB_PROVIDER=sqlite` / 7개 SQLite 레포(159테스트)·원자적 레이트리밋(`db.transaction`+`UPDATE…WHERE count<limit RETURNING`)·factory 배선.
 - **완료(Phase 2)**: `AUTH_PROVIDER=local`(Auth.js Credentials 단일 관리자 + JWT 무상태, scrypt 비번, `getAuthUser` 분기) / **P2.2** edge-safe 분할 설정(`local-auth-base`+`local-auth-edge`) + 미들웨어 `local` 세션 게이팅(`enforceAuthGate`) / `/api/auth/[...nextauth]/route.ts` provider 디스패치 핸들러 / **P2.3·P2.4** 로그인 페이지 Credentials 폼 + 관리자 `users` 멱등 시드(`seedAdmin`)·부팅 부트스트랩(`bootstrap`, instrumentation 배선 — P6.1 부팅 마이그레이션 일부 선반영) + `scripts/hashAdminPassword.ts`(`pnpm admin:hash`).
@@ -23,6 +24,7 @@
   - 라우트/페이지 전환: health·user-api-keys·suggest-modification·preview / **eventPersister**(sqlite 버그 수정) / **proxy**(진입 + 개인키 해결: 내부 헬퍼 raw `.from`→`createProjectRepository`/`createUserApiKeyRepository`) / **settings/api-keys**(`findAllByUser`) / **admin 4종**(qc-stats·keys-verify·trigger-qc·test-generation) 모두 레포 경유.
   - 신규 레포 메서드(3 구현체 + 인터페이스): `IEventRepository.countByTypeSince`/`findPayloadsByTypeSince`, `ICodeRepository.findMetadataByDateRange` — qc-stats `platform_events`/`generated_codes` 집계용(집계는 DB 오류 throw로 0-메트릭 은폐 방지).
   - 이연(Phase 8 동반): `callback`(raw `.from('users')`)은 Supabase Auth OAuth 전용 아티팩트(local 모드 미사용). repo 내부 `.rpc()` 6은 Supabase 레포 전용(sqlite 레포는 트랜잭션 대체 완료) → supabase 제거 시 동반 소멸.
+- **검증(Phase 4)**: **P4.1 서빙 E2E 검증 완료** — 실 dev 서버(`DB_PROVIDER=sqlite`+`AUTH_PROVIDER=local`) 스모크 6/6: 부팅 부트스트랩(마이그레이션+admin 시드) → 게시 프로젝트+코드 시드 → `GET /site/demo` 200(`findBySlug`+`findByProject`+`assembleHtml` 모두 sqlite 경로 동작)·`SITE_CSP` 헤더·미존재 slug 404. P4.2(인메모리 상태)는 코드 무변경이라 자명. **P4.3**(배포 상태머신/레이트리밋 환불)은 레포 단위(SqliteRateLimitRepository 원자적 카운터·환불) 검증됨, 외부 배포(GitHub/Railway) 통합은 실배포에서 확인 필요.
 - **컷오버 전 사용자 준비물**: Railway 영속 볼륨(P0.1), env `AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`(`pnpm admin:hash`로 생성)·(선택)`ADMIN_NAME`·`SQLITE_PATH`·`ADMIN_USER_ID`.
 
 ## 1. 목표 & 확정 제약
@@ -99,7 +101,7 @@
 | P3.2 | `createServiceClient` 10파일(12 호출 지점) → SQLite 레포 + 단일 사용자 인가로 재작성(proxy 키 resolve·user-api-keys·suggest-modification·health·eventPersister·admin 4종·preview) | P1.4,P2.3 | M | service-role 개념 소거, 키 resolve 동작 |
 | P3.3 | raw `.from()` 5파일·10 호출 지점(qc-stats×4·keys-verify·proxy×2·settings/api-keys·callback×2) 재배선 | P3.2 | S | raw supabase 접근 0건 |
 
-### Phase 4 — 서빙/런타임 검증 (규모 M)
+### Phase 4 — 서빙/런타임 검증 (규모 M) — 🔵 P4.1 검증 완료(dev 스모크 6/6)
 | ID | 작업 | 선행 | 규모 | AC |
 |---|---|---|---|---|
 | P4.1 | `/site/[slug]` 서빙·preview·코드저장 트랜잭션(INSERT+UPDATE)·버전 고유성 SQLite 경로 검증 | P1.4 | M | 게시→서브도메인 서빙 E2E 통과 |
