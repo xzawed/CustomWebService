@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, gte, sql } from 'drizzle-orm';
 import type { SqliteDb } from '@/lib/db/sqlite/connection';
 import * as schema from '@/lib/db/sqlite/schema';
 import type { DomainEvent } from '@/types/events';
@@ -96,5 +96,34 @@ export class SqliteEventRepository implements IEventRepository {
       });
       return [];
     }
+  }
+
+  // created_at은 ISO8601 텍스트라 사전식 비교가 곧 시간순 비교(>=).
+  async countByTypeSince(type: string, since: Date): Promise<number> {
+    const row = this.db
+      .select({ total: sql<number>`count(*)` })
+      .from(schema.platformEvents)
+      .where(
+        and(
+          eq(schema.platformEvents.type, type),
+          gte(schema.platformEvents.created_at, since.toISOString()),
+        ),
+      )
+      .get();
+    return row?.total ?? 0;
+  }
+
+  async findPayloadsByTypeSince(type: string, since: Date): Promise<unknown[]> {
+    const rows = this.db
+      .select({ payload: schema.platformEvents.payload })
+      .from(schema.platformEvents)
+      .where(
+        and(
+          eq(schema.platformEvents.type, type),
+          gte(schema.platformEvents.created_at, since.toISOString()),
+        ),
+      )
+      .all();
+    return rows.map((r) => r.payload);
   }
 }

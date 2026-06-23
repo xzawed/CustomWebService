@@ -7,21 +7,22 @@
 
 ## 0. 진행 현황 (2026-06-23)
 
-브랜치 `feat/sqlite-migration` (origin 백업됨). 전체 스위트 2119 통과, type-check·lint clean, `pnpm build` 성공(미들웨어 Edge 번들 위반 0). **프로덕션 무영향**(sqlite·local 모두 `DB_PROVIDER`/`AUTH_PROVIDER` opt-in, 기존 Supabase 기본값 유지).
+브랜치 `feat/sqlite-migration` (origin 백업됨). 전체 스위트 2126 통과, type-check·lint clean, `pnpm build` 성공(미들웨어 Edge 번들 위반 0). **프로덕션 무영향**(sqlite·local 모두 `DB_PROVIDER`/`AUTH_PROVIDER` opt-in, 기존 Supabase 기본값 유지).
 
 | Phase | 상태 | 커밋 |
 |---|---|---|
 | **Phase 1 — 데이터 계층** (P1.1~1.6) | ✅ 완료 | `69ac078`, `122819d` |
-| **Phase 2 — 인증** | ✅ 기능 완료 (P2.1~P2.3; P2.4 정리는 Phase 3 동반) | `18e4d64` + (이번 커밋) |
-| Phase 3~8 | ⬜ 대기 | — |
+| **Phase 2 — 인증** | ✅ 기능 완료 (P2.1~P2.3; P2.4 정리는 Phase 3 동반) | `18e4d64`, `c67ec18` |
+| **Phase 3 — 직접-DB/RPC 정리** | ✅ 완료 (callback·repo `.rpc`는 Phase 8 이연) | `a9688f2`, `4b7b75a`, `768da35` + (이번 커밋) |
+| Phase 4~8 | ⬜ 대기 | — |
 
 - **완료(Phase 1)**: SQLite 스키마(9테이블)·연결(WAL/FK)·마이그레이션(`drizzle/sqlite/`, 커밋)·`DB_PROVIDER=sqlite` / 7개 SQLite 레포(159테스트)·원자적 레이트리밋(`db.transaction`+`UPDATE…WHERE count<limit RETURNING`)·factory 배선.
 - **완료(Phase 2)**: `AUTH_PROVIDER=local`(Auth.js Credentials 단일 관리자 + JWT 무상태, scrypt 비번, `getAuthUser` 분기) / **P2.2** edge-safe 분할 설정(`local-auth-base`+`local-auth-edge`) + 미들웨어 `local` 세션 게이팅(`enforceAuthGate`) / `/api/auth/[...nextauth]/route.ts` provider 디스패치 핸들러 / **P2.3·P2.4** 로그인 페이지 Credentials 폼 + 관리자 `users` 멱등 시드(`seedAdmin`)·부팅 부트스트랩(`bootstrap`, instrumentation 배선 — P6.1 부팅 마이그레이션 일부 선반영) + `scripts/hashAdminPassword.ts`(`pnpm admin:hash`).
   - ✅ 미들웨어 `await auth()`의 **실 Edge 런타임 동작 검증 완료**(dev 서버 스모크 7/7: 미인증 /dashboard→307 /login, 로그인→JWT 발급, 인증 /dashboard→게이트 통과). 분할 설정이 end-to-end 동작 확인. (전체 서빙·sqlite 통합은 Phase 4에서 계속.)
-- **진행 중(Phase 3 — 직접-DB/RPC/service-role 정리)**: 패턴 = 인라인 가드 `getDbProvider()==='supabase' ? await createServiceClient() : undefined` 후 `createXRepository(client)`.
-  - ✅ **이미 가드 적용**(감사 과대계산 정정): health·user-api-keys·proxy 진입(L270)·suggest-modification·preview / **eventPersister**(sqlite 버그 수정·패턴 확립) / **proxy 개인키 해결**(내부 헬퍼 raw `.from` → `createProjectRepository`/`createUserApiKeyRepository`, 모든 provider 동작, positive 테스트 추가).
-  - ⬜ **남은 실작업**: **admin 4종**(qc-stats: platform_events 집계×4 — 새 event-repo 집계 메서드 필요·keys-verify: api_catalog·test-generation·trigger-qc — 가드 미적용) / **settings/api-keys 페이지**(user_api_keys 직접 조회 → repo).
-  - 이연: `callback`(raw `.from('users')`)은 Supabase Auth OAuth 전용 아티팩트(local 모드 미사용) → P2.4/Phase 8에서 제거. `.rpc()` 6은 Supabase 레포 내부(sqlite 레포는 트랜잭션으로 대체 완료) → Phase 8 supabase 제거 시 동반 소멸.
+- **완료(Phase 3 — 직접-DB/service-role 정리)**: 패턴 = 인라인 가드 `getDbProvider()==='supabase' ? await createServiceClient() : undefined` 후 `createXRepository(client)`(service factory도 provider-aware).
+  - 라우트/페이지 전환: health·user-api-keys·suggest-modification·preview / **eventPersister**(sqlite 버그 수정) / **proxy**(진입 + 개인키 해결: 내부 헬퍼 raw `.from`→`createProjectRepository`/`createUserApiKeyRepository`) / **settings/api-keys**(`findAllByUser`) / **admin 4종**(qc-stats·keys-verify·trigger-qc·test-generation) 모두 레포 경유.
+  - 신규 레포 메서드(3 구현체 + 인터페이스): `IEventRepository.countByTypeSince`/`findPayloadsByTypeSince`, `ICodeRepository.findMetadataByDateRange` — qc-stats `platform_events`/`generated_codes` 집계용(집계는 DB 오류 throw로 0-메트릭 은폐 방지).
+  - 이연(Phase 8 동반): `callback`(raw `.from('users')`)은 Supabase Auth OAuth 전용 아티팩트(local 모드 미사용). repo 내부 `.rpc()` 6은 Supabase 레포 전용(sqlite 레포는 트랜잭션 대체 완료) → supabase 제거 시 동반 소멸.
 - **컷오버 전 사용자 준비물**: Railway 영속 볼륨(P0.1), env `AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`(`pnpm admin:hash`로 생성)·(선택)`ADMIN_NAME`·`SQLITE_PATH`·`ADMIN_USER_ID`.
 
 ## 1. 목표 & 확정 제약
@@ -91,7 +92,7 @@
 | P2.3 | ✅ `getAuthUser` local 분기(P2.1에 포함) + 로그인 페이지 Credentials 폼 | P2.1 | S | 인증 소비처 회귀 없음 |
 | P2.4 | ⬜→Phase 3 동반: RLS 의존 제거·`assertOwner` 자명화·OAuth 콜백 부트스트랩 제거(단일 소유자). createServiceClient/`.from()` 재배선과 함께 진행. (관리자 `users` 시드·`hashAdminPassword` CLI는 이번에 완료) | P2.3 | S | 권한 경계 단순화, 노출 회귀 테스트 |
 
-### Phase 3 — 직접-DB/RPC/service-role 정리 (규모 M)
+### Phase 3 — 직접-DB/RPC/service-role 정리 (규모 M) — ✅ 완료 (P3.1 `.rpc`·callback은 Phase 8 이연)
 | ID | 작업 | 선행 | 규모 | AC |
 |---|---|---|---|---|
 | P3.1 | `.rpc()` 6곳 → SQLite 레포 메서드로 재배선 | P1.5 | S | RPC 호출 0건 |

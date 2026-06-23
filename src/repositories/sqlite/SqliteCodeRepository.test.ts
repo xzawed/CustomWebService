@@ -63,6 +63,30 @@ describe('SqliteCodeRepository', () => {
     raw.close();
   });
 
+  describe('findMetadataByDateRange', () => {
+    function insertCode(version: number, createdAt: string, metadata: Record<string, unknown>): void {
+      raw
+        .prepare(
+          'INSERT INTO generated_codes (id, project_id, version, metadata, created_at) VALUES (?, ?, ?, ?, ?)',
+        )
+        .run(crypto.randomUUID(), projectId, version, JSON.stringify(metadata), createdAt);
+    }
+
+    it('from(포함) 이후 코드의 metadata를 created_at desc로 반환한다', async () => {
+      insertCode(1, '2026-06-10T00:00:00.000Z', { structuralScore: 80 });
+      insertCode(2, '2026-06-20T00:00:00.000Z', { structuralScore: 90 });
+      insertCode(3, '2026-05-01T00:00:00.000Z', { structuralScore: 50 }); // 윈도우 이전
+
+      const result = await repo.findMetadataByDateRange(new Date('2026-06-01T00:00:00.000Z'));
+
+      expect(result).toHaveLength(2);
+      // desc 정렬 → 최신(06-20)이 먼저
+      expect((result[0].metadata as { structuralScore?: number }).structuralScore).toBe(90);
+      expect(result[0].createdAt).toBe('2026-06-20T00:00:00.000Z');
+      expect((result[1].metadata as { structuralScore?: number }).structuralScore).toBe(80);
+    });
+  });
+
   describe('create', () => {
     it('새 생성 코드를 만들고 도메인 shape로 반환한다 (JSON/타임스탬프 매핑)', async () => {
       const created = await repo.create(baseInput());

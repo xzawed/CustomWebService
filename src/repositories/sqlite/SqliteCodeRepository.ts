@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, count as drizzleCount, inArray } from 'drizzle-orm';
+import { eq, and, desc, sql, count as drizzleCount, inArray, gte } from 'drizzle-orm';
 import type { SqliteDb } from '@/lib/db/sqlite/connection';
 import * as schema from '@/lib/db/sqlite/schema';
 import type { GeneratedCode, CodeMetadata } from '@/types/project';
@@ -178,6 +178,26 @@ export class SqliteCodeRepository implements ICodeRepository {
 
     if (!row) return 1;
     return (row.version ?? 0) + 1;
+  }
+
+  // created_at은 ISO8601 텍스트라 사전식 비교(>=)가 곧 시간순 비교. metadata(mode:json)는 객체로 역직렬화됨.
+  async findMetadataByDateRange(
+    from: Date,
+  ): Promise<Array<{ metadata: CodeMetadata; createdAt: string }>> {
+    const rows = this.db
+      .select({
+        metadata: schema.generatedCodes.metadata,
+        created_at: schema.generatedCodes.created_at,
+      })
+      .from(schema.generatedCodes)
+      .where(gte(schema.generatedCodes.created_at, from.toISOString()))
+      .orderBy(desc(schema.generatedCodes.created_at))
+      .all();
+
+    return rows.map((r) => ({
+      metadata: (r.metadata as CodeMetadata) ?? {},
+      createdAt: String(r.created_at),
+    }));
   }
 
   private toDomain(row: typeof schema.generatedCodes.$inferSelect): GeneratedCode {

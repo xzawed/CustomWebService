@@ -56,6 +56,48 @@ describe('SqliteEventRepository', () => {
     raw.close();
   });
 
+  describe('countByTypeSince / findPayloadsByTypeSince', () => {
+    function insertEvent(type: string, createdAt: string, payload: Record<string, unknown> = {}): void {
+      raw
+        .prepare('INSERT INTO platform_events (id, type, payload, created_at) VALUES (?, ?, ?, ?)')
+        .run(crypto.randomUUID(), type, JSON.stringify(payload), createdAt);
+    }
+
+    beforeEach(() => {
+      insertEvent('CODE_GENERATION_FAILED', '2026-06-10T00:00:00.000Z');
+      insertEvent('CODE_GENERATION_FAILED', '2026-06-20T00:00:00.000Z');
+      insertEvent('CODE_GENERATION_FAILED', '2026-05-01T00:00:00.000Z'); // 윈도우 이전
+      insertEvent('STAGE_SKIPPED', '2026-06-20T00:00:00.000Z', { stage: 'stage2' });
+      insertEvent('STAGE_SKIPPED', '2026-06-21T00:00:00.000Z', { stage: 'stage3' });
+    });
+
+    it('countByTypeSince는 type + since(포함) 이후만 센다', async () => {
+      const since = new Date('2026-06-01T00:00:00.000Z');
+      expect(await repo.countByTypeSince('CODE_GENERATION_FAILED', since)).toBe(2);
+      expect(await repo.countByTypeSince('STAGE_SKIPPED', since)).toBe(2);
+      expect(await repo.countByTypeSince('NONEXISTENT', since)).toBe(0);
+    });
+
+    it('since 경계는 포함(>=)이다', async () => {
+      expect(
+        await repo.countByTypeSince('CODE_GENERATION_FAILED', new Date('2026-06-10T00:00:00.000Z')),
+      ).toBe(2);
+      expect(
+        await repo.countByTypeSince('CODE_GENERATION_FAILED', new Date('2026-06-11T00:00:00.000Z')),
+      ).toBe(1);
+    });
+
+    it('findPayloadsByTypeSince는 type + since 이후 payload 배열을 돌려준다', async () => {
+      const payloads = await repo.findPayloadsByTypeSince(
+        'STAGE_SKIPPED',
+        new Date('2026-06-01T00:00:00.000Z'),
+      );
+      expect(payloads).toHaveLength(2);
+      const stages = payloads.map((p) => (p as { stage?: string }).stage).sort();
+      expect(stages).toEqual(['stage2', 'stage3']);
+    });
+  });
+
   describe('persist', () => {
     it('persists an event with type and payload', async () => {
       const event: DomainEvent = {

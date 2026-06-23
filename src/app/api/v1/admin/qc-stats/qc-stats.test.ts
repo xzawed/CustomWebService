@@ -1,22 +1,17 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@/lib/supabase/server', () => ({
-  createServiceClient: vi.fn().mockImplementation(async () => ({
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          gte: () => Promise.resolve({ count: 0, data: [] }),
-        }),
-      }),
-    }),
-  })),
+// 레포는 factory를 통해 주입된다(provider-무관). vi.hoisted로 mock 팩토리에서 참조한다.
+const { codeRepo, eventRepo } = vi.hoisted(() => ({
+  codeRepo: { findMetadataByDateRange: vi.fn() },
+  eventRepo: { countByTypeSince: vi.fn(), findPayloadsByTypeSince: vi.fn() },
 }));
 
-vi.mock('@/repositories/codeRepository', () => ({
-  CodeRepository: vi.fn(function (this: { findMetadataByDateRange: ReturnType<typeof vi.fn> }) {
-    this.findMetadataByDateRange = vi.fn().mockResolvedValue([]);
-  }),
+vi.mock('@/lib/config/providers', () => ({ getDbProvider: vi.fn(() => 'supabase') }));
+vi.mock('@/repositories/factory', () => ({
+  createCodeRepository: vi.fn(() => codeRepo),
+  createEventRepository: vi.fn(() => eventRepo),
 }));
+vi.mock('@/lib/supabase/server', () => ({ createServiceClient: vi.fn().mockResolvedValue({}) }));
 
 vi.mock('@/lib/utils/adminAuth', () => ({
   adminCorsHeaders: {},
@@ -31,6 +26,13 @@ function makeRequest(search = '') {
 }
 
 describe('GET /api/v1/admin/qc-stats', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    codeRepo.findMetadataByDateRange.mockResolvedValue([]);
+    eventRepo.countByTypeSince.mockResolvedValue(0);
+    eventRepo.findPayloadsByTypeSince.mockResolvedValue([]);
+  });
+
   it('days 파라미터 미설정 시 정상 응답한다', async () => {
     const response = await GET(makeRequest());
     expect(response.status).toBe(200);
@@ -64,19 +66,31 @@ describe('GET /api/v1/admin/qc-stats', () => {
     expect(json.data.period.days).toBe(14);
   });
 
-  it('Supabase 쿼리 에러 시 0 메트릭으로 은폐하지 않고 500을 반환한다', async () => {
-    const { createServiceClient } = await import('@/lib/supabase/server');
-    vi.mocked(createServiceClient).mockResolvedValueOnce({
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            gte: () =>
-              Promise.resolve({ count: null, data: null, error: { code: 'XX000', message: 'db down' } }),
-          }),
-        }),
-      }),
-    } as never);
+  it('집계 메서드가 STAGE_SKIPPED/QUALITY_LOOP payload를 반영한다', async () => {
+    codeRepo.findMetadataByDateRange.mockResolvedValue([
+      { metadata: { structuralScore: 80, mobileScore: 70 } },
+    ]);
+    eventRepo.countByTypeSince.mockImplementation(async (type: string) =>
+      type === 'CODE_GENERATION_FAILED' ? 2 : 0,
+    );
+    eventRepo.findPayloadsByTypeSince.mockImplementation(async (type: string) =>
+      type === 'STAGE_SKIPPED'
+        ? [{ stage: 'stage2' }, { stage: 'stage3' }, { stage: 'stage2' }]
+        : [{ iterations: 2, improved: true }],
+    );
 
+    const response = await GET(makeRequest());
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.data.failureCount).toBe(2);
+    expect(json.data.stage2SkipCount).toBe(2);
+    expect(json.data.stage3SkipCount).toBe(1);
+    expect(json.data.avgQualityLoopIterations).toBe(2);
+    expect(json.data.qualityLoopImprovementRate).toBe(1);
+  });
+
+  it('집계 쿼리 에러 시 0 메트릭으로 은폐하지 않고 500을 반환한다', async () => {
+    eventRepo.countByTypeSince.mockRejectedValueOnce(new Error('db down'));
     const response = await GET(makeRequest());
     expect(response.status).toBe(500);
   });
