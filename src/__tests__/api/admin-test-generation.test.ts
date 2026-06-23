@@ -42,15 +42,6 @@ const catalogServiceMock = {
   ]),
 };
 
-vi.mock('@/lib/supabase/server', () => ({
-  createServiceClient: vi.fn().mockResolvedValue({ from: vi.fn() }),
-}));
-
-// 라우트가 getDbProvider를 import한다(Phase 3). 모킹해 native pg cold-init을 차단(플래키 방지).
-vi.mock('@/lib/config/providers', () => ({
-  getDbProvider: vi.fn().mockReturnValue('supabase'),
-}));
-
 vi.mock('@/services/factory', () => ({
   createCatalogService: vi.fn(() => catalogServiceMock),
   createProjectService: vi.fn(() => ({ updateStatus: vi.fn().mockResolvedValue(undefined) })),

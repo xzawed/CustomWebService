@@ -1,36 +1,22 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { updateSession } from '@/lib/supabase/middleware';
 import { getCorrelationId, CORRELATION_ID_HEADER } from '@/lib/utils/correlationId';
-// NOTE: Do NOT import getAuthProvider() from @/lib/config/providers here.
-// providers.ts → failover.ts → pg → Node.js 'crypto' — incompatible with Edge runtime.
-// Read AUTH_PROVIDER directly from env in the middleware.
 
 const PROTECTED_ROUTES = ['/builder', '/dashboard', '/preview'];
 
 /**
- * Auth.js(JWT) 모드(local/authjs)의 보호 경로 게이팅.
+ * Auth.js(JWT, local) 보호 경로 게이팅.
  * 보호 경로가 아니거나 인증된 경우 null, 미인증이면 /login 리다이렉트 응답을 반환한다.
  *
- * 세션은 동적 import로 지연 로드한다 — Node 전용 그래프(authjs: pg/Drizzle)가 정적 Edge 번들로
- * 유입되지 않도록. `local`은 edge-safe 설정(node:crypto 미의존, local-auth-edge.ts)을 사용한다.
+ * 세션은 동적 import로 지연 로드한다 — edge-safe 설정(node:crypto 미의존, local-auth-edge.ts)을 사용해
+ * Edge 런타임 호환성을 유지한다.
  */
-async function enforceAuthGate(
-  request: NextRequest,
-  authProvider: 'authjs' | 'local',
-): Promise<NextResponse | null> {
+async function enforceAuthGate(request: NextRequest): Promise<NextResponse | null> {
   const authPath = request.nextUrl.pathname;
   if (!PROTECTED_ROUTES.some((route) => authPath.startsWith(route))) return null;
 
-  let authed: boolean;
-  if (authProvider === 'local') {
-    const { auth } = await import('@/lib/auth/local-auth-edge');
-    const session = await auth();
-    authed = Boolean(session?.user);
-  } else {
-    const { getAuthJsUser } = await import('@/lib/auth/authjs-auth');
-    authed = Boolean(await getAuthJsUser());
-  }
-  if (authed) return null;
+  const { auth } = await import('@/lib/auth/local-auth-edge');
+  const session = await auth();
+  if (session?.user) return null;
 
   const url = request.nextUrl.clone();
   url.pathname = '/login';
@@ -65,18 +51,10 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  let response: NextResponse;
-
-  const authProvider = process.env.AUTH_PROVIDER ?? 'supabase';
-  if (authProvider === 'authjs' || authProvider === 'local') {
-    // Auth.js (JWT) manages sessions via its own route handlers (/api/auth/*)
-    // No session refresh needed in middleware.
-    response = NextResponse.next({ request });
-    const redirect = await enforceAuthGate(request, authProvider);
-    if (redirect) return redirect;
-  } else {
-    response = await updateSession(request);
-  }
+  // Auth.js(JWT, local)는 자체 라우트 핸들러(/api/auth/*)로 세션을 관리한다 — 미들웨어 세션 갱신 불필요.
+  const response = NextResponse.next({ request });
+  const redirect = await enforceAuthGate(request);
+  if (redirect) return redirect;
 
   response.headers.set(CORRELATION_ID_HEADER, correlationId);
 
@@ -108,8 +86,6 @@ export async function middleware(request: NextRequest) {
     const nonce = btoa(crypto.randomUUID().replaceAll('-', ''));
     response.headers.set('x-nonce', nonce);
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-    const supabaseWs = supabaseUrl.replace(/^https?:\/\//, 'wss://');
     const csp = [
       "default-src 'self'",
       // 'unsafe-eval' is required by Next.js hydration (chunk loading).
@@ -117,8 +93,8 @@ export async function middleware(request: NextRequest) {
       `script-src 'self' 'nonce-${nonce}' 'unsafe-eval'`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
       "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net",
-      `img-src 'self' data: blob: https://*.supabase.co https://lh3.googleusercontent.com https://avatars.githubusercontent.com`,
-      `connect-src 'self' ${supabaseUrl} ${supabaseWs}`,
+      `img-src 'self' data: blob: https://lh3.googleusercontent.com https://avatars.githubusercontent.com`,
+      `connect-src 'self'`,
       "frame-src 'self'",
       "frame-ancestors 'none'",
       "base-uri 'self'",

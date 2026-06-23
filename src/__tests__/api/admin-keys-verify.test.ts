@@ -13,9 +13,7 @@ const keyedItem = {
 
 const findMany = vi.fn();
 
-vi.mock('@/lib/config/providers', () => ({ getDbProvider: vi.fn(() => 'supabase') }));
 vi.mock('@/repositories/factory', () => ({ createCatalogRepository: vi.fn(() => ({ findMany })) }));
-vi.mock('@/lib/supabase/server', () => ({ createServiceClient: vi.fn().mockResolvedValue({}) }));
 
 const VALID_ADMIN_KEY = 'test-admin-secret-key';
 

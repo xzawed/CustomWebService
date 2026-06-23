@@ -1,4 +1,3 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   createProjectRepository,
   createCatalogRepository,
@@ -9,23 +8,19 @@ import { ProjectService } from '@/services/projectService';
 import { CatalogService } from '@/services/catalogService';
 import { DeployService } from '@/services/deployService';
 import { RateLimitService } from '@/services/rateLimitService';
-// Each factory accepts optional SupabaseClient (required when DB_PROVIDER=supabase)
 
-export function createProjectService(supabase?: SupabaseClient): ProjectService {
-  return new ProjectService(
-    createProjectRepository(supabase),
-    createCatalogRepository(supabase),
-  );
+export function createProjectService(): ProjectService {
+  return new ProjectService(createProjectRepository(), createCatalogRepository());
 }
 
-export function createCatalogService(supabase?: SupabaseClient): CatalogService {
-  return new CatalogService(createCatalogRepository(supabase));
+export function createCatalogService(): CatalogService {
+  return new CatalogService(createCatalogRepository());
 }
 
-export function createDeployService(supabase?: SupabaseClient): DeployService {
-  return new DeployService(createProjectRepository(supabase), createCodeRepository(supabase));
+export function createDeployService(): DeployService {
+  return new DeployService(createProjectRepository(), createCodeRepository());
 }
 
-export function createRateLimitService(supabase?: SupabaseClient): RateLimitService {
-  return new RateLimitService(createRateLimitRepository(supabase));
+export function createRateLimitService(): RateLimitService {
+  return new RateLimitService(createRateLimitRepository());
 }

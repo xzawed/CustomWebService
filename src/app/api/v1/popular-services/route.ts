@@ -1,7 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { AuthRequiredError, handleApiError, jsonResponse } from '@/lib/utils/errors';
-import { getDbProvider } from '@/lib/config/providers';
 import { createCatalogRepository } from '@/repositories/factory';
 import {
   type PopularService,
@@ -17,8 +15,7 @@ export async function GET(): Promise<Response> {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-    const repo = createCatalogRepository(supabase);
+    const repo = createCatalogRepository();
 
     // Popular from real usage
     const usageRows = await repo.getApiUsageFromProjects(['generated', 'published']);

@@ -1,8 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getAuthUser } from '@/lib/auth/index';
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { createProjectService } from '@/services/factory';
 import { redirect } from 'next/navigation';
 import { ProjectGrid } from '@/components/dashboard/ProjectGrid';
@@ -21,8 +19,7 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-  const projectService = createProjectService(supabase);
+  const projectService = createProjectService();
   let projects: Project[] = [];
 
   try {

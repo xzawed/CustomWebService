@@ -1,12 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// pg/drizzle cold-import 차단 (형제 api 테스트 패턴)
-vi.mock('@/lib/config/providers', () => ({
-  getDbProvider: vi.fn().mockReturnValue('supabase'),
-}));
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn().mockResolvedValue({}),
-}));
 vi.mock('@/services/factory', () => ({
   createCatalogService: vi.fn(),
 }));

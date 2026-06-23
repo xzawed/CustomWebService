@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 
 vi.mock('next/headers', () => ({
@@ -34,27 +34,22 @@ function getBodyChild(tree: React.ReactElement<{ children: React.ReactNode }>): 
 }
 
 describe('RootLayout auth provider wiring', () => {
-  const originalProvider = process.env.NEXT_PUBLIC_AUTH_PROVIDER;
-
-  beforeEach(() => {
-    process.env.NEXT_PUBLIC_AUTH_PROVIDER = 'supabase';
-  });
-
-  afterEach(() => {
-    process.env.NEXT_PUBLIC_AUTH_PROVIDER = originalProvider;
-  });
-
-  it('Supabase 모드에서는 Auth.js SessionProvider를 렌더링하지 않는다', async () => {
-    const bodyChild = getBodyChild(await RootLayout({ children: <main>콘텐츠</main> }));
-
-    expect((bodyChild.type as { name?: string }).name).toBe('MockThemeProvider');
-  });
-
-  it('Auth.js 모드에서는 SessionProvider를 렌더링한다', async () => {
-    process.env.NEXT_PUBLIC_AUTH_PROVIDER = 'authjs';
-
+  it('항상 Auth.js(local) SessionProvider로 children을 감싼다', async () => {
     const bodyChild = getBodyChild(await RootLayout({ children: <main>콘텐츠</main> }));
 
     expect((bodyChild.type as { name?: string }).name).toBe('MockSessionProvider');
+  });
+
+  it('SessionProvider 안에 ThemeProvider가 중첩된다', async () => {
+    const bodyChild = getBodyChild(
+      await RootLayout({ children: <main>콘텐츠</main> }),
+    ) as React.ReactElement<{ children: React.ReactNode }>;
+
+    const inner = bodyChild.props.children;
+    if (!React.isValidElement(inner)) {
+      throw new Error('SessionProvider child was not a React element');
+    }
+
+    expect((inner.type as { name?: string }).name).toBe('MockThemeProvider');
   });
 });

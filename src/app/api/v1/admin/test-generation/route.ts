@@ -1,6 +1,4 @@
 import { z } from 'zod';
-import { createServiceClient } from '@/lib/supabase/server';
-import { getDbProvider } from '@/lib/config/providers';
 import { adminCorsHeaders, verifyAdminKey, withAdminCors } from '@/lib/utils/adminAuth';
 import { handleApiError, jsonResponse, ValidationError } from '@/lib/utils/errors';
 import { createCatalogService, createProjectService } from '@/services/factory';
@@ -47,9 +45,8 @@ export async function POST(request: Request): Promise<Response> {
       const projectContext = ctx ?? DEFAULT_CONTEXT;
       const shouldCleanup = cleanup ?? true;
 
-      const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
-      const catalogService = createCatalogService(supabase);
-      const projectRepo = createProjectRepository(supabase);
+      const catalogService = createCatalogService();
+      const projectRepo = createProjectRepository();
 
       const apis = await catalogService.getByIds(apiIds);
       if (apis.length !== apiIds.length) {
@@ -82,7 +79,7 @@ export async function POST(request: Request): Promise<Response> {
         isCancelled: () => false,
       };
 
-      const projectService = createProjectService(supabase);
+      const projectService = createProjectService();
       const noopRateLimit = { decrementDailyLimit: async (): Promise<void> => {} };
 
       await runGenerationPipeline(
@@ -102,7 +99,7 @@ export async function POST(request: Request): Promise<Response> {
         },
         writer,
         {
-          codeRepo: createCodeRepository(supabase),
+          codeRepo: createCodeRepository(),
           projectService,
           rateLimitService: noopRateLimit,
           projectRepo,
@@ -145,8 +142,7 @@ export async function POST(request: Request): Promise<Response> {
     } catch (error) {
       if (createdProjectId) {
         try {
-          const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
-          const projectRepo = createProjectRepository(supabase);
+          const projectRepo = createProjectRepository();
           await projectRepo.delete(createdProjectId);
         } catch {
           // best-effort cleanup

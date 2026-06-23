@@ -1,5 +1,3 @@
-import { createServiceClient } from '@/lib/supabase/server';
-import { getDbProvider } from '@/lib/config/providers';
 import { createCodeRepository } from '@/repositories/factory';
 import { assembleHtml } from '@/lib/ai/codeParser';
 import { runFastQc, runDeepQc, isQcEnabled } from '@/lib/qc';
@@ -23,8 +21,7 @@ export async function POST(request: Request): Promise<Response> {
       const body = await request.json();
       const { projectId } = triggerQcSchema.parse(body);
 
-      const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
-      const codeRepo = createCodeRepository(supabase);
+      const codeRepo = createCodeRepository();
       const code = await codeRepo.findByProject(projectId);
 
       if (!code) {

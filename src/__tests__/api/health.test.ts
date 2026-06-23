@@ -1,29 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ICatalogRepository } from '@/repositories/interfaces';
 
-// Supabase 서버 클라이언트 mock
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(),
-  createServiceClient: vi.fn(),
-}));
-
-// pg/drizzle cold-import 차단 — health/route.ts는 세 경로로 native 그래프를 끌어온다:
-//   1. getDbProvider     → @/lib/config/providers → @/lib/db/failover(pg)
-//   2. getFailoverStatus → @/lib/db/failover(pg) 직접
-//   3. createCatalogRepository → @/repositories/factory → @/lib/db/connection(drizzle) + @/repositories/drizzle
-// 형제 api 테스트 11개와 동일하게 근원에서 절단하여 병렬 full-suite 경합 시 cold-import
-// 타임아웃 위험을 제거한다. 상세: docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md
-vi.mock('@/lib/config/providers', () => ({
-  getDbProvider: vi.fn().mockReturnValue('supabase'),
-}));
-vi.mock('@/lib/db/failover', () => ({
-  getFailoverStatus: vi.fn().mockReturnValue({
-    state: 'normal',
-    consecutiveFailures: 0,
-    lastTripTime: null,
-    enabled: true,
-  }),
-}));
+// 리포지토리 팩토리는 zero-arg(createCatalogRepository())로 SQLite 레포를 생성한다.
+// route는 createCatalogRepository()로 받은 repo의 ping()/getUsageCounts()만 사용하므로
+// 팩토리만 모킹하면 충분하다. (과거 pg/drizzle cold-import 차단용 providers/failover
+// mock은 SQLite 컷오버로 모듈이 제거되어 더 이상 필요 없다.)
 vi.mock('@/repositories/factory', () => ({
   createCatalogRepository: vi.fn(),
 }));
@@ -114,7 +95,6 @@ describe('GET /api/v1/health', () => {
 
   it('DB 예외 발생 시 unhealthy 상태를 반환한다', async () => {
     // repo.ping()이 throw → route의 외부 try/catch가 잡아 database=error 처리.
-    // (createServiceClient를 건드리지 않아 detailed 테스트 간 mock 구현 누출이 없다.)
     const { createCatalogRepository } = await import('@/repositories/factory');
     vi.mocked(createCatalogRepository).mockReturnValue(
       makeFailingCatalogRepo(new Error('cannot connect')),

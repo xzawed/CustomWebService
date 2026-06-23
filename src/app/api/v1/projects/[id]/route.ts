@@ -1,5 +1,3 @@
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createProjectService } from '@/services/factory';
 import { AuthRequiredError, handleApiError, jsonResponse } from '@/lib/utils/errors';
@@ -13,8 +11,7 @@ export async function GET(
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-    const service = createProjectService(supabase);
+    const service = createProjectService();
     const project = await service.getById(id, user.id);
 
     return jsonResponse({ success: true, data: project });
@@ -32,8 +29,7 @@ export async function DELETE(
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-    const service = createProjectService(supabase);
+    const service = createProjectService();
     await service.delete(id, user.id);
 
     return jsonResponse({ success: true, message: '프로젝트가 삭제되었습니다.' });

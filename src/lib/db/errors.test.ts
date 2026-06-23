@@ -18,7 +18,19 @@ describe('isUniqueViolation', () => {
     expect(isUniqueViolation(false)).toBe(false);
   });
 
-  it('returns true for supabase-style object with code "23505"', () => {
+  it('returns true for better-sqlite3 SQLITE_CONSTRAINT_UNIQUE code', () => {
+    expect(isUniqueViolation({ code: 'SQLITE_CONSTRAINT_UNIQUE' })).toBe(true);
+  });
+
+  it('returns true for better-sqlite3 SQLITE_CONSTRAINT_PRIMARYKEY code', () => {
+    expect(isUniqueViolation({ code: 'SQLITE_CONSTRAINT_PRIMARYKEY' })).toBe(true);
+  });
+
+  it('returns true for Error whose message contains "UNIQUE constraint failed"', () => {
+    expect(isUniqueViolation(new Error('UNIQUE constraint failed: projects.slug'))).toBe(true);
+  });
+
+  it('returns true for legacy supabase-style object with code "23505"', () => {
     expect(isUniqueViolation({ code: '23505' })).toBe(true);
   });
 

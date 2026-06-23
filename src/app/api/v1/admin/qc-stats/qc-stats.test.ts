@@ -6,12 +6,10 @@ const { codeRepo, eventRepo } = vi.hoisted(() => ({
   eventRepo: { countByTypeSince: vi.fn(), findPayloadsByTypeSince: vi.fn() },
 }));
 
-vi.mock('@/lib/config/providers', () => ({ getDbProvider: vi.fn(() => 'supabase') }));
 vi.mock('@/repositories/factory', () => ({
   createCodeRepository: vi.fn(() => codeRepo),
   createEventRepository: vi.fn(() => eventRepo),
 }));
-vi.mock('@/lib/supabase/server', () => ({ createServiceClient: vi.fn().mockResolvedValue({}) }));
 
 vi.mock('@/lib/utils/adminAuth', () => ({
   adminCorsHeaders: {},

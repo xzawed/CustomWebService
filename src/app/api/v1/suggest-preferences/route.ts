@@ -1,5 +1,3 @@
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createRateLimitService, createCatalogService } from '@/services/factory';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
@@ -26,12 +24,10 @@ export async function POST(request: Request): Promise<Response> {
       throw err;
     }
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-
-    const rateLimitService = createRateLimitService(supabase);
+    const rateLimitService = createRateLimitService();
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
-    const catalogService = createCatalogService(supabase);
+    const catalogService = createCatalogService();
     const apis = await catalogService.getByIds(apiIds);
 
     const apiInfos = apis.map((a) => ({

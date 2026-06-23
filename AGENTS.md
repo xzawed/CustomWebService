@@ -16,8 +16,8 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 | UI | React 19, Tailwind CSS 4, Lucide React |
 | State | Zustand (분리 스토어 + persist middleware) |
 | Form | React Hook Form + Zod |
-| Database | Supabase (PostgreSQL + Row Level Security) |
-| Auth | Supabase Auth (Google, GitHub OAuth) |
+| Database | 임베디드 SQLite (better-sqlite3 + drizzle-orm, WAL · Railway Volume `/data/app.db`) |
+| Auth | Auth.js v5 (Credentials 단일 관리자 + JWT 무상태) — 셀프호스트 단일 사용자 |
 | AI | Claude API (Anthropic SDK, claude-opus-4-7 기본, 조건부 Extended Thinking) |
 | Testing | Vitest, happy-dom, MSW |
 | CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
@@ -36,12 +36,12 @@ src/
 ├── hooks/           # 커스텀 React hooks
 ├── lib/             # 유틸리티
 │   ├── ai/          # AI 파이프라인 — generationPipeline(오케스트레이터), stageRunner, generationSaver, qualityLoop, generationTracker
-│   ├── auth/        # 인증 추상화 — getAuthUser, authjs-config (AUTH_PROVIDER 분기)
+│   ├── auth/        # 인증 — getAuthUser, local-auth*(Credentials+JWT, edge-safe 분할), adminCredentials, authorize
 │   ├── cache/       # proxyCache.ts — LRU+TTL 인메모리 캐시 (프록시 응답 서버사이드 캐시)
 │   ├── catalog/     # API 카탈로그 헬스체크·키 검증 (healthCheck, keyCheck)
 │   ├── config/      # 환경변수 기반 설정 (features, providers, rateLimit, qc 등)
 │   ├── constants/   # 공용 상수 — cdn.ts (CSP CDN 화이트리스트, buildSiteCsp)
-│   ├── db/          # Drizzle 연결(connection)·schema·failover (DB_PROVIDER=postgres 경로)
+│   ├── db/          # 임베디드 SQLite — sqlite/(connection·schema·migrator·bootstrap·seed), errors(UNIQUE 위반 감지)
 │   ├── deploy/      # 배포 관련
 │   ├── events/      # EventBus (pub/sub) + eventPersister (전체 이벤트 자동 DB 기록)
 │   ├── generation/  # pollGenerationStatus — 생성 상태 폴링 (builder/page.tsx에서 추출, 주입형·단위 테스트 대상)
@@ -49,7 +49,6 @@ src/
 │   ├── i18n/        # 다국어 — t() 함수, ko.ts (한국어 메시지), types.ts (MessageKey)
 │   ├── qc/          # QC 로직 — browserPool, deepQcRunner, featureSmokeTest, qcChecks, renderingQc
 │   ├── services/    # lib 레벨 유틸리티 서비스
-│   ├── supabase/    # Supabase 클라이언트
 │   ├── templates/   # 코드 생성 템플릿 (lib 레벨)
 │   └── utils/       # 공통 유틸리티, 에러 클래스
 ├── middleware.ts     # 서브도메인 라우팅, 보안 헤더 (CSP, HSTS)
@@ -93,10 +92,10 @@ pnpm keys:verify               # 플랫폼 API 키 설정 검증 (scripts/verify
 - **TypeScript strict mode** — `any` 사용 금지, export 함수에 명시적 반환 타입
 - **Path alias**: `@/*` → `src/*`
 - **API 라우트**: `/api/v1/*` 패턴 — 인증 + 유효성 검증 → Service 호출
-- **아키텍처 레이어**: Route Handler → Service → Repository → Supabase
+- **아키텍처 레이어**: Route Handler → Service → Repository → SQLite (better-sqlite3, 무인자 factory)
 - **AI Provider**: `IAiProvider` 인터페이스 — Provider 전용 로직은 Provider 내부에만
 - **이벤트 시스템**: `EventBus` + `EventRepository` (감사 로그)
-- **레이트리밋**: 혼합 패턴 — generate/regenerate/deploy는 PostgreSQL 원자적 (`UPDATE WHERE count < limit RETURNING`), proxy는 인메모리 Map (단일 인스턴스 전제)
+- **레이트리밋**: 혼합 패턴 — generate/regenerate/deploy는 SQLite 원자적 (better-sqlite3 동기 트랜잭션 + `UPDATE WHERE count < limit RETURNING`), proxy는 인메모리 Map (단일 인스턴스 전제)
 - **요청 추적**: `X-Correlation-Id` 헤더
 - **i18n**: `@/lib/i18n`의 `t()` 함수 사용, 한국어 기본
 - **스토어**: 관심사별 분리된 Zustand 스토어 (단일 mega store 금지)
@@ -200,11 +199,10 @@ pnpm keys:verify               # 플랫폼 API 키 설정 검증 (scripts/verify
 - QC 관련 로직 수정 시 `generationPipeline.ts` 중심으로 수정하면 generate/regenerate 양쪽에 동시 반영됨
 - QC·저장은 최종 단계 결과에만 적용; 중간 산출물은 DB 저장 안 함
 
-### Edge Runtime 호환성 (middleware.ts / proxy.ts 수정 시 필수)
-- `middleware.ts`는 Next.js Edge runtime에서 실행됨 — Node.js 전용 모듈 사용 불가
-- 직접·간접 임포트 체인에 `pg`, `net`, `fs`, `crypto`, `drizzle-orm/node-postgres` 등이 포함되면 런타임 크래시 발생
-- 임포트 추가 시 체인 전체를 역추적: `middleware` → `A` → `B` → ... → `pg` 패턴 탐지
-- 환경변수는 `process.env.VAR`로 직접 읽고, Node.js 런타임용 함수(`getDbProvider`, `getAuthProvider` 등)는 import하지 않는다
+### Edge Runtime 호환성 (middleware.ts 수정 시 필수)
+- `middleware.ts`는 Next.js Edge runtime에서 실행됨 — Node.js 전용 모듈(`net`, `fs`, `node:crypto`, `better-sqlite3` 등) 사용 불가
+- 인증 게이팅은 edge-safe `@/lib/auth/local-auth-edge`(node:crypto 미의존)를 **동적 import**로만 로드 — `local-auth-config`(scrypt) 정적 import 금지
+- 임포트 추가 시 체인 전체를 역추적: `middleware` → `A` → ... → Node-only 모듈 패턴 탐지
 - 수정 후 `pnpm test:prod` 로 로컬 standalone 서버에서 헬스체크 통과 여부 확인
 
 ### 배포 태그 규칙
@@ -230,20 +228,20 @@ pnpm keys:verify               # 플랫폼 API 키 설정 검증 (scripts/verify
 - `IAiProvider.tokensUsed` — `{ input: number; output: number }` 구조 (`inputTokens`/`outputTokens` 아님)
 - **Anthropic 모델 ID 주의**: 4.x 모델은 날짜 suffix 없이 사용 — `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`. 날짜 포함 ID(예: `claude-haiku-4-5-20251001`)는 404 반환 확인됨
 - `AiProviderFactory.ts` 모델 ID 수정 시 `.test.ts`도 반드시 동시에 업데이트 (CI 파손 방지)
-- **JSONB 필드명 이중성**: `catalogRepository.parseEndpoints()` 같은 JSONB 매퍼는 snake_case(`example_call`)와 camelCase(`exampleCall`) 둘 다 처리 필요 — DB 직접 삽입 vs 코드 경로 차이
+- **JSON 필드명 이중성**: `parseEndpoints()`(`@/repositories/utils/endpointParser`, `SqliteCatalogRepository`가 사용) 같은 JSON 매퍼는 snake_case(`example_call`)와 camelCase(`exampleCall`) 둘 다 처리 필요 — 시드 JSON 직접 삽입 vs 코드 경로 차이
 - **Playwright 병렬 체크 주의**: 단일 `page` 인스턴스에서 `Promise.allSettled` 사용 시 viewport를 변경하는 체크는 반드시 다른 체크 완료 후 순차 실행 (`renderingQc.ts` 참고)
 - **playwright-core executablePath 주의**: `playwright-core`는 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 환경변수를 자동으로 읽지 않음. `const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH; chromium.launch({ ...(executablePath && { executablePath }) })` 형태로 명시적 전달 필요 (미설정 시 executablePath를 전달하지 않아 playwright-core 기본 탐색 로직이 유지됨). `playwright`(풀 패키지)와 달리 `playwright-core`는 브라우저 다운로드·자동 경로 탐색을 수행하지 않음 (`browserPool.ts` 참고)
-- **slug 충돌 처리**: `assignUniqueSlug()` in `projectService.ts` — base → base-2 → … → base-10 → timestamp fallback; 23505 unique 위반 시 1회 재시도
+- **slug 충돌 처리**: `assignUniqueSlug()` in `projectService.ts` — base → base-2 → … → base-10 → timestamp fallback; UNIQUE 위반 시 1회 재시도(`isUniqueViolation()`가 SQLite `SQLITE_CONSTRAINT_UNIQUE`/"UNIQUE constraint failed" 감지)
 - **generationTracker 단일 인스턴스**: `src/lib/ai/generationTracker.ts`의 `generationTracker`는 모듈 레벨 싱글톤. TTL 차등: `generating` 30분, `completed`/`failed` 10분. Railway 단일 인스턴스 환경에서만 동작 — 멀티 인스턴스 배포 시 Redis 등 외부 저장소로 교체 필요
 - **생성 상태 폴링 추출**: `builder/page.tsx`의 SSE 폴백 폴링은 `src/lib/generation/pollGenerationStatus.ts`로 추출됨(주입형 `fetchFn`·`delay`·콜백, 단위 테스트 대상). `page.tsx`는 thin 래퍼. 상태 처리: `generating`→진행률 갱신, `completed`+result→완료, **`failed`→즉시 terminal 실패**(이전엔 maxAttempts까지 재시도하던 quirk를 교차검증 후 개선), `not_found`→프로젝트 미존재 메시지, 그 외(`unknown`)→연결 복구 실패 메시지
 - **모듈 레벨 상태가 있는 파일 테스트**: `let registered = false` 같은 모듈 레벨 플래그가 있는 파일은 테스트 간 상태 누출이 발생한다. `vi.resetModules()` + 매 테스트마다 `await import(...)` 동적 임포트로 격리한다 (`eventPersister.ts` 참고)
-- **api 라우트 테스트는 `@/lib/config/providers`를 반드시 모킹**: 라우트는 line-1에서 `getDbProvider`를 import하는데, 이 체인이 `@/lib/db/failover`(→ `pg`)·`@/lib/db/connection`(→ drizzle-orm/node-postgres)의 네이티브+CJS cold 초기화를 끌어온다. `vi.resetModules()` + 인-테스트 `await import('@/app/.../route')` 패턴에서 첫 테스트가 이 비용을 지불하며, 병렬 full-suite 경합 시 기본 5000ms를 넘겨 간헐 타임아웃을 유발한다. `vi.mock('@/lib/config/providers', () => ({ getDbProvider: vi.fn().mockReturnValue('supabase') }))`로 차단한다. `vitest.config.ts`의 `testTimeout`/`hookTimeout`는 경합 마진을 위해 15000ms로 상향됨 — 상세: [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md)
+- **api 라우트 테스트 — providers/supabase 모킹 불필요**: SQLite 컷오버(P8.2) 후 `@/lib/config/providers`는 상수만 반환하고 `failover`·`connection`(pg/drizzle-pg cold-init)은 제거됨. 과거 cold-init 차단용 `vi.mock('@/lib/config/providers'...)`·`vi.mock('@/lib/supabase/server'...)`는 전부 제거(잔존 시 미존재 모듈 모킹). `vitest.config.ts`의 `testTimeout`/`hookTimeout` 15000ms는 경합 마진으로 유지 — 배경: [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md)
 - **happy-dom iframe 로드 노이즈 차단**: `vitest.config.ts`의 `environmentOptions.happyDOM.settings.navigation.disableChildFrameNavigation = true`로 iframe `src` 실제 로드를 막아 `DOMException NetworkError` 로그 flood를 차단함. v20에서 `disableIframePageLoading`은 deprecated이므로 사용 금지
 - **MSW `onUnhandledRequest:'error'`**: `src/test/setup.ts`가 미처리 요청을 즉시 실패시킴. 새 컴포넌트가 fetch하는 엔드포인트는 `src/test/mocks/handlers.ts`에 핸들러를 반드시 추가할 것. **caveat**: MSW `'error'`는 비동기 전파상 테스트를 항상 빨갛게 만들지는 않으므로(MSW #946/#943) 전체 통과가 "미처리 요청 부재"의 충분 증거는 아님
 - **SonarCloud vs Codecov 지표 불일치**: Codecov/Vitest는 `vitest.config.ts`의 `coverage.include` 범위(`src/lib/**`, `src/services/**`, `src/providers/**`, `src/repositories/**`, `src/components/**`)를 측정. SonarCloud는 전체 TypeScript를 더 넓게 측정할 수 있어 두 숫자는 구조적으로 차이가 날 수 있으며, 단순 설정 오류로 단정하지 않는다.
 - **temperature deprecated (Claude 4.x)**: Claude 4.x 모델(`claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`)은 `temperature` 파라미터를 지원하지 않음. ClaudeProvider에서 완전히 제거됨 (Extended Thinking 포함). `IAiPrompt.temperature` 필드는 legacy 호환용으로 유지하나 실제 API 호출에 사용하지 않음
 - **인메모리 rate limit 한계**: proxy의 Map 기반 리밋은 서버 재시작 시 초기화됨 (분당 카운터라 보안 영향 낮음). Railway 단일 인스턴스 전제 — 멀티 인스턴스 전환 시 Redis 등 외부 저장소 필요 (generationTracker와 동일 제약)
-- **배포 레이트리밋 환불은 migration 021 필요**: 배포 실패 시 `decrement_daily_deploy` PG 함수(migration `021_deploy_rate_limit_decrement.sql`)로 일일 배포 카운터를 환불한다. **Supabase에 021을 적용해야 동작**하며, 미적용 시 환불 호출은 best-effort로 무시되어 안전(에러 swallow). generate의 `decrement_daily_generation`(migration 007)과 동일 보상 패턴
+- **배포/생성 레이트리밋 환불 (SQLite)**: 배포·생성 실패 시 `SqliteRateLimitRepository`가 일일 카운터를 in-process로 환불한다(`GREATEST(count-1, 0)`, 동기 트랜잭션). 과거 Supabase PG 함수(`decrement_daily_*`)와 동일 보상 의미를 SQLite 레포 메서드로 재현 — `.rpc()` 없음
 - **생성 상태 폴링 `not_found` 처리**: `/api/v1/generate/status`는 프로젝트 미존재·권한 없음 시 `status: 'not_found'`를 반환한다. `pollGenerationStatus`의 `GenerationStatusData.status` union에 `'not_found'`가 포함되어야 하며(누락 시 'unknown'으로 오처리되어 잘못된 사용자 메시지 표시), 전용 핸들러로 "프로젝트를 찾을 수 없습니다" 메시지를 낸다
 - **레이트리밋 우회 로깅**: `RATE_LIMIT_BYPASS_USER_IDS` 우회 적용 시 `logger.info('Rate limit bypass applied', ...)` 감사 로그를 남긴다(무로깅 우회는 운영 사각지대)
 - **카탈로그 헬스 모니터링**: `.github/workflows/scheduled.yml`이 매일 06:00 KST에 DB(`api_catalog`)의 활성 API 전체를 라이브 검증한다(`pnpm catalog:healthcheck`, 로직 `src/lib/catalog/healthCheck.ts`). BROKEN 감지 시 GitHub Issue를 생성/갱신한다. 이전 하드코딩 8개 목록/4잡 테이블은 폐기됨 — 상세: [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](docs/decisions/2026-06-21-api-catalog-health-monitoring.md). 2026-06-21 REST Countries 폐기(비활성)로 현재 활성 카탈로그는 23개
@@ -277,7 +275,7 @@ pnpm keys:verify               # 플랫폼 API 키 설정 검증 (scripts/verify
 
 - **막힌 경우**: 로그 미접근, 외부 시스템 확인 필요, 재현 불가한 환경 차이
 - **판단이 필요한 경우**: 트레이드오프가 있어 방향 결정이 필요할 때
-- **확인이 필요한 경우**: Railway·Supabase·GitHub 등 외부 시스템 실제 상태를 알아야 할 때
+- **확인이 필요한 경우**: Railway·GitHub 등 외부 시스템 실제 상태를 알아야 할 때
 - **리스크가 불확실한 경우**: 영향 범위 파악이 어렵고 되돌리기 어려운 변경
 
 기다리거나 혼자 해결을 시도하기보다 **빠르게 물어보는 것**이 원칙입니다.
@@ -295,7 +293,7 @@ Claude는 이 프로젝트에서 컨텍스트 업무를 정확하고 효율적�
 
 단, 다음은 사용자 명시적 승인 후에만 변경합니다:
 - 전역(`~/.claude/settings.json`) 권한 모드 변경
-- 외부 서비스(Railway, GitHub, Supabase) 영향 설정
+- 외부 서비스(Railway, GitHub) 영향 설정
 - 소스 코드 및 프로덕션 배포에 직접 영향을 주는 변경
 
 ## 문서 관리 원칙

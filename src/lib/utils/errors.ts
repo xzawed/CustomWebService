@@ -1,5 +1,4 @@
 import { logger } from './logger';
-import { isDbConnectionError, reportFailure } from '@/lib/db/failover';
 import { t } from '@/lib/i18n';
 
 export class AppError extends Error {
@@ -73,11 +72,6 @@ export function jsonResponse(body: unknown, init?: ResponseInit): Response {
 }
 
 export function handleApiError(error: unknown): Response {
-  // DB 연결 에러 감지 → failover 시스템에 보고
-  if (isDbConnectionError(error)) {
-    reportFailure(error);
-  }
-
   if (error instanceof AppError) {
     if (error.statusCode === 401 || error.statusCode === 403 || error.statusCode === 429) {
       logger.warn('Access control event', { code: error.code, status: error.statusCode });
@@ -96,7 +90,7 @@ export function handleApiError(error: unknown): Response {
     );
   }
 
-  // PostgREST / Supabase database errors (plain objects with code + message)
+  // 일반 DB 에러 (code + message를 가진 plain object 형태)
   if (
     error &&
     typeof error === 'object' &&

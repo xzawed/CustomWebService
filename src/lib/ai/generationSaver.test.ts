@@ -37,38 +37,6 @@ vi.mock('@/lib/ai/codeValidator', () => ({
   validateAll: vi.fn().mockReturnValue({ passed: true, errors: [], warnings: [] }),
   evaluateQuality: vi.fn().mockReturnValue({ structuralScore: 80, mobileScore: 80, details: [], fetchCallCount: 0, placeholderCount: 0 }),
 }));
-vi.mock('@/lib/config/providers', () => ({
-  getDbProvider: vi.fn().mockReturnValue('supabase'),
-}));
-vi.mock('@/lib/db/connection', () => ({
-  getDb: vi.fn(),
-}));
-vi.mock('@/repositories/utils', () => ({
-  toDatabaseRow: vi.fn().mockImplementation((x: unknown) => x),
-}));
-vi.mock('@/repositories/drizzle/DrizzleCodeRepository', () => ({
-  codeRowToDomain: vi.fn().mockImplementation((row: Record<string, unknown>) => ({
-    ...row,
-    id: row.id ?? 'code-1',
-    projectId: row.project_id ?? 'proj-1',
-    version: row.version ?? 1,
-    codeHtml: '',
-    codeCss: '',
-    codeJs: '',
-    createdAt: String(new Date()),
-  })),
-}));
-vi.mock('@/lib/db/schema', () => ({
-  generatedCodes: { $inferInsert: {} },
-  projects: {},
-}));
-vi.mock('@/lib/db/failover', () => ({
-  isInFailover: vi.fn().mockReturnValue(false),
-  reportFailure: vi.fn(),
-}));
-vi.mock('drizzle-orm', () => ({
-  eq: vi.fn().mockReturnValue('eq-condition'),
-}));
 
 // ─────────────────────────────────────────────
 // 헬퍼 함수
@@ -190,7 +158,7 @@ function makeBaseParams(overrides?: {
   } as SaveParams;
 }
 
-describe('saveGeneratedCode() — Supabase 경로', () => {
+describe('saveGeneratedCode() — SQLite 경로', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -419,52 +387,5 @@ describe('saveGeneratedCode() — Supabase 경로', () => {
     await new Promise((r) => setTimeout(r, 20));
 
     expect(suggestSlugs).toHaveBeenCalled();
-  });
-});
-
-describe('saveGeneratedCode() — Drizzle/Postgres 경로', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('getDbProvider=postgres 시 db.transaction을 호출한다', async () => {
-    const { getDbProvider } = await import('@/lib/config/providers');
-    vi.mocked(getDbProvider).mockReturnValue('postgres');
-
-    const { getDb } = await import('@/lib/db/connection');
-    const mockTx = {
-      insert: vi.fn().mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([
-            { id: 'code-drizzle-1', project_id: 'proj-1', version: 1 },
-          ]),
-        }),
-      }),
-      update: vi.fn().mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue(undefined),
-        }),
-      }),
-    };
-    vi.mocked(getDb).mockReturnValue({
-      transaction: vi.fn().mockImplementation(async (fn: (tx: typeof mockTx) => Promise<unknown>) => fn(mockTx)),
-    } as never);
-
-    const { saveGeneratedCode } = await import('./generationSaver');
-    const codeRepo = makeMockCodeRepo();
-    const projectService = makeMockProjectService();
-    const sse = makeMockSse();
-
-    await saveGeneratedCode(makeBaseParams({ codeRepo, projectService }), sse);
-
-    expect(getDb).toHaveBeenCalled();
-    const db = vi.mocked(getDb)();
-    expect(db.transaction).toHaveBeenCalled();
-
-    // Supabase 경로의 codeRepo.create는 호출되지 않아야 함
-    expect(codeRepo.create).not.toHaveBeenCalled();
-
-    // 초기화
-    vi.mocked(getDbProvider).mockReturnValue('supabase');
   });
 });

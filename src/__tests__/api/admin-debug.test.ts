@@ -61,7 +61,7 @@ describe('GET /api/v1/admin/debug', () => {
     const body = await response.json() as { success: boolean; data: { modules: Record<string, string> } };
     expect(body.success).toBe(true);
     expect(body.data.modules['playwright-core']).toBe('ok');
-    expect(body.data.modules['pg']).toBe('ok');
+    expect(body.data.modules['better-sqlite3']).toBe('ok');
     expect(body.data.modules['@anthropic-ai/sdk']).toBe('ok');
   });
 
@@ -76,7 +76,7 @@ describe('GET /api/v1/admin/debug', () => {
     expect(response.status).toBe(200);
     const body = await response.json() as { data: { modules: Record<string, string> } };
     expect(body.data.modules['playwright-core']).toMatch(/^FAIL:/);
-    expect(body.data.modules['pg']).toBe('ok');
+    expect(body.data.modules['better-sqlite3']).toBe('ok');
   });
 
   it('환경 정보(nodeVersion, platform, arch, nodeEnv)를 포함한다', async () => {

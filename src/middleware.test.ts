@@ -1,16 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 
 /**
- * 미들웨어 — AUTH_PROVIDER=local 세션 게이팅 분기 검증.
+ * 미들웨어 — local-only 세션 게이팅 검증.
  *
  * edge-safe 세션 모듈(local-auth-edge)을 mock해 분기 로직만 단위 검증한다(실 Auth.js JWT 검증은
- * 실서버에서 동작 — Phase 4 서빙 검증 대상). supabase updateSession은 호출되지 않아야 한다.
+ * 실서버에서 동작 — 서빙 검증 대상).
  */
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), updateSession: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn() }));
 
 vi.mock('@/lib/auth/local-auth-edge', () => ({ auth: mocks.auth }));
-vi.mock('@/lib/supabase/middleware', () => ({ updateSession: mocks.updateSession }));
 
 import { middleware } from '@/middleware';
 
@@ -18,13 +17,11 @@ function req(path: string): NextRequest {
   return new NextRequest(new URL(`http://localhost${path}`));
 }
 
-describe('middleware — AUTH_PROVIDER=local', () => {
+describe('middleware — local-only 인증 게이트', () => {
   const ORIG = { ...process.env };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.updateSession.mockReturnValue(NextResponse.next());
-    process.env.AUTH_PROVIDER = 'local';
     delete process.env.NEXT_PUBLIC_ROOT_DOMAIN; // 서브도메인 라우팅 비활성
   });
 
@@ -41,7 +38,6 @@ describe('middleware — AUTH_PROVIDER=local', () => {
     const loc = res.headers.get('location') ?? '';
     expect(loc).toContain('/login');
     expect(loc).toContain('redirect=%2Fdashboard');
-    expect(mocks.updateSession).not.toHaveBeenCalled();
   });
 
   it('보호 경로 + 세션 있음 → 통과(보안 헤더 포함, 리다이렉트 아님)', async () => {
@@ -51,7 +47,6 @@ describe('middleware — AUTH_PROVIDER=local', () => {
 
     expect(res.headers.get('location')).toBeNull();
     expect(res.headers.get('X-Frame-Options')).toBe('DENY');
-    expect(mocks.updateSession).not.toHaveBeenCalled();
   });
 
   it('비보호 경로(/)는 세션 검증 없이 통과한다', async () => {
@@ -59,15 +54,26 @@ describe('middleware — AUTH_PROVIDER=local', () => {
 
     expect(mocks.auth).not.toHaveBeenCalled();
     expect(res.headers.get('location')).toBeNull();
-    expect(mocks.updateSession).not.toHaveBeenCalled();
   });
 
-  it('supabase 모드는 local-auth-edge 대신 updateSession을 사용한다', async () => {
-    process.env.AUTH_PROVIDER = 'supabase';
+  it('비-API·비-site 경로는 CSP 헤더를 설정한다(connect-src는 self 전용)', async () => {
+    const res = await middleware(req('/'));
 
-    await middleware(req('/dashboard'));
+    const csp = res.headers.get('Content-Security-Policy') ?? '';
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("connect-src 'self'");
+    expect(csp).not.toContain('supabase');
+  });
 
-    expect(mocks.updateSession).toHaveBeenCalledTimes(1);
-    expect(mocks.auth).not.toHaveBeenCalled();
+  it('서브도메인 호스트는 /site/[slug]로 rewrite한다', async () => {
+    process.env.NEXT_PUBLIC_ROOT_DOMAIN = 'xzawed.xyz';
+
+    const request = new NextRequest(new URL('http://myslug.xzawed.xyz/'), {
+      headers: { host: 'myslug.xzawed.xyz' },
+    });
+    const res = await middleware(request);
+
+    expect(res.headers.get('x-middleware-rewrite')).toContain('/site/myslug');
+    expect(res.headers.get('X-Frame-Options')).toBe('DENY');
   });
 });

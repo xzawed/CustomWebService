@@ -1,5 +1,3 @@
-import { createClient } from '@/lib/supabase/server';
-import { getDbProvider } from '@/lib/config/providers';
 import { createCodeRepository, createProjectRepository } from '@/repositories/factory';
 import { assembleHtml } from '@/lib/ai/codeParser';
 import { isValidSlug, RESERVED_SLUGS } from '@/lib/utils/slugify';
@@ -23,8 +21,7 @@ export async function GET(
     return new Response('Invalid slug', { status: 400 });
   }
 
-  const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-  const projectRepo = createProjectRepository(supabase);
+  const projectRepo = createProjectRepository();
 
   // 2. Slug로 프로젝트 조회
   const project = await projectRepo.findBySlug(slug);
@@ -44,7 +41,7 @@ export async function GET(
   }
 
   // 4. 코드 조회
-  const codeRepo = createCodeRepository(supabase);
+  const codeRepo = createCodeRepository();
   const code = await codeRepo.findByProject(project.id);
   if (!code) {
     return new Response(preparingHtml(slug), {

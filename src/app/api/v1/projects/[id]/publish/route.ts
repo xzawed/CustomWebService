@@ -1,5 +1,3 @@
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createProjectService } from '@/services/factory';
 import { createCodeRepository } from '@/repositories/factory';
@@ -25,10 +23,8 @@ export async function POST(
       // body 없음 또는 JSON 파싱 실패 — slug 없이 진행
     }
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-
     // QC 경고 확인 — 게시는 차단하지 않지만 경고를 응답에 포함
-    const codeRepo = createCodeRepository(supabase);
+    const codeRepo = createCodeRepository();
     const latestCode = await codeRepo.findByProject(id);
     const metadata = latestCode?.metadata as Record<string, unknown> | null;
     const qcWarnings: string[] = [];
@@ -45,7 +41,7 @@ export async function POST(
       }
     }
 
-    const service = createProjectService(supabase);
+    const service = createProjectService();
     const project = await service.publish(id, user.id, chosenSlug);
 
     return jsonResponse({
@@ -67,8 +63,7 @@ export async function DELETE(
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-    const service = createProjectService(supabase);
+    const service = createProjectService();
     const project = await service.unpublish(id, user.id);
 
     return jsonResponse({ success: true, data: project });

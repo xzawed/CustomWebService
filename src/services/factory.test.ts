@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
 vi.mock('@/repositories/factory', () => ({
   createProjectRepository: vi.fn().mockReturnValue({ _type: 'project-repo' }),
@@ -51,11 +50,10 @@ describe('createProjectService', () => {
     expect(svc._type).toBe('ProjectService');
   });
 
-  it('passes the supabase client to repository factory calls', () => {
-    const mockClient = {} as unknown as SupabaseClient;
-    createProjectService(mockClient);
-    expect(createProjectRepository).toHaveBeenCalledWith(mockClient);
-    expect(createCatalogRepository).toHaveBeenCalledWith(mockClient);
+  it('repository 팩토리를 인자 없이 호출한다', () => {
+    createProjectService();
+    expect(createProjectRepository).toHaveBeenCalledWith();
+    expect(createCatalogRepository).toHaveBeenCalledWith();
   });
 });
 
@@ -65,10 +63,9 @@ describe('createCatalogService', () => {
     expect(svc._type).toBe('CatalogService');
   });
 
-  it('passes the supabase client to createCatalogRepository', () => {
-    const mockClient = {} as unknown as SupabaseClient;
-    createCatalogService(mockClient);
-    expect(createCatalogRepository).toHaveBeenCalledWith(mockClient);
+  it('createCatalogRepository를 인자 없이 호출한다', () => {
+    createCatalogService();
+    expect(createCatalogRepository).toHaveBeenCalledWith();
   });
 });
 
@@ -78,11 +75,10 @@ describe('createDeployService', () => {
     expect(svc._type).toBe('DeployService');
   });
 
-  it('passes the supabase client to repository factory calls', () => {
-    const mockClient = {} as unknown as SupabaseClient;
-    createDeployService(mockClient);
-    expect(createProjectRepository).toHaveBeenCalledWith(mockClient);
-    expect(createCodeRepository).toHaveBeenCalledWith(mockClient);
+  it('repository 팩토리를 인자 없이 호출한다', () => {
+    createDeployService();
+    expect(createProjectRepository).toHaveBeenCalledWith();
+    expect(createCodeRepository).toHaveBeenCalledWith();
   });
 });
 
@@ -92,9 +88,8 @@ describe('createRateLimitService', () => {
     expect(svc._type).toBe('RateLimitService');
   });
 
-  it('passes the supabase client to createRateLimitRepository', () => {
-    const mockClient = {} as unknown as SupabaseClient;
-    createRateLimitService(mockClient);
-    expect(createRateLimitRepository).toHaveBeenCalledWith(mockClient);
+  it('createRateLimitRepository를 인자 없이 호출한다', () => {
+    createRateLimitService();
+    expect(createRateLimitRepository).toHaveBeenCalledWith();
   });
 });

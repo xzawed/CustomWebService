@@ -1,7 +1,5 @@
 import { redirect } from 'next/navigation';
 import { getAuthUser } from '@/lib/auth/index';
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { createCatalogRepository, createUserApiKeyRepository } from '@/repositories/factory';
 import { decryptApiKey, maskApiKey } from '@/lib/encryption';
 import { ApiKeyPageClient } from './ApiKeyPageClient';
@@ -13,15 +11,13 @@ export default async function ApiKeysPage() {
   const user = await getAuthUser();
   if (!user) redirect('/login');
 
-  const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-
   // api_key 인증이 필요한 API 목록 조회
-  const catalogRepo = createCatalogRepository(supabase);
+  const catalogRepo = createCatalogRepository();
   const { items: allApis } = await catalogRepo.findMany({ isActive: true }, { limit: 100 });
   const apiKeyApis = allApis.filter((api) => api.authType === 'api_key');
 
   // 사용자가 이미 등록한 키 목록 (모든 provider — 레포 경유)
-  const savedKeys = await createUserApiKeyRepository(supabase).findAllByUser(user.id);
+  const savedKeys = await createUserApiKeyRepository().findAllByUser(user.id);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">

@@ -1,9 +1,7 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { encryptApiKey, maskApiKey, decryptApiKey } from '@/lib/encryption';
 import { createUserApiKeyRepository, createCatalogRepository } from '@/repositories/factory';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
-import { getDbProvider } from '@/lib/config/providers';
 import { saveKeySchema, projectIdSchema } from '@/types/schemas';
 
 /** GET /api/v1/user-api-keys — 내가 등록한 API 키 목록 (마스킹) */
@@ -12,9 +10,7 @@ export async function GET(): Promise<Response> {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-
-    const repo = createUserApiKeyRepository(supabase);
+    const repo = createUserApiKeyRepository();
     const rows = await repo.findAllByUser(user.id);
 
     const items = rows.map((row) => {
@@ -46,8 +42,6 @@ export async function POST(request: Request): Promise<Response> {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-
     let body: unknown;
     try {
       body = await request.json();
@@ -62,8 +56,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const { apiId, apiKey } = parsed.data;
 
-    const svcClient = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
-    const catalogRepo = createCatalogRepository(svcClient);
+    const catalogRepo = createCatalogRepository();
     const api = await catalogRepo.findById(apiId);
     if (!api || !api.isActive) {
       return jsonResponse(
@@ -79,7 +72,7 @@ export async function POST(request: Request): Promise<Response> {
       throw new Error('키 암호화 중 오류가 발생했습니다.');
     }
 
-    const repo = createUserApiKeyRepository(supabase);
+    const repo = createUserApiKeyRepository();
     await repo.upsert(user.id, apiId, encryptedKey);
 
     return jsonResponse({ success: true, data: { message: 'API 키가 저장되었습니다.' } });
@@ -94,13 +87,11 @@ export async function DELETE(request: Request): Promise<Response> {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-
     const apiIdRaw = new URL(request.url).searchParams.get('apiId');
     if (!apiIdRaw) throw new ValidationError('apiId가 필요합니다.');
     const apiId = projectIdSchema.parse(apiIdRaw);
 
-    const repo = createUserApiKeyRepository(supabase);
+    const repo = createUserApiKeyRepository();
     await repo.delete(user.id, apiId);
 
     return jsonResponse({ success: true, data: { message: 'API 키가 삭제되었습니다.' } });

@@ -1,7 +1,5 @@
 import Link from 'next/link';
 import { getAuthUser } from '@/lib/auth/index';
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { createProjectService, createCatalogService } from '@/services/factory';
 import { createCodeRepository } from '@/repositories/factory';
 import { redirect, notFound } from 'next/navigation';
@@ -27,8 +25,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const user = await getAuthUser();
   if (!user) redirect('/login');
 
-  const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-  const projectService = createProjectService(supabase);
+  const projectService = createProjectService();
   let project;
   try {
     project = await projectService.getById(id, user.id);
@@ -38,9 +35,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   // Load APIs and latest code
   const apiIds = await projectService.getProjectApiIds(id);
-  const catalogService = createCatalogService(supabase);
+  const catalogService = createCatalogService();
   const apis = await catalogService.getByIds(apiIds);
-  const codeRepo = createCodeRepository(supabase);
+  const codeRepo = createCodeRepository();
   const latestCode = await codeRepo.findByProject(id);
 
   const status = statusConfig[project.status];

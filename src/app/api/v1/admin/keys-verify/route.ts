@@ -1,5 +1,3 @@
-import { createServiceClient } from '@/lib/supabase/server';
-import { getDbProvider } from '@/lib/config/providers';
 import { createCatalogRepository } from '@/repositories/factory';
 import { adminCorsHeaders, verifyAdminKey, withAdminCors } from '@/lib/utils/adminAuth';
 import { handleApiError, jsonResponse } from '@/lib/utils/errors';
@@ -34,9 +32,8 @@ export async function GET(request: Request): Promise<Response> {
     try {
       verifyAdminKey(request);
 
-      // raw .from 대신 카탈로그 레포 경유(모든 provider). 활성 + auth_type=api_key 필터.
-      const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
-      const { items } = await createCatalogRepository(supabase).findMany(
+      // raw .from 대신 카탈로그 레포 경유. 활성 + auth_type=api_key 필터.
+      const { items } = await createCatalogRepository().findMany(
         { isActive: true },
         { limit: 200, orderBy: 'name', orderDirection: 'asc' },
       );

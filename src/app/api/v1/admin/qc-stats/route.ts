@@ -1,5 +1,3 @@
-import { createServiceClient } from '@/lib/supabase/server';
-import { getDbProvider } from '@/lib/config/providers';
 import { createCodeRepository, createEventRepository } from '@/repositories/factory';
 import { adminCorsHeaders, verifyAdminKey, withAdminCors } from '@/lib/utils/adminAuth';
 import { handleApiError, jsonResponse } from '@/lib/utils/errors';
@@ -21,9 +19,8 @@ export async function GET(request: Request): Promise<Response> {
 
       // raw .from 대신 레포 경유(모든 provider). 집계 메서드는 DB 오류를 throw하므로
       // 장애가 0-메트릭으로 은폐되지 않고 outer try/catch → 500으로 surface된다.
-      const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
-      const codeRepo = createCodeRepository(supabase);
-      const eventRepo = createEventRepository(supabase);
+      const codeRepo = createCodeRepository();
+      const eventRepo = createEventRepository();
       const [codes, failureCount, stage3FallbackCount, stageSkippedPayloads, qualityLoopPayloads] =
         await Promise.all([
           codeRepo.findMetadataByDateRange(from),

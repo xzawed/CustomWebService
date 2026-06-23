@@ -1,15 +1,12 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { useAuthStore } from '@/stores/authStore';
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   useSession: vi.fn(),
   authJsSignOut: vi.fn(),
-  getSession: vi.fn(),
-  onAuthStateChange: vi.fn(),
-  supabaseSignOut: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -21,47 +18,17 @@ vi.mock('next-auth/react', () => ({
   signOut: mocks.authJsSignOut,
 }));
 
-vi.mock('@/lib/supabase/client', () => ({
-  createClient: () => ({
-    auth: {
-      getSession: mocks.getSession,
-      onAuthStateChange: mocks.onAuthStateChange,
-      signOut: mocks.supabaseSignOut,
-    },
-  }),
-}));
-
 import { useAuth } from './useAuth';
 
 describe('useAuth', () => {
-  const originalProvider = process.env.NEXT_PUBLIC_AUTH_PROVIDER;
-
   beforeEach(() => {
     vi.clearAllMocks();
     useAuthStore.setState({ user: null, isLoading: true, isAuthenticated: false });
-    mocks.getSession.mockResolvedValue({ data: { session: null } });
-    mocks.onAuthStateChange.mockReturnValue({
-      data: { subscription: { unsubscribe: vi.fn() } },
-    });
-    mocks.useSession.mockReturnValue(undefined);
-    process.env.NEXT_PUBLIC_AUTH_PROVIDER = 'supabase';
+    mocks.useSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    mocks.authJsSignOut.mockResolvedValue(undefined);
   });
 
-  afterEach(() => {
-    process.env.NEXT_PUBLIC_AUTH_PROVIDER = originalProvider;
-  });
-
-  it('Supabase 모드에서 SessionProvider가 없어도 기본 인증 상태를 반환한다', async () => {
-    const { result } = renderHook(() => useAuth());
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    expect(result.current.user).toBeNull();
-    expect(result.current.isAuthenticated).toBe(false);
-  });
-
-  it('Auth.js 모드에서 next-auth 세션을 사용자 상태로 매핑한다', () => {
-    process.env.NEXT_PUBLIC_AUTH_PROVIDER = 'authjs';
+  it('인증된 next-auth 세션을 사용자 상태로 매핑한다', async () => {
     mocks.useSession.mockReturnValue({
       data: {
         user: {
@@ -76,13 +43,49 @@ describe('useAuth', () => {
 
     const { result } = renderHook(() => useAuth());
 
+    await waitFor(() => expect(result.current.isAuthenticated).toBe(true));
+
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.isAuthenticated).toBe(true);
     expect(result.current.user).toMatchObject({
       id: 'user-1',
       email: 'test@example.com',
       name: 'Test User',
       avatarUrl: 'https://example.com/avatar.png',
     });
+  });
+
+  it('미인증 세션이면 사용자 상태를 비운다', async () => {
+    mocks.useSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+
+    const { result } = renderHook(() => useAuth());
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.user).toBeNull();
+    expect(result.current.isAuthenticated).toBe(false);
+  });
+
+  it('로딩 중에는 사용자 상태를 변경하지 않는다', () => {
+    mocks.useSession.mockReturnValue({ data: null, status: 'loading' });
+
+    const { result } = renderHook(() => useAuth());
+
+    // loading 상태에서는 setUser가 호출되지 않아 초기 store 값(isLoading: true)이 유지된다
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.user).toBeNull();
+    expect(result.current.isAuthenticated).toBe(false);
+  });
+
+  it('signOut은 next-auth signOut을 callbackUrl과 함께 호출하고 라우팅한다', async () => {
+    const { result } = renderHook(() => useAuth());
+
+    await act(async () => {
+      await result.current.signOut();
+    });
+
+    expect(mocks.authJsSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
+    expect(result.current.user).toBeNull();
+    expect(result.current.isAuthenticated).toBe(false);
+    expect(mocks.push).toHaveBeenCalledWith('/');
   });
 });

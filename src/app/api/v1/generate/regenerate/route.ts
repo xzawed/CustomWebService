@@ -1,5 +1,3 @@
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createProjectService, createCatalogService, createRateLimitService } from '@/services/factory';
 import { createCodeRepository, createProjectRepository } from '@/repositories/factory';
@@ -50,23 +48,21 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const correlationId = getCorrelationId(request);
-    const provider = getDbProvider();
-    const supabase = provider === 'supabase' ? await createClient() : undefined;
 
-    const rateLimitService = createRateLimitService(supabase);
+    const rateLimitService = createRateLimitService();
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
     pendingDecrement = () => rateLimitService.decrementDailyLimit(user.id);
 
-    const projectService = createProjectService(supabase);
+    const projectService = createProjectService();
     const [project, apiIds] = await Promise.all([
       projectService.getById(projectId, user.id),
       projectService.getProjectApiIds(projectId),
     ]);
 
-    const catalogService = createCatalogService(supabase);
+    const catalogService = createCatalogService();
     const projectApis = apiIds.length > 0 ? await catalogService.getByIds(apiIds) : [];
 
-    const codeRepo = createCodeRepository(supabase);
+    const codeRepo = createCodeRepository();
     const limits = getLimits();
     const [currentVersion, previousCode] = await Promise.all([
       codeRepo.getNextVersion(projectId),
@@ -128,7 +124,7 @@ export async function POST(request: Request): Promise<Response> {
             codeRepo,
             projectService,
             rateLimitService,
-            projectRepo: createProjectRepository(supabase),
+            projectRepo: createProjectRepository(),
           },
         );
 

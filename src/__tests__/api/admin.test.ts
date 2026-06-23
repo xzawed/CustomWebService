@@ -1,30 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------- Module mocks ----------
-const mockSupabaseChain = {
-  select: vi.fn().mockReturnThis(),
-  eq: vi.fn().mockReturnThis(),
-  gte: vi.fn().mockResolvedValue({ count: 0, error: null }),
+// 라우트는 @/repositories/factory의 zero-arg 팩토리(createCodeRepository/createEventRepository)를
+// 통해 SQLite 레포를 얻는다. 팩토리를 모킹해 실제 SQLite 연결 없이 동작시킨다.
+const mockCodeRepo = {
+  findByProject: vi.fn().mockResolvedValue(null),
+  findMetadataByDateRange: vi.fn().mockResolvedValue([]),
+};
+const mockEventRepo = {
+  countByTypeSince: vi.fn().mockResolvedValue(0),
+  findPayloadsByTypeSince: vi.fn().mockResolvedValue([]),
 };
 
-vi.mock('@/lib/supabase/server', () => ({
-  createServiceClient: vi.fn().mockResolvedValue({
-    from: vi.fn().mockReturnValue(mockSupabaseChain),
-  }),
-}));
-
-// qc-stats·trigger-qc 라우트가 getDbProvider를 import한다(Phase 3). 모킹해 native cold-init 차단.
-vi.mock('@/lib/config/providers', () => ({
-  getDbProvider: vi.fn().mockReturnValue('supabase'),
-}));
-
-vi.mock('@/repositories/codeRepository', () => ({
-  CodeRepository: vi.fn(function() {
-    return {
-      findMetadataByDateRange: vi.fn().mockResolvedValue([]),
-      findByProject: vi.fn().mockResolvedValue(null),
-    };
-  }),
+vi.mock('@/repositories/factory', () => ({
+  createCodeRepository: vi.fn(() => mockCodeRepo),
+  createEventRepository: vi.fn(() => mockEventRepo),
 }));
 
 vi.mock('@/lib/qc', () => ({
@@ -62,6 +52,11 @@ describe('Admin API 인증', () => {
     vi.clearAllMocks();
     vi.resetModules();
     process.env.ADMIN_API_KEY = VALID_ADMIN_KEY;
+    // clearAllMocks가 구현을 비우므로 기본 동작을 매 테스트 복원
+    mockCodeRepo.findByProject.mockResolvedValue(null);
+    mockCodeRepo.findMetadataByDateRange.mockResolvedValue([]);
+    mockEventRepo.countByTypeSince.mockResolvedValue(0);
+    mockEventRepo.findPayloadsByTypeSince.mockResolvedValue([]);
   });
 
   describe('GET /api/v1/admin/qc-stats', () => {
@@ -143,13 +138,7 @@ describe('Admin API 인증', () => {
       const { isQcEnabled } = await import('@/lib/qc');
       vi.mocked(isQcEnabled).mockReturnValue(true);
 
-      const { CodeRepository } = await import('@/repositories/codeRepository');
-      vi.mocked(CodeRepository).mockImplementation(function() {
-        return {
-          findByProject: vi.fn().mockResolvedValue(null),
-          findMetadataByDateRange: vi.fn().mockResolvedValue([]),
-        };
-      } as never);
+      mockCodeRepo.findByProject.mockResolvedValue(null);
 
       const { POST } = await import('@/app/api/v1/admin/trigger-qc/route');
       const res = await POST(makeAdminRequest('/api/v1/admin/trigger-qc', 'POST', VALID_ADMIN_KEY, { projectId: 'nonexistent' }));
@@ -165,13 +154,7 @@ describe('Admin API 인증', () => {
       vi.mocked(isQcEnabled).mockReturnValue(true);
 
       const mockCode = { codeHtml: '<div/>', codeCss: 'div{}', codeJs: '', version: 1 };
-      const { CodeRepository } = await import('@/repositories/codeRepository');
-      vi.mocked(CodeRepository).mockImplementation(function() {
-        return {
-          findByProject: vi.fn().mockResolvedValue(mockCode),
-          findMetadataByDateRange: vi.fn().mockResolvedValue([]),
-        };
-      } as never);
+      mockCodeRepo.findByProject.mockResolvedValue(mockCode);
 
       const { POST } = await import('@/app/api/v1/admin/trigger-qc/route');
       const res = await POST(makeAdminRequest('/api/v1/admin/trigger-qc', 'POST', VALID_ADMIN_KEY, { projectId: 'proj-1' }));
@@ -190,6 +173,10 @@ describe('Rate Limit 심화', () => {
     vi.clearAllMocks();
     vi.resetModules();
     process.env.ADMIN_API_KEY = VALID_ADMIN_KEY;
+    mockCodeRepo.findByProject.mockResolvedValue(null);
+    mockCodeRepo.findMetadataByDateRange.mockResolvedValue([]);
+    mockEventRepo.countByTypeSince.mockResolvedValue(0);
+    mockEventRepo.findPayloadsByTypeSince.mockResolvedValue([]);
   });
 
   it('서로 다른 IP에서는 각각 60회 독립 허용', async () => {
@@ -285,6 +272,10 @@ describe('입력 검증', () => {
     vi.clearAllMocks();
     vi.resetModules();
     process.env.ADMIN_API_KEY = VALID_ADMIN_KEY;
+    mockCodeRepo.findByProject.mockResolvedValue(null);
+    mockCodeRepo.findMetadataByDateRange.mockResolvedValue([]);
+    mockEventRepo.countByTypeSince.mockResolvedValue(0);
+    mockEventRepo.findPayloadsByTypeSince.mockResolvedValue([]);
   });
 
   it('trigger-qc: 유효하지 않은 UUID 형식 projectId → 400/422', async () => {
@@ -353,6 +344,10 @@ describe('CORS 헤더', () => {
     vi.clearAllMocks();
     vi.resetModules();
     process.env.ADMIN_API_KEY = VALID_ADMIN_KEY;
+    mockCodeRepo.findByProject.mockResolvedValue(null);
+    mockCodeRepo.findMetadataByDateRange.mockResolvedValue([]);
+    mockEventRepo.countByTypeSince.mockResolvedValue(0);
+    mockEventRepo.findPayloadsByTypeSince.mockResolvedValue([]);
   });
 
   it('withAdminCors: 응답에 CORS 헤더 포함', async () => {

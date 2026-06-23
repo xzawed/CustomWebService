@@ -1,5 +1,3 @@
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createProjectRepository, createCodeRepository } from '@/repositories/factory';
 import { eventBus } from '@/lib/events/eventBus';
@@ -21,10 +19,8 @@ export async function POST(
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-
     // Verify ownership
-    const projectRepo = createProjectRepository(supabase);
+    const projectRepo = createProjectRepository();
     const project = await projectRepo.findById(projectId);
     if (!project || project.userId !== user.id) {
       throw new NotFoundError('프로젝트', projectId);
@@ -44,7 +40,7 @@ export async function POST(
     }
 
     // Verify the target version exists
-    const codeRepo = createCodeRepository(supabase);
+    const codeRepo = createCodeRepository();
     const targetCode = await codeRepo.findByProject(projectId, targetVersion);
     if (!targetCode) {
       throw new NotFoundError('코드 버전', `${targetVersion}`);

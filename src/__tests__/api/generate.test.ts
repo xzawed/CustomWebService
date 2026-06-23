@@ -1,21 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------- Module mocks ----------
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(),
-  createServiceClient: vi.fn(),
-}));
+// SQLite + Auth.js(local) 단일 스택으로 마이그레이션 완료(P8.2) 후, 라우트는 Supabase 클라이언트나
+// @/lib/config/providers를 더 이상 import하지 않는다(팩토리는 zero-arg). 따라서 과거의
+// supabase/server 모킹과 pg/drizzle cold-init 차단용 config/providers 모킹은 모두 제거됨.
 
 vi.mock('@/lib/auth/index', () => ({
   getAuthUser: vi.fn(),
-}));
-
-// config/providers를 모킹하여 라우트의 line-1 import가 pg/drizzle(@/lib/db/failover → pg,
-// @/lib/db/connection → drizzle-orm/node-postgres) cold 초기화를 끌어오는 체인을 차단한다.
-// resetModules + in-test import 패턴에서 첫 테스트가 이 네이티브 로드 비용을 5000ms 예산 안에
-// 지불하면서 발생하던 full-suite 플래키 타임아웃을 제거한다 (형제 api 테스트 11개와 동일 패턴).
-vi.mock('@/lib/config/providers', () => ({
-  getDbProvider: vi.fn().mockReturnValue('supabase'),
 }));
 
 vi.mock('@/services/factory', () => ({
