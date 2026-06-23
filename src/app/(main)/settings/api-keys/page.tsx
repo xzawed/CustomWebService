@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { getAuthUser } from '@/lib/auth/index';
 import { getDbProvider } from '@/lib/config/providers';
 import { createClient } from '@/lib/supabase/server';
-import { createCatalogRepository } from '@/repositories/factory';
+import { createCatalogRepository, createUserApiKeyRepository } from '@/repositories/factory';
 import { decryptApiKey, maskApiKey } from '@/lib/encryption';
 import { ApiKeyPageClient } from './ApiKeyPageClient';
 
@@ -20,15 +20,8 @@ export default async function ApiKeysPage() {
   const { items: allApis } = await catalogRepo.findMany({ isActive: true }, { limit: 100 });
   const apiKeyApis = allApis.filter((api) => api.authType === 'api_key');
 
-  // 사용자가 이미 등록한 키 목록 (Supabase 전용 직접 조회)
-  let savedKeys: { api_id: string; encrypted_key: string; is_verified: boolean | null }[] = [];
-  if (supabase) {
-    const { data } = await supabase
-      .from('user_api_keys')
-      .select('api_id, encrypted_key, is_verified')
-      .eq('user_id', user.id);
-    savedKeys = data ?? [];
-  }
+  // 사용자가 이미 등록한 키 목록 (모든 provider — 레포 경유)
+  const savedKeys = await createUserApiKeyRepository(supabase).findAllByUser(user.id);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
@@ -45,8 +38,8 @@ export default async function ApiKeysPage() {
         apis={apiKeyApis}
         initialSavedKeys={savedKeys.map((k) => {
           let maskedKey = '****';
-          try { maskedKey = maskApiKey(decryptApiKey(k.encrypted_key)); } catch { /* 복호화 실패 시 기본값 */ }
-          return { apiId: k.api_id, maskedKey, isVerified: k.is_verified ?? false };
+          try { maskedKey = maskApiKey(decryptApiKey(k.encryptedKey)); } catch { /* 복호화 실패 시 기본값 */ }
+          return { apiId: k.apiId, maskedKey, isVerified: k.isVerified };
         })}
       />
     </div>

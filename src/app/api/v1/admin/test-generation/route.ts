@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createServiceClient } from '@/lib/supabase/server';
+import { getDbProvider } from '@/lib/config/providers';
 import { adminCorsHeaders, verifyAdminKey, withAdminCors } from '@/lib/utils/adminAuth';
 import { handleApiError, jsonResponse, ValidationError } from '@/lib/utils/errors';
 import { createCatalogService, createProjectService } from '@/services/factory';
@@ -46,7 +47,7 @@ export async function POST(request: Request): Promise<Response> {
       const projectContext = ctx ?? DEFAULT_CONTEXT;
       const shouldCleanup = cleanup ?? true;
 
-      const supabase = await createServiceClient();
+      const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
       const catalogService = createCatalogService(supabase);
       const projectRepo = createProjectRepository(supabase);
 
@@ -144,7 +145,7 @@ export async function POST(request: Request): Promise<Response> {
     } catch (error) {
       if (createdProjectId) {
         try {
-          const supabase = await createServiceClient();
+          const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
           const projectRepo = createProjectRepository(supabase);
           await projectRepo.delete(createdProjectId);
         } catch {

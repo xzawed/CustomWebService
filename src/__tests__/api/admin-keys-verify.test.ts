@@ -1,25 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// 카탈로그 행 1개(키 의존)를 반환하는 supabase 체인 모킹
-const keyedRow = {
+// 카탈로그 레포가 반환하는 도메인 항목(키 의존 1개) — camelCase
+const keyedItem = {
+  id: 'cat-1',
   name: '카카오 로컬 (지도·장소 검색)',
-  base_url: 'https://dapi.kakao.com',
-  auth_type: 'api_key',
-  auth_config: { env_var: 'API_KEY_TEST', param_in: 'header', param_name: 'Authorization', prefix: 'KakaoAK ' },
+  baseUrl: 'https://dapi.kakao.com',
+  authType: 'api_key',
+  authConfig: { env_var: 'API_KEY_TEST', param_in: 'header', param_name: 'Authorization', prefix: 'KakaoAK ' },
   endpoints: [{ path: '/v2/local/search/keyword.json', method: 'GET', parameters: { query: 'string' } }],
+  isActive: true,
 };
 
-const mockChain = {
-  select: vi.fn().mockReturnThis(),
-  eq: vi.fn().mockReturnThis(),
-  order: vi.fn().mockResolvedValue({ data: [keyedRow], error: null }),
-};
+const findMany = vi.fn();
 
-vi.mock('@/lib/supabase/server', () => ({
-  createServiceClient: vi.fn().mockResolvedValue({
-    from: vi.fn().mockReturnValue(mockChain),
-  }),
-}));
+vi.mock('@/lib/config/providers', () => ({ getDbProvider: vi.fn(() => 'supabase') }));
+vi.mock('@/repositories/factory', () => ({ createCatalogRepository: vi.fn(() => ({ findMany })) }));
+vi.mock('@/lib/supabase/server', () => ({ createServiceClient: vi.fn().mockResolvedValue({}) }));
 
 const VALID_ADMIN_KEY = 'test-admin-secret-key';
 
@@ -35,7 +31,7 @@ describe('GET /api/v1/admin/keys-verify', () => {
     vi.resetModules();
     process.env.ADMIN_API_KEY = VALID_ADMIN_KEY;
     delete process.env.API_KEY_TEST;
-    mockChain.order.mockResolvedValue({ data: [keyedRow], error: null });
+    findMany.mockResolvedValue({ items: [keyedItem], total: 1 });
   });
 
   it('Authorization 헤더 없음 → 403', async () => {

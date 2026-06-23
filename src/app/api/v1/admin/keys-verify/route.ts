@@ -1,4 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
+import { getDbProvider } from '@/lib/config/providers';
+import { createCatalogRepository } from '@/repositories/factory';
 import { adminCorsHeaders, verifyAdminKey, withAdminCors } from '@/lib/utils/adminAuth';
 import { handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { verifyApiKey, type KeyCheckApi, type KeyFetch, type KeyCheckResult } from '@/lib/catalog/keyCheck';
@@ -17,13 +19,6 @@ const realFetch: KeyFetch = async (url, headers) => {
   }
 };
 
-interface CatalogRow {
-  name: string;
-  base_url: string;
-  auth_config: KeyCheckApi['authConfig'] & { default_key?: string };
-  endpoints: KeyCheckApi['endpoints'];
-}
-
 export async function OPTIONS(): Promise<Response> {
   return new Response(null, { status: 204, headers: adminCorsHeaders });
 }
@@ -39,28 +34,30 @@ export async function GET(request: Request): Promise<Response> {
     try {
       verifyAdminKey(request);
 
-      const supabase = await createServiceClient();
-      const { data, error } = await supabase
-        .from('api_catalog')
-        .select('name, base_url, auth_type, auth_config, endpoints')
-        .eq('is_active', true)
-        .eq('auth_type', 'api_key')
-        .order('name', { ascending: true });
-      if (error) throw error;
+      // raw .from 대신 카탈로그 레포 경유(모든 provider). 활성 + auth_type=api_key 필터.
+      const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
+      const { items } = await createCatalogRepository(supabase).findMany(
+        { isActive: true },
+        { limit: 200, orderBy: 'name', orderDirection: 'asc' },
+      );
 
-      const keyed = ((data ?? []) as CatalogRow[]).filter(
-        (a) => a.auth_config?.env_var && !a.auth_config?.default_key,
+      const keyed = items.filter(
+        (a) =>
+          a.authType === 'api_key' &&
+          Boolean(a.authConfig?.env_var) &&
+          !a.authConfig?.default_key,
       );
 
       const results: KeyCheckResult[] = [];
       for (const a of keyed) {
         const api: KeyCheckApi = {
           name: a.name,
-          baseUrl: a.base_url,
-          authConfig: a.auth_config,
-          endpoints: a.endpoints,
+          baseUrl: a.baseUrl,
+          authConfig: a.authConfig as KeyCheckApi['authConfig'],
+          endpoints: a.endpoints as unknown as KeyCheckApi['endpoints'],
         };
-        const key = a.auth_config?.env_var ? process.env[a.auth_config.env_var] : undefined;
+        const envVar = a.authConfig?.env_var as string | undefined;
+        const key = envVar ? process.env[envVar] : undefined;
         results.push(await verifyApiKey(api, key, realFetch));
       }
 
