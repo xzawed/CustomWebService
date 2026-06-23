@@ -1,5 +1,3 @@
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { assertOwner } from '@/lib/auth/authorize';
 import { createProjectRepository } from '@/repositories/factory';
@@ -35,8 +33,7 @@ export async function POST(
       throw err;
     }
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-    const repo = createProjectRepository(supabase);
+    const repo = createProjectRepository();
 
     const project = await repo.findById(id);
     if (!project) throw new NotFoundError('프로젝트', id);

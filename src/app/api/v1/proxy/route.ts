@@ -1,6 +1,4 @@
 import dns from 'dns/promises';
-import { createServiceClient } from '@/lib/supabase/server';
-import { getDbProvider } from '@/lib/config/providers';
 import {
   createCatalogRepository,
   createProjectRepository,
@@ -196,21 +194,20 @@ async function buildSafeTargetUrl(
 async function resolveApiKey(
   apiId: string,
   cfg: { param_name?: string; param_in?: string; env_var?: string },
-  supabase: Awaited<ReturnType<typeof createServiceClient>> | undefined,
   searchParams: URLSearchParams,
   headers: Record<string, string>,
   targetUrl: URL,
 ): Promise<void> {
   let resolvedKey: string | undefined;
 
-  // 1) 프로젝트 오너의 개인 API 키 조회 (projectId가 있을 때 — 모든 provider)
-  //    raw .from 대신 레포를 사용해 DB_PROVIDER(supabase/postgres/sqlite)에 무관하게 동작.
+  // 1) 프로젝트 오너의 개인 API 키 조회 (projectId가 있을 때)
+  //    raw DB 접근 대신 레포(SQLite)를 사용한다.
   const projectId = searchParams.get('projectId');
   if (projectId && UUID_RE.test(projectId)) {
     try {
-      const project = await createProjectRepository(supabase).findById(projectId);
+      const project = await createProjectRepository().findById(projectId);
       if (project?.userId) {
-        const userKey = await createUserApiKeyRepository(supabase).findByUserAndApi(
+        const userKey = await createUserApiKeyRepository().findByUserAndApi(
           project.userId,
           apiId,
         );
@@ -224,10 +221,9 @@ async function resolveApiKey(
   // 2) 플랫폼 공용 키 (환경변수) — 플랫폼 핵심 시크릿은 접근 차단
   if (!resolvedKey && cfg.env_var) {
     const SENSITIVE_ENV_VARS = new Set([
-      'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY',
       'ANTHROPIC_API_KEY', 'GITHUB_TOKEN', 'RAILWAY_TOKEN',
-      'ADMIN_API_KEY', 'ENCRYPTION_KEY', 'NEXTAUTH_SECRET',
-      'DATABASE_URL', 'DIRECT_URL',
+      'ADMIN_API_KEY', 'ENCRYPTION_KEY',
+      'AUTH_SECRET', 'ADMIN_PASSWORD_HASH',
     ]);
     if (!SENSITIVE_ENV_VARS.has(cfg.env_var)) {
       resolvedKey = process.env[cfg.env_var];
@@ -264,8 +260,7 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
   const { apiId, proxyPath, searchParams } = validated;
 
   // Look up API using service role (bypasses RLS — read-only, catalog is semi-public)
-  const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
-  const catalogRepo = createCatalogRepository(supabase);
+  const catalogRepo = createCatalogRepository();
 
   let api;
   try {
@@ -327,7 +322,7 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
       param_in?: string;
       env_var?: string;
     };
-    await resolveApiKey(apiId, cfg, supabase, searchParams, headers, targetUrl);
+    await resolveApiKey(apiId, cfg, searchParams, headers, targetUrl);
   }
 
   // Forward the request

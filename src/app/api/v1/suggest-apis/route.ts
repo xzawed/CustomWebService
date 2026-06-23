@@ -1,5 +1,3 @@
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { createCatalogService, createRateLimitService } from '@/services/factory';
@@ -24,13 +22,11 @@ export async function POST(request: Request): Promise<Response> {
       throw err;
     }
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-
-    const rateLimitService = createRateLimitService(supabase);
+    const rateLimitService = createRateLimitService();
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
     // Fetch all active APIs from catalog
-    const catalogService = createCatalogService(supabase);
+    const catalogService = createCatalogService();
     const { items: allApis } = await catalogService.search({ limit: 100 });
 
     // B-2: 헬스체크가 broken으로 표시한 API는 신규 서비스에 추천하지 않는다.

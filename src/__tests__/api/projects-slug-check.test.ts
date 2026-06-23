@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------- Module mocks ----------
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(),
-}));
-
 vi.mock('@/lib/auth/index', () => ({
   getAuthUser: vi.fn(),
 }));
@@ -15,10 +11,6 @@ vi.mock('@/repositories/factory', () => ({
 
 vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
-vi.mock('@/lib/config/providers', () => ({
-  getDbProvider: vi.fn().mockReturnValue('supabase'),
 }));
 
 // ---------- Test data ----------

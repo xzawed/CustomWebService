@@ -1,13 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(),
-}));
-
-vi.mock('@/lib/config/providers', () => ({
-  getDbProvider: vi.fn().mockReturnValue('supabase'),
-}));
-
 vi.mock('@/repositories/factory', () => ({
   createProjectRepository: vi.fn(),
   createCodeRepository: vi.fn(),
@@ -38,10 +30,7 @@ describe('GET /site/[slug]', () => {
     vi.resetModules();
   });
 
-  it('postgres provider에서는 Supabase client 없이 repository factory를 사용한다', async () => {
-    const { getDbProvider } = await import('@/lib/config/providers');
-    vi.mocked(getDbProvider).mockReturnValue('postgres');
-
+  it('published 프로젝트는 zero-arg repository factory로 조회해 HTML을 반환한다', async () => {
     const { createProjectRepository, createCodeRepository } = await import('@/repositories/factory');
     vi.mocked(createProjectRepository).mockReturnValue({
       findBySlug: vi.fn().mockResolvedValue(publishedProject),
@@ -56,10 +45,8 @@ describe('GET /site/[slug]', () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toContain('published');
 
-    const { createClient } = await import('@/lib/supabase/server');
-    expect(createClient).not.toHaveBeenCalled();
-    expect(createProjectRepository).toHaveBeenCalledWith(undefined);
-    expect(createCodeRepository).toHaveBeenCalledWith(undefined);
+    expect(createProjectRepository).toHaveBeenCalledWith();
+    expect(createCodeRepository).toHaveBeenCalledWith();
   });
 
   it('없는 slug는 404 HTML을 반환한다', async () => {

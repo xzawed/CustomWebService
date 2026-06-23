@@ -1,5 +1,3 @@
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createProjectService, createCatalogService, createRateLimitService } from '@/services/factory';
 import { createCodeRepository, createProjectRepository } from '@/repositories/factory';
@@ -45,11 +43,9 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const correlationId = getCorrelationId(request);
-    const provider = getDbProvider();
-    const supabase = provider === 'supabase' ? await createClient() : undefined;
 
-    const rateLimitService = createRateLimitService(supabase);
-    const projectService = createProjectService(supabase);
+    const rateLimitService = createRateLimitService();
+    const projectService = createProjectService();
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
     pendingDecrement = () => rateLimitService.decrementDailyLimit(user.id);
     const [project, apiIds] = await Promise.all([
@@ -59,7 +55,7 @@ export async function POST(request: Request): Promise<Response> {
 
     if (apiIds.length === 0) throw new ValidationError('프로젝트에 연결된 API가 없습니다.');
 
-    const catalogService = createCatalogService(supabase);
+    const catalogService = createCatalogService();
     const apis = await catalogService.getByIds(apiIds);
     if (apis.length === 0) throw new ValidationError('선택된 API 정보를 찾을 수 없습니다.');
 
@@ -114,10 +110,10 @@ export async function POST(request: Request): Promise<Response> {
           },
           writer,
           {
-            codeRepo: createCodeRepository(supabase),
+            codeRepo: createCodeRepository(),
             projectService,
             rateLimitService,
-            projectRepo: createProjectRepository(supabase),
+            projectRepo: createProjectRepository(),
           },
         );
 

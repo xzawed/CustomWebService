@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------- Module mocks ----------
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(),
-}));
-
 vi.mock('@/lib/auth/index', () => ({
   getAuthUser: vi.fn(),
 }));
@@ -23,10 +19,6 @@ vi.mock('@/providers/ai/AiProviderFactory', () => ({
 
 vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
-vi.mock('@/lib/config/providers', () => ({
-  getDbProvider: vi.fn().mockReturnValue('supabase'),
 }));
 
 // contextMinLength 기본값 50에 맞춰 고정

@@ -1,432 +1,423 @@
 # 데이터베이스 설계
 
-> **최종 업데이트:** 2026-04-12  
-> **DB:** Supabase (PostgreSQL + Row Level Security)
+> **최종 업데이트:** 2026-06-23
+> **DB:** 임베디드 SQLite (better-sqlite3 + drizzle-orm/better-sqlite3, WAL 모드)
 
-## 사용 DB: Supabase (PostgreSQL)
+## 사용 DB: 임베디드 SQLite (단일 인스턴스·단일 사용자)
 
----
+이 서비스는 **셀프호스트 단일 관리자** 운영 모델이다. 데이터베이스는 외부 서버 없이
+애플리케이션 프로세스에 임베드된 **SQLite 파일 1개**(`/data/app.db`)로 구동된다.
 
-## 1. ERD (확장 설계)
+- **드라이버**: `better-sqlite3` (동기 API) + `drizzle-orm/better-sqlite3`
+- **저장소**: Railway 영속 볼륨 `/data` 하위 (`SQLITE_PATH`, 기본 `/data/app.db`)
+- **동시성**: WAL(Write-Ahead Logging) 모드 — 읽기/쓰기 동시성 향상. SQLite는
+  한 시점에 writer가 1개뿐이므로(단일 writer), 원자성이 중요한 쓰기는 동기
+  트랜잭션(`BEGIN`)으로 보강한다.
+- **단일 인스턴스 전제**: 임베디드 DB이므로 멀티 인스턴스 수평 확장 불가. Railway
+  단일 인스턴스 배포에 맞춰 설계됨.
 
-```
-┌──────────────┐
-│organizations │     ┌──────────────┐
-├──────────────┤     │ memberships  │     ┌─────────────┐
-│ id (PK)      │◄────┤──────────────│     │   users     │
-│ name         │     │ id (PK)      │     ├─────────────┤
-│ slug         │     │ org_id (FK)  │────►│ id (PK)     │
-│ plan         │     │ user_id (FK) │     │ email       │
-│ settings     │     │ role         │     │ name        │
-│ created_at   │     │ created_at   │     │ avatar_url  │
-└──────┬───────┘     └──────────────┘     │ preferences │
-       │                                   │ created_at  │
-       │ (선택적)                           │ updated_at  │
-       │                                   └──────┬──────┘
-       │                                          │
-       ▼                                          ▼
-┌──────────────────┐                    ┌────────────────────┐
-│    projects      │                    │   user_api_keys    │
-├──────────────────┤                    ├────────────────────┤
-│ id (PK)          │                    │ id (PK)            │
-│ user_id (FK)     │◄───────────────────│ user_id (FK)       │
-│ org_id (FK) NULL │                    │ api_id (FK)        │
-│ name             │                    │ encrypted_key      │
-│ context          │                    │ created_at         │
-│ status           │                    └────────────────────┘
-│ deploy_url       │
-│ deploy_platform  │     ┌──────────────────┐
-│ repo_url         │     │  project_apis    │
-│ preview_url      │     ├──────────────────┤
-│ metadata (JSONB) │◄────│ id (PK)          │
-│ created_at       │     │ project_id (FK)  │────┐
-│ updated_at       │     │ api_id (FK)      │    │
-└────────┬─────────┘     │ config (JSONB)   │    │
-         │               │ created_at       │    │
-         │               └──────────────────┘    │
-         ▼                                       ▼
-┌──────────────────┐                    ┌────────────────────┐
-│ generated_codes  │                    │   api_catalog      │
-├──────────────────┤                    ├────────────────────┤
-│ id (PK)          │                    │ id (PK)            │
-│ project_id (FK)  │                    │ name               │
-│ version          │                    │ description        │
-│ code_html        │                    │ category           │
-│ code_css         │                    │ base_url           │
-│ code_js          │                    │ auth_type          │
-│ framework        │                    │ auth_config (JSON) │
-│ ai_provider      │ ★                 │ rate_limit         │
-│ ai_model         │ ★                 │ is_active          │
-│ ai_prompt_used   │                    │ api_version        │ ★
-│ generation_ms    │ ★                 │ deprecated_at      │ ★
-│ token_usage(JSON)│ ★                 │ successor_id (FK)  │ ★
-│ metadata (JSONB) │ ★                 │ icon_url           │
-│ dependencies[]   │ ★                 │ docs_url           │
-│ created_at       │                    │ endpoints (JSONB)  │
-└──────────────────┘                    │ tags[]             │
-                                        │ changelog (JSONB)  │ ★
-┌──────────────────────┐                │ created_at         │
-│  platform_events     │ ★             │ updated_at         │
-├──────────────────────┤               └────────────────────┘
-│ id (PK)              │
-│ type                 │               ┌────────────────────┐
-│ payload (JSONB)      │               │  feature_flags     │ ★
-│ user_id (FK)         │               ├────────────────────┤
-│ project_id (FK)      │               │ id (PK)            │
-│ created_at           │               │ flag_name          │
-└──────────────────────┘               │ enabled            │
-                                        │ rules (JSONB)      │
-                                        │ updated_at         │
-                                        └────────────────────┘
-★ = v2에서 추가된 항목
-```
+> **NO Supabase, NO PostgreSQL, NO Drizzle-pg, NO Row Level Security.**
+> Supabase/PostgreSQL/온프렘 Postgres 경로는 2026-06-23 컷오버로 완전히 제거되었다.
+> 컷오버 배경: [docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md)
+
+### 권한 모델: RLS 없음 → 앱 레벨 소유권 검증
+
+SQLite에는 Row Level Security가 없다. 모든 접근 제어는 **애플리케이션 레이어**에서
+처리한다. 단일 관리자 운용이므로 멀티 테넌시 정책은 불필요하며, 레포지토리/서비스
+계층의 `assertOwner` 류 소유권 검증으로 `user_id` 일치를 강제한다.
 
 ---
 
-## 2. 테이블 정의
+## 1. 스키마 개요
 
-### 2.1 users (사용자) - 수정
+스키마의 단일 진실원천은 [`src/lib/db/sqlite/schema.ts`](../../src/lib/db/sqlite/schema.ts)
+(drizzle 정의)이다. 총 **9개 테이블**:
+
+```
+┌──────────────┐           ┌────────────────────┐
+│   users      │           │   api_catalog      │
+├──────────────┤           ├────────────────────┤
+│ id (PK)      │◄──┐       │ id (PK)            │◄──┐
+│ email (UQ)   │   │       │ name               │   │
+│ name         │   │       │ category           │   │
+│ avatar_url   │   │       │ base_url           │   │
+│ preferences  │   │       │ auth_type / config │   │
+│ created_at   │   │       │ endpoints (json)   │   │
+└──────────────┘   │       │ verification_status│   │
+                   │       │ successor_id       │   │
+                   │       └────────────────────┘   │
+       ┌───────────┤                                 │
+       │           │                                 │
+       ▼           │                                 │
+┌──────────────────┐         ┌──────────────────┐    │
+│    projects      │         │  project_apis    │    │
+├──────────────────┤         ├──────────────────┤    │
+│ id (PK)          │◄────────│ id (PK)          │    │
+│ user_id (FK)     │         │ project_id (FK)  │────┤
+│ name / context   │         │ api_id (FK)      │────┘
+│ status           │         │ config (json)    │
+│ deploy_url       │         │ UQ(project,api)  │
+│ slug             │         └──────────────────┘
+│ current_version  │
+│ metadata (json)  │         ┌────────────────────┐
+└────────┬─────────┘         │   user_api_keys    │
+         │                   ├────────────────────┤
+         ▼                   │ id (PK)            │
+┌──────────────────┐         │ user_id (FK)       │
+│ generated_codes  │         │ api_id (FK)        │
+├──────────────────┤         │ encrypted_key      │
+│ id (PK)          │         │ is_verified        │
+│ project_id (FK)  │         │ UQ(user, api)      │
+│ version          │         └────────────────────┘
+│ code_html/css/js │
+│ ai_provider/model│         ┌──────────────────────┐
+│ token_usage(json)│         │  user_daily_limits   │
+│ metadata (json)  │         ├──────────────────────┤
+│ UQ(project,ver)  │         │ user_id (FK)  ┐ PK   │
+└──────────────────┘         │ usage_date    ┘      │
+                             │ generation_count     │
+┌──────────────────────┐     │ deploy_count         │
+│  platform_events     │     └──────────────────────┘
+├──────────────────────┤
+│ id (PK)              │     ┌────────────────────┐
+│ type                 │     │  feature_flags     │
+│ payload (json)       │     ├────────────────────┤
+│ user_id (FK)         │     │ id (PK)            │
+│ project_id (FK)      │     │ flag_name (UQ)     │
+│ created_at           │     │ enabled            │
+└──────────────────────┘     │ rules (json)       │
+                             └────────────────────┘
+```
+
+> **제거된 테이블 (컷오버로 삭제됨):** `organizations` / `memberships` (Organizations 기능 제거),
+> `account` / `session` / `verificationToken` (Auth.js JWT 무상태 — DB 어댑터 미사용),
+> `gallery` / `project_likes` (갤러리 기능 제거), `event_log` (platform_events로 대체된 죽은 테이블).
+> `projects.organization_id`·`api_catalog`의 자기참조 `successor_id` 등 일부 **컬럼**은 레포 매퍼
+> 호환을 위해 nullable로 잔존하나 기능은 없고 항상 `null` 또는 미사용이다.
+
+---
+
+## 2. 타입 매핑 (PostgreSQL → SQLite)
+
+SQLite는 타입 친화성(type affinity)만 가지므로 pg 타입을 다음과 같이 매핑한다.
+DB 레벨 기본값은 스칼라/boolean에만 두고, json·배열·타임스탬프는 앱(레포)·
+`$defaultFn`에서 채워 drizzle-kit 직렬화 quirk를 피한다.
+
+| PostgreSQL | SQLite | 비고 |
+|------------|--------|------|
+| `uuid` | `text` | `crypto.randomUUID()` (`$defaultFn`) |
+| `varchar` / `text` | `text` | 길이 제약 없음 |
+| `jsonb` | `text` (`mode: 'json'`) | drizzle가 자동 직렬화/역직렬화 |
+| `text[]` | `text` (`mode: 'json'`, `$type<string[]>`) | JSON 배열로 저장 |
+| `boolean` | `integer` (`mode: 'boolean'`) | 0/1 ↔ false/true |
+| `timestamptz` | `text` | ISO 8601 문자열 (`new Date().toISOString()`) |
+| `date` | `text` | `YYYY-MM-DD` 로컬 날짜 문자열 |
+
+### UNIQUE 위반 감지
+
+pg의 `23505`(unique_violation) 대신 SQLite는 `SQLITE_CONSTRAINT_UNIQUE` 에러 코드와
+`"UNIQUE constraint failed"` 메시지를 던진다. 공용 헬퍼 `isUniqueViolation`이 이 둘을
+판정하며, 슬러그 충돌 재시도(`assignUniqueSlug`) 등에서 사용한다.
+
+---
+
+## 3. 테이블 정의
+
+아래 SQL은 SQLite 방언 기준이다 (drizzle 마이그레이션 `drizzle/sqlite/0000_*.sql`가 권위).
+
+### 3.1 users (단일 관리자 1행 운용)
+
 ```sql
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    name VARCHAR(100),
-    avatar_url TEXT,
-    preferences JSONB DEFAULT '{}',        -- ★ 사용자 설정 (언어, 테마 등)
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    id             TEXT PRIMARY KEY,            -- randomUUID
+    email          TEXT NOT NULL UNIQUE,
+    name           TEXT,
+    avatar_url     TEXT,
+    email_verified TEXT,                        -- Auth.js 호환 컬럼 (미사용)
+    image          TEXT,                        -- Auth.js 호환 컬럼 (미사용)
+    preferences    TEXT,                        -- json: { language, theme, ... }
+    created_at     TEXT,                        -- ISO8601
+    updated_at     TEXT
 );
 ```
 
-> **중요**: `users.id`는 Supabase Auth의 `auth.uid()`와 동일해야 합니다.
-> OAuth 콜백(`callback/route.ts`)에서 `UserRepository.createWithAuthId(authId, ...)`를 통해
-> `auth.uid()`를 `id`로 명시 지정하여 생성합니다. 이는 `projects.user_id → users.id` FK 참조와
-> RLS 정책(`auth.uid() = id`)의 정합성을 보장합니다.
+> **단일 관리자 앵커**: 셀프호스트 단일 사용자 모델이므로 `users`에는 **관리자 1행**만
+> 존재한다. 이 행의 `id`는 Auth.js Credentials `authorize()`가 반환하는 관리자
+> 신원(`getAdminUserId()`, 기본 `00000000-0000-0000-0000-000000000001`,
+> `ADMIN_USER_ID`로 재정의 가능)과 반드시 일치해야 한다. 불일치 시 관리자가 프로젝트를
+> 만들 때 `projects.user_id → users.id` FK가 깨진다. 부팅 시 `seedAdminUser()`가 이 행을
+> 멱등 보장한다 (§4 참조). Auth는 무상태 JWT라 DB 어댑터/세션 테이블이 없다 —
+> 아키텍처: [docs/architecture/auth.md](./auth.md).
 
-**preferences 구조:**
-```json
-{
-  "language": "ko",
-  "theme": "light",
-  "defaultDeployPlatform": "railway",
-  "emailNotifications": true
-}
-```
+### 3.2 api_catalog (API 카탈로그)
 
-### 2.2 organizations (조직) - ★ 신규
-```sql
-CREATE TABLE organizations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(200) NOT NULL,
-    slug VARCHAR(100) UNIQUE NOT NULL,
-    plan VARCHAR(20) DEFAULT 'free',          -- free, pro, enterprise
-    settings JSONB DEFAULT '{}',              -- 조직별 설정
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_organizations_slug ON organizations(slug);
-```
-
-**settings 구조:**
-```json
-{
-  "maxProjects": 50,
-  "maxMembersCount": 5,
-  "allowedDeployPlatforms": ["railway", "github_pages"],
-  "defaultAiProvider": "anthropic"
-}
-```
-
-### 2.3 memberships (조직 멤버십) - ★ 신규
-```sql
-CREATE TABLE memberships (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    role VARCHAR(20) DEFAULT 'member',        -- owner, admin, member, viewer
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(user_id, organization_id)
-);
-
-CREATE INDEX idx_memberships_user ON memberships(user_id);
-CREATE INDEX idx_memberships_org ON memberships(organization_id);
-```
-
-### 2.4 api_catalog (API 카탈로그) - 수정
 ```sql
 CREATE TABLE api_catalog (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(200) NOT NULL,
-    description TEXT NOT NULL,
-    category VARCHAR(50) NOT NULL,
-    base_url VARCHAR(500) NOT NULL,
-    auth_type VARCHAR(20) NOT NULL DEFAULT 'none',
-    auth_config JSONB DEFAULT '{}',
-    rate_limit VARCHAR(100),
-    is_active BOOLEAN DEFAULT true,
-    icon_url VARCHAR(500),
-    docs_url VARCHAR(500),
-    endpoints JSONB NOT NULL DEFAULT '[]',
-    tags TEXT[] DEFAULT '{}',
-    -- ★ 확장성 컬럼
-    api_version VARCHAR(20),                  -- API 버전
-    deprecated_at TIMESTAMPTZ,                -- 폐기 일시
-    successor_id UUID REFERENCES api_catalog(id),  -- 후속 API
-    changelog JSONB DEFAULT '[]',             -- 변경 이력
-    cors_supported BOOLEAN DEFAULT true,      -- CORS 지원 여부
-    requires_proxy BOOLEAN DEFAULT false,     -- 프록시 필요 여부
-    credit_required TEXT,                     -- 필수 크레딧 표시 문구
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    id                     TEXT PRIMARY KEY,
+    name                   TEXT NOT NULL,
+    description            TEXT,
+    category               TEXT,
+    base_url               TEXT,
+    auth_type              TEXT DEFAULT 'none',
+    auth_config            TEXT,                -- json
+    rate_limit             TEXT,
+    changelog              TEXT,                -- json (변경 이력)
+    is_active              INTEGER DEFAULT 1,   -- boolean
+    icon_url               TEXT,
+    docs_url               TEXT,
+    endpoints              TEXT,                -- json (엔드포인트 배열)
+    tags                   TEXT,                -- json (string[])
+    api_version            TEXT,
+    deprecated_at          TEXT,
+    successor_id           TEXT,                -- 자기참조(FK 제약 없음, 앱이 무결성 관리)
+    cors_supported         INTEGER DEFAULT 1,   -- boolean
+    requires_proxy         INTEGER DEFAULT 0,   -- boolean
+    credit_required        INTEGER,
+    cache_ttl_seconds      INTEGER,
+    verification_status    TEXT DEFAULT 'unverified',  -- verified/degraded/broken/unverified
+    verified_at            TEXT,
+    last_verification_note TEXT,
+    created_at             TEXT,
+    updated_at             TEXT
 );
-
-CREATE INDEX idx_api_catalog_category ON api_catalog(category);
-CREATE INDEX idx_api_catalog_active ON api_catalog(is_active);
-CREATE INDEX idx_api_catalog_deprecated ON api_catalog(deprecated_at);
 ```
 
-### 2.5 projects (프로젝트) - 수정
+> `verification_status`는 카탈로그 헬스 검증 결과를 보관한다(working/degraded→verified,
+> broken→broken). AI 추천이 `broken`을 후보에서 제외하고 `verified`를 우선한다.
+> JSONB 매퍼(`parseEndpoints` 등)는 snake_case(`example_call`)/camelCase(`exampleCall`)를
+> 둘 다 처리한다.
+
+### 3.3 projects (프로젝트)
+
 ```sql
 CREATE TABLE projects (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    organization_id UUID REFERENCES organizations(id),  -- ★ 조직 소속 (선택)
-    name VARCHAR(200) NOT NULL,
-    context TEXT NOT NULL,
-    status VARCHAR(20) DEFAULT 'draft',
-    deploy_url VARCHAR(500),
-    deploy_platform VARCHAR(20),
-    repo_url VARCHAR(500),
-    preview_url VARCHAR(500),
-    -- ★ 확장성 컬럼
-    metadata JSONB DEFAULT '{}',              -- 유연한 메타데이터
-    current_version INTEGER DEFAULT 0,        -- 현재 활성 코드 버전
-    slug TEXT,                                -- 퍼블리시 슬러그 (서브도메인용)
-    suggested_slugs TEXT[],                   -- AI 제안 슬러그 목록
-    published_at TIMESTAMPTZ,                 -- 퍼블리시 일시 (NULL이면 미게시)
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL REFERENCES users(id),
+    organization_id TEXT,                       -- 기능 제거됨, 항상 null (매퍼 호환)
+    name            TEXT NOT NULL,
+    context         TEXT,
+    status          TEXT DEFAULT 'draft',
+    deploy_url      TEXT,
+    deploy_platform TEXT,
+    repo_url        TEXT,
+    preview_url     TEXT,
+    metadata        TEXT,                       -- json
+    current_version INTEGER DEFAULT 0,
+    slug            TEXT,                       -- 서브도메인 퍼블리시 슬러그
+    suggested_slugs TEXT,                       -- json (AI 제안 slug 목록)
+    published_at    TEXT,                       -- NULL이면 미게시
+    created_at      TEXT,
+    updated_at      TEXT
 );
-
-CREATE INDEX idx_projects_user ON projects(user_id);
-CREATE INDEX idx_projects_org ON projects(organization_id);
-CREATE INDEX idx_projects_status ON projects(status);
-CREATE INDEX idx_projects_slug ON projects(slug);
 ```
 
-**metadata 구조:**
+**metadata 구조 (예):**
 ```json
 {
   "tags": ["환율", "여행"],
-  "isPublic": false,
-  "viewCount": 142,
-  "lastDeployedAt": "2026-03-20T12:00:00Z",
-  "deployHistory": [
-    { "version": 1, "deployedAt": "...", "platform": "railway", "url": "..." }
-  ]
+  "qualityScore": 4.2,
+  "lastDeployedAt": "2026-06-20T12:00:00Z"
 }
 ```
 
-### 2.6 generated_codes (생성 코드) - 수정
+### 3.4 project_apis (프로젝트–API 연결)
+
+```sql
+CREATE TABLE project_apis (
+    id         TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id),
+    api_id     TEXT NOT NULL REFERENCES api_catalog(id),
+    config     TEXT,                            -- json
+    created_at TEXT,
+    UNIQUE(project_id, api_id)
+);
+```
+
+### 3.5 generated_codes (생성 코드 버전)
+
 ```sql
 CREATE TABLE generated_codes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    version INTEGER NOT NULL DEFAULT 1,
-    code_html TEXT,
-    code_css TEXT,
-    code_js TEXT,
-    framework VARCHAR(20) DEFAULT 'vanilla',
-    ai_prompt_used TEXT,
-    -- ★ 확장성 컬럼
-    ai_provider VARCHAR(30),                  -- anthropic (현재 유일하게 사용)
-    ai_model VARCHAR(50),                     -- claude-opus-4-7, claude-sonnet-4-6 등
-    generation_time_ms INTEGER,               -- 생성 소요 시간
-    token_usage JSONB DEFAULT '{}',           -- { input: N, output: N }
-    dependencies TEXT[] DEFAULT '{}',          -- ["chart.js@4.4", "leaflet@1.9"]
-    metadata JSONB DEFAULT '{}',              -- 품질 점수, 보안 검사 결과 등
-    created_at TIMESTAMPTZ DEFAULT NOW(),
+    id                 TEXT PRIMARY KEY,
+    project_id         TEXT NOT NULL REFERENCES projects(id),
+    version            INTEGER NOT NULL,
+    code_html          TEXT,
+    code_css           TEXT,
+    code_js            TEXT,
+    framework          TEXT DEFAULT 'vanilla',
+    ai_provider        TEXT,                    -- anthropic
+    ai_model           TEXT,                    -- claude-opus-4-7 등
+    ai_prompt_used     TEXT,
+    generation_time_ms INTEGER,
+    token_usage        TEXT,                    -- json: { input, output }
+    dependencies       TEXT,                    -- json (string[])
+    metadata           TEXT,                    -- json (품질 점수, 검사 결과 등)
+    created_at         TEXT,
     UNIQUE(project_id, version)
 );
-
-CREATE INDEX idx_codes_project ON generated_codes(project_id);
-CREATE INDEX idx_codes_provider ON generated_codes(ai_provider);
 ```
 
-**metadata 구조:**
-```json
-{
-  "qualityScore": 4.2,
-  "securityCheckPassed": true,
-  "hasResponsive": true,
-  "hasDarkMode": false,
-  "externalLibs": ["chart.js"],
-  "userFeedback": null,
-  "validationErrors": []
-}
-```
+### 3.6 user_api_keys (사용자 API 키 저장)
 
-### 2.7 user_api_keys (사용자 API 키 저장) - ★ 신규
 ```sql
 CREATE TABLE user_api_keys (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    api_id UUID NOT NULL REFERENCES api_catalog(id),
-    encrypted_key TEXT NOT NULL,               -- 암호화된 API 키
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    id            TEXT PRIMARY KEY,
+    user_id       TEXT NOT NULL REFERENCES users(id),
+    api_id        TEXT NOT NULL REFERENCES api_catalog(id),
+    encrypted_key TEXT NOT NULL,               -- ENCRYPTION_KEY로 암호화
+    is_verified   INTEGER DEFAULT 0,           -- boolean
+    verified_at   TEXT,
+    created_at    TEXT,
+    updated_at    TEXT,
     UNIQUE(user_id, api_id)
 );
-
-CREATE INDEX idx_user_api_keys_user ON user_api_keys(user_id);
 ```
 
-### 2.8 platform_events (도메인 이벤트 로그) - ★ 신규
+### 3.7 user_daily_limits (원자적 레이트리밋 카운터)
+
+```sql
+CREATE TABLE user_daily_limits (
+    user_id          TEXT NOT NULL REFERENCES users(id),
+    usage_date       TEXT NOT NULL,            -- YYYY-MM-DD (로컬 날짜)
+    generation_count INTEGER DEFAULT 0,
+    deploy_count     INTEGER DEFAULT 0,
+    PRIMARY KEY (user_id, usage_date)
+);
+```
+
+(원자적 test-and-set 동작은 §5 참조.)
+
+### 3.8 platform_events (도메인 이벤트 감사 로그)
+
 ```sql
 CREATE TABLE platform_events (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    type TEXT NOT NULL,                        -- PROJECT_CREATED, CODE_GENERATED 등
-    payload JSONB NOT NULL DEFAULT '{}',
-    user_id UUID REFERENCES users(id),
-    project_id UUID REFERENCES projects(id),
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    id         TEXT PRIMARY KEY,
+    type       TEXT NOT NULL,                  -- PROJECT_CREATED, CODE_GENERATED 등
+    payload    TEXT,                           -- json
+    user_id    TEXT REFERENCES users(id),
+    project_id TEXT REFERENCES projects(id),
+    created_at TEXT
 );
-
-CREATE INDEX idx_platform_events_type ON platform_events(type);
-CREATE INDEX idx_platform_events_user ON platform_events(user_id);
-CREATE INDEX idx_platform_events_created ON platform_events(created_at);
-
--- 90일 이상 된 로그 자동 삭제 (용량 관리)
--- Supabase Edge Function 또는 pg_cron으로 스케줄링
 ```
 
-### 2.9 feature_flags (피처 플래그) - ★ 신규
+> `EventBus` + `eventPersister`가 전체 도메인 이벤트를 이 테이블에 자동 기록한다.
+
+### 3.9 feature_flags (피처 플래그)
+
 ```sql
 CREATE TABLE feature_flags (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    flag_name VARCHAR(100) UNIQUE NOT NULL,
-    enabled BOOLEAN DEFAULT false,
+    id          TEXT PRIMARY KEY,
+    flag_name   TEXT NOT NULL UNIQUE,
+    enabled     INTEGER DEFAULT 0,             -- boolean
     description TEXT,
-    rules JSONB DEFAULT '{}',                  -- 조건부 활성화 규칙
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    rules       TEXT,                          -- json (현재 미사용 — 단일 사용자)
+    updated_at  TEXT
 );
 ```
 
-**rules 구조:**
-```json
-{
-  "enabledForUsers": ["user-uuid-1", "user-uuid-2"],
-  "enabledForPlans": ["pro"],
-  "enabledPercentage": 10,
-  "enabledAfter": "2026-04-01T00:00:00Z"
-}
-```
-
-**초기 플래그 시드 데이터:**
-```sql
-INSERT INTO feature_flags (flag_name, enabled, description) VALUES
-('enable_dark_mode', false, '다크 모드 UI'),
-('enable_code_viewer', true, '생성 코드 보기 기능'),
-('enable_extended_thinking', false, 'Claude Extended Thinking 강제 활성화'),
-('enable_template_system', true, '코드 생성 템플릿'),
-('enable_multi_language', false, '다국어 지원'),
-('enable_team_features', false, '팀/조직 기능'),
-('enable_advanced_prompt', false, '고급 프롬프트 옵션');
-```
+플래그 시드 데이터는 [`src/data/featureFlags.json`](../../src/data/featureFlags.json)에서
+부팅 시 멱등 삽입된다 (§4).
 
 ---
 
-## 3. RLS 정책 (확장)
+## 4. 마이그레이션 & 부팅 시드 (bootstrap)
 
-```sql
--- 기존 정책 유지 + 조직 기반 정책 추가
+### 마이그레이션
 
--- organizations: 멤버만 접근
-ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Members can read org" ON organizations
-    FOR SELECT USING (
-        id IN (SELECT organization_id FROM memberships WHERE user_id = auth.uid())
-    );
+drizzle-kit으로 생성한 SQLite 마이그레이션이 `drizzle/sqlite/`에 위치한다.
 
--- memberships: 같은 조직 멤버만 조회
-ALTER TABLE memberships ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Members can read memberships" ON memberships
-    FOR SELECT USING (
-        organization_id IN (
-            SELECT organization_id FROM memberships WHERE user_id = auth.uid()
-        )
-    );
-
--- projects: 본인 OR 같은 조직 멤버
-ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can CRUD own or org projects" ON projects
-    FOR ALL USING (
-        user_id = auth.uid()
-        OR organization_id IN (
-            SELECT organization_id FROM memberships WHERE user_id = auth.uid()
-        )
-    );
-
--- user_api_keys: 본인만
-ALTER TABLE user_api_keys ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users own api keys" ON user_api_keys
-    FOR ALL USING (user_id = auth.uid());
-
--- platform_events: 본인 이벤트만 조회
-ALTER TABLE platform_events ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can read own events" ON platform_events
-    FOR SELECT USING (user_id = auth.uid());
-
--- feature_flags: 모든 인증 사용자 읽기
-ALTER TABLE feature_flags ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Authenticated read flags" ON feature_flags
-    FOR SELECT USING (auth.role() = 'authenticated');
 ```
+drizzle/sqlite/
+├── 0000_flaky_roulette.sql   # 초기 스키마 (9개 테이블)
+└── meta/                      # drizzle 스냅샷·저널
+```
+
+> 확정 목록은 항상 `drizzle/sqlite/` 디렉터리를 참조한다. 스키마 변경은
+> `src/lib/db/sqlite/schema.ts` 수정 후 drizzle-kit으로 새 마이그레이션을 생성한다.
+
+### 부팅 부트스트랩
+
+`src/instrumentation.ts`(Next.js instrumentation hook)가 앱 부팅 시
+`bootstrapSqlite(db)`([`src/lib/db/sqlite/bootstrap.ts`](../../src/lib/db/sqlite/bootstrap.ts))를
+호출한다. 순서가 중요하며 **모든 단계는 멱등**(빈 테이블일 때만 삽입)이라
+재배포·재시작 시 안전하게 반복된다.
+
+1. **`runSqliteMigrations(db)`** — `drizzle/sqlite`의 마이그레이션을 적용해 테이블 생성
+2. **`seedAdminUser(db)`** — 단일 관리자 `users` 행 보장. `ADMIN_EMAIL` 미설정 시 no-op,
+   동일 `id` 행이 이미 있으면 덮어쓰지 않음
+3. **`seedCatalog(db)`** — `src/data/apiCatalog.json`(프로덕션 카탈로그 미러)을 빈
+   `api_catalog`에만 일괄 삽입. id·created_at은 프로덕션 값 그대로 유지(FK 일관성)
+4. **`seedFeatureFlags(db)`** — `src/data/featureFlags.json`을 빈 `feature_flags`에만 삽입
+
+> 시드 데이터(`src/data/{apiCatalog,featureFlags}.json`)는 프로덕션
+> `api_catalog`/`feature_flags`를 미러링한 생성 산출물이다 — 손편집 금지.
+> 신규(빈) 환경 시드 전용이며, 부팅 시 빈 테이블에만 일괄 삽입된다.
+
+### 연결 설정 (pragma)
+
+`createSqliteConnection()`([`src/lib/db/sqlite/connection.ts`](../../src/lib/db/sqlite/connection.ts))이
+다음 pragma를 적용한다:
+
+| pragma | 값 | 목적 |
+|--------|----|----|
+| `foreign_keys` | `ON` | FK 제약 강제 |
+| `busy_timeout` | `5000` | 쓰기 잠금 대기(ms) |
+| `journal_mode` | `WAL` | 읽기/쓰기 동시성 (디스크 DB 전용; `:memory:`엔 미적용) |
+| `synchronous` | `NORMAL` | 성능/내구성 균형 |
+
+테스트는 `:memory:` 경로를 주입해 격리된 인메모리 DB로 검증한다.
 
 ---
 
-## 4. 마이그레이션 전략
+## 5. 원자적 레이트리밋 (단일 writer test-and-set)
+
+generate/deploy 일일 한도는 `user_daily_limits`에 대한 **동기 트랜잭션**으로 원자적으로
+강제된다 ([`src/repositories/sqlite/SqliteRateLimitRepository.ts`](../../src/repositories/sqlite/SqliteRateLimitRepository.ts)).
+PG의 원자적 함수(`try_increment_daily_generation`, `decrement_daily_generation`,
+`try_increment_daily_deploy`, `decrement_daily_deploy`)를 SQLite로 재현한 것이다.
+
+better-sqlite3는 동기 API이고 `db.transaction(fn)`은 `BEGIN`(단일 writer)으로 감싼다.
+SQLite는 한 시점에 writer가 1개뿐이므로 다음 시퀀스가 단일 트랜잭션 안에서 원자적으로
+test-and-set 된다:
 
 ```
-supabase/migrations/
-├── 001_initial_schema.sql             # 초기 스키마 (users, api_catalog, projects 등)
-├── 002_slug.sql                       # slug 컬럼
-├── 003_helpers.sql                    # 헬퍼 함수
-├── 004_fix_memberships_rls.sql        # memberships RLS 수정
-├── 005_api_key_env_vars.sql           # API 키 환경변수
-├── 006_user_api_keys.sql              # user_api_keys 테이블
-├── 007_atomic_rate_limit.sql          # 원자적 일일 생성 레이트리밋 (decrement_daily_generation 포함)
-├── 008_platform_events.sql            # platform_events 테이블
-├── 009_gallery.sql                    # 갤러리
-├── 010_catalog_verification_fields.sql # 카탈로그 검증 필드
-├── 016_suggested_slugs.sql            # AI 제안 slug 컬럼
-├── 017_deploy_rate_limit.sql          # 배포 레이트리밋
-├── 018_performance_indexes.sql        # 성능 인덱스
-├── 019_admin_stats_indexes.sql        # 관리자 통계 인덱스
-├── 020_api_cache_ttl.sql              # API 캐시 TTL
-└── 021_deploy_rate_limit_decrement.sql # 배포 카운터 환불 (decrement_daily_deploy)
-
-supabase/
-└── seed.sql                     # API 카탈로그 + 피처 플래그 초기 데이터
+BEGIN
+  INSERT INTO user_daily_limits (user_id, usage_date, generation_count)
+    VALUES (?, ?, 0) ON CONFLICT DO NOTHING;        -- 오늘 행 보장
+  UPDATE user_daily_limits SET generation_count = generation_count + 1
+    WHERE user_id = ? AND usage_date = ? AND generation_count < ?  -- 한도
+    RETURNING generation_count;                      -- 0행이면 한도 초과
+COMMIT
 ```
 
-> 위 목록은 실제 `supabase/migrations/` 기준이다 (011–015 번호는 존재하지 않음). 마이그레이션은 통합·재번호될 수 있으므로 확정 목록은 항상 `supabase/migrations/` 디렉터리를 참조한다.
+- **증가**: `RETURNING`이 행을 반환하면 허용(`true`), 0행이면 한도 도달(`false`)
+- **환불**(실패 시): `SET count = MAX(0, count - 1)` (배포·생성 실패 보상)
+- **`usage_date`**: PG `CURRENT_DATE`에 대응하는 로컬 타임존 `YYYY-MM-DD` 문자열
+
+> 단일 인스턴스 임베디드 전제라 외부 카운터/락이 불필요하다. 멀티 인스턴스로 전환 시
+> Redis 등 외부 원자적 저장소가 필요하다.
 
 ---
 
-## 5. 스키마 확장 가이드
+## 6. 데이터 접근 계층
 
-### 새 기능 추가 시 DB 변경 원칙
+- **인터페이스**: [`src/repositories/interfaces/`](../../src/repositories/interfaces/)
+  (IRepository seam — Provider 추상화는 이 seam만 유지)
+- **구현**: [`src/repositories/sqlite/`](../../src/repositories/sqlite/) 7종이 **유일** 구현
+  (User, Project, Code, Catalog, UserApiKey, RateLimit, Event)
+- **팩토리**: `getDbProvider()`는 상수 `'sqlite'`를 반환한다. `DB_PROVIDER` 환경변수 분기는
+  제거됨 (단일 경로).
+- **소유권 검증**: RLS가 없으므로 레포/서비스 계층의 앱 레벨 `assertOwner` 검증으로
+  `user_id` 일치를 강제한다.
 
-1. **기존 테이블 수정보다 JSONB 메타데이터 활용 우선**
-   - 자주 조회되지 않는 데이터 → metadata JSONB에 추가
-   - 자주 필터/정렬에 사용되는 데이터 → 정규 컬럼 추가
+---
 
-2. **마이그레이션은 항상 추가만 (비파괴적)**
-   - ALTER TABLE ADD COLUMN (NULL 허용 또는 DEFAULT 값)
-   - DROP COLUMN은 최소 1 스프린트 유예 후 실행
+## 7. 스키마 확장 가이드
 
-3. **RLS 정책은 기능 추가와 함께**
-   - 새 테이블 생성 시 RLS 정책 필수
-   - 조직 기반 접근 패턴 유지
+1. **JSONB(=text json) 메타데이터 활용 우선** — 자주 필터/정렬하지 않는 데이터는
+   `metadata` json 컬럼에 추가, 자주 조회하는 데이터만 정규 컬럼 추가
+2. **마이그레이션은 비파괴적(추가 위주)** — `ADD COLUMN`은 NULL 허용 또는 DEFAULT,
+   `DROP COLUMN`은 유예 후 실행
+3. **스키마 수정 절차** — `src/lib/db/sqlite/schema.ts` 수정 → drizzle-kit으로 새
+   마이그레이션 생성 → 부팅 시 자동 적용(멱등)
+4. **타입 매핑 준수** — §2의 pg→sqlite 매핑을 따르고, json/배열/타임스탬프 기본값은
+   앱(`$defaultFn`)에서 채운다

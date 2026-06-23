@@ -1,5 +1,3 @@
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createProjectService } from '@/services/factory';
 import { AuthRequiredError, handleApiError, jsonResponse } from '@/lib/utils/errors';
@@ -10,8 +8,7 @@ export async function GET() {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-    const service = createProjectService(supabase);
+    const service = createProjectService();
     const projects = await service.getByUserId(user.id);
 
     return jsonResponse({ success: true, data: projects });
@@ -28,8 +25,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validated = createProjectSchema.parse(body);
 
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-    const service = createProjectService(supabase);
+    const service = createProjectService();
     const project = await service.create(user.id, validated);
 
     return jsonResponse({ success: true, data: project }, { status: 201 });

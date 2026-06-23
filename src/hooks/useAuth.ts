@@ -1,89 +1,12 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession, signOut as authJsSignOut } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
 import { useAuthStore } from '@/stores/authStore';
 import type { User } from '@/types/user';
 
-// ── Supabase path ────────────────────────────────────────────────────────────
-
-function mapSupabaseUser(supabaseUser: {
-  id: string;
-  email?: string;
-  user_metadata?: Record<string, unknown>;
-}): User {
-  return {
-    id: supabaseUser.id,
-    email: supabaseUser.email ?? '',
-    name:
-      (supabaseUser.user_metadata?.full_name as string) ??
-      (supabaseUser.user_metadata?.name as string) ??
-      null,
-    avatarUrl: (supabaseUser.user_metadata?.avatar_url as string) ?? null,
-    preferences: {},
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-}
-
-function useSupabaseAuth() {
-  const router = useRouter();
-  const { user, isLoading, isAuthenticated, setUser } = useAuthStore();
-  const supabase = useMemo(
-    () => process.env.NEXT_PUBLIC_AUTH_PROVIDER !== 'authjs' ? createClient() : null,
-    []
-  );
-
-  useEffect(() => {
-    if (!supabase) return; // not in supabase mode
-
-    // Get initial session. rejection 핸들러가 없으면 스토리지/클라이언트 실패 시 unhandled
-    // rejection이 발생하고 인증 상태가 미결로 남는다 → catch로 null 처리하여 항상 최종화.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(mapSupabaseUser(session.user));
-      } else {
-        setUser(null);
-      }
-    }).catch(() => {
-      setUser(null);
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser(mapSupabaseUser(session.user));
-      } else {
-        setUser(null);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [supabase, setUser]);
-
-  const signOut = async () => {
-    if (supabase) await supabase.auth.signOut();
-    setUser(null);
-    router.push('/');
-  };
-
-  return {
-    user,
-    isLoading,
-    isAuthenticated,
-    signOut,
-  };
-}
-
-// ── Auth.js path ─────────────────────────────────────────────────────────────
-
-function mapAuthJsUser(sessionUser: {
+function mapSessionUser(sessionUser: {
   id: string;
   email?: string | null;
   name?: string | null;
@@ -100,27 +23,35 @@ function mapAuthJsUser(sessionUser: {
   };
 }
 
-function useAuthJsAuth(): ReturnType<typeof useSupabaseAuth> {
+/**
+ * 인증 상태 훅 — Auth.js(JWT, local) 세션 단일 경로.
+ * next-auth 세션을 authStore에 동기화(컴포넌트는 authStore에서 user/isAuthenticated를 읽는다)하고
+ * signOut을 제공한다. `<SessionProvider>`(app/layout.tsx)가 마운트되어 있어야 세션이 채워진다.
+ */
+export function useAuth() {
   const router = useRouter();
+  const { user, isLoading, isAuthenticated, setUser } = useAuthStore();
   const sessionResult = useSession();
   const session = sessionResult?.data ?? null;
   const status = sessionResult?.status ?? 'unauthenticated';
 
-  const isEnabled = process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'authjs';
-
-  const isLoading = isEnabled ? status === 'loading' : false;
-  const isAuthenticated = isEnabled ? status === 'authenticated' && session?.user?.id != null : false;
-  const user =
-    isEnabled && isAuthenticated && session?.user?.id != null
-      ? mapAuthJsUser(session.user as { id: string; email?: string | null; name?: string | null; image?: string | null })
-      : null;
+  useEffect(() => {
+    if (status === 'loading') return;
+    if (status === 'authenticated' && session?.user?.id != null) {
+      setUser(
+        mapSessionUser(
+          session.user as { id: string; email?: string | null; name?: string | null; image?: string | null },
+        ),
+      );
+    } else {
+      setUser(null);
+    }
+  }, [status, session, setUser]);
 
   const signOut = async () => {
-    if (isEnabled) {
-      await authJsSignOut({ callbackUrl: '/' });
-    } else {
-      router.push('/');
-    }
+    await authJsSignOut({ callbackUrl: '/' });
+    setUser(null);
+    router.push('/');
   };
 
   return {
@@ -129,14 +60,4 @@ function useAuthJsAuth(): ReturnType<typeof useSupabaseAuth> {
     isAuthenticated,
     signOut,
   };
-}
-
-// ── Unified export ────────────────────────────────────────────────────────────
-
-export function useAuth() {
-  const supabaseResult = useSupabaseAuth();
-  const authJsResult = useAuthJsAuth();
-  return process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'authjs'
-    ? authJsResult
-    : supabaseResult;
 }

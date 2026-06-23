@@ -17,14 +17,6 @@ vi.mock('@/repositories/factory', () => ({
   createUserApiKeyRepository: vi.fn(),
 }));
 
-vi.mock('@/lib/config/providers', () => ({
-  getDbProvider: vi.fn().mockReturnValue('supabase'),
-}));
-
-vi.mock('@/lib/supabase/server', () => ({
-  createServiceClient: vi.fn().mockResolvedValue({}),
-}));
-
 vi.mock('@/lib/encryption', () => ({
   decryptApiKey: vi.fn(),
 }));

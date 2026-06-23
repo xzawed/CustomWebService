@@ -44,9 +44,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         />
       </head>
       <body className="noise min-h-screen antialiased">
-        {process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'authjs'
-          ? <SessionProvider>{app}</SessionProvider>
-          : app}
+        {/* Auth.js(local) 세션을 클라이언트에 제공 — useAuth/useSession이 이를 소비한다. */}
+        <SessionProvider>{app}</SessionProvider>
       </body>
     </html>
   );

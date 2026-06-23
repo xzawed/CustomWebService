@@ -16,14 +16,6 @@ vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock('@/lib/config/providers', () => ({
-  getDbProvider: vi.fn().mockReturnValue('supabase'),
-}));
-
-vi.mock('@/lib/supabase/server', () => ({
-  createServiceClient: vi.fn().mockResolvedValue({}),
-}));
-
 vi.mock('@/services/factory', () => ({
   createRateLimitService: vi.fn().mockReturnValue({
     checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),

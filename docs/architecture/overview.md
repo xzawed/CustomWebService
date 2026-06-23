@@ -1,7 +1,7 @@
 # 시스템 아키텍처
 
-> **최종 업데이트:** 2026-06-22  
-> **구현 상태:** 운영 중 (2026-06-22 기준 Vitest 목록 1,886개(145파일), Playwright 목록 33개)
+> **최종 업데이트:** 2026-06-23  
+> **구현 상태:** 운영 중 (SQLite + Auth.js local 컷오버 완료, P8.2). Vitest 목록 1,886개(145파일), Playwright 목록 33개 (수치는 SQLite 마이그레이션 안정화 후 재확인 필요)
 
 ---
 
@@ -67,13 +67,22 @@
 │ ProjectRepo  │  │ │ IAiProvider  │ │  │ │IDeployProv.  │ │
 │ CatalogRepo  │  │ ├──────────────┤ │  │ ├──────────────┤ │
 │ CodeRepo     │  │ │ClaudeProvider│ │  │ │RailwayDeploy │ │
-│ OrgRepo      │  │ │(확장 가능)   │ │  │ │GHPagesDeploy │ │
-│              │  │ │             │ │  │ │(확장 가능)    │ │
-│  ↓           │  │ └──────────────┘ │  │ └──────────────┘ │
-│ Supabase     │  │                  │  │                  │
-│ Client       │  │ + ProviderFactory│  │ + ProviderFactory│
-└──────────────┘  └──────────────────┘  └──────────────────┘
+│ EventRepo    │  │ │(확장 가능)   │ │  │ │GHPagesDeploy │ │
+│ ApiKeyRepo   │  │ │             │ │  │ │(확장 가능)    │ │
+│ RateLimitRepo│  │ └──────────────┘ │  │ └──────────────┘ │
+│  ↓           │  │                  │  │                  │
+│ SQLite       │  │ + ProviderFactory│  │ + ProviderFactory│
+│ (better-     │  └──────────────────┘  └──────────────────┘
+│  sqlite3)    │
+└──────────────┘
 ```
+
+> **데이터 계층 (2026-06-23 컷오버):** 임베디드 **SQLite**(`better-sqlite3` + `drizzle-orm/better-sqlite3`, WAL 모드).
+> Railway 영속 볼륨(`/data/app.db`)에 단일 파일로 저장하며 **단일 인스턴스** 전제. Supabase·PostgreSQL·RLS는 제거됨.
+> Repository 구현체는 `src/repositories/sqlite/*` 7종이 유일하며, 인터페이스(`src/repositories/interfaces`) seam만 추상화로 남는다.
+> 타입 매핑(pg→sqlite): uuid→text, jsonb→text(JSON, drizzle 자동 역직렬화), boolean→integer, timestamptz→ISO text.
+>
+> **부팅 시퀀스:** `src/instrumentation.ts` → `bootstrapSqlite(getSqliteDb())` 가 ① 마이그레이션(`drizzle/sqlite`) ② 단일 관리자 시드(`seedAdmin`) ③ 카탈로그/플래그 시드(`src/data/{apiCatalog,featureFlags}.json`)를 **모두 멱등**으로 실행한다. 컷오버 배경: [decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md)
 
 ---
 
@@ -96,8 +105,7 @@
 src/
 ├── app/                          # Next.js App Router (Presentation + API)
 │   ├── (auth)/                   # 인증 페이지 그룹
-│   │   ├── login/page.tsx        # OAuth 로그인 UI (Google, GitHub)
-│   │   └── callback/route.ts     # 서버사이드 OAuth 콜백 핸들러 (PKCE + 사용자 자동 생성)
+│   │   └── login/page.tsx        # 관리자 로그인 UI (Auth.js Credentials — 이메일/비밀번호)
 │   ├── (main)/                   # 메인 페이지 그룹
 │   │   ├── catalog/page.tsx
 │   │   ├── builder/page.tsx
@@ -216,19 +224,17 @@ src/
 │   # — 둘 다 services/ 의 서비스 클래스가 아님
 │
 ├── repositories/                 # Repository Layer (데이터 접근)
-│   ├── interfaces/               # 9개 Repository 인터페이스 (IProjectRepository 등)
-│   ├── base/
-│   │   └── BaseRepository.ts     # 공통 CRUD 추상 클래스
-│   ├── drizzle/                  # Drizzle ORM 구현체 (DB_PROVIDER=postgres 시 사용)
-│   ├── utils/                    # 공통 유틸 (toSnake, buildConditions, parseEndpoints, CATEGORY 상수)
-│   ├── factory.ts                # createProjectRepository, createCodeRepository 등 팩토리 함수
-│   ├── userRepository.ts
-│   ├── projectRepository.ts
-│   ├── catalogRepository.ts
-│   ├── codeRepository.ts
-│   ├── eventRepository.ts
-│   ├── galleryRepository.ts
-│   └── organizationRepository.ts
+│   ├── interfaces/               # Repository 인터페이스 (IBase + I{User,Project,Catalog,Code,Event,UserApiKey,RateLimit}Repository)
+│   ├── sqlite/                   # ✅ SQLite 구현체 7종 (유일 구현 — better-sqlite3 동기 API)
+│   │   ├── SqliteUserRepository.ts
+│   │   ├── SqliteProjectRepository.ts
+│   │   ├── SqliteCatalogRepository.ts
+│   │   ├── SqliteCodeRepository.ts
+│   │   ├── SqliteEventRepository.ts
+│   │   ├── SqliteUserApiKeyRepository.ts
+│   │   └── SqliteRateLimitRepository.ts  # 원자적 레이트리밋 (동기 트랜잭션 + UPDATE…WHERE count<limit RETURNING)
+│   ├── utils/                    # 공통 유틸 (parseEndpoints, CATEGORY 상수 등)
+│   └── factory.ts                # createProjectRepository, createCodeRepository 등 팩토리 함수
 │
 ├── providers/                    # Provider Layer (외부 서비스)
 │   ├── ai/
@@ -242,10 +248,20 @@ src/
 │       └── DeployProviderFactory.ts
 │
 ├── lib/                          # 유틸리티 & 인프라
-│   ├── supabase/
-│   │   ├── client.ts             # 브라우저 클라이언트
-│   │   ├── server.ts             # 서버 클라이언트
-│   │   └── middleware.ts
+│   ├── db/                       # SQLite — 유일 DB 경로
+│   │   ├── errors.ts             # isUniqueViolation 등 (SQLITE_CONSTRAINT_UNIQUE / "UNIQUE constraint failed")
+│   │   └── sqlite/
+│   │       ├── connection.ts     # getSqliteDb() — better-sqlite3 핸들 (WAL, SQLITE_PATH 기본 /data/app.db)
+│   │       ├── schema.ts         # drizzle-orm/better-sqlite3 스키마 (테이블 9개)
+│   │       ├── bootstrap.ts      # bootstrapSqlite() — 마이그레이션(drizzle/sqlite) + seedAdmin + seedCatalog (멱등)
+│   │       ├── seedAdmin.ts      # 단일 관리자 멱등 시드 (ADMIN_EMAIL / ADMIN_USER_ID)
+│   │       └── seedCatalog.ts    # 카탈로그/플래그 시드 (src/data/{apiCatalog,featureFlags}.json)
+│   ├── auth/                     # Auth.js v5 local (Credentials + JWT 무상태, DB 어댑터 없음)
+│   │   ├── local-auth-config.ts  # Auth.js providers/callbacks 설정
+│   │   ├── authorize.ts          # Credentials authorize — ADMIN_EMAIL + bcrypt(ADMIN_PASSWORD_HASH) 검증
+│   │   ├── adminCredentials.ts   # 관리자 자격증명 로딩
+│   │   ├── local-auth.ts         # Node 런타임 핸들러 / getAuthUser
+│   │   └── local-auth-edge.ts    # Edge 런타임용 경량 설정 (middleware)
 │   ├── ai/
 │   │   ├── generationPipeline.ts  # 오케스트레이터 — generate/regenerate 공통
 │   │   ├── stageRunner.ts         # runStage1 / runStage2Function / runStage3
@@ -274,7 +290,7 @@ src/
 │   │   └── railwayService.ts      # ✅ Railway GraphQL API 연동
 │   ├── config/
 │   │   ├── features.ts           # 설정 기반 비즈니스 규칙
-│   │   ├── providers.ts          # DB/Auth Provider 선택
+│   │   ├── providers.ts          # getDbProvider()→'sqlite' / getAuthProvider()→'local' 상수 (env 분기 제거됨, seam만 유지)
 │   │   ├── qc.ts                 # QC 관련 설정
 │   │   └── rateLimit.ts          # Rate limit 설정
 │   ├── events/
@@ -472,14 +488,14 @@ export const eventBus = new EventBus();
 
 // src/lib/events/eventPersister.ts — 기본 구독자: 모든 이벤트 자동 DB 기록
 export function registerEventPersister(): void { ... }
-// generate/route.ts, regenerate/route.ts, callback/route.ts에서 서버 시작 시 1회 호출 (중복 등록 방지)
+// 부팅(instrumentation.ts) 및 generate/regenerate 라우트에서 서버 시작 시 1회 호출 (중복 등록 방지)
 ```
 
 **발행 지점 (현재 운영 중):**
 
 | 이벤트 | 발행 위치 |
 |--------|----------|
-| `USER_SIGNED_UP` | `callback/route.ts` — 신규 사용자 DB 삽입 성공 시 |
+| `USER_SIGNED_UP` | `seedAdmin` — 부팅 시 단일 관리자 최초 시드 시 (멱등) |
 | `PROJECT_CREATED` / `PROJECT_DELETED` / `PROJECT_UNPUBLISHED` | `projectService.ts` |
 | `CODE_GENERATED` | `generationSaver.ts` |
 | `CODE_GENERATION_FAILED` | `generationPipeline.ts` (handlePipelineFailure) |
@@ -582,35 +598,35 @@ export function getLimits(plan: string = 'free'): FeatureLimits {
     └── eventBus.emit('CODE_GENERATED', {...}) → 이벤트 발행
     │
     ▼
-[Repository Layer] 각 Repository가 Supabase 클라이언트로 DB 접근
+[Repository Layer] 각 Repository가 SQLite(better-sqlite3, 동기 API)로 DB 접근
     │
     ▼
 [Provider Layer] AiProviderFactory → ClaudeProvider → Claude API (Anthropic) 호출
 ```
 
-### OAuth 인증 흐름
+### 인증 흐름 (Auth.js v5 Credentials + JWT)
 
 ```
-[사용자: Google/GitHub 로그인 클릭]
+[사용자: 이메일/비밀번호로 로그인]
     │
-    ▼ signInWithOAuth({ redirectTo: /callback })
-[Supabase Auth] → Google/GitHub OAuth → 인증 완료
+    ▼ signIn('credentials', { email, password })
+[Auth.js Credentials provider] (local-auth-config.ts → authorize.ts)
+    ├── email === ADMIN_EMAIL 확인
+    ├── bcrypt.compare(password, ADMIN_PASSWORD_HASH) 검증
+    └── 성공 시 단일 관리자 사용자({ id: ADMIN_USER_ID }) 반환
     │
-    ▼ /callback?code=xxx
-[API Layer] callback/route.ts (서버사이드 Route Handler)
-    ├── exchangeCodeForSession(code) → PKCE 코드 교환 (서버 쿠키 접근)
-    ├── getUser() → 인증된 사용자 정보
-    └── UserRepository.createWithAuthId() → users 테이블 레코드 생성 (첫 로그인 시)
-        └── id = auth.uid() (Supabase Auth ID와 동일하게 설정)
+    ▼ JWT 발급 (AUTH_SECRET 서명, DB 어댑터 없음 — 무상태)
+[세션 쿠키] HttpOnly JWT
     │
     ▼ redirect /dashboard
-[Middleware] updateSession()
-    └── 인증 쿠키 갱신 → 보호 경로 접근 허용
+[보호 경로] getAuthUser() → JWT 디코드 → 단일 관리자 신원
 ```
 
-> **핵심**: OAuth 콜백은 반드시 서버사이드 Route Handler에서 처리해야 합니다.
-> 클라이언트 컴포넌트에서는 PKCE code verifier 쿠키에 접근할 수 없어 세션 교환이 실패합니다.
-> 첫 로그인 시 `auth.uid()`를 `users.id`로 사용하여 FK 정합성을 보장합니다.
+> **핵심**: 셀프호스트 **단일 관리자** 모델이다. OAuth(Google/GitHub)·Supabase Auth·DB 세션 어댑터는 제거됨.
+> 관리자 자격증명은 부팅 시 `seedAdmin`이 `users` 테이블에 멱등 삽입하며,
+> 비밀번호는 `ADMIN_PASSWORD_HASH`(`pnpm admin:hash`로 생성한 bcrypt 해시)로만 검증한다.
+> 세션은 `AUTH_SECRET`으로 서명한 JWT라 DB 조회 없이 무상태로 동작한다 (`AUTH_TRUST_HOST=true` — 프록시 뒤 운영).
+> 상세: [auth.md](auth.md)
 
 ---
 
@@ -620,10 +636,11 @@ export function getLimits(plan: string = 'free'): FeatureLimits {
 |-------------|------------------|----------|
 | 새 AI 제공자 추가 (OpenAI, Ollama) | Provider만 | 새 클래스 1개 + Factory 등록 |
 | 새 배포 플랫폼 추가 (Vercel) | Provider만 | 새 클래스 1개 + Factory 등록 |
-| 새 API 카테고리 추가 | DB 시드 데이터만 | SQL INSERT |
-| 유료 플랜 도입 | Config + DB | features.ts 수정 + organizations 테이블 |
-| 팀 협업 기능 | Service + Repository + UI | 중간 규모 개발 |
+| 새 API 카테고리 추가 | 카탈로그 시드 데이터만 | `src/data/apiCatalog.json` 항목 추가 (부팅 시 멱등 시드) |
 | 다국어 지원 | i18n 파일 + UI | 번역 파일 추가 |
 | 새 빌더 스텝 추가 | StepRegistry + 새 컴포넌트 | 스텝 1개 추가 |
 | 웹훅 알림 | EventBus 구독자 + DB | 이벤트 핸들러 추가 |
 | 모바일 앱 | API 레이어 재사용 | 별도 앱, API 공유 |
+
+> **참고:** 멀티 테넌시(organizations)·팀 협업·갤러리·좋아요 기능은 **제거됨** — 셀프호스트 단일 관리자 모델이다.
+> `users`/`projects` 등 일부 테이블에 `organization_*` 컬럼이 스키마상 잔존하나 항상 `null`이며 어떤 기능도 이를 사용하지 않는다.

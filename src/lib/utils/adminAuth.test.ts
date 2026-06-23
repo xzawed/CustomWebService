@@ -7,12 +7,6 @@ vi.mock('@/lib/utils/logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
-// errors.ts → failover.ts → connection.ts 체인 mock
-vi.mock('@/lib/db/failover', () => ({
-  isDbConnectionError: vi.fn().mockReturnValue(false),
-  reportFailure: vi.fn(),
-}));
-
 // i18n mock
 vi.mock('@/lib/i18n', () => ({
   t: (key: string) => key,

@@ -1,8 +1,7 @@
-// AUTH_PROVIDER=local 전용 — Auth.js v5 Credentials + JWT 무상태 세션 (DB 어댑터 없음).
+// Auth.js v5 Credentials + JWT 무상태 세션 (DB 어댑터 없음) — 유일한 인증 스택.
 //
-// authjs-config(OAuth+DrizzleAdapter)와 달리 module-load 시 getDb()를 호출하지 않으므로
-// Node 전용 DB 그래프를 끌어오지 않는다. 그래도 getAuthUser/미들웨어에서 동적 import로
-// 로드해 정적 체인을 끊는다(일관성·안전).
+// module-load 시 DB 연결을 만들지 않지만(scrypt만 사용), getAuthUser/미들웨어에서 동적 import로
+// 로드해 Node 전용 그래프가 정적 Edge 번들로 유입되지 않게 한다(일관성·안전).
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { verifyAdminCredentials } from '@/lib/auth/adminCredentials';

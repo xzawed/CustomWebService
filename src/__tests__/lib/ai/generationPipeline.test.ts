@@ -41,9 +41,6 @@ vi.mock('@/lib/events/eventBus', () => ({
 vi.mock('@/lib/config/features', () => ({
   getLimits: vi.fn(() => ({ maxCodeVersionsPerProject: 5 })),
 }));
-vi.mock('@/lib/supabase/server', () => ({
-  createServiceClient: vi.fn(() => Promise.resolve({})),
-}));
 vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));

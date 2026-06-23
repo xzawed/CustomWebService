@@ -1,78 +1,65 @@
 # 인증/인가 아키텍처
 
-> **최종 업데이트:** 2026-05-22  
-> **기본 Provider:** Supabase Auth (Google, GitHub OAuth)
+> **최종 업데이트:** 2026-06-23 (SQLite 컷오버 + Supabase/OAuth 제거)
+> **인증:** Auth.js v5 (NextAuth) — Credentials 단일 관리자 + JWT 무상태 세션. 셀프호스트 단일 사용자.
+
+> 과거의 Supabase Auth / OAuth(Google·GitHub) / Auth.js OAuth(`authjs`) 경로는 [SQLite 컷오버 ADR](../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md)로 제거됨. 본 문서는 현행 `local` 스택만 기술한다.
 
 ---
 
-## 1. OAuth 인증 흐름
+## 1. 로그인 흐름 (Credentials + JWT)
 
 ```
-[사용자: Google/GitHub 로그인 클릭]
+[/login] 이메일/비밀번호 폼 (Credentials)
     │
-    ▼ signInWithOAuth({ redirectTo: /callback })
-[Supabase Auth] → Google/GitHub OAuth → 인증 완료
+    ▼ signIn('credentials', { email, password, redirect: false })   (next-auth/react)
+[/api/auth/[...nextauth]] → local-auth-config.handlers
     │
-    ▼ /callback?code=xxx  (origin 정규화: resolveRedirectOrigin() 적용)
-[callback/route.ts] (서버사이드 Route Handler)
-    ├── exchangeCodeForSession(code) → PKCE 코드 교환 (서버 쿠키 접근)
-    ├── supabase.auth.getUser() → 인증된 사용자 정보 직접 조회
-    └── 첫 로그인 시: service role client로 users 테이블에 직접 INSERT
-        └── id = authUser.id (Supabase Auth ID와 동일하게 설정)
+    ▼ authorize(): verifyAdminCredentials(email, password)          (scrypt, timing-safe)
+    │   - ADMIN_EMAIL / ADMIN_PASSWORD_HASH (env) 와 대조
+    │   - 일치 시 단일 관리자 사용자({ id: ADMIN_USER_ID, email, name }) 반환
+    ▼ JWT 발급 → 쿠키(JWE) 설정 (무상태, DB 어댑터 없음)
     │
-    ▼ redirect origin + /dashboard  (safeRedirect()로 허용 경로 검증)
-[Middleware] updateSession()
-    └── 인증 쿠키 갱신 → 보호 경로 접근 허용
+    ▼ window.location.assign(redirect ?? '/dashboard')
+[Middleware] enforceAuthGate() → 보호 경로에서 local-auth-edge auth()로 JWT 검증
 ```
 
-> **핵심**: OAuth 콜백은 반드시 서버사이드 Route Handler에서 처리해야 합니다.
-> 클라이언트 컴포넌트에서는 PKCE code verifier 쿠키에 접근할 수 없어 세션 교환이 실패합니다.
-> 첫 로그인 시 `authUser.id`를 `users.id`로 사용하여 FK 정합성을 보장합니다.
+- **단일 관리자**: 비밀번호는 `scrypt` 해시(`ADMIN_PASSWORD_HASH`)로 보관. `pnpm admin:hash '<비번>'`로 생성.
+- **무상태 JWT**: Auth.js v5 기본(어댑터 없음). 세션 DB 테이블 없음 → 즉시 무효화 불가, 짧은 TTL/재로그인으로 완화(단일 사용자라 위험 낮음).
+- **OAuth 콜백 없음**: `(auth)/callback` 라우트는 제거됨. Credentials는 콜백 왕복이 없다.
 
 ---
 
-## 2. Auth Provider 추상화
+## 2. Edge-safe 분할 설정
 
-### 환경변수
+미들웨어는 Edge 런타임에서 실행되므로 `node:crypto`(scrypt) 의존을 끌어오면 안 된다. 설정을 3파일로 분할한다:
 
-| 변수 | 값 | 필수 조건 | 설명 |
-|------|----|----------|------|
-| `AUTH_PROVIDER` | `supabase` (기본) \| `authjs` | 항상 | Auth 구현체 선택 |
-| `NEXT_PUBLIC_AUTH_PROVIDER` | `supabase` (기본) \| `authjs` | 항상 | 클라이언트 컴포넌트용 빌드 타임 상수 |
-| `AUTH_SECRET` | 임의 시크릿 | `AUTH_PROVIDER=authjs` 시 필수 | NextAuth 세션 서명 키 |
-| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth 자격증명 | `AUTH_PROVIDER=authjs` 시 필수 | |
-| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | GitHub OAuth 자격증명 | `AUTH_PROVIDER=authjs` 시 필수 | |
+| 파일 | 런타임 | 역할 |
+|------|--------|------|
+| `lib/auth/local-auth-base.ts` | 공유(edge-safe) | JWT/세션 콜백·세션 전략 (node:crypto 미의존) |
+| `lib/auth/local-auth-config.ts` | Node | base + Credentials `authorize`(scrypt). 라우트 핸들러·`getLocalAuthUser`가 동적 import |
+| `lib/auth/local-auth-edge.ts` | Edge | base + stub Credentials provider(authorize 없음). 미들웨어 JWT 검증용 |
 
-### 아키텍처 레이어 (Auth 부분)
+> **동적 import**: `getAuthUser`(서버)와 미들웨어는 config를 정적 import하지 않고 동적 import해, Node 전용 그래프가 정적 Edge 번들로 유입되지 않게 한다.
+
+---
+
+## 3. Provider 추상화 (단일 스택)
 
 ```
-Route Handler
+Route Handler / Server Component
     │
-    └── getAuthUser()          ← lib/auth/index.ts (provider 무관 통합)
-            ├── supabase 모드: getSupabaseAuthUser(supabase)  (동적 import)
-            └── authjs 모드:  getAuthJsUser()                  (동적 import 필수)
+    └── getAuthUser()                 ← lib/auth/index.ts
+            └── getLocalAuthUser()    ← lib/auth/local-auth.ts (동적 import, auth() → AuthUser)
 ```
-
-### 통합 팩토리 구현
 
 ```typescript
 // src/lib/auth/index.ts
 export async function getAuthUser(): Promise<AuthUser | null> {
-  const provider = getAuthProvider();
-  if (provider === 'authjs') {
-    // 동적 import 필수 — authjs-config.ts는 module-level에서 getDb() 호출
-    const { getAuthJsUser } = await import('@/lib/auth/authjs-auth');
-    return getAuthJsUser();
-  }
-  // Default: Supabase — 이 경로도 동적 import로 처리하고 supabase 클라이언트를 인자로 전달
-  const { createClient } = await import('@/lib/supabase/server');
-  const { getSupabaseAuthUser } = await import('@/lib/auth/supabase-auth');
-  const supabase = await createClient();
-  return getSupabaseAuthUser(supabase);
+  const { getLocalAuthUser } = await import('@/lib/auth/local-auth');
+  return getLocalAuthUser();
 }
 ```
-
-### AuthUser 인터페이스
 
 ```typescript
 // src/lib/auth/types.ts
@@ -84,35 +71,34 @@ export interface AuthUser {
 }
 ```
 
-### ⚠️ 동적 Import 규칙 (중요)
+`getAuthProvider()`(`lib/config/providers.ts`)는 항상 `'local'`을 반환하며 `AUTH_SECRET`이 없으면 throw한다.
 
-`authjs-config.ts`와 `authjs-auth.ts`는 **절대 정적 import 금지**.
+### 환경변수
 
-**이유:** `authjs-config.ts`는 모듈 최상위 레벨에서 `getDb()`를 호출. `DB_PROVIDER=supabase`(기본) 환경에서 정적으로 import되면 `DATABASE_URL` 미설정으로 즉시 crash.
+| 변수 | 필수 | 설명 |
+|------|------|------|
+| `AUTH_SECRET` | ✅ | Auth.js JWT 세션 서명 키 |
+| `AUTH_TRUST_HOST` | ✅(프록시 뒤) | `true` — 커스텀 도메인에서 `/api/auth/*` 500 방지(NextAuth v5 `UntrustedHost`) |
+| `ADMIN_EMAIL` | ✅ | 단일 관리자 로그인 이메일 |
+| `ADMIN_PASSWORD_HASH` | ✅ | `pnpm admin:hash`로 생성한 scrypt 해시 |
+| `ADMIN_NAME` | 선택 | 관리자 표시 이름 |
+| `ADMIN_USER_ID` | 선택 | 단일 관리자 `users.id` 고정값(기본 `00000000-0000-0000-0000-000000000001`). 시드 행과 일치해야 FK 동작 |
+| `NEXT_PUBLIC_AUTH_PROVIDER` | 빌드타임 | `local` (클라이언트 인라인. 단일 스택이라 사실상 상수) |
 
-```typescript
-// ✅ 올바른 방법
-const { getAuthJsUser } = await import('@/lib/auth/authjs-auth');
-
-// ❌ 금지
-import { getAuthJsUser } from '@/lib/auth/authjs-auth';
-```
-
-> **참고:** 현재 `index.ts`는 supabase 경로(`@/lib/supabase/server`, `@/lib/auth/supabase-auth`)도 동적 import로 처리한다(정적 import 아님). 따라서 정적/동적 import 구분이 두 provider 간의 핵심 차이는 아니며, authjs 경로의 정적 import 금지는 위의 `getDb()` crash 회피 목적이 핵심이다.
-
-### Provider 전환 방법
-
-`AUTH_PROVIDER` 환경변수를 `authjs`로 변경하면 Auth.js (NextAuth v5) 모드로 전환됨.
-
-- **어댑터:** `@auth/drizzle-adapter` — 세션을 동일 PostgreSQL에 저장
-- **OAuth:** Google + GitHub
-- **세션:** JWT 전략
+> 부팅 시 `seedAdmin`(`bootstrapSqlite`)이 `users` 테이블에 단일 관리자 행을 멱등 시드한다 — `projects.user_id → users.id` FK 정합성 보장.
 
 ---
 
-## 3. 서버사이드 인증 (API Routes)
+## 4. 클라이언트 세션 (useAuth / SessionProvider)
 
-모든 보호 Route에서:
+- `app/layout.tsx`는 **항상 `<SessionProvider>`(next-auth/react)를 마운트**한다.
+- `hooks/useAuth.ts`는 `useSession()`으로 세션을 읽어 `useAuthStore`에 동기화하고 `signOut`을 제공한다.
+  - 컴포넌트(예: `Header`)는 `useAuthStore`에서 `user`/`isAuthenticated`를 읽고, `useAuth()`에서 `signOut`을 받는다.
+  - `signOut()` → next-auth `signOut({ callbackUrl: '/' })` + 스토어 초기화.
+
+---
+
+## 5. 서버사이드 인증 (API Routes)
 
 ```typescript
 import { getAuthUser } from '@/lib/auth/index';
@@ -121,66 +107,25 @@ const user = await getAuthUser();
 if (!user) return NextResponse.json({ error: '인증이 필요합니다' }, { status: 401 });
 ```
 
-**중요**: `getAuthUser()`는 `lib/auth/index.ts`의 통합 함수. Provider 무관하게 일관된 `AuthUser` 타입을 반환.  
-직접 `supabase.auth.getUser()` 호출 금지 — 테스트 모킹과 Provider 전환이 불가능해짐.
+직접 세션 API 호출 금지 — `getAuthUser()`만 사용(테스트 모킹·일관성).
 
 ---
 
-## 4. 권한 검증 (소유권)
+## 6. 권한 검증 (소유권)
 
 ```typescript
 import { assertOwner } from '@/lib/auth/authorize';
-
-// 프로젝트 소유자 확인 — 불일치 시 ForbiddenError throw
-assertOwner(project, user.id);
+assertOwner(project, user.id);   // 불일치 시 ForbiddenError
 ```
 
-**파일:** `src/lib/auth/authorize.ts`  
-소유자 일치 시 정상 통과. 불일치 시 `ForbiddenError` throw.  
-빈 문자열이나 undefined도 불일치로 처리됨.
-
-> **참고:** Supabase 모드에서는 Row Level Security(RLS)가 DB 레벨에서 소유권을 강제합니다.
-> Postgres 모드에서는 RLS 없음 — `assertOwner()`가 애플리케이션 레벨 보안 경계입니다.
+**파일:** `src/lib/auth/authorize.ts`. 단일 사용자·셀프호스트이므로 실제 교차 사용자 격리 부담은 낮지만, 애플리케이션 레벨 소유권 경계로 유지한다(빈 문자열/undefined도 불일치 처리). DB 레벨 RLS는 없다(SQLite).
 
 ---
 
-## 5. 첫 로그인 사용자 처리
+## 7. 미들웨어 게이팅
 
-`/callback` Route Handler에서 OAuth 완료 후 `supabase.auth.getUser()`로 인증 사용자 정보를 직접 조회한다.  
-`users` 테이블에 해당 `id`가 없으면 **service role client**를 사용하여 RLS를 우회하고 직접 INSERT한다.
+`src/middleware.ts`의 `enforceAuthGate(request)`:
 
-```
-users 테이블 레코드 생성 흐름 (callback/route.ts):
-
-1. anon client로 exchangeCodeForSession(code) → 세션 쿠키 설정
-2. anon client로 supabase.auth.getUser() → authUser 획득
-3. service role client 생성 (SUPABASE_SERVICE_ROLE_KEY 필요)
-4. serviceClient.from('users').select().eq('id', authUser.id) → 기존 레코드 확인
-5. 없으면: serviceClient.from('users').insert({ id, email, name, avatar_url, preferences: {} })
-6. 성공 시: eventBus.emit({ type: 'USER_SIGNED_UP', ... })
-```
-
-**에러 처리**: INSERT 실패(중복 키 포함)는 로그만 기록하고 리다이렉트를 계속 진행한다 — 첫 로그인 직후 동시 요청 등으로 레코드가 이미 생성된 경우에도 사용자 경험을 차단하지 않는다.
-
-**`SUPABASE_SERVICE_ROLE_KEY` 미설정 시**: 경고 로그 후 users 레코드 생성을 건너뛰고 리다이렉트한다. 이후 API 호출에서 FK 오류가 발생할 수 있으므로 반드시 설정되어야 한다.
-
-## 6. OAuth 첫 로그인 Origin 처리 (PR #109)
-
-Railway 환경에서 Next.js 서버는 `0.0.0.0:PORT` 또는 `[::]:PORT`로 바인딩될 수 있다. 이 경우 `request.url`의 origin이 `http://0.0.0.0:PORT`가 되어 브라우저가 해당 주소로 리다이렉트되면 실제 앱 도메인과 불일치가 발생한다.
-
-`resolveRedirectOrigin()` 함수가 이를 처리한다:
-
-```typescript
-function resolveRedirectOrigin(requestOrigin: string): string {
-  // 0.0.0.0 또는 [::] 바인딩 주소인 경우에만 NEXT_PUBLIC_APP_URL로 교체
-  if (/^https?:\/\/(0\.0\.0\.0|\[::\])(?::\d+)?$/i.test(requestOrigin)) {
-    return process.env.NEXT_PUBLIC_APP_URL ?? requestOrigin;
-  }
-  // 일반 origin(xzawed.xyz 등)은 그대로 유지 — PKCE 쿠키 도메인 불일치 방지
-  return requestOrigin;
-}
-```
-
-**핵심 설계 원칙**: PKCE 코드 교환 시 쿠키가 설정된 origin과 리다이렉트 origin이 일치해야 한다. 무조건 `NEXT_PUBLIC_APP_URL`로 교체하면 서브도메인 또는 다른 허용 도메인에서의 콜백이 실패할 수 있으므로, 비정상 바인딩 주소(`0.0.0.0`, `[::]`)에 대해서만 교체한다.
-
-`safeRedirect()` 함수는 `next` 쿼리 파라미터의 경로를 허용 목록(`/dashboard`, `/builder`, `/settings`, `/projects`, `/catalog`)과 대조하여 오픈 리다이렉트를 방지한다.
+- 보호 경로(`/builder`·`/dashboard`·`/preview`)에서만 동작.
+- `local-auth-edge`의 `auth()`로 JWT 세션 확인 → 미인증 시 `/login?redirect=<path>`로 307.
+- 동적 import로 Edge 안전성 유지. Supabase 세션 갱신(`updateSession`) 분기는 제거됨.

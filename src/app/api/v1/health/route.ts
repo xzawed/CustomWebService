@@ -1,7 +1,4 @@
-import { createServiceClient } from '@/lib/supabase/server';
 import { getLimits } from '@/lib/config/features';
-import { getDbProvider } from '@/lib/config/providers';
-import { getFailoverStatus } from '@/lib/db/failover';
 import { createCatalogRepository } from '@/repositories/factory';
 
 export const dynamic = 'force-dynamic';
@@ -24,8 +21,7 @@ export async function GET(request: Request): Promise<Response> {
 
   // Database check + usage stats
   try {
-    const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
-    const repo = createCatalogRepository(supabase);
+    const repo = createCatalogRepository();
 
     const dbOk = await repo.ping();
     checks.database = dbOk ? 'ok' : 'error';
@@ -78,6 +74,5 @@ export async function GET(request: Request): Promise<Response> {
     timestamp: new Date().toISOString(),
     checks,
     usage,
-    failover: getFailoverStatus(),
   });
 }

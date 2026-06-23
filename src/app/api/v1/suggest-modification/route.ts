@@ -1,5 +1,3 @@
-import { getDbProvider } from '@/lib/config/providers';
-import { createServiceClient } from '@/lib/supabase/server';
 import { getAuthUser } from '@/lib/auth/index';
 import { createProjectRepository, createCatalogRepository } from '@/repositories/factory';
 import { createRateLimitService } from '@/services/factory';
@@ -27,12 +25,11 @@ export async function POST(request: Request): Promise<Response> {
       throw err;
     }
 
-    const serviceSupabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
-    const rateLimitService = createRateLimitService(serviceSupabase);
+    const rateLimitService = createRateLimitService();
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
     // Verify ownership via service client (RLS bypass for project lookup)
-    const projectRepo = createProjectRepository(serviceSupabase);
+    const projectRepo = createProjectRepository();
     const project = await projectRepo.findById(projectId);
     if (!project || project.userId !== user.id) {
       throw new NotFoundError('프로젝트', projectId);
@@ -40,7 +37,7 @@ export async function POST(request: Request): Promise<Response> {
 
     // Fetch project's APIs
     const apiIds = await projectRepo.getProjectApiIds(projectId);
-    const catalogRepo = createCatalogRepository(serviceSupabase);
+    const catalogRepo = createCatalogRepository();
     const apis = apiIds.length > 0 ? await catalogRepo.findByIds(apiIds) : [];
 
     const apiList = apis.length > 0

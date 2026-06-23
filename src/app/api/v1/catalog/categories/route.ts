@@ -1,5 +1,3 @@
-import { getDbProvider } from '@/lib/config/providers';
-import { createClient } from '@/lib/supabase/server';
 import { createCatalogService } from '@/services/factory';
 import { handleApiError, jsonResponse } from '@/lib/utils/errors';
 
@@ -8,8 +6,7 @@ export const revalidate = 86400;
 
 export async function GET() {
   try {
-    const supabase = getDbProvider() === 'supabase' ? await createClient() : undefined;
-    const service = createCatalogService(supabase);
+    const service = createCatalogService();
     const categories = await service.getCategories();
 
     return jsonResponse(

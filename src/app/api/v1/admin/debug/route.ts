@@ -36,9 +36,8 @@ export async function GET(request: Request): Promise<Response> {
           modules: {
             'playwright-core': tryRequire('playwright-core'),
             '@anthropic-ai/sdk': tryRequire('@anthropic-ai/sdk'),
+            'better-sqlite3': tryRequire('better-sqlite3'),
             'drizzle-orm': tryRequire('drizzle-orm'),
-            'drizzle-orm/node-postgres': tryRequire('drizzle-orm/node-postgres'),
-            'pg': tryRequire('pg'),
           },
         },
       });

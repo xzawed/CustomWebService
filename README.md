@@ -87,7 +87,7 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 - Proxy SSRF 방지: 차단 호스트 7종(loopback `127.0.0.1`/`::1`, `0.0.0.0`/`::`, AWS·클라우드 메타데이터 `169.254.169.254`, Alibaba `100.100.100.200`) + 사설·링크로컬 IP 정규식 8종(RFC1918 10.x/172.16-31.x/192.168.x, 127.x, 169.254.x, 0.x, IPv6 ULA·link-local) 차단 + DNS rebinding 방어
 - `middleware.ts`에서 CSP, HSTS, X-Frame-Options 일괄 적용
 - 사용자 API 키 AES-256-GCM 암호화 저장
-- OAuth PKCE 플로우 (Google, GitHub)
+- Auth.js v5 (NextAuth) Credentials 인증 — 단일 관리자 계정, JWT 무상태 세션 (비밀번호는 해시로만 저장)
 - `X-Correlation-Id` 헤더로 요청 추적
 
 ---
@@ -100,8 +100,8 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 | 🎨 UI | React 19, Tailwind CSS 4, Lucide React |
 | 🗄️ State | Zustand (분리 스토어 + persist middleware) |
 | 📝 Form | React Hook Form + Zod |
-| 🗃️ Database | Supabase (기본) / 온프레미스 PostgreSQL + Drizzle ORM (선택) |
-| 🔐 Auth | Supabase Auth (기본) / Auth.js v5 + NextAuth (선택) |
+| 🗃️ Database | 임베디드 SQLite (better-sqlite3 + Drizzle ORM, WAL 모드, 단일 인스턴스) |
+| 🔐 Auth | Auth.js v5 (NextAuth) — Credentials 단일 관리자 + JWT 무상태 세션 |
 | 🤖 AI | Claude API (Anthropic SDK, claude-opus-4-7 기본) |
 | 🧪 Testing | Vitest, happy-dom, MSW, Playwright |
 | ⚙️ CI/CD | GitHub Actions → lint → type-check → test → build (Railway 자동 배포) |
@@ -167,17 +167,62 @@ pnpm test:coverage     # 📊 커버리지 리포트
 
 ---
 
+## 🚀 설치 및 실행
+
+셀프호스트 단일 인스턴스 구성입니다. 외부 데이터베이스·OAuth 설정이 필요 없습니다.
+
+```bash
+pnpm install                    # 📦 의존성 설치
+pnpm admin:hash '<평문 비밀번호>'   # 🔑 관리자 비밀번호 해시 생성 → ADMIN_PASSWORD_HASH 값
+pnpm dev                        # 🔥 개발 서버 (Turbopack)
+```
+
+부팅 시 `instrumentation.ts` → `bootstrapSqlite`가 SQLite 마이그레이션·단일 관리자 시드·카탈로그/플래그 시드를 멱등하게 적용합니다. 별도 DB 초기화 명령은 없습니다.
+
+### 🔐 환경변수
+
+값은 절대 커밋하지 마세요. 전체 목록은 [docs/reference/env-vars.md](docs/reference/env-vars.md) 참조.
+
+**필수**
+
+| 변수 | 설명 |
+|------|------|
+| `AUTH_SECRET` | Auth.js JWT 서명 시크릿 (`openssl rand -base64 32`로 생성) |
+| `AUTH_TRUST_HOST` | 프록시(Railway) 뒤에서 실행 시 `true` |
+| `NEXT_PUBLIC_AUTH_PROVIDER` | `local` (Credentials 단일 관리자) |
+| `ADMIN_EMAIL` | 관리자 로그인 이메일 |
+| `ADMIN_PASSWORD_HASH` | `pnpm admin:hash`로 생성한 `salt:hash` 값 |
+| `ANTHROPIC_API_KEY` | Claude API 키 |
+| `ADMIN_API_KEY` | 관리자 진단 API 인증 (QC 통계, 키 검증) |
+| `ENCRYPTION_KEY` | 사용자 API 키 AES-256-GCM 암호화 키 |
+| `NEXT_PUBLIC_APP_URL` | 서비스 기본 URL |
+| `NEXT_PUBLIC_ROOT_DOMAIN` | 서브도메인 가상 호스팅 루트 도메인 |
+
+**선택**
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `ADMIN_NAME` | — | 관리자 표시 이름 |
+| `ADMIN_USER_ID` | `00000000-0000-0000-0000-000000000001` | 고정 관리자 UUID |
+| `SQLITE_PATH` | `/data/app.db` | SQLite DB 파일 경로 |
+
+> Railway 배포 시 SQLite 파일이 영속되도록 `/data`에 볼륨을 마운트해야 합니다 (`SQLITE_PATH` 기본값과 일치).
+
+---
+
 ## ☁️ 인프라 구성
 
 | 항목 | 구성 |
 |------|------|
-| 🚂 호스팅 | Railway (서브도메인 가상 호스팅, Docker standalone) |
-| 🗃️ 데이터베이스 | Supabase (기본, PostgreSQL + RLS) / 온프레미스 PostgreSQL (환경변수 전환) |
-| 🔐 인증 | Supabase Auth (기본, OAuth 2.0) / Auth.js v5 (환경변수 전환) |
+| 🚂 호스팅 | Railway (서브도메인 가상 호스팅, Docker standalone, 단일 인스턴스) |
+| 🗃️ 데이터베이스 | 임베디드 SQLite (Railway 영속 볼륨 `/data/app.db`, WAL 모드) |
+| 🔐 인증 | Auth.js v5 (NextAuth) — Credentials 단일 관리자, JWT 무상태 세션 |
 | 🤖 AI | Claude API (서버사이드 전용) |
 | 🌐 도메인 | Railway 커스텀 도메인 |
 
-DB / Auth Provider 환경변수 전환 방법: [docs/decisions/provider-migration.md](docs/decisions/provider-migration.md)
+> SQLite는 부팅 시 `instrumentation.ts` → `bootstrapSqlite`가 마이그레이션(`drizzle/sqlite`)·관리자 시드·카탈로그/플래그 시드를 멱등하게 적용합니다.
+> SQLite 전환 배경: [docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md)
+> 인증 아키텍처: [docs/architecture/auth.md](docs/architecture/auth.md)
 
 ---
 

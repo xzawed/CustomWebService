@@ -9,22 +9,13 @@ vi.mock('./eventBus', () => ({
 vi.mock('@/repositories/factory', () => ({
   createEventRepository: vi.fn(),
 }));
-vi.mock('@/lib/supabase/server', () => ({
-  createServiceClient: vi.fn(),
-}));
-vi.mock('@/lib/config/providers', () => ({
-  getDbProvider: vi.fn(() => 'supabase'),
-}));
 vi.mock('@/lib/utils/logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
-beforeEach(async () => {
+beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
-  // 기본 provider를 supabase로 리셋(테스트 간 mockReturnValue 누출 방지).
-  const { getDbProvider } = await import('@/lib/config/providers');
-  (getDbProvider as ReturnType<typeof vi.fn>).mockReturnValue('supabase');
 });
 
 describe('registerEventPersister', () => {
@@ -48,17 +39,14 @@ describe('registerEventPersister', () => {
     expect(eventBus.on).toHaveBeenCalledTimes(1);
   });
 
-  it('handler calls createServiceClient and eventRepo.persist when invoked', async () => {
+  it('handler calls createEventRepository (zero-arg) and eventRepo.persist when invoked', async () => {
     const { registerEventPersister } = await import('./eventPersister');
     const { eventBus } = await import('./eventBus');
-    const { createServiceClient } = await import('@/lib/supabase/server');
     const { createEventRepository } = await import('@/repositories/factory');
 
-    const mockSupabase = { from: vi.fn() };
     const mockPersist = vi.fn().mockResolvedValue(undefined);
     const mockEventRepo = { persist: mockPersist };
 
-    (createServiceClient as ReturnType<typeof vi.fn>).mockResolvedValue(mockSupabase);
     (createEventRepository as ReturnType<typeof vi.fn>).mockReturnValue(mockEventRepo);
 
     registerEventPersister();
@@ -70,42 +58,19 @@ describe('registerEventPersister', () => {
     const fakeEvent = { type: 'TEST_EVENT', payload: { data: 'value' } };
     await handler(fakeEvent);
 
-    expect(createServiceClient).toHaveBeenCalledTimes(1);
-    expect(createEventRepository).toHaveBeenCalledWith(mockSupabase);
+    expect(createEventRepository).toHaveBeenCalledTimes(1);
+    expect(createEventRepository).toHaveBeenCalledWith();
     expect(mockPersist).toHaveBeenCalledWith(fakeEvent, {});
   });
 
-  it('sqlite 모드에서는 createServiceClient 없이 createEventRepository(undefined)로 persist한다', async () => {
+  it('logs a warning and does not throw when persist rejects', async () => {
     const { registerEventPersister } = await import('./eventPersister');
     const { eventBus } = await import('./eventBus');
-    const { createServiceClient } = await import('@/lib/supabase/server');
     const { createEventRepository } = await import('@/repositories/factory');
-    const { getDbProvider } = await import('@/lib/config/providers');
-
-    (getDbProvider as ReturnType<typeof vi.fn>).mockReturnValue('sqlite');
-    const mockPersist = vi.fn().mockResolvedValue(undefined);
-    (createEventRepository as ReturnType<typeof vi.fn>).mockReturnValue({ persist: mockPersist });
-
-    registerEventPersister();
-    const handler = (eventBus.on as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
-      event: unknown,
-    ) => Promise<void>;
-
-    const fakeEvent = { type: 'SQLITE_EVENT', payload: {} };
-    await handler(fakeEvent);
-
-    expect(createServiceClient).not.toHaveBeenCalled();
-    expect(createEventRepository).toHaveBeenCalledWith(undefined);
-    expect(mockPersist).toHaveBeenCalledWith(fakeEvent, {});
-  });
-
-  it('logs a warning and does not throw when createServiceClient rejects', async () => {
-    const { registerEventPersister } = await import('./eventPersister');
-    const { eventBus } = await import('./eventBus');
-    const { createServiceClient } = await import('@/lib/supabase/server');
     const { logger } = await import('@/lib/utils/logger');
 
-    (createServiceClient as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('DB unavailable'));
+    const mockPersist = vi.fn().mockRejectedValue(new Error('DB unavailable'));
+    (createEventRepository as ReturnType<typeof vi.fn>).mockReturnValue({ persist: mockPersist });
 
     registerEventPersister();
 
@@ -124,13 +89,40 @@ describe('registerEventPersister', () => {
     );
   });
 
+  it('logs a warning and does not throw when createEventRepository throws', async () => {
+    const { registerEventPersister } = await import('./eventPersister');
+    const { eventBus } = await import('./eventBus');
+    const { createEventRepository } = await import('@/repositories/factory');
+    const { logger } = await import('@/lib/utils/logger');
+
+    (createEventRepository as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error('factory failure');
+    });
+
+    registerEventPersister();
+
+    const handler = (eventBus.on as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
+      event: unknown,
+    ) => Promise<void>;
+
+    const fakeEvent = { type: 'FACTORY_FAIL_EVENT', payload: {} };
+
+    await expect(handler(fakeEvent)).resolves.toBeUndefined();
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      'EventPersister: failed to persist event',
+      expect.objectContaining({ type: 'FACTORY_FAIL_EVENT', error: 'factory failure' }),
+    );
+  });
+
   it('logs a warning with stringified error for non-Error rejections', async () => {
     const { registerEventPersister } = await import('./eventPersister');
     const { eventBus } = await import('./eventBus');
-    const { createServiceClient } = await import('@/lib/supabase/server');
+    const { createEventRepository } = await import('@/repositories/factory');
     const { logger } = await import('@/lib/utils/logger');
 
-    (createServiceClient as ReturnType<typeof vi.fn>).mockRejectedValue('plain string error');
+    const mockPersist = vi.fn().mockRejectedValue('plain string error');
+    (createEventRepository as ReturnType<typeof vi.fn>).mockReturnValue({ persist: mockPersist });
 
     registerEventPersister();
 
