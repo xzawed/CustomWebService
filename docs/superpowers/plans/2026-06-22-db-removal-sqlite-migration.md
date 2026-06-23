@@ -15,8 +15,9 @@
 | **Phase 2 — 인증** | ✅ 기능 완료 (P2.1~P2.3; P2.4 정리는 Phase 3 동반) | `18e4d64`, `c67ec18` |
 | **Phase 3 — 직접-DB/RPC 정리** | ✅ 완료 (callback·repo `.rpc`는 Phase 8 이연) | `a9688f2`, `4b7b75a`, `768da35`, `7cddeef` |
 | **Phase 4 — 서빙/런타임 검증** | 🔵 P4.1 서빙 검증 완료, P4.3 일부 대기 | (검증, 코드 무변경) |
-| **Phase 5 — 설정·번들 데이터 시드** | 🔵 P5.1·P5.3 완료, P5.2 이연 | (이번 커밋) |
-| Phase 6~8 | ⬜ 대기 | — |
+| **Phase 5 — 설정·번들 데이터 시드** | 🔵 P5.1·P5.3 완료, P5.2 이연 | `1ff1834` |
+| **Phase 6 — 인프라/배포** | 🔵 P6.1·P6.4 완료(docker 검증), P6.2 일부·P6.3 이연 | (이번 커밋) |
+| Phase 7~8 | ⬜ 대기 | — |
 
 - **완료(Phase 1)**: SQLite 스키마(9테이블)·연결(WAL/FK)·마이그레이션(`drizzle/sqlite/`, 커밋)·`DB_PROVIDER=sqlite` / 7개 SQLite 레포(159테스트)·원자적 레이트리밋(`db.transaction`+`UPDATE…WHERE count<limit RETURNING`)·factory 배선.
 - **완료(Phase 2)**: `AUTH_PROVIDER=local`(Auth.js Credentials 단일 관리자 + JWT 무상태, scrypt 비번, `getAuthUser` 분기) / **P2.2** edge-safe 분할 설정(`local-auth-base`+`local-auth-edge`) + 미들웨어 `local` 세션 게이팅(`enforceAuthGate`) / `/api/auth/[...nextauth]/route.ts` provider 디스패치 핸들러 / **P2.3·P2.4** 로그인 페이지 Credentials 폼 + 관리자 `users` 멱등 시드(`seedAdmin`)·부팅 부트스트랩(`bootstrap`, instrumentation 배선 — P6.1 부팅 마이그레이션 일부 선반영) + `scripts/hashAdminPassword.ts`(`pnpm admin:hash`).
@@ -31,7 +32,13 @@
   - **검증**: 실 sqlite 서버 스모크 5/5 — 부팅 후 DB `catalog=49·active=23·flags=7·users=1`, `GET /api/v1/catalog`가 시드 데이터 서빙. seedCatalog 단위 4/4(:memory:).
   - **P5.2 이연**(verification_status cron SQLite write): 현 cron(`scripts/verifyCatalog.ts`)은 CI에서 Supabase에 쓴다. sqlite 셀프호스트는 검증을 컨테이너 내부에서 돌려야 하므로(볼륨 접근) Phase 6 배포 설계와 함께 다룬다. 시드된 `verification_status`(프로덕션 기준)가 baseline.
 - **검증(Phase 4)**: **P4.1 서빙 E2E 검증 완료** — 실 dev 서버(`DB_PROVIDER=sqlite`+`AUTH_PROVIDER=local`) 스모크 6/6: 부팅 부트스트랩(마이그레이션+admin 시드) → 게시 프로젝트+코드 시드 → `GET /site/demo` 200(`findBySlug`+`findByProject`+`assembleHtml` 모두 sqlite 경로 동작)·`SITE_CSP` 헤더·미존재 slug 404. P4.2(인메모리 상태)는 코드 무변경이라 자명. **P4.3**(배포 상태머신/레이트리밋 환불)은 레포 단위(SqliteRateLimitRepository 원자적 카운터·환불) 검증됨, 외부 배포(GitHub/Railway) 통합은 실배포에서 확인 필요.
-- **컷오버 전 사용자 준비물**: Railway 영속 볼륨(P0.1), env `AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`(`pnpm admin:hash`로 생성)·(선택)`ADMIN_NAME`·`SQLITE_PATH`·`ADMIN_USER_ID`.
+- **완료(Phase 6 — 인프라/배포)**: Dockerfile이 sqlite 모드를 빌드·실행 지원.
+  - **Dockerfile**: deps `apk add g++ make python3`(better-sqlite3 네이티브, 프리빌트 부재 시 소스 컴파일) / runner `libstdc++`(네이티브 바인딩 런타임) + `/data` 디렉터리(nextjs 소유)·`VOLUME /data` / **`drizzle/sqlite` 명시 복사**(standalone이 비추적 자산을 자동 포함 안 함 — 미포함 시 부팅 시 `runSqliteMigrations`가 journal 못 찾아 크래시) / `NEXT_PUBLIC_AUTH_PROVIDER` build arg(로그인 폼 빌드타임 인라인). `next.config`에 `better-sqlite3` serverExternalPackages(네이티브 모듈 webpack 번들 금지).
+  - **검증(docker build + run)**: 이미지 빌드 성공 → 컨테이너(`DB_PROVIDER=sqlite`+`AUTH_PROVIDER=local`, **supabase env 0개**) 부팅 → 부트스트랩이 볼륨에 마이그레이션+시드(`catalog=49·active=23·flags=7·users=1`) → `/api/v1/health` 200·`/dashboard` 307→`/login`·`/site/nope` 404·`/api/v1/catalog` 시드 서빙·부팅 에러 0. **P6.2 "supabase env 0 부팅" AC 충족**.
+  - ⚠️ **테스트 함정**(코드 무관): Git Bash(MSYS)가 `docker run -e SQLITE_PATH=/data/app.db`의 `/data/...`를 `C:/Program Files/Git/...`로 변환 → "directory does not exist". `MSYS_NO_PATHCONV=1`로 우회(SQLITE_PATH 미지정 시 코드 기본값 `/data/app.db`는 문자열 리터럴이라 무영향).
+  - **컷오버 빌드/런타임**: 빌드 `--build-arg NEXT_PUBLIC_AUTH_PROVIDER=local`(+기존 supabase args 불필요 시 빈 값), 런타임 env `DB_PROVIDER=sqlite`·`AUTH_PROVIDER=local`·`AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`. **Railway Volume을 `/data`에 마운트 필수**.
+  - **P6.2 잔여**: `@supabase/*` 의존 제거는 Phase 8(supabase 경로 제거와 함께). **P6.3 이연**(옵션 백업 크론) + P5.2 verification cron 컨테이너 내부화.
+- **컷오버 전 사용자 준비물**: **Railway 영속 볼륨(P0.1) `/data` 마운트**(없으면 재배포마다 소실), env `AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`(`pnpm admin:hash`로 생성)·(선택)`ADMIN_NAME`·`SQLITE_PATH`·`ADMIN_USER_ID`, 빌드 `--build-arg NEXT_PUBLIC_AUTH_PROVIDER=local`.
 
 ## 1. 목표 & 확정 제약
 
@@ -121,7 +128,7 @@
 | P5.2 | `verification_status` cron `--write` 경로를 SQLite write로 전환 | P5.1,P1.4 | S | cron이 SQLite 갱신 |
 | P5.3 | `feature_flags`(7) → SQLite 시드 또는 config 파일 | P1.2 | S | 플래그 읽기 동작 |
 
-### Phase 6 — 인프라/배포 (규모 M)
+### Phase 6 — 인프라/배포 (규모 M) — 🔵 P6.1·P6.4 완료(docker build+run 검증), P6.2 일부·P6.3 이연
 | ID | 작업 | 선행 | 규모 | AC |
 |---|---|---|---|---|
 | P6.1 | Dockerfile: `better-sqlite3` 네이티브 빌드(빌드 의존), 볼륨 경로, 부팅 시 마이그레이션 실행 | P1.2 | M | 컨테이너 부팅→마이그레이션→서비스 정상 |
