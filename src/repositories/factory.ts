@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getDbProvider } from '@/lib/config/providers';
 import { getDb } from '@/lib/db/connection';
+import { getSqliteDb } from '@/lib/db/sqlite/connection';
 import type {
   IProjectRepository,
   IUserRepository,
@@ -31,7 +32,21 @@ import {
   DrizzleUserApiKeyRepository,
 } from '@/repositories/drizzle';
 
+// SQLite implementations (DB_PROVIDER=sqlite — 임베디드 단일 인스턴스)
+import {
+  SqliteProjectRepository,
+  SqliteUserRepository,
+  SqliteCodeRepository,
+  SqliteCatalogRepository,
+  SqliteEventRepository,
+  SqliteRateLimitRepository,
+  SqliteUserApiKeyRepository,
+} from '@/repositories/sqlite';
+
 export function createProjectRepository(supabase?: SupabaseClient): IProjectRepository {
+  if (getDbProvider() === 'sqlite') {
+    return new SqliteProjectRepository(getSqliteDb());
+  }
   if (getDbProvider() === 'postgres') {
     return new DrizzleProjectRepository(getDb());
   }
@@ -40,6 +55,9 @@ export function createProjectRepository(supabase?: SupabaseClient): IProjectRepo
 }
 
 export function createUserRepository(supabase?: SupabaseClient): IUserRepository {
+  if (getDbProvider() === 'sqlite') {
+    return new SqliteUserRepository(getSqliteDb());
+  }
   if (getDbProvider() === 'postgres') {
     return new DrizzleUserRepository(getDb());
   }
@@ -48,6 +66,9 @@ export function createUserRepository(supabase?: SupabaseClient): IUserRepository
 }
 
 export function createCodeRepository(supabase?: SupabaseClient): ICodeRepository {
+  if (getDbProvider() === 'sqlite') {
+    return new SqliteCodeRepository(getSqliteDb());
+  }
   if (getDbProvider() === 'postgres') {
     return new DrizzleCodeRepository(getDb());
   }
@@ -56,6 +77,9 @@ export function createCodeRepository(supabase?: SupabaseClient): ICodeRepository
 }
 
 export function createCatalogRepository(supabase?: SupabaseClient): ICatalogRepository {
+  if (getDbProvider() === 'sqlite') {
+    return new SqliteCatalogRepository(getSqliteDb());
+  }
   if (getDbProvider() === 'postgres') {
     return new DrizzleCatalogRepository(getDb());
   }
@@ -64,6 +88,9 @@ export function createCatalogRepository(supabase?: SupabaseClient): ICatalogRepo
 }
 
 export function createEventRepository(supabase?: SupabaseClient): IEventRepository {
+  if (getDbProvider() === 'sqlite') {
+    return new SqliteEventRepository(getSqliteDb());
+  }
   if (getDbProvider() === 'postgres') {
     return new DrizzleEventRepository(getDb());
   }
@@ -72,6 +99,9 @@ export function createEventRepository(supabase?: SupabaseClient): IEventReposito
 }
 
 export function createRateLimitRepository(supabase?: SupabaseClient): IRateLimitRepository {
+  if (getDbProvider() === 'sqlite') {
+    return new SqliteRateLimitRepository(getSqliteDb());
+  }
   if (getDbProvider() === 'postgres') {
     return new DrizzleRateLimitRepository(getDb());
   }
@@ -80,6 +110,9 @@ export function createRateLimitRepository(supabase?: SupabaseClient): IRateLimit
 }
 
 export function createUserApiKeyRepository(supabase?: SupabaseClient): IUserApiKeyRepository {
+  if (getDbProvider() === 'sqlite') {
+    return new SqliteUserApiKeyRepository(getSqliteDb());
+  }
   if (getDbProvider() === 'postgres') {
     return new DrizzleUserApiKeyRepository(getDb());
   }

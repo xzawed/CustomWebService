@@ -1,8 +1,8 @@
 // Provider configuration: Supabase vs On-Premise PostgreSQL
 import { isInFailover } from '@/lib/db/failover';
 
-export type DbProvider = 'supabase' | 'postgres';
-export type AuthProvider = 'supabase' | 'authjs';
+export type DbProvider = 'supabase' | 'postgres' | 'sqlite';
+export type AuthProvider = 'supabase' | 'authjs' | 'local';
 
 let _cachedDbProvider: DbProvider | undefined;
 let _cachedAuthProvider: AuthProvider | undefined;
@@ -14,6 +14,7 @@ let _cachedAuthProvider: AuthProvider | undefined;
  *
  * - 미설정 또는 `"supabase"` → `'supabase'` (기본값)
  * - `"postgres"` → `'postgres'` (이 경우 `DATABASE_URL`이 반드시 설정되어야 합니다)
+ * - `"sqlite"` → `'sqlite'` (임베디드 단일 인스턴스. `SQLITE_PATH` 미설정 시 `/data/app.db` 기본)
  * - 그 외 값 → 에러를 던집니다
  *
  * @throws {Error} DB_PROVIDER가 알 수 없는 값이거나 postgres 선택 시 DATABASE_URL이 없을 때
@@ -33,8 +34,13 @@ export function getDbProvider(): DbProvider {
       throw new Error('DB_PROVIDER=postgres 설정 시 DATABASE_URL 환경변수가 필요합니다.');
     }
     result = 'postgres';
+  } else if (provider === 'sqlite') {
+    // SQLITE_PATH 미설정 시 /data/app.db(Railway 볼륨) 기본값 사용 — 별도 필수 env 없음
+    result = 'sqlite';
   } else {
-    throw new Error(`알 수 없는 DB_PROVIDER 값: "${provider}". "supabase" 또는 "postgres"를 사용하세요.`);
+    throw new Error(
+      `알 수 없는 DB_PROVIDER 값: "${provider}". "supabase", "postgres", "sqlite" 중 하나를 사용하세요.`,
+    );
   }
   _cachedDbProvider = result;
   return _cachedDbProvider;
@@ -46,10 +52,11 @@ export function getDbProvider(): DbProvider {
  * authjs 모드에서 failover가 활성화된 경우 'supabase'를 반환합니다.
  *
  * - 미설정 또는 `"supabase"` → `'supabase'` (기본값)
- * - `"authjs"` → `'authjs'` (이 경우 `AUTH_SECRET`이 반드시 설정되어야 합니다)
+ * - `"authjs"` → `'authjs'` (OAuth + DrizzleAdapter. `AUTH_SECRET` 필요)
+ * - `"local"` → `'local'` (Auth.js Credentials 단일 관리자 + JWT 무상태. `AUTH_SECRET` 필요)
  * - 그 외 값 → 에러를 던집니다
  *
- * @throws {Error} AUTH_PROVIDER가 알 수 없는 값이거나 authjs 선택 시 AUTH_SECRET이 없을 때
+ * @throws {Error} AUTH_PROVIDER가 알 수 없는 값이거나 authjs/local 선택 시 AUTH_SECRET이 없을 때
  */
 export function getAuthProvider(): AuthProvider {
   // failover 활성 시 supabase 반환 (캐시값이 authjs인 경우에만 적용)
@@ -66,8 +73,15 @@ export function getAuthProvider(): AuthProvider {
       throw new Error('AUTH_PROVIDER=authjs 설정 시 AUTH_SECRET 환경변수가 필요합니다.');
     }
     result = 'authjs';
+  } else if (provider === 'local') {
+    if (!process.env.AUTH_SECRET) {
+      throw new Error('AUTH_PROVIDER=local 설정 시 AUTH_SECRET 환경변수가 필요합니다.');
+    }
+    result = 'local';
   } else {
-    throw new Error(`알 수 없는 AUTH_PROVIDER 값: "${provider}". "supabase" 또는 "authjs"를 사용하세요.`);
+    throw new Error(
+      `알 수 없는 AUTH_PROVIDER 값: "${provider}". "supabase", "authjs", "local" 중 하나를 사용하세요.`,
+    );
   }
   _cachedAuthProvider = result;
   return _cachedAuthProvider;

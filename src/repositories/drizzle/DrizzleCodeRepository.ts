@@ -1,4 +1,4 @@
-import { eq, desc, sql, count as drizzleCount, and } from 'drizzle-orm';
+import { eq, desc, sql, count as drizzleCount, and, gte } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/lib/db/schema';
 import type { GeneratedCode, CodeMetadata } from '@/types/project';
@@ -171,6 +171,24 @@ export class DrizzleCodeRepository implements ICodeRepository {
 
     if (rows.length === 0) return 1;
     return (rows[0].version ?? 0) + 1;
+  }
+
+  async findMetadataByDateRange(
+    from: Date,
+  ): Promise<Array<{ metadata: CodeMetadata; createdAt: string }>> {
+    const rows = await this.db
+      .select({
+        metadata: schema.generatedCodes.metadata,
+        created_at: schema.generatedCodes.created_at,
+      })
+      .from(schema.generatedCodes)
+      .where(gte(schema.generatedCodes.created_at, from))
+      .orderBy(desc(schema.generatedCodes.created_at));
+
+    return rows.map((r) => ({
+      metadata: (r.metadata as CodeMetadata) ?? {},
+      createdAt: String(r.created_at),
+    }));
   }
 
   private toDomain(row: typeof schema.generatedCodes.$inferSelect): GeneratedCode {

@@ -6,6 +6,11 @@ export type { AuthUser };
 export async function getAuthUser(): Promise<AuthUser | null> {
   const provider = getAuthProvider();
 
+  if (provider === 'local') {
+    const { getLocalAuthUser } = await import('@/lib/auth/local-auth');
+    return getLocalAuthUser();
+  }
+
   if (provider === 'authjs') {
     const { getAuthJsUser } = await import('@/lib/auth/authjs-auth');
     return getAuthJsUser();

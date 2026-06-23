@@ -13,6 +13,8 @@ vi.mock('@/lib/auth/index', () => ({
 
 vi.mock('@/repositories/factory', () => ({
   createCatalogRepository: vi.fn(),
+  createProjectRepository: vi.fn(),
+  createUserApiKeyRepository: vi.fn(),
 }));
 
 vi.mock('@/lib/config/providers', () => ({
@@ -439,23 +441,16 @@ describe('GET /api/v1/proxy', () => {
       };
       process.env.PLATFORM_API_KEY = 'platform-fallback-key';
 
-      const mockSupabase = {
-        from: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockRejectedValue(new Error('DB 오류')),
-            }),
-          }),
-        }),
-      };
-
-      const { createCatalogRepository } = await import('@/repositories/factory');
+      const { createCatalogRepository, createProjectRepository } = await import(
+        '@/repositories/factory'
+      );
       vi.mocked(createCatalogRepository).mockReturnValue({
         findById: vi.fn().mockResolvedValue(apiWithKey),
       } as never);
-
-      const { createServiceClient } = await import('@/lib/supabase/server');
-      vi.mocked(createServiceClient).mockResolvedValue(mockSupabase as never);
+      // 프로젝트 조회 실패(레포 throw) → 플랫폼 키로 폴백
+      vi.mocked(createProjectRepository).mockReturnValue({
+        findById: vi.fn().mockRejectedValue(new Error('DB 오류')),
+      } as never);
 
       const url = new URL('http://localhost/api/v1/proxy');
       url.searchParams.set('apiId', VALID_API_ID);
@@ -486,45 +481,22 @@ describe('GET /api/v1/proxy', () => {
       };
       process.env.PLATFORM_FALLBACK_KEY = 'platform-key-value';
 
-      const mockSupabase = {
-        from: vi.fn().mockImplementation((table: string) => {
-          if (table === 'projects') {
-            return {
-              select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  single: vi.fn().mockResolvedValue({ data: { user_id: 'owner-user-id' }, error: null }),
-                }),
-              }),
-            };
-          }
-          // user_api_keys 테이블 → encrypted_key 반환
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  single: vi.fn().mockResolvedValue({
-                    data: { encrypted_key: 'corrupted-cipher' },
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          };
-        }),
-      };
-
       const { decryptApiKey } = await import('@/lib/encryption');
       vi.mocked(decryptApiKey).mockImplementationOnce(() => {
         throw new Error('복호화 실패');
       });
 
-      const { createCatalogRepository } = await import('@/repositories/factory');
+      const { createCatalogRepository, createProjectRepository, createUserApiKeyRepository } =
+        await import('@/repositories/factory');
       vi.mocked(createCatalogRepository).mockReturnValue({
         findById: vi.fn().mockResolvedValue(apiWithKey),
       } as never);
-
-      const { createServiceClient } = await import('@/lib/supabase/server');
-      vi.mocked(createServiceClient).mockResolvedValue(mockSupabase as never);
+      vi.mocked(createProjectRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue({ id: 'p-1', userId: 'owner-user-id' }),
+      } as never);
+      vi.mocked(createUserApiKeyRepository).mockReturnValue({
+        findByUserAndApi: vi.fn().mockResolvedValue({ encryptedKey: 'corrupted-cipher' }),
+      } as never);
 
       const url = new URL('http://localhost/api/v1/proxy');
       url.searchParams.set('apiId', VALID_API_ID);
@@ -540,6 +512,46 @@ describe('GET /api/v1/proxy', () => {
       expect([200, 502]).toContain(res.status);
 
       delete process.env.PLATFORM_FALLBACK_KEY;
+    });
+
+    it('프로젝트 오너 개인 키를 레포로 조회해 복호화에 사용한다(모든 provider)', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+      const apiWithKey = {
+        ...mockPublicApi,
+        authType: 'api_key',
+        authConfig: { param_name: 'X-API-Key', param_in: 'header', env_var: 'UNUSED_PLATFORM_KEY' },
+      };
+
+      const { createCatalogRepository, createProjectRepository, createUserApiKeyRepository } =
+        await import('@/repositories/factory');
+      vi.mocked(createCatalogRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue(apiWithKey),
+      } as never);
+      vi.mocked(createProjectRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue({ id: 'p-1', userId: 'owner-user-id' }),
+      } as never);
+      const findByUserAndApi = vi.fn().mockResolvedValue({ encryptedKey: 'enc-personal' });
+      vi.mocked(createUserApiKeyRepository).mockReturnValue({ findByUserAndApi } as never);
+
+      const { decryptApiKey } = await import('@/lib/encryption');
+      vi.mocked(decryptApiKey).mockReturnValue('decrypted-personal-key');
+
+      const url = new URL('http://localhost/api/v1/proxy');
+      url.searchParams.set('apiId', VALID_API_ID);
+      url.searchParams.set('proxyPath', '/data');
+      url.searchParams.set('projectId', 'aaaabbbb-cccc-dddd-eeee-111111111111');
+      const req = new Request(url.toString());
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+      const res = await GET(req);
+
+      // 개인 키가 레포 경로로 조회되어(raw .from 아님) 복호화에 사용됨
+      expect(findByUserAndApi).toHaveBeenCalledWith('owner-user-id', VALID_API_ID);
+      expect(decryptApiKey).toHaveBeenCalledWith('enc-personal');
+      expect(mockFetch).toHaveBeenCalled();
+      expect([200, 502]).toContain(res.status);
     });
 
     it('매우 긴 userId(1000자) 시 rate limit 정상 동작', async () => {

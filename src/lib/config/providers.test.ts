@@ -64,10 +64,16 @@ describe('getDbProvider()', () => {
     });
   });
 
+  it('DB_PROVIDER=sqlite 이면 sqlite를 반환한다 (필수 env 없음)', () => {
+    withEnv({ DB_PROVIDER: 'sqlite', DATABASE_URL: undefined }, () => {
+      expect(getDbProvider()).toBe('sqlite');
+    });
+  });
+
   it('알 수 없는 DB_PROVIDER 값이면 에러를 던진다', () => {
     withEnv({ DB_PROVIDER: 'mysql' }, () => {
       expect(() => getDbProvider()).toThrow(
-        '알 수 없는 DB_PROVIDER 값: "mysql". "supabase" 또는 "postgres"를 사용하세요.'
+        '알 수 없는 DB_PROVIDER 값: "mysql". "supabase", "postgres", "sqlite" 중 하나를 사용하세요.'
       );
     });
   });
@@ -100,10 +106,24 @@ describe('getAuthProvider()', () => {
     });
   });
 
+  it('AUTH_PROVIDER=local 이고 AUTH_SECRET이 설정된 경우 local을 반환한다', () => {
+    withEnv({ AUTH_PROVIDER: 'local', AUTH_SECRET: 'super-secret' }, () => {
+      expect(getAuthProvider()).toBe('local');
+    });
+  });
+
+  it('AUTH_PROVIDER=local 이지만 AUTH_SECRET이 없으면 에러를 던진다', () => {
+    withEnv({ AUTH_PROVIDER: 'local', AUTH_SECRET: undefined }, () => {
+      expect(() => getAuthProvider()).toThrow(
+        'AUTH_PROVIDER=local 설정 시 AUTH_SECRET 환경변수가 필요합니다.'
+      );
+    });
+  });
+
   it('알 수 없는 AUTH_PROVIDER 값이면 에러를 던진다', () => {
     withEnv({ AUTH_PROVIDER: 'firebase' }, () => {
       expect(() => getAuthProvider()).toThrow(
-        '알 수 없는 AUTH_PROVIDER 값: "firebase". "supabase" 또는 "authjs"를 사용하세요.'
+        '알 수 없는 AUTH_PROVIDER 값: "firebase". "supabase", "authjs", "local" 중 하나를 사용하세요.'
       );
     });
   });

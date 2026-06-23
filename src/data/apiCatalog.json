@@ -1,0 +1,2493 @@
+[
+  {
+    "id": "3014199c-8a07-4800-bc96-30b9145a41cd",
+    "name": "Countries (Self-hosted)",
+    "description": "250개 나라의 수도, 지역, 국기, 언어, 통화, 국가번호, 면적 정보를 제공해요. REST Countries 대체 API로, 가입·키 없이 바로 사용할 수 있어요.",
+    "category": "data",
+    "base_url": "https://xzawed.xyz",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": null,
+    "endpoints": [
+      {
+        "path": "/api/v1/countries",
+        "method": "GET",
+        "parameters": {
+          "region": "string",
+          "search": "string"
+        },
+        "description": "전체 나라 목록 (region·search 쿼리로 필터 가능)"
+      },
+      {
+        "path": "/api/v1/countries/KR",
+        "method": "GET",
+        "parameters": {
+          "code": "string"
+        },
+        "description": "국가 코드(cca2/cca3)로 단건 조회. 경로의 KR을 원하는 코드로 바꾸세요 (예: KOR, US, JP)"
+      }
+    ],
+    "tags": [
+      "data",
+      "countries",
+      "geography",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": 86400,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:40:55.923+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-06-22T11:25:27.305719+00:00",
+    "updated_at": "2026-06-22T21:40:56.90952+00:00"
+  },
+  {
+    "id": "04e79764-c27c-46d8-b63c-2794fbe5a3f7",
+    "name": "JSONPlaceholder",
+    "description": "가짜 게시글, 댓글, 할일 목록, 사진 앨범 데이터. 연습용 또는 프로토타입 만들 때 유용해요.",
+    "category": "data",
+    "base_url": "https://jsonplaceholder.typicode.com",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "500",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://jsonplaceholder.typicode.com/guide/",
+    "endpoints": [
+      {
+        "path": "/posts",
+        "method": "GET",
+        "description": "게시글 목록",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=04e79764-c27c-46d8-b63c-2794fbe5a3f7&proxyPath=%2Fposts');\nconst items = await res.json(); // [{id, userId, title, body}]"
+      },
+      {
+        "path": "/todos",
+        "method": "GET",
+        "description": "할일 목록",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=04e79764-c27c-46d8-b63c-2794fbe5a3f7&proxyPath=%2Ftodos');\nconst items = await res.json(); // [{id, userId, title, completed}]"
+      },
+      {
+        "path": "/users",
+        "method": "GET",
+        "description": "사용자 목록",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=04e79764-c27c-46d8-b63c-2794fbe5a3f7&proxyPath=%2Fusers');\nconst items = await res.json(); // [{id, name, username, email}]"
+      }
+    ],
+    "tags": [
+      "data",
+      "mock",
+      "placeholder",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:00.262+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:41:00.400736+00:00"
+  },
+  {
+    "id": "448bc30c-2f3e-452d-9bd7-e88072f89bc4",
+    "name": "Open Library",
+    "description": "전 세계 도서 검색. 책 제목이나 저자로 검색하면 표지, 출판 정보를 알려줘요.",
+    "category": "data",
+    "base_url": "https://openlibrary.org",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "100",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://openlibrary.org/developers/api",
+    "endpoints": [
+      {
+        "path": "/search.json",
+        "method": "GET",
+        "parameters": {
+          "q": "string",
+          "title": "string",
+          "author": "string"
+        },
+        "description": "도서 검색"
+      }
+    ],
+    "tags": [
+      "data",
+      "books",
+      "library",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:01.291+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:41:01.425516+00:00"
+  },
+  {
+    "id": "6890346f-fa79-483c-bce2-f841ad3420fd",
+    "name": "Random User",
+    "description": "가짜 사용자 프로필 자동 생성. 이름, 사진, 주소, 이메일 등 테스트 데이터를 만들 때 유용해요.",
+    "category": "data",
+    "base_url": "https://randomuser.me",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "500",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://randomuser.me/documentation",
+    "endpoints": [
+      {
+        "path": "/api/",
+        "method": "GET",
+        "parameters": {
+          "nat": "string",
+          "gender": "string",
+          "results": "number"
+        },
+        "description": "랜덤 사용자 프로필 생성",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=6890346f-fa79-483c-bce2-f841ad3420fd&proxyPath=%2Fapi%2F');\nconst data = await res.json();\nconst items = data.results; // [{name, email, picture, location}]",
+        "responseDataPath": "results"
+      }
+    ],
+    "tags": [
+      "data",
+      "users",
+      "mock",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v1.4",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:02.716+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:41:02.855707+00:00"
+  },
+  {
+    "id": "e611b79a-98d5-46f8-9f5e-8999f65e258b",
+    "name": "REST Countries",
+    "description": "250개 나라의 수도, 인구, 국기, 언어, 통화 정보. 여행 준비나 세계 퀴즈 만들기에 딱!",
+    "category": "data",
+    "base_url": "https://restcountries.com",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "500",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://restcountries.com/",
+    "endpoints": [
+      {
+        "path": "/v3.1/all",
+        "method": "GET",
+        "description": "전체 나라 목록"
+      },
+      {
+        "path": "/v3.1/name/{name}",
+        "method": "GET",
+        "parameters": {
+          "name": "string"
+        },
+        "description": "나라 이름으로 검색"
+      }
+    ],
+    "tags": [
+      "data",
+      "countries",
+      "geography",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v3.1",
+    "deprecated_at": "2026-06-21T11:50:39.804157+00:00",
+    "successor_id": "3014199c-8a07-4800-bc96-30b9145a41cd",
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "broken",
+    "verified_at": null,
+    "last_verification_note": "2026-06-21 라이브 검증: v3.1 전 엔드포인트(name/alpha/all) deprecated. HTTP 200이나 본문이 deprecation 에러 객체이며 legacy.json으로 301(경로 stripping). 무료 키리스 대체 없음(v5는 유료·키 필요). 권장 대체: mledoze/countries 데이터셋 번들/셀프호스트.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T11:25:27.305719+00:00"
+  },
+  {
+    "id": "01fc3764-a2e5-4b04-91ca-34f11659366b",
+    "name": "Wikipedia",
+    "description": "위키피디아 문서 요약과 검색. 궁금한 것을 검색하면 짧은 요약문을 보여줘요. 한국어도 지원.",
+    "category": "data",
+    "base_url": "https://ko.wikipedia.org/api/rest_v1",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "200",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://en.wikipedia.org/api/rest_v1/",
+    "endpoints": [
+      {
+        "path": "/page/summary/{title}",
+        "method": "GET",
+        "parameters": {
+          "title": "string"
+        },
+        "description": "문서 요약 조회"
+      },
+      {
+        "path": "/page/random/summary",
+        "method": "GET",
+        "description": "랜덤 문서 요약"
+      }
+    ],
+    "tags": [
+      "data",
+      "wikipedia",
+      "encyclopedia",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:04.644+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:41:04.780443+00:00"
+  },
+  {
+    "id": "ca6f16be-fe50-4eb9-be5d-430859be10cc",
+    "name": "KOPIS 공연예술",
+    "description": "공연예술통합전산망(KOPIS) 공연 정보. 공연 목록·상세·공연장 조회. XML 응답 (DOMParser 파싱 필요). (KOPIS 키 필요)",
+    "category": "entertainment",
+    "base_url": "https://www.kopis.or.kr/openApi/restful",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_KOPIS",
+      "param_in": "query",
+      "param_name": "service"
+    },
+    "rate_limit": "100",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://www.kopis.or.kr/por/cs/openapi/openApiUsageGuide.do",
+    "endpoints": [
+      {
+        "path": "/pblprfr",
+        "method": "GET",
+        "parameters": {
+          "rows": "10",
+          "cpage": "1",
+          "shcaf": "공연시설코드 (선택)",
+          "shcat": "공연분야코드 (선택)",
+          "eddate": "종료일 YYYYMMDD",
+          "stdate": "시작일 YYYYMMDD",
+          "shprfnm": "공연명 검색 (선택)"
+        },
+        "description": "공연 목록 조회 (XML 반환)",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=<이 API ID>&proxyPath=%2Fpblprfr&stdate=20250501&eddate=20250531&cpage=1&rows=10');\nconst xml = await res.text();\nconst parser = new DOMParser();\nconst doc = parser.parseFromString(xml, 'text/xml');\nconst items = doc.querySelectorAll('db');",
+        "responseDataPath": ""
+      },
+      {
+        "path": "/pblprfr/{mt20id}",
+        "method": "GET",
+        "parameters": {
+          "mt20id": "공연 ID"
+        },
+        "description": "공연 상세 정보 (XML 반환)",
+        "responseDataPath": ""
+      }
+    ],
+    "tags": [
+      "entertainment",
+      "performance",
+      "culture",
+      "theater",
+      "kr",
+      "api_key",
+      "xml"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": null,
+    "last_verification_note": "2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-05-01T04:03:27.970352+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "5142c7db-5b34-40ca-8303-41e787d7383d",
+    "name": "Open Trivia DB",
+    "description": "4,000개 이상 퀴즈 문제. 난이도와 카테고리를 골라서 퀴즈 게임을 만들 수 있어요.",
+    "category": "entertainment",
+    "base_url": "https://opentdb.com",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "12/분(5초 간격)",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://opentdb.com/api_config.php",
+    "endpoints": [
+      {
+        "path": "/api.php",
+        "method": "GET",
+        "parameters": {
+          "amount": "number",
+          "category": "number",
+          "difficulty": "string"
+        },
+        "description": "퀴즈 문제 가져오기"
+      }
+    ],
+    "tags": [
+      "entertainment",
+      "trivia",
+      "quiz",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:01.564+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:41:01.713716+00:00"
+  },
+  {
+    "id": "02cea7ab-d89a-4e51-b9c5-32ed0fd00338",
+    "name": "PokéAPI",
+    "description": "포켓몬 도감. 1,000마리 이상 포켓몬의 능력치, 타입, 이미지를 확인할 수 있어요.",
+    "category": "entertainment",
+    "base_url": "https://pokeapi.co",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://pokeapi.co/docs/v2",
+    "endpoints": [
+      {
+        "path": "/api/v2/pokemon/{id_or_name}",
+        "method": "GET",
+        "parameters": {
+          "id_or_name": "string"
+        },
+        "description": "포켓몬 상세 정보"
+      },
+      {
+        "path": "/api/v2/pokemon",
+        "method": "GET",
+        "parameters": {
+          "limit": "number",
+          "offset": "number"
+        },
+        "description": "포켓몬 목록",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=02cea7ab-d89a-4e51-b9c5-32ed0fd00338&proxyPath=%2Fapi%2Fv2%2Fpokemon');\nconst data = await res.json();\nconst items = data.results; // [{name, url}]",
+        "responseDataPath": "results"
+      }
+    ],
+    "tags": [
+      "entertainment",
+      "pokemon",
+      "games",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v2",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:02.16+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:41:02.298908+00:00"
+  },
+  {
+    "id": "597c8c5b-afca-4528-b84e-e15c8bee5767",
+    "name": "RAWG",
+    "description": "500,000개 이상 게임 데이터베이스. 인기 게임 목록, 검색, 상세정보 제공.",
+    "category": "entertainment",
+    "base_url": "https://api.rawg.io/api",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_RAWG",
+      "param_in": "query",
+      "param_name": "key"
+    },
+    "rate_limit": "20000/월",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://api.rawg.io/docs",
+    "endpoints": [
+      {
+        "path": "/games",
+        "method": "GET",
+        "parameters": {
+          "genres": "string (예: action,rpg)",
+          "ordering": "-rating",
+          "page_size": "20"
+        },
+        "description": "게임 목록 조회",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=<이 API ID>&proxyPath=%2Fgames&page_size=20&ordering=-rating');\nconst data = await res.json();\nconst games = data.results; // [{name, rating, background_image, genres}]",
+        "responseDataPath": "results"
+      },
+      {
+        "path": "/games/{id}",
+        "method": "GET",
+        "parameters": {
+          "id": "게임 ID 또는 slug"
+        },
+        "description": "게임 상세 정보",
+        "responseDataPath": ""
+      },
+      {
+        "path": "/genres",
+        "method": "GET",
+        "description": "장르 목록",
+        "responseDataPath": "results"
+      }
+    ],
+    "tags": [
+      "entertainment",
+      "games",
+      "gaming",
+      "api_key"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-05-01T04:28:47.706287+00:00",
+    "last_verification_note": "2026-05-01: 무료 플랜 월 20,000건. 비상업적 프로젝트 무료. RAWG 역링크 필수.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-05-01T04:02:26.332579+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "da2e14a4-e8c6-4164-835e-6ce8b212d59b",
+    "name": "TheMealDB",
+    "description": "전세계 레시피 데이터베이스. 랜덤 레시피, 검색, 카테고리별 필터 제공. ⚠️ 무료 키(v1/1)는 100건 이하·단일 재료 필터·기본 기능만 지원. v2 기능(랜덤 10개 등)은 Patreon 구독 키 필요.",
+    "category": "entertainment",
+    "base_url": "https://www.themealdb.com/api/json/v1/1",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://www.themealdb.com/api.php",
+    "endpoints": [
+      {
+        "path": "/random.php",
+        "method": "GET",
+        "description": "랜덤 레시피 1개",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=<이 API ID>&proxyPath=%2Frandom.php');\nconst data = await res.json();\nconst meal = data.meals[0]; // {strMeal, strCategory, strInstructions, strMealThumb}",
+        "responseDataPath": "meals[0]"
+      },
+      {
+        "path": "/search.php",
+        "method": "GET",
+        "parameters": {
+          "s": "요리명 (예: chicken)"
+        },
+        "description": "레시피 검색",
+        "responseDataPath": "meals"
+      },
+      {
+        "path": "/filter.php",
+        "method": "GET",
+        "parameters": {
+          "c": "Chicken | Beef | Seafood | Vegetarian 등"
+        },
+        "description": "카테고리별 레시피",
+        "responseDataPath": "meals"
+      }
+    ],
+    "tags": [
+      "fun",
+      "food",
+      "recipe",
+      "cooking",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:04.095+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-05-01T04:02:26.332579+00:00",
+    "updated_at": "2026-06-22T21:41:04.229482+00:00"
+  },
+  {
+    "id": "902c0017-1315-4517-9682-d5d501e43f5d",
+    "name": "TMDB",
+    "description": "영화·TV 데이터베이스. 인기 영화·드라마 목록, 검색, 상세정보 제공. 한국어(ko-KR) 지원.",
+    "category": "entertainment",
+    "base_url": "https://api.themoviedb.org/3",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_TMDB",
+      "param_in": "query",
+      "param_name": "api_key"
+    },
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://developer.themoviedb.org/docs",
+    "endpoints": [
+      {
+        "path": "/movie/popular",
+        "method": "GET",
+        "parameters": {
+          "page": "1",
+          "language": "ko-KR"
+        },
+        "description": "인기 영화 목록",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=<이 API ID>&proxyPath=%2Fmovie%2Fpopular&language=ko-KR&page=1');\nconst data = await res.json();\nconst movies = data.results;",
+        "responseDataPath": "results"
+      },
+      {
+        "path": "/search/movie",
+        "method": "GET",
+        "parameters": {
+          "query": "string",
+          "language": "ko-KR"
+        },
+        "description": "영화 검색",
+        "responseDataPath": "results"
+      },
+      {
+        "path": "/tv/popular",
+        "method": "GET",
+        "parameters": {
+          "language": "ko-KR"
+        },
+        "description": "인기 TV 프로그램 목록",
+        "responseDataPath": "results"
+      }
+    ],
+    "tags": [
+      "entertainment",
+      "movies",
+      "tv",
+      "film",
+      "api_key"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-05-01T04:28:47.706287+00:00",
+    "last_verification_note": "2026-05-01: 2019년 12월 rate limit 폐지. 현재 ~40req/s 비공식 상한선. 과도한 호출 시 429 응답. 비상업적 사용 무료.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-05-01T04:02:26.332579+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "77b58b42-51b2-4301-9da4-e60850f22d07",
+    "name": "ExchangeRate-API",
+    "description": "150개국 환율 조회. 가입 없이 바로 사용 가능해요. 원화(KRW) 포함 모든 통화 지원.",
+    "category": "finance",
+    "base_url": "https://open.er-api.com",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "50",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://www.exchangerate-api.com/docs/free",
+    "endpoints": [
+      {
+        "path": "/v6/latest/{currency}",
+        "method": "GET",
+        "parameters": {
+          "currency": "string"
+        },
+        "description": "기준 통화 대비 전체 환율 조회"
+      }
+    ],
+    "tags": [
+      "finance",
+      "currency",
+      "exchange-rate",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v6",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:40:57.894+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:40:58.530617+00:00"
+  },
+  {
+    "id": "8e4bbbcf-61b4-40e6-8bcb-8f7d35ba0f38",
+    "name": "Frankfurter",
+    "description": "유럽중앙은행 기준 환율 조회. 30개국 통화를 실시간으로 변환할 수 있어요. 여행 환율 계산기에 딱!",
+    "category": "finance",
+    "base_url": "https://api.frankfurter.dev/v1",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://frankfurter.dev",
+    "endpoints": [
+      {
+        "path": "/latest",
+        "method": "GET",
+        "parameters": {
+          "to": "string",
+          "from": "string"
+        },
+        "description": "최신 환율 조회"
+      },
+      {
+        "path": "/{date}",
+        "method": "GET",
+        "parameters": {
+          "date": "string"
+        },
+        "description": "특정 날짜 환율 조회"
+      }
+    ],
+    "tags": [
+      "finance",
+      "currency",
+      "exchange-rate",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:40:58.671+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:40:59.28089+00:00"
+  },
+  {
+    "id": "6c5e7987-5f4f-49d6-a6f4-fea73ce5dc6b",
+    "name": "한국은행 경제통계 (ECOS)",
+    "description": "한국은행 경제통계 API. GDP, 금리, 환율, 물가 등 거시 경제 지표 조회. 인증키 발급: data.go.kr이 아닌 ecos.bok.or.kr 자체 회원가입 필요.",
+    "category": "finance",
+    "base_url": "https://ecos.bok.or.kr/api",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_ECOS",
+      "param_in": "path",
+      "param_name": "authkey"
+    },
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://ecos.bok.or.kr/api/#/",
+    "endpoints": [
+      {
+        "path": "/StatisticSearch/{authkey}/json/kr/1/10/{statCode}",
+        "method": "GET",
+        "parameters": {
+          "endDate": "string",
+          "statCode": "string",
+          "startDate": "string"
+        },
+        "description": "통계 항목 조회"
+      }
+    ],
+    "tags": [
+      "finance",
+      "economy",
+      "korea",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": "2026-05-01T04:29:30.77912+00:00",
+    "last_verification_note": "2026-05-01: ecos.bok.or.kr 자체 발급 (공공데이터포털 경유 아님). HTTPS 정상.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "f93805a1-d86f-4ef7-9b9c-e00aa0f5aaa8",
+    "name": "icanhazdadjoke",
+    "description": "아재 개그 무한 생성기. 영어 유머 연습용으로도 좋아요. 매번 다른 개그가 나와요.",
+    "category": "fun",
+    "base_url": "https://icanhazdadjoke.com",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://icanhazdadjoke.com/api",
+    "endpoints": [
+      {
+        "path": "/",
+        "method": "GET",
+        "description": "랜덤 아재 개그 (Accept: application/json 헤더 필요)"
+      }
+    ],
+    "tags": [
+      "fun",
+      "jokes",
+      "dad-jokes",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:40:59.704+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:40:59.840091+00:00"
+  },
+  {
+    "id": "09b8144b-6570-4d2c-aecd-b7a3f0505102",
+    "name": "JokeAPI",
+    "description": "카테고리별 랜덤 유머. 프로그래밍 개그, 아재 개그 등 분위기 전환에 딱이에요.",
+    "category": "fun",
+    "base_url": "https://v2.jokeapi.dev",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "120",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://jokeapi.dev/",
+    "endpoints": [
+      {
+        "path": "/joke/{category}",
+        "method": "GET",
+        "parameters": {
+          "lang": "string",
+          "type": "string",
+          "category": "string"
+        },
+        "description": "카테고리별 랜덤 유머 조회"
+      }
+    ],
+    "tags": [
+      "entertainment",
+      "jokes",
+      "humor",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v2",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:40:59.979+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:41:00.121204+00:00"
+  },
+  {
+    "id": "4c6f5228-e6ec-45bb-b0bb-e947dcdeb1c1",
+    "name": "ZenQuotes",
+    "description": "명언·격언 랜덤 표시. 오늘의 한마디, 동기부여 화면을 만들 때 좋아요. HTTPS 지원, 무료, 인증 불필요.",
+    "category": "fun",
+    "base_url": "https://zenquotes.io/api",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://docs.zenquotes.io",
+    "endpoints": [
+      {
+        "path": "/random",
+        "method": "GET",
+        "description": "랜덤 명언 1개 조회",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=4c6f5228-e6ec-45bb-b0bb-e947dcdeb1c1&proxyPath=%2Frandom');\nconst data = await res.json();\nconst quote = data[0];\n// quote.q (명언), quote.a (저자)",
+        "responseDataPath": "[0]"
+      },
+      {
+        "path": "/quotes",
+        "method": "GET",
+        "description": "명언 50개 조회",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=4c6f5228-e6ec-45bb-b0bb-e947dcdeb1c1&proxyPath=%2Fquotes');\nconst data = await res.json();\n// data: [{q: '명언', a: '저자'}, ...]",
+        "responseDataPath": ""
+      }
+    ],
+    "tags": [
+      "fun",
+      "quotes",
+      "inspiration",
+      "free",
+      "no-auth",
+      "https"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:04.914+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: degraded",
+    "created_at": "2026-05-01T03:58:12.170498+00:00",
+    "updated_at": "2026-06-22T21:41:05.054228+00:00"
+  },
+  {
+    "id": "4bb5796d-5754-4ca8-9cee-6190fbe2a6b8",
+    "name": "HIRA 병원정보",
+    "description": "건강보험심사평가원 병원·의원 정보 조회. 주소·진료과로 병원 검색. (공공데이터포털 키 필요)",
+    "category": "health",
+    "base_url": "https://apis.data.go.kr/B551182/hospInfoServicev2",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_HIRA",
+      "param_in": "query",
+      "param_name": "serviceKey"
+    },
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://www.data.go.kr/data/15001698/openapi.do",
+    "endpoints": [
+      {
+        "path": "/getHospBasisList",
+        "method": "GET",
+        "parameters": {
+          "addr": "주소 (예: 서울특별시 강남구)",
+          "type": "json",
+          "pageNo": "1",
+          "dgsbjtCd": "진료과코드 (예: 01=내과, 11=정형외과)",
+          "numOfRows": "10"
+        },
+        "description": "병원 기본 정보 목록",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=<이 API ID>&proxyPath=%2FgetHospBasisList&addr=서울특별시&pageNo=1&numOfRows=5&type=json');\nconst data = await res.json();\nconst hospitals = data.response.body.items.item; // [{yadmNm, addr, telno, clCdNm}]",
+        "responseDataPath": "response.body.items.item"
+      }
+    ],
+    "tags": [
+      "health",
+      "hospital",
+      "medical",
+      "kr",
+      "api_key",
+      "data.go.kr"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": null,
+    "last_verification_note": "2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-05-01T04:03:27.970352+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "f45de6c5-95e6-4c4a-989e-c60b060a9c7c",
+    "name": "식약처 식품영양성분",
+    "description": "식품의약품안전처 식품 영양성분 데이터. 식품명으로 열량·단백질·지방·탄수화물 등 조회. (공공데이터포털 키 필요)",
+    "category": "health",
+    "base_url": "https://apis.data.go.kr/1471000/FoodNtrIrdntInfoService1",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_MFDS",
+      "param_in": "query",
+      "param_name": "serviceKey"
+    },
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://www.data.go.kr/data/15100366/openapi.do",
+    "endpoints": [
+      {
+        "path": "/getFoodNtrItdntList1",
+        "method": "GET",
+        "parameters": {
+          "type": "json",
+          "pageNo": "1",
+          "desc_kor": "식품명 (한글)",
+          "numOfRows": "10"
+        },
+        "description": "식품 영양성분 목록 조회",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=<이 API ID>&proxyPath=%2FgetFoodNtrItdntList1&desc_kor=사과&pageNo=1&numOfRows=5&type=json');\nconst data = await res.json();\nconst items = data.body.items;",
+        "responseDataPath": "body.items"
+      }
+    ],
+    "tags": [
+      "health",
+      "food",
+      "nutrition",
+      "kr",
+      "api_key",
+      "data.go.kr"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": "2026-05-01T05:05:04.336909+00:00",
+    "last_verification_note": "2026-05-01: ⚠️ HTTPS 호출 시 500 반환 확인 (다른 data.go.kr API는 401 반환). HTTP 폴백 여부 추가 검증 필요. 운영 전 실제 키로 HTTPS 동작 테스트 권장.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-05-01T04:02:58.319122+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "7da97ff7-c9e2-4d1c-8c94-e179818ef530",
+    "name": "Dog API",
+    "description": "120종 강아지 사진 20,000장. 품종별로 귀여운 강아지 사진을 볼 수 있어요.",
+    "category": "image",
+    "base_url": "https://dog.ceo",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://dog.ceo/dog-api/",
+    "endpoints": [
+      {
+        "path": "/api/breeds/image/random",
+        "method": "GET",
+        "description": "랜덤 강아지 사진"
+      },
+      {
+        "path": "/api/breed/{breed}/images",
+        "method": "GET",
+        "parameters": {
+          "breed": "string"
+        },
+        "description": "품종별 사진 목록"
+      }
+    ],
+    "tags": [
+      "image",
+      "dogs",
+      "animals",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "broken",
+    "verified_at": "2026-06-22T12:59:07.588+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: broken",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:40:57.750812+00:00"
+  },
+  {
+    "id": "4ef4a3ef-5105-4da7-af24-6119fe2722fa",
+    "name": "Lorem Picsum",
+    "description": "랜덤 고화질 사진 생성. URL에 크기만 넣으면 예쁜 사진이 나와요. 배경 이미지로 딱!",
+    "category": "image",
+    "base_url": "https://picsum.photos",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://picsum.photos/",
+    "endpoints": [
+      {
+        "path": "/{width}/{height}",
+        "method": "GET",
+        "parameters": {
+          "width": "number",
+          "height": "number"
+        },
+        "description": "지정 크기 랜덤 이미지"
+      },
+      {
+        "path": "/v2/list",
+        "method": "GET",
+        "description": "이미지 목록 조회"
+      }
+    ],
+    "tags": [
+      "image",
+      "placeholder",
+      "photos",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v2",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "broken",
+    "verified_at": null,
+    "last_verification_note": "picsum.photos Cloudflare 522/timeout 지속(2026-06-21~) — 수동 비활성화(2026-06-22). 복구 시 재검증 후 is_active=true 복원",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T11:51:42.094121+00:00"
+  },
+  {
+    "id": "7b66ab19-4d00-4d39-a4f9-2c2b6c6367a4",
+    "name": "NASA 오늘의 천문 사진",
+    "description": "NASA가 매일 선정한 우주 사진 + 해설. DEMO_KEY로 가입 없이 바로 사용 가능해요.",
+    "category": "image",
+    "base_url": "https://api.nasa.gov",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_NASA",
+      "param_in": "query",
+      "param_name": "api_key",
+      "default_key": "DEMO_KEY"
+    },
+    "rate_limit": "30",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://api.nasa.gov/",
+    "endpoints": [
+      {
+        "path": "/planetary/apod",
+        "method": "GET",
+        "parameters": {
+          "date": "string",
+          "api_key": "string"
+        },
+        "description": "오늘의 천문 사진 조회"
+      }
+    ],
+    "tags": [
+      "image",
+      "space",
+      "nasa",
+      "astronomy",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:00.54+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:41:01.151132+00:00"
+  },
+  {
+    "id": "f1b6d26f-4cb4-4ea7-844b-8c6ba3b29a8a",
+    "name": "The Cat API",
+    "description": "랜덤 고양이 사진과 품종 정보. 집사라면 매일 다른 고양이 사진으로 힐링하세요.",
+    "category": "image",
+    "base_url": "https://api.thecatapi.com",
+    "auth_type": "none",
+    "auth_config": null,
+    "rate_limit": "10/분",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://docs.thecatapi.com/",
+    "endpoints": [
+      {
+        "path": "/v1/images/search",
+        "method": "GET",
+        "parameters": {
+          "limit": "number",
+          "breed_ids": "string"
+        },
+        "description": "랜덤 고양이 사진 검색"
+      }
+    ],
+    "tags": [
+      "image",
+      "cats",
+      "animals",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:03.547+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:41:03.681376+00:00"
+  },
+  {
+    "id": "2a31bfbe-2ce0-43c0-8a9f-c1ce7bf7235d",
+    "name": "Unsplash",
+    "description": "전문 사진작가들의 고퀄리티 무료 사진 검색. 풍경, 음식, 사람 등 모든 주제를 검색할 수 있어요.",
+    "category": "image",
+    "base_url": "https://api.unsplash.com",
+    "auth_type": "api_key",
+    "auth_config": {
+      "prefix": "Client-ID ",
+      "env_var": "API_KEY_UNSPLASH",
+      "param_in": "header",
+      "param_name": "Authorization"
+    },
+    "rate_limit": "50/시간 (Demo) → 1000/시간 (Production 심사 후)",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://unsplash.com/documentation",
+    "endpoints": [
+      {
+        "path": "/photos/random",
+        "method": "GET",
+        "description": "랜덤 사진 조회"
+      },
+      {
+        "path": "/search/photos",
+        "method": "GET",
+        "parameters": {
+          "query": "string"
+        },
+        "description": "키워드 사진 검색"
+      }
+    ],
+    "tags": [
+      "image",
+      "photos",
+      "stock",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-05-01T00:00:00+00:00",
+    "last_verification_note": "2026-06-21 비활성화: 플랫폼 env 키 미설정(빈 값) — /admin/keys-verify로 7개 전부 MISSING 확인. 키 의존 API가 키 없이 제공되어 401 실패. 실제 키 확보 시 재활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-21T14:39:28.883282+00:00"
+  },
+  {
+    "id": "15b51435-de0d-4c53-854c-dfcf08f4bcac",
+    "name": "공휴일 정보 (한국천문연구원)",
+    "description": "대한민국 공휴일, 기념일, 24절기 정보. 달력 앱이나 D-day 계산기 만들 때 필수!",
+    "category": "lifestyle",
+    "base_url": "https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_15B51435",
+      "param_in": "query",
+      "param_name": "serviceKey"
+    },
+    "rate_limit": "10000/일 (개발계정)",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://www.data.go.kr/data/15012690/openapi.do",
+    "endpoints": [
+      {
+        "path": "/getRestDeInfo",
+        "method": "GET",
+        "parameters": {
+          "solYear": "string",
+          "solMonth": "string"
+        },
+        "description": "공휴일 조회"
+      }
+    ],
+    "tags": [
+      "lifestyle",
+      "holiday",
+      "calendar",
+      "korea",
+      "공공데이터",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-05-01T00:00:00+00:00",
+    "last_verification_note": "2026-06-21 비활성화: 플랫폼 env 키 미설정(빈 값) — /admin/keys-verify로 7개 전부 MISSING 확인. 키 의존 API가 키 없이 제공되어 401 실패. 실제 키 확보 시 재활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-21T14:39:28.883282+00:00"
+  },
+  {
+    "id": "83823c31-2f86-4ce9-820c-8389e2acfee4",
+    "name": "국립중앙도서관 도서 검색",
+    "description": "국내 도서 검색. 도서관 소장 여부, 서지 정보를 확인할 수 있어요. 책 읽기 좋아하는 분께 추천.",
+    "category": "lifestyle",
+    "base_url": "https://www.nl.go.kr/NL/search/openApi/search.do",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_83823C31",
+      "param_in": "query",
+      "param_name": "key"
+    },
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://www.nl.go.kr/NL/contents/N31101030700.do",
+    "endpoints": [
+      {
+        "path": "/sas498",
+        "method": "GET",
+        "parameters": {
+          "kwd": "string"
+        },
+        "description": "도서 검색"
+      }
+    ],
+    "tags": [
+      "lifestyle",
+      "books",
+      "library",
+      "korea",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-05-01T04:27:38.517146+00:00",
+    "last_verification_note": "2026-05-01 검증: 기존 /NL/search/openApi base_url이 404 반환. 실제 엔드포인트 /search.do로 수정. HTTPS 지원.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "40037e2f-a61e-4d03-a3f2-c6a2a1a60f88",
+    "name": "서울 열린데이터광장",
+    "description": "서울시 인구, 주차장, 문화행사, 와이파이 핫스팟 등 5,000개 데이터셋. 서울 생활에 유용한 정보 가득.",
+    "category": "lifestyle",
+    "base_url": "http://openapi.seoul.go.kr:8088",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_40037E2F",
+      "param_in": "path",
+      "param_name": "KEY"
+    },
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://data.seoul.go.kr/",
+    "endpoints": [
+      {
+        "path": "/{KEY}/json/{serviceName}/1/5/",
+        "method": "GET",
+        "parameters": {
+          "serviceName": "string"
+        },
+        "description": "서울시 공공데이터 조회"
+      }
+    ],
+    "tags": [
+      "lifestyle",
+      "seoul",
+      "opendata",
+      "korea",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": "2026-05-01T04:30:05.427187+00:00",
+    "last_verification_note": "2026-05-01: HTTP 전용 서버(HTTPS 미지원). requires_proxy=true 설정으로 서버사이드 프록시 경유 호출 — Mixed Content 문제 없음.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "f1ec6f97-2e13-4e9a-9a73-18738f7164b2",
+    "name": "카카오 로컬 (지도·장소 검색)",
+    "description": "한국 주소 검색, 좌표 변환, 장소 검색. \"강남역 맛집\" 같은 키워드로 주변 장소를 찾을 수 있어요.",
+    "category": "location",
+    "base_url": "https://dapi.kakao.com",
+    "auth_type": "api_key",
+    "auth_config": {
+      "prefix": "KakaoAK ",
+      "env_var": "API_KEY_F1EC6F97",
+      "param_in": "header",
+      "param_name": "Authorization"
+    },
+    "rate_limit": "100000/일",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://developers.kakao.com/docs/latest/ko/local/dev-guide",
+    "endpoints": [
+      {
+        "path": "/v2/local/search/keyword.json",
+        "method": "GET",
+        "parameters": {
+          "query": "string"
+        },
+        "description": "키워드 장소 검색"
+      },
+      {
+        "path": "/v2/local/search/address.json",
+        "method": "GET",
+        "parameters": {
+          "query": "string"
+        },
+        "description": "주소 검색"
+      }
+    ],
+    "tags": [
+      "location",
+      "map",
+      "kakao",
+      "korea",
+      "api-key"
+    ],
+    "api_version": "v2",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-05-01T00:00:00+00:00",
+    "last_verification_note": "2026-06-21 비활성화: 플랫폼 env 키 미설정(빈 값) — /admin/keys-verify로 7개 전부 MISSING 확인. 키 의존 API가 키 없이 제공되어 401 실패. 실제 키 확보 시 재활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-21T14:39:28.883282+00:00"
+  },
+  {
+    "id": "de8f5375-22dc-4573-9a64-2903c150fece",
+    "name": "Hacker News API",
+    "description": "IT·스타트업 뉴스 실시간 조회. 실리콘밸리에서 가장 핫한 기술 소식을 모아볼 수 있어요.",
+    "category": "news",
+    "base_url": "https://hacker-news.firebaseio.com",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "500",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://github.com/HackerNews/API",
+    "endpoints": [
+      {
+        "path": "/v0/topstories.json",
+        "method": "GET",
+        "description": "인기 뉴스 ID 목록 (최대 500개)",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=de8f5375-22dc-4573-9a64-2903c150fece&proxyPath=%2Fv0%2Ftopstories.json');\nconst storyIds = await res.json(); // [integer IDs]"
+      },
+      {
+        "path": "/v0/item/{id}.json",
+        "method": "GET",
+        "parameters": {
+          "id": "number"
+        },
+        "description": "뉴스 상세 조회"
+      }
+    ],
+    "tags": [
+      "news",
+      "tech",
+      "hacker-news",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v0",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:40:59.421+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:40:59.563578+00:00"
+  },
+  {
+    "id": "8461e4de-ba6d-4a4d-ae24-35bd7c47c0c7",
+    "name": "Spaceflight News API",
+    "description": "우주·항공 관련 뉴스 기사 검색. 로켓 발사, 우주 탐사 소식을 모아볼 수 있어요.",
+    "category": "news",
+    "base_url": "https://api.spaceflightnewsapi.net",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://api.spaceflightnewsapi.net/v4/docs/",
+    "endpoints": [
+      {
+        "path": "/v4/articles/",
+        "method": "GET",
+        "parameters": {
+          "limit": "number",
+          "search": "string"
+        },
+        "description": "우주 뉴스 기사 목록",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=8461e4de-ba6d-4a4d-ae24-35bd7c47c0c7&proxyPath=%2Fv4%2Farticles%2F');\nconst data = await res.json();\nconst items = data.results; // [{id, title, url, imageUrl, newsSite, summary, publishedAt}]",
+        "responseDataPath": "results"
+      }
+    ],
+    "tags": [
+      "news",
+      "space",
+      "spaceflight",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v4",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:02.995+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:41:03.131205+00:00"
+  },
+  {
+    "id": "329acf99-0a50-4577-baf4-e32512f37754",
+    "name": "NEIS 학교급식",
+    "description": "교육부 NEIS 학교 급식 식단 정보 API. 날짜·학교별 메뉴 조회. 무료 (교육행정정보시스템 키 필요).",
+    "category": "public",
+    "base_url": "https://open.neis.go.kr/hub",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_NEIS",
+      "param_in": "query",
+      "param_name": "KEY"
+    },
+    "rate_limit": "1000",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://open.neis.go.kr/portal/data/service/selectServicePage.do?page=1&rows=10&sortColumn=&sortDirection=&infId=OPEN17320190722180924242823&infSeq=2",
+    "endpoints": [
+      {
+        "path": "/mealServiceDietInfo",
+        "method": "GET",
+        "parameters": {
+          "Type": "json",
+          "pSize": "10",
+          "MLSV_YMD": "날짜 YYYYMMDD",
+          "SD_SCHUL_CODE": "학교코드",
+          "ATPT_OFCDC_SC_CODE": "시도교육청코드 (예: B10=서울)"
+        },
+        "description": "학교 급식 식단 정보 조회",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=<이 API ID>&proxyPath=%2FmealServiceDietInfo&ATPT_OFCDC_SC_CODE=B10&SD_SCHUL_CODE=7010056&MLSV_YMD=20250501&Type=json&pSize=5');\nconst data = await res.json();\nconst rows = data.mealServiceDietInfo[1].row;",
+        "responseDataPath": "mealServiceDietInfo[1].row"
+      },
+      {
+        "path": "/schoolInfo",
+        "method": "GET",
+        "parameters": {
+          "Type": "json",
+          "pSize": "10",
+          "SCHUL_NM": "학교명"
+        },
+        "description": "학교 정보 조회 (학교명·코드 검색용)",
+        "responseDataPath": "schoolInfo[1].row"
+      }
+    ],
+    "tags": [
+      "public",
+      "education",
+      "school",
+      "meal",
+      "kr",
+      "api_key"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": null,
+    "last_verification_note": "2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-05-01T04:02:58.319122+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "17665554-5a7c-4df0-91a7-826dab855f05",
+    "name": "국토부 아파트 전월세",
+    "description": "국토교통부 아파트 전·월세 실거래 데이터. 지역코드·기간으로 임대 계약 내역 조회. (공공데이터포털 키 필요)",
+    "category": "public",
+    "base_url": "https://apis.data.go.kr/1613000/RTMSDataSvcAptRent",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_MOLIT",
+      "param_in": "query",
+      "param_name": "serviceKey"
+    },
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://www.data.go.kr/data/15058017/openapi.do",
+    "endpoints": [
+      {
+        "path": "/getRTMSDataSvcAptRent",
+        "method": "GET",
+        "parameters": {
+          "pageNo": "1",
+          "LAWD_CD": "법정동코드 앞 5자리 (예: 11680=강남구)",
+          "DEAL_YMD": "계약연월 YYYYMM",
+          "numOfRows": "10"
+        },
+        "description": "아파트 전월세 실거래 조회",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=<이 API ID>&proxyPath=%2FgetRTMSDataSvcAptRent&LAWD_CD=11680&DEAL_YMD=202504&pageNo=1&numOfRows=10');\nconst data = await res.json();\nconst items = data.response.body.items.item; // [{aptNm, deposit, monthlyRent, excluUseAr}]",
+        "responseDataPath": "response.body.items.item"
+      }
+    ],
+    "tags": [
+      "public",
+      "real-estate",
+      "apartment",
+      "rent",
+      "kr",
+      "api_key",
+      "data.go.kr"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": null,
+    "last_verification_note": "2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-05-01T04:03:27.970352+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "bda9be95-bb3b-4f30-b1da-c304445b7c3c",
+    "name": "아파트 실거래가 (국토교통부)",
+    "description": "아파트 매매 실거래가 상세 자료. 지역코드·계약연월로 실거래 내역 조회. ℹ️ \"Dev\"는 개발/테스트용이 아닌 \"상세 자료\" 버전 정식 서비스명. (공공데이터포털 키 필요)",
+    "category": "realestate",
+    "base_url": "https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_BDA9BE95",
+      "param_in": "query",
+      "param_name": "serviceKey"
+    },
+    "rate_limit": "10000/일 (개발계정)",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://www.data.go.kr/data/15126469/openapi.do",
+    "endpoints": [
+      {
+        "path": "/getRTMSDataSvcAptTradeDev",
+        "method": "GET",
+        "parameters": {
+          "LAWD_CD": "string",
+          "DEAL_YMD": "string"
+        },
+        "description": "아파트 매매 실거래가 조회"
+      }
+    ],
+    "tags": [
+      "realestate",
+      "apartment",
+      "price",
+      "korea",
+      "공공데이터",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-05-01T00:00:00+00:00",
+    "last_verification_note": "2026-06-21 비활성화: 플랫폼 env 키 미설정(빈 값) — /admin/keys-verify로 7개 전부 MISSING 확인. 키 의존 API가 키 없이 제공되어 401 실패. 실제 키 확보 시 재활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-21T14:39:28.883282+00:00"
+  },
+  {
+    "id": "2937a35f-806e-402c-98c3-d0261e1ad2f4",
+    "name": "카카오 검색",
+    "description": "카카오 REST API 검색 서비스. 웹·이미지·동영상·블로그·뉴스·도서 검색. 무료 (카카오 Developers REST API 키 필요).",
+    "category": "search",
+    "base_url": "https://dapi.kakao.com/v2",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_F1EC6F97",
+      "param_in": "header",
+      "param_name": "Authorization",
+      "header_prefix": "KakaoAK "
+    },
+    "rate_limit": "50000/일",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://developers.kakao.com/docs/latest/ko/daum-search/dev-guide",
+    "endpoints": [
+      {
+        "path": "/search/web",
+        "method": "GET",
+        "parameters": {
+          "page": "1",
+          "size": "10",
+          "query": "검색어"
+        },
+        "description": "웹 문서 검색",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=<이 API ID>&proxyPath=%2Fsearch%2Fweb&query=날씨&size=5');\nconst data = await res.json();\nconst results = data.documents; // [{title, contents, url, datetime}]",
+        "responseDataPath": "documents"
+      },
+      {
+        "path": "/search/image",
+        "method": "GET",
+        "parameters": {
+          "size": "10",
+          "query": "string"
+        },
+        "description": "이미지 검색",
+        "responseDataPath": "documents"
+      },
+      {
+        "path": "/search/book",
+        "method": "GET",
+        "parameters": {
+          "size": "10",
+          "query": "string"
+        },
+        "description": "도서 검색",
+        "responseDataPath": "documents"
+      }
+    ],
+    "tags": [
+      "search",
+      "kakao",
+      "web",
+      "image",
+      "book",
+      "kr",
+      "api_key"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-05-01T00:00:00+00:00",
+    "last_verification_note": "2026-06-21 비활성화: 플랫폼 env 키 미설정(빈 값) — /admin/keys-verify로 7개 전부 MISSING 확인. 키 의존 API가 키 없이 제공되어 401 실패. 실제 키 확보 시 재활성화.",
+    "created_at": "2026-05-01T04:02:58.319122+00:00",
+    "updated_at": "2026-06-21T14:39:28.883282+00:00"
+  },
+  {
+    "id": "c76876b5-a4d8-49cf-a0c9-0240daf3eb5e",
+    "name": "한국관광공사 TourAPI",
+    "description": "전국 관광지, 맛집, 숙박, 축제 정보. 여행 계획 세울 때 지역별 볼거리·먹거리를 찾아보세요.",
+    "category": "tourism",
+    "base_url": "https://apis.data.go.kr/B551011/KorService1",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_TOURAPI",
+      "param_in": "query",
+      "param_name": "serviceKey"
+    },
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://api.visitkorea.or.kr/",
+    "endpoints": [
+      {
+        "path": "/areaBasedList1",
+        "method": "GET",
+        "parameters": {
+          "areaCode": "string",
+          "contentTypeId": "string"
+        },
+        "description": "지역 기반 관광지 목록"
+      },
+      {
+        "path": "/searchKeyword1",
+        "method": "GET",
+        "parameters": {
+          "keyword": "string"
+        },
+        "description": "키워드 검색"
+      }
+    ],
+    "tags": [
+      "tourism",
+      "travel",
+      "korea",
+      "공공데이터",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": "2026-05-01T04:28:12.687985+00:00",
+    "last_verification_note": "2026-05-01: https 전환 확인. KorService1 현재 운영 중. 신버전 GW 버전 별도 존재하나 KorService1 정상. 개발계정 10,000건/일.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "f68f1c00-7616-4f09-8cc5-64b751855ea0",
+    "name": "TAGO 전국 대중교통",
+    "description": "전국 버스·지하철 노선/도착정보 API. 서비스별 경로 분리 (BusRouteInfoInqireService 등). 개발계정 10,000건/일. (공공데이터포털 키 필요)",
+    "category": "transport",
+    "base_url": "https://apis.data.go.kr/1613000",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_TAGO",
+      "param_in": "query",
+      "param_name": "serviceKey"
+    },
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://www.data.go.kr/data/15098529/openapi.do",
+    "endpoints": [
+      {
+        "path": "/BusSttnInfoInqireService/getSttnNoList",
+        "method": "GET",
+        "parameters": {
+          "sttnNm": "string"
+        },
+        "description": "정류장 검색"
+      }
+    ],
+    "tags": [
+      "transport",
+      "bus",
+      "nationwide",
+      "korea",
+      "공공데이터",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": "2026-05-01T04:29:30.77912+00:00",
+    "last_verification_note": "2026-05-01: /1613000은 기관코드 prefix. 실제 사용 시 서비스 경로 추가 필요.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "4b98bb71-8cf4-43e7-9c49-938170165265",
+    "name": "서울시 버스 도착정보",
+    "description": "서울 버스 실시간 도착 시간. 정류장 이름으로 검색하면 몇 분 후 버스가 오는지 알려줘요.",
+    "category": "transport",
+    "base_url": "http://ws.bus.go.kr/api/rest",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_4B98BB71",
+      "param_in": "query",
+      "param_name": "serviceKey"
+    },
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://www.data.go.kr/data/15000314/openapi.do",
+    "endpoints": [
+      {
+        "path": "/arrive/getArrInfoByRouteAll",
+        "method": "GET",
+        "parameters": {
+          "busRouteId": "string"
+        },
+        "description": "노선별 도착 정보 조회"
+      }
+    ],
+    "tags": [
+      "transport",
+      "bus",
+      "seoul",
+      "korea",
+      "공공데이터",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": "2026-05-01T04:30:05.427187+00:00",
+    "last_verification_note": "2026-05-01: HTTP 전용 서버(HTTPS 미지원). requires_proxy=true 설정으로 서버사이드 프록시 경유 호출 — Mixed Content 문제 없음.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "70b9a73e-d2d4-4de9-88e6-7d5b26ae6fa3",
+    "name": "서울시 지하철 실시간 도착정보",
+    "description": "서울 지하철 실시간 도착 예정 시간. 역 이름만 입력하면 다음 열차까지 남은 시간을 알려줘요.",
+    "category": "transport",
+    "base_url": "http://swopenAPI.seoul.go.kr/api/subway",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_70B9A73E",
+      "param_in": "path",
+      "param_name": "KEY"
+    },
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://data.seoul.go.kr/dataList/OA-12764/F/1/datasetView.do",
+    "endpoints": [
+      {
+        "path": "/{KEY}/json/realtimeStationArrival/0/5/{stationName}",
+        "method": "GET",
+        "parameters": {
+          "stationName": "string"
+        },
+        "description": "역별 실시간 도착 정보"
+      }
+    ],
+    "tags": [
+      "transport",
+      "subway",
+      "metro",
+      "seoul",
+      "korea",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": "2026-05-01T04:30:05.427187+00:00",
+    "last_verification_note": "2026-05-01: HTTP 전용 서버(HTTPS 미지원). requires_proxy=true 설정으로 서버사이드 프록시 경유 호출 — Mixed Content 문제 없음.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "a3958ab7-a948-4884-82cb-056e2f7085af",
+    "name": "QR Code Generator",
+    "description": "텍스트나 URL을 QR코드 이미지로 변환. 명함, 링크 공유에 유용해요.",
+    "category": "utility",
+    "base_url": "https://api.qrserver.com",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://goqr.me/api/",
+    "endpoints": [
+      {
+        "path": "/v1/create-qr-code/",
+        "method": "GET",
+        "parameters": {
+          "data": "string",
+          "size": "string",
+          "color": "string"
+        },
+        "description": "QR코드 이미지 생성"
+      }
+    ],
+    "tags": [
+      "utility",
+      "qr-code",
+      "generator",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:02.438+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:41:02.578339+00:00"
+  },
+  {
+    "id": "3d19297e-a133-41f0-bdb4-549369c8b658",
+    "name": "Sunrise-Sunset",
+    "description": "원하는 위치의 일출·일몰 시각 조회. 캠핑, 낚시, 사진 촬영 계획 세울 때 유용해요.",
+    "category": "utility",
+    "base_url": "https://api.sunrise-sunset.org",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "300",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://sunrise-sunset.org/api",
+    "endpoints": [
+      {
+        "path": "/json",
+        "method": "GET",
+        "parameters": {
+          "lat": "number",
+          "lng": "number",
+          "date": "string"
+        },
+        "description": "일출·일몰 시각 조회"
+      }
+    ],
+    "tags": [
+      "utility",
+      "sunrise",
+      "sunset",
+      "astronomy",
+      "free",
+      "no-auth"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:03.267+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:41:03.409596+00:00"
+  },
+  {
+    "id": "522f7158-7de0-4447-80bb-ea71a8e56b50",
+    "name": "The Color API",
+    "description": "HEX/RGB 색상 코드로 색상 이름·보완색·팔레트 생성. 인증 불필요.",
+    "category": "utility",
+    "base_url": "https://www.thecolorapi.com",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://www.thecolorapi.com/docs",
+    "endpoints": [
+      {
+        "path": "/id",
+        "method": "GET",
+        "parameters": {
+          "hex": "HEX 코드 (# 제외, 예: FF5733)"
+        },
+        "description": "색상 정보 조회 (이름, RGB, HSL)",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=<이 API ID>&proxyPath=%2Fid&hex=FF5733');\nconst data = await res.json();\n// data.name.value, data.rgb, data.hsl, data.image.bare",
+        "responseDataPath": ""
+      },
+      {
+        "path": "/scheme",
+        "method": "GET",
+        "parameters": {
+          "hex": "string",
+          "mode": "monochrome | analogic | complement | triad | quad",
+          "count": "5"
+        },
+        "description": "색상 팔레트 생성",
+        "responseDataPath": "colors"
+      }
+    ],
+    "tags": [
+      "utility",
+      "color",
+      "design",
+      "palette",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:03.817+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-05-01T04:02:26.332579+00:00",
+    "updated_at": "2026-06-22T21:41:03.958031+00:00"
+  },
+  {
+    "id": "9a04cd18-15bb-4424-a4f1-10ddf728749b",
+    "name": "wheretheiss.at",
+    "description": "국제우주정거장(ISS) 실시간 위치 추적. 위도·경도·고도·속도 제공. HTTPS 지원, 무료.",
+    "category": "utility",
+    "base_url": "https://api.wheretheiss.at",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "60",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://wheretheiss.at/w/developer",
+    "endpoints": [
+      {
+        "path": "/v1/satellites/25544",
+        "method": "GET",
+        "description": "ISS 현재 위치 (위도·경도·고도·속도)",
+        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=9a04cd18-15bb-4424-a4f1-10ddf728749b&proxyPath=%2Fv1%2Fsatellites%2F25544');\nconst data = await res.json();\n// data.latitude, data.longitude, data.altitude, data.velocity",
+        "responseDataPath": ""
+      },
+      {
+        "path": "/v1/satellites",
+        "method": "GET",
+        "description": "추적 가능 위성 목록"
+      }
+    ],
+    "tags": [
+      "utility",
+      "space",
+      "iss",
+      "satellite",
+      "free",
+      "no-auth",
+      "https"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:04.368+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: degraded",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-22T21:41:04.509896+00:00"
+  },
+  {
+    "id": "a3f8d2e1-7c4b-4a9f-b6e5-1d2c3f4e5a6b",
+    "name": "Open-Meteo",
+    "description": "무료 날씨 API. 키 불필요, 비상업적 전용(CC BY 4.0). 위도/경도 기반 현재 날씨 및 예보 제공.",
+    "category": "weather",
+    "base_url": "https://api.open-meteo.com",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": "10000/일",
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://open-meteo.com/en/docs",
+    "endpoints": [
+      {
+        "path": "/v1/forecast",
+        "method": "GET",
+        "description": "위도/경도 기반 날씨 예보",
+        "example_call": "/v1/forecast?latitude=37.5665&longitude=126.9780&current_weather=true"
+      }
+    ],
+    "tags": [
+      "weather",
+      "forecast",
+      "free",
+      "no-key"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-22T21:41:01.889+00:00",
+    "last_verification_note": "2026-06-22 자동 헬스체크: working",
+    "created_at": "2026-05-01T06:43:17.094337+00:00",
+    "updated_at": "2026-06-22T21:41:02.023617+00:00"
+  },
+  {
+    "id": "2b7d8eef-b498-4198-b504-05c8f8d3a213",
+    "name": "OpenWeatherMap",
+    "description": "현재 날씨, 5일 예보, 대기질 정보를 제공해요. 무료 가입 후 API 키를 발급받아 사용합니다.",
+    "category": "weather",
+    "base_url": "https://api.openweathermap.org",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_OPENWEATHERMAP",
+      "param_in": "query",
+      "param_name": "appid"
+    },
+    "rate_limit": "60",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://openweathermap.org/api",
+    "endpoints": [
+      {
+        "path": "/data/2.5/weather",
+        "method": "GET",
+        "parameters": {
+          "q": "string",
+          "lat": "number",
+          "lon": "number",
+          "units": "string"
+        },
+        "description": "도시명 또는 좌표로 현재 날씨 조회"
+      }
+    ],
+    "tags": [
+      "weather",
+      "forecast",
+      "api-key"
+    ],
+    "api_version": "v2.5",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": 0,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": null,
+    "last_verification_note": "2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "fc7572d1-1acb-4c12-9355-553a83718e39",
+    "name": "WeatherAPI.com",
+    "description": "14일 예보 + 일출·일몰 시각을 알려줘요. 월 100만 호출 무료. 캠핑·야외 활동 계획에 유용합니다.",
+    "category": "weather",
+    "base_url": "https://api.weatherapi.com",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_WEATHERAPICOM",
+      "param_in": "query",
+      "param_name": "key"
+    },
+    "rate_limit": "100000/월",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://www.weatherapi.com/docs/",
+    "endpoints": [
+      {
+        "path": "/v1/forecast.json",
+        "method": "GET",
+        "parameters": {
+          "q": "string",
+          "days": "number"
+        },
+        "description": "날씨 예보 조회 (최대 14일)"
+      }
+    ],
+    "tags": [
+      "weather",
+      "forecast",
+      "astronomy",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": "2026-05-01T04:28:47.706287+00:00",
+    "last_verification_note": "2026-05-01: 무료 플랜 월 100,000건. 신용카드 불필요. 3일 예보, 역사 데이터 1일 포함.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "7cb8f428-e284-4eee-944a-af47274662d2",
+    "name": "기상청 단기예보",
+    "description": "우리 동네 날씨 예보. 기온, 비, 눈, 바람, 습도를 3시간 단위로 알려줘요. 공공데이터포털 무료 가입 후 사용.",
+    "category": "weather",
+    "base_url": "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_7CB8F428",
+      "param_in": "query",
+      "param_name": "serviceKey"
+    },
+    "rate_limit": "10000/일 (개발계정)",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://www.data.go.kr/data/15084084/openapi.do",
+    "endpoints": [
+      {
+        "path": "/getVilageFcst",
+        "method": "GET",
+        "parameters": {
+          "nx": "number",
+          "ny": "number",
+          "base_date": "string",
+          "base_time": "string"
+        },
+        "description": "동네 예보 조회 (3시간 단위)"
+      }
+    ],
+    "tags": [
+      "weather",
+      "korea",
+      "공공데이터",
+      "api-key"
+    ],
+    "api_version": "v2.0",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": 10800,
+    "verification_status": "verified",
+    "verified_at": "2026-05-01T00:00:00+00:00",
+    "last_verification_note": "2026-06-21 비활성화: 플랫폼 env 키 미설정(빈 값) — /admin/keys-verify로 7개 전부 MISSING 확인. 키 의존 API가 키 없이 제공되어 401 실패. 실제 키 확보 시 재활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-21T14:39:28.883282+00:00"
+  },
+  {
+    "id": "00412c2b-6c17-4b23-9a3d-46b7004285e4",
+    "name": "기상청 중기예보",
+    "description": "3~10일 후 날씨 전망. 이번 주 비가 올지, 기온이 어떨지 미리 확인할 수 있어요.",
+    "category": "weather",
+    "base_url": "https://apis.data.go.kr/1360000/MidFcstInfoService",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_00412C2B",
+      "param_in": "query",
+      "param_name": "serviceKey"
+    },
+    "rate_limit": "10000/일 (개발계정)",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://www.data.go.kr/data/15059468/openapi.do",
+    "endpoints": [
+      {
+        "path": "/getMidTa",
+        "method": "GET",
+        "parameters": {
+          "tmFc": "string",
+          "regId": "string"
+        },
+        "description": "중기 기온 예보 조회"
+      }
+    ],
+    "tags": [
+      "weather",
+      "korea",
+      "공공데이터",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": 21600,
+    "verification_status": "verified",
+    "verified_at": "2026-05-01T00:00:00+00:00",
+    "last_verification_note": "2026-06-21 비활성화: 플랫폼 env 키 미설정(빈 값) — /admin/keys-verify로 7개 전부 MISSING 확인. 키 의존 API가 키 없이 제공되어 401 실패. 실제 키 확보 시 재활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-06-21T14:39:28.883282+00:00"
+  },
+  {
+    "id": "c84860a1-336c-45f1-b1df-00f25bd810bd",
+    "name": "에어코리아 대기오염정보",
+    "description": "대기오염 측정 정보. 측정소별 미세먼지·초미세먼지·오존 등 실시간 조회. ⚠️ 개발계정 일일 한도 500건 (타 공공API 10,000건의 1/20). (공공데이터포털 키 필요)",
+    "category": "weather",
+    "base_url": "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc",
+    "auth_type": "api_key",
+    "auth_config": {
+      "env_var": "API_KEY_C84860A1",
+      "param_in": "query",
+      "param_name": "serviceKey"
+    },
+    "rate_limit": "500/일",
+    "changelog": [],
+    "is_active": false,
+    "icon_url": null,
+    "docs_url": "https://www.data.go.kr/data/15073861/openapi.do",
+    "endpoints": [
+      {
+        "path": "/getMsrstnAcctoRltmMesureDnsty",
+        "method": "GET",
+        "parameters": {
+          "dataTerm": "string",
+          "stationName": "string"
+        },
+        "description": "측정소별 실시간 대기질 조회"
+      }
+    ],
+    "tags": [
+      "weather",
+      "air-quality",
+      "korea",
+      "공공데이터",
+      "api-key"
+    ],
+    "api_version": "v1",
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": false,
+    "requires_proxy": true,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "unverified",
+    "verified_at": "2026-05-01T04:29:30.77912+00:00",
+    "last_verification_note": "2026-05-01: HTTPS 전환. 개발계정 500건/일은 타 API 대비 매우 낮음. 운영계정 신청 권장.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
+    "created_at": "2026-03-26T11:51:21.691024+00:00",
+    "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  }
+]

@@ -1,4 +1,4 @@
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, and, gte } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/lib/db/schema';
 import type { DomainEvent } from '@/types/events';
@@ -76,5 +76,22 @@ export class DrizzleEventRepository implements IEventRepository {
       });
       return [];
     }
+  }
+
+  // 집계 메서드는 DB 오류를 throw한다(qc-stats 의도 — 장애 은폐 방지). created_at은 timestamptz(Date).
+  async countByTypeSince(type: string, since: Date): Promise<number> {
+    const [row] = await this.db
+      .select({ total: sql<number>`count(*)` })
+      .from(schema.platformEvents)
+      .where(and(eq(schema.platformEvents.type, type), gte(schema.platformEvents.created_at, since)));
+    return Number(row?.total ?? 0);
+  }
+
+  async findPayloadsByTypeSince(type: string, since: Date): Promise<unknown[]> {
+    const rows = await this.db
+      .select({ payload: schema.platformEvents.payload })
+      .from(schema.platformEvents)
+      .where(and(eq(schema.platformEvents.type, type), gte(schema.platformEvents.created_at, since)));
+    return rows.map((r) => r.payload);
   }
 }

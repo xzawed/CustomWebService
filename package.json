@@ -23,7 +23,10 @@
     "test:prod": "pnpm build && node -e \"const s=require('child_process').spawn('node',['.next/standalone/server.js'],{stdio:'inherit'});setTimeout(()=>{const h=require('http');h.get('http://localhost:3000/api/v1/health',r=>{console.log('healthcheck:',r.statusCode);s.kill();process.exit(r.statusCode===200?0:1)}).on('error',e=>{console.error('FAIL',e.message);s.kill();process.exit(1)})},4000)\"",
     "catalog:healthcheck": "tsx scripts/verifyCatalog.ts",
     "catalog:healthcheck:write": "tsx scripts/verifyCatalog.ts --write",
-    "keys:verify": "tsx scripts/verifyPlatformKeys.ts"
+    "keys:verify": "tsx scripts/verifyPlatformKeys.ts",
+    "admin:hash": "tsx scripts/hashAdminPassword.ts",
+    "seed:generate": "tsx scripts/generateSqliteSeed.ts",
+    "cutover:migrate": "tsx scripts/migrateSupabaseToSqlite.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
@@ -35,6 +38,7 @@
     "@sentry/nextjs": "^10.59.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
+    "better-sqlite3": "^12.11.1",
     "drizzle-orm": "^0.45.2",
     "isomorphic-dompurify": "^3.18.0",
     "libsodium-wrappers": "^0.8.4",
@@ -55,6 +59,7 @@
     "@tailwindcss/postcss": "^4.3.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.9.2",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.17",
@@ -77,6 +82,9 @@
     "overrides": {
       "vite": "^8.0.16",
       "undici": "^7.28.0"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
   }
 }

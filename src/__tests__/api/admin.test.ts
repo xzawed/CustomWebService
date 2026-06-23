@@ -13,6 +13,11 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }));
 
+// qc-stats·trigger-qc 라우트가 getDbProvider를 import한다(Phase 3). 모킹해 native cold-init 차단.
+vi.mock('@/lib/config/providers', () => ({
+  getDbProvider: vi.fn().mockReturnValue('supabase'),
+}));
+
 vi.mock('@/repositories/codeRepository', () => ({
   CodeRepository: vi.fn(function() {
     return {

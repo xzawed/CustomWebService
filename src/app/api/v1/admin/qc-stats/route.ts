@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
-import { CodeRepository } from '@/repositories/codeRepository';
+import { getDbProvider } from '@/lib/config/providers';
+import { createCodeRepository, createEventRepository } from '@/repositories/factory';
 import { adminCorsHeaders, verifyAdminKey, withAdminCors } from '@/lib/utils/adminAuth';
 import { handleApiError, jsonResponse } from '@/lib/utils/errors';
 
@@ -18,50 +19,27 @@ export async function GET(request: Request): Promise<Response> {
       const now = new Date();
       const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
-      const supabase = await createServiceClient();
-      const codeRepo = new CodeRepository(supabase);
-      const [codes, failureCountResult, stage3FallbackResult, stageSkippedResult, qualityLoopResult] = await Promise.all([
-        codeRepo.findMetadataByDateRange(from),
-        supabase
-          .from('platform_events')
-          .select('id', { count: 'exact', head: true })
-          .eq('type', 'CODE_GENERATION_FAILED')
-          .gte('created_at', from.toISOString()),
-        supabase
-          .from('platform_events')
-          .select('id', { count: 'exact', head: true })
-          .eq('type', 'STAGE3_FALLBACK_USED')
-          .gte('created_at', from.toISOString()),
-        supabase
-          .from('platform_events')
-          .select('payload')
-          .eq('type', 'STAGE_SKIPPED')
-          .gte('created_at', from.toISOString()),
-        supabase
-          .from('platform_events')
-          .select('payload')
-          .eq('type', 'QUALITY_LOOP_COMPLETED')
-          .gte('created_at', from.toISOString()),
-      ]);
+      // raw .from 대신 레포 경유(모든 provider). 집계 메서드는 DB 오류를 throw하므로
+      // 장애가 0-메트릭으로 은폐되지 않고 outer try/catch → 500으로 surface된다.
+      const supabase = getDbProvider() === 'supabase' ? await createServiceClient() : undefined;
+      const codeRepo = createCodeRepository(supabase);
+      const eventRepo = createEventRepository(supabase);
+      const [codes, failureCount, stage3FallbackCount, stageSkippedPayloads, qualityLoopPayloads] =
+        await Promise.all([
+          codeRepo.findMetadataByDateRange(from),
+          eventRepo.countByTypeSince('CODE_GENERATION_FAILED', from),
+          eventRepo.countByTypeSince('STAGE3_FALLBACK_USED', from),
+          eventRepo.findPayloadsByTypeSince('STAGE_SKIPPED', from),
+          eventRepo.findPayloadsByTypeSince('QUALITY_LOOP_COMPLETED', from),
+        ]);
 
-      // Supabase 쿼리 에러를 검사한다. 무시하면 count/data가 0·빈배열로 폴백되어 DB 장애 시에도
-      // 정상(0 메트릭)으로 보고되는 은폐가 발생한다 → 에러를 surface하여 500으로 응답.
-      const queryError =
-        failureCountResult.error ??
-        stage3FallbackResult.error ??
-        stageSkippedResult.error ??
-        qualityLoopResult.error;
-      if (queryError) throw queryError;
-
-      const failureCount = failureCountResult.count ?? 0;
-      const stage3FallbackCount = stage3FallbackResult.count ?? 0;
-      const stageSkippedRows = (stageSkippedResult.data ?? []) as Array<{ payload: { stage?: string } | null }>;
-      const stage2SkipCount = stageSkippedRows.filter((r) => r.payload?.stage === 'stage2').length;
-      const stage3SkipCount = stageSkippedRows.filter((r) => r.payload?.stage === 'stage3').length;
-      const qualityLoopRows = (qualityLoopResult.data ?? []) as Array<{ payload: { iterations?: number; improved?: boolean } | null }>;
+      const stageSkippedRows = stageSkippedPayloads as Array<{ stage?: string } | null>;
+      const stage2SkipCount = stageSkippedRows.filter((p) => p?.stage === 'stage2').length;
+      const stage3SkipCount = stageSkippedRows.filter((p) => p?.stage === 'stage3').length;
+      const qualityLoopRows = qualityLoopPayloads as Array<{ iterations?: number; improved?: boolean } | null>;
       const qualityLoopEventCount = qualityLoopRows.length;
-      const sumIterations = qualityLoopRows.reduce((s, r) => s + (typeof r.payload?.iterations === 'number' ? r.payload.iterations : 0), 0);
-      const improvedCount = qualityLoopRows.filter((r) => r.payload?.improved === true).length;
+      const sumIterations = qualityLoopRows.reduce((s, p) => s + (typeof p?.iterations === 'number' ? p.iterations : 0), 0);
+      const improvedCount = qualityLoopRows.filter((p) => p?.improved === true).length;
       const avgQualityLoopIterations = qualityLoopEventCount > 0 ? Math.round((sumIterations / qualityLoopEventCount) * 100) / 100 : 0;
       const qualityLoopImprovementRate = qualityLoopEventCount > 0 ? Math.round((improvedCount / qualityLoopEventCount) * 100) / 100 : 0;
       const total = codes.length;

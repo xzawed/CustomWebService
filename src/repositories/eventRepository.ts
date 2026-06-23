@@ -88,4 +88,25 @@ export class EventRepository implements IEventRepository {
       createdAt: row.created_at as string,
     }));
   }
+
+  // 집계 메서드는 DB 오류를 throw한다(은폐 시 장애가 0-메트릭으로 보고되는 것을 방지 — qc-stats 의도).
+  async countByTypeSince(type: string, since: Date): Promise<number> {
+    const { count, error } = await this.supabase
+      .from('platform_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('type', type)
+      .gte('created_at', since.toISOString());
+    if (error) throw error;
+    return count ?? 0;
+  }
+
+  async findPayloadsByTypeSince(type: string, since: Date): Promise<unknown[]> {
+    const { data, error } = await this.supabase
+      .from('platform_events')
+      .select('payload')
+      .eq('type', type)
+      .gte('created_at', since.toISOString());
+    if (error) throw error;
+    return (data ?? []).map((row) => row.payload as unknown);
+  }
 }
