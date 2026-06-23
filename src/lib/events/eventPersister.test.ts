@@ -12,13 +12,19 @@ vi.mock('@/repositories/factory', () => ({
 vi.mock('@/lib/supabase/server', () => ({
   createServiceClient: vi.fn(),
 }));
+vi.mock('@/lib/config/providers', () => ({
+  getDbProvider: vi.fn(() => 'supabase'),
+}));
 vi.mock('@/lib/utils/logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
+  // 기본 provider를 supabase로 리셋(테스트 간 mockReturnValue 누출 방지).
+  const { getDbProvider } = await import('@/lib/config/providers');
+  (getDbProvider as ReturnType<typeof vi.fn>).mockReturnValue('supabase');
 });
 
 describe('registerEventPersister', () => {
@@ -66,6 +72,30 @@ describe('registerEventPersister', () => {
 
     expect(createServiceClient).toHaveBeenCalledTimes(1);
     expect(createEventRepository).toHaveBeenCalledWith(mockSupabase);
+    expect(mockPersist).toHaveBeenCalledWith(fakeEvent, {});
+  });
+
+  it('sqlite 모드에서는 createServiceClient 없이 createEventRepository(undefined)로 persist한다', async () => {
+    const { registerEventPersister } = await import('./eventPersister');
+    const { eventBus } = await import('./eventBus');
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    const { createEventRepository } = await import('@/repositories/factory');
+    const { getDbProvider } = await import('@/lib/config/providers');
+
+    (getDbProvider as ReturnType<typeof vi.fn>).mockReturnValue('sqlite');
+    const mockPersist = vi.fn().mockResolvedValue(undefined);
+    (createEventRepository as ReturnType<typeof vi.fn>).mockReturnValue({ persist: mockPersist });
+
+    registerEventPersister();
+    const handler = (eventBus.on as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
+      event: unknown,
+    ) => Promise<void>;
+
+    const fakeEvent = { type: 'SQLITE_EVENT', payload: {} };
+    await handler(fakeEvent);
+
+    expect(createServiceClient).not.toHaveBeenCalled();
+    expect(createEventRepository).toHaveBeenCalledWith(undefined);
     expect(mockPersist).toHaveBeenCalledWith(fakeEvent, {});
   });
 
