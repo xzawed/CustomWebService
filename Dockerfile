@@ -48,8 +48,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# SQLite 영속 데이터 디렉터리 (DB_PROVIDER=sqlite): Railway Volume을 /data에 마운트한다.
-# nextjs(uid 1001)가 app.db를 쓸 수 있도록 소유권을 부여한다. SQLITE_PATH 기본=/data/app.db.
+# SQLite 영속 데이터 디렉터리 (DB_PROVIDER=sqlite): nextjs(uid 1001)가 app.db를 쓸 수 있도록
+# 디렉터리 생성 + 소유권 부여. SQLITE_PATH 기본=/data/app.db.
+# ⚠️ Dockerfile `VOLUME` 지시는 쓰지 않는다 — Railway 빌더가 거부한다("VOLUME not supported,
+#    use Railway Volumes"). 영속성은 Railway 서비스에 Volume을 /data로 마운트해 확보한다.
 RUN apk add --no-cache \
     ca-certificates \
     chromium \
@@ -61,7 +63,6 @@ RUN apk add --no-cache \
     addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs && \
     mkdir -p /data && chown nextjs:nodejs /data
-VOLUME /data
 
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
