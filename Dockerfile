@@ -59,6 +59,7 @@ RUN apk add --no-cache \
     harfbuzz \
     libstdc++ \
     nss \
+    su-exec \
     ttf-freefont && \
     addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs && \
@@ -74,9 +75,14 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # 자동 포함하지 않으므로 명시적으로 복사한다(미포함 시 sqlite 모드 부팅 크래시).
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle/sqlite ./drizzle/sqlite
 
-USER nextjs
+# Entrypoint: root로 시작해 마운트된 Railway Volume(/data, 기본 root 소유)을 nextjs로 chown한 뒤
+# su-exec로 비root(nextjs)에게 권한을 넘겨 앱을 실행한다. (USER nextjs로 고정하면 마운트 볼륨에
+# 못 써서 sqlite 부팅이 크래시한다 — 컷오버 사고 원인.) 인라인 printf로 생성해 CRLF 문제를 피한다.
+RUN printf '#!/bin/sh\nset -e\nchown -R nextjs:nodejs /data 2>/dev/null || true\nexec su-exec nextjs:nodejs node server.js\n' > /docker-entrypoint.sh \
+    && chmod +x /docker-entrypoint.sh
+
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
