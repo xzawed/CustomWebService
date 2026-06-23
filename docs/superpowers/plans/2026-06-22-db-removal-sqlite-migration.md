@@ -19,8 +19,8 @@
 - **완료(Phase 2)**: `AUTH_PROVIDER=local`(Auth.js Credentials 단일 관리자 + JWT 무상태, scrypt 비번, `getAuthUser` 분기) / **P2.2** edge-safe 분할 설정(`local-auth-base`+`local-auth-edge`) + 미들웨어 `local` 세션 게이팅(`enforceAuthGate`) / `/api/auth/[...nextauth]/route.ts` provider 디스패치 핸들러 / **P2.3·P2.4** 로그인 페이지 Credentials 폼 + 관리자 `users` 멱등 시드(`seedAdmin`)·부팅 부트스트랩(`bootstrap`, instrumentation 배선 — P6.1 부팅 마이그레이션 일부 선반영) + `scripts/hashAdminPassword.ts`(`pnpm admin:hash`).
   - ✅ 미들웨어 `await auth()`의 **실 Edge 런타임 동작 검증 완료**(dev 서버 스모크 7/7: 미인증 /dashboard→307 /login, 로그인→JWT 발급, 인증 /dashboard→게이트 통과). 분할 설정이 end-to-end 동작 확인. (전체 서빙·sqlite 통합은 Phase 4에서 계속.)
 - **진행 중(Phase 3 — 직접-DB/RPC/service-role 정리)**: 패턴 = 인라인 가드 `getDbProvider()==='supabase' ? await createServiceClient() : undefined` 후 `createXRepository(client)`.
-  - ✅ **이미 가드 적용**(감사 과대계산 정정): health·user-api-keys·proxy 진입(L270)·suggest-modification·preview / **eventPersister**(이번에 sqlite 버그 수정·패턴 확립).
-  - ⬜ **남은 실작업**: **proxy 내부 헬퍼**(raw `.from('projects')`·`.from('user_api_keys')` → repo) — hot path / **admin 4종**(qc-stats: platform_events 집계×4·keys-verify: api_catalog·test-generation·trigger-qc — 가드 미적용, 일부 새 repo 메서드 필요) / **settings/api-keys 페이지**(user_api_keys).
+  - ✅ **이미 가드 적용**(감사 과대계산 정정): health·user-api-keys·proxy 진입(L270)·suggest-modification·preview / **eventPersister**(sqlite 버그 수정·패턴 확립) / **proxy 개인키 해결**(내부 헬퍼 raw `.from` → `createProjectRepository`/`createUserApiKeyRepository`, 모든 provider 동작, positive 테스트 추가).
+  - ⬜ **남은 실작업**: **admin 4종**(qc-stats: platform_events 집계×4 — 새 event-repo 집계 메서드 필요·keys-verify: api_catalog·test-generation·trigger-qc — 가드 미적용) / **settings/api-keys 페이지**(user_api_keys 직접 조회 → repo).
   - 이연: `callback`(raw `.from('users')`)은 Supabase Auth OAuth 전용 아티팩트(local 모드 미사용) → P2.4/Phase 8에서 제거. `.rpc()` 6은 Supabase 레포 내부(sqlite 레포는 트랜잭션으로 대체 완료) → Phase 8 supabase 제거 시 동반 소멸.
 - **컷오버 전 사용자 준비물**: Railway 영속 볼륨(P0.1), env `AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`(`pnpm admin:hash`로 생성)·(선택)`ADMIN_NAME`·`SQLITE_PATH`·`ADMIN_USER_ID`.
 

@@ -1,7 +1,11 @@
 import dns from 'dns/promises';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getDbProvider } from '@/lib/config/providers';
-import { createCatalogRepository } from '@/repositories/factory';
+import {
+  createCatalogRepository,
+  createProjectRepository,
+  createUserApiKeyRepository,
+} from '@/repositories/factory';
 import { decryptApiKey } from '@/lib/encryption';
 import { getAuthUser } from '@/lib/auth/index';
 import { LRUMap } from '@/lib/utils/lruMap';
@@ -199,26 +203,19 @@ async function resolveApiKey(
 ): Promise<void> {
   let resolvedKey: string | undefined;
 
-  // 1) 프로젝트 오너의 개인 API 키 조회 (projectId가 있을 때, Supabase 모드만)
+  // 1) 프로젝트 오너의 개인 API 키 조회 (projectId가 있을 때 — 모든 provider)
+  //    raw .from 대신 레포를 사용해 DB_PROVIDER(supabase/postgres/sqlite)에 무관하게 동작.
   const projectId = searchParams.get('projectId');
-  if (supabase && projectId && UUID_RE.test(projectId)) {
+  if (projectId && UUID_RE.test(projectId)) {
     try {
-      const { data: project } = await supabase
-        .from('projects')
-        .select('user_id')
-        .eq('id', projectId)
-        .single();
-
-      if (project?.user_id) {
-        const { data: userKey } = await supabase
-          .from('user_api_keys')
-          .select('encrypted_key')
-          .eq('user_id', project.user_id)
-          .eq('api_id', apiId)
-          .single();
-
-        if (userKey?.encrypted_key) {
-          try { resolvedKey = decryptApiKey(userKey.encrypted_key); } catch { /* skip */ }
+      const project = await createProjectRepository(supabase).findById(projectId);
+      if (project?.userId) {
+        const userKey = await createUserApiKeyRepository(supabase).findByUserAndApi(
+          project.userId,
+          apiId,
+        );
+        if (userKey?.encryptedKey) {
+          try { resolvedKey = decryptApiKey(userKey.encryptedKey); } catch { /* skip */ }
         }
       }
     } catch { /* 조회 실패 시 플랫폼 키로 폴백 */ }
