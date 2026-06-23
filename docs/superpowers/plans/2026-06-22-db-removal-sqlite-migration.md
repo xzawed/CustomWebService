@@ -7,17 +7,19 @@
 
 ## 0. 진행 현황 (2026-06-23)
 
-브랜치 `feat/sqlite-migration` (origin 백업됨). 누적 테스트 204 통과, type-check·lint clean. **프로덕션 무영향**(sqlite·local 모두 `DB_PROVIDER`/`AUTH_PROVIDER` opt-in, 기존 Supabase 기본값 유지).
+브랜치 `feat/sqlite-migration` (origin 백업됨). 전체 스위트 2119 통과, type-check·lint clean, `pnpm build` 성공(미들웨어 Edge 번들 위반 0). **프로덕션 무영향**(sqlite·local 모두 `DB_PROVIDER`/`AUTH_PROVIDER` opt-in, 기존 Supabase 기본값 유지).
 
 | Phase | 상태 | 커밋 |
 |---|---|---|
 | **Phase 1 — 데이터 계층** (P1.1~1.6) | ✅ 완료 | `69ac078`, `122819d` |
-| **Phase 2 — 인증** | 🔵 코어(P2.1) 완료, 나머지 대기 | `18e4d64` |
+| **Phase 2 — 인증** | ✅ 기능 완료 (P2.1~P2.3; P2.4 정리는 Phase 3 동반) | `18e4d64` + (이번 커밋) |
 | Phase 3~8 | ⬜ 대기 | — |
 
-- **완료**: SQLite 스키마(9테이블)·연결(WAL/FK)·마이그레이션(`drizzle/sqlite/`, 커밋)·`DB_PROVIDER=sqlite` / 7개 SQLite 레포(159테스트)·원자적 레이트리밋(`db.transaction`+`UPDATE…WHERE count<limit RETURNING`)·factory 배선 / `AUTH_PROVIDER=local`(Auth.js Credentials 단일 관리자 + JWT 무상태, scrypt 비번, `getAuthUser` 분기).
-- **다음(Phase 2 나머지)**: ① `/api/auth/[...nextauth]/route.ts` 핸들러 ② 미들웨어 local 세션 검증 전환(Supabase `updateSession` 대체) ③ 로그인 페이지 Credentials 폼 ④ 관리자 `users` 시드 + `scripts/hashAdminPassword.ts`.
-- **컷오버 전 사용자 준비물**: Railway 영속 볼륨(P0.1), env `AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`·(선택)`SQLITE_PATH`·`ADMIN_USER_ID`.
+- **완료(Phase 1)**: SQLite 스키마(9테이블)·연결(WAL/FK)·마이그레이션(`drizzle/sqlite/`, 커밋)·`DB_PROVIDER=sqlite` / 7개 SQLite 레포(159테스트)·원자적 레이트리밋(`db.transaction`+`UPDATE…WHERE count<limit RETURNING`)·factory 배선.
+- **완료(Phase 2)**: `AUTH_PROVIDER=local`(Auth.js Credentials 단일 관리자 + JWT 무상태, scrypt 비번, `getAuthUser` 분기) / **P2.2** edge-safe 분할 설정(`local-auth-base`+`local-auth-edge`) + 미들웨어 `local` 세션 게이팅(`enforceAuthGate`) / `/api/auth/[...nextauth]/route.ts` provider 디스패치 핸들러 / **P2.3·P2.4** 로그인 페이지 Credentials 폼 + 관리자 `users` 멱등 시드(`seedAdmin`)·부팅 부트스트랩(`bootstrap`, instrumentation 배선 — P6.1 부팅 마이그레이션 일부 선반영) + `scripts/hashAdminPassword.ts`(`pnpm admin:hash`).
+  - ⚠️ 미들웨어 `await auth()` 의 **실 Edge 런타임 동작은 Phase 4(서빙 검증)에서 실서버로 확인** 필요(단위 테스트는 edge 설정 모킹으로 분기 로직만 검증).
+- **다음(Phase 3 — 직접-DB/RPC/service-role 정리)**: `.rpc()` 6 호출(레포 계층) / `createServiceClient` 10파일(12 호출 지점) / raw `.from()` 5파일(10 호출 지점: qc-stats·keys-verify·proxy·settings·callback)을 SQLite 레포 + 단일 사용자 인가로 재배선.
+- **컷오버 전 사용자 준비물**: Railway 영속 볼륨(P0.1), env `AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`(`pnpm admin:hash`로 생성)·(선택)`ADMIN_NAME`·`SQLITE_PATH`·`ADMIN_USER_ID`.
 
 ## 1. 목표 & 확정 제약
 
@@ -81,17 +83,17 @@
 ### Phase 2 — 인증 교체 (규모 M, 셀프호스트로 축소) 
 | ID | 작업 | 선행 | 규모 | AC |
 |---|---|---|---|---|
-| P2.1 | Auth.js v5 JWT 세션 구성(어댑터 없음), 단일 관리자 Credentials provider | P0.3 | M | 로그인→JWT 쿠키 발급·검증 |
-| P2.2 | 미들웨어 세션 검증을 Auth.js(Node 런타임)로 전환, Supabase `updateSession` 제거 | P2.1 | M | 보호 경로 게이팅 동작, Edge 임포트 위반 0 |
-| P2.3 | `getAuthUser` 추상화를 Auth.js로 연결(33개 소비처는 추상화 뒤라 무변경) | P2.1 | S | 인증 소비처 회귀 없음 |
-| P2.4 | RLS 의존 제거 — 단일 소유자라 `assertOwner` 자명화/소거, OAuth 콜백 부트스트랩 제거 | P2.3 | S | 권한 경계 단순화, 노출 회귀 테스트 |
+| P2.1 | ✅ Auth.js v5 JWT 세션 구성(어댑터 없음), 단일 관리자 Credentials provider | P0.3 | M | 로그인→JWT 쿠키 발급·검증 |
+| P2.2 | ✅ 미들웨어 `local` 세션 게이팅 추가. **Node 런타임 전환 대신 Edge 유지 + edge-safe 분할 설정**(`local-auth-base`/`local-auth-edge`)으로 구현 — 프로덕션 Supabase(Edge) 경로 무영향. + `/api/auth/[...nextauth]` 핸들러 | P2.1 | M | 보호 경로 게이팅 동작(단위), Edge 임포트 위반 0(빌드 확인). ⚠️ 실 Edge `auth()` 동작은 Phase 4 |
+| P2.3 | ✅ `getAuthUser` local 분기(P2.1에 포함) + 로그인 페이지 Credentials 폼 | P2.1 | S | 인증 소비처 회귀 없음 |
+| P2.4 | ⬜→Phase 3 동반: RLS 의존 제거·`assertOwner` 자명화·OAuth 콜백 부트스트랩 제거(단일 소유자). createServiceClient/`.from()` 재배선과 함께 진행. (관리자 `users` 시드·`hashAdminPassword` CLI는 이번에 완료) | P2.3 | S | 권한 경계 단순화, 노출 회귀 테스트 |
 
 ### Phase 3 — 직접-DB/RPC/service-role 정리 (규모 M)
 | ID | 작업 | 선행 | 규모 | AC |
 |---|---|---|---|---|
 | P3.1 | `.rpc()` 6곳 → SQLite 레포 메서드로 재배선 | P1.5 | S | RPC 호출 0건 |
-| P3.2 | `createServiceClient` 10개 파일 → SQLite 레포 + 단일 사용자 인가로 재작성(proxy 키 resolve·user-api-keys·suggest-modification·admin·callback 등) | P1.4,P2.3 | M | service-role 개념 소거, 키 resolve 동작 |
-| P3.3 | raw `.from()` 5파일(qc-stats·keys-verify·proxy·settings·callback) 재배선 | P3.2 | S | raw supabase 접근 0건 |
+| P3.2 | `createServiceClient` 10파일(12 호출 지점) → SQLite 레포 + 단일 사용자 인가로 재작성(proxy 키 resolve·user-api-keys·suggest-modification·health·eventPersister·admin 4종·preview) | P1.4,P2.3 | M | service-role 개념 소거, 키 resolve 동작 |
+| P3.3 | raw `.from()` 5파일·10 호출 지점(qc-stats×4·keys-verify·proxy×2·settings/api-keys·callback×2) 재배선 | P3.2 | S | raw supabase 접근 0건 |
 
 ### Phase 4 — 서빙/런타임 검증 (규모 M)
 | ID | 작업 | 선행 | 규모 | AC |

@@ -6,9 +6,13 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { verifyAdminCredentials } from '@/lib/auth/adminCredentials';
+import { localAuthBaseConfig } from '@/lib/auth/local-auth-base';
 
+// 전체 설정(Node 런타임) — Credentials authorize가 scrypt(node:crypto)를 사용하므로 edge 불가.
+// 라우트 핸들러(/api/auth/[...nextauth])와 서버 측 getLocalAuthUser가 이 설정을 동적 import한다.
+// 세션 전략·JWT 콜백은 edge 설정과 동일한 localAuthBaseConfig를 공유한다(JWT 호환).
 export const { auth, handlers, signIn, signOut } = NextAuth({
-  session: { strategy: 'jwt' },
+  ...localAuthBaseConfig,
   providers: [
     Credentials({
       credentials: {
@@ -24,15 +28,4 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    jwt({ token, user }) {
-      // 로그인 시 관리자 id를 토큰 subject에 고정 (이후 요청은 토큰만으로 신원 확인 — 무상태)
-      if (user?.id) token.sub = user.id;
-      return token;
-    },
-    session({ session, token }) {
-      if (token.sub) session.user.id = token.sub;
-      return session;
-    },
-  },
 });
