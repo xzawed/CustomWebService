@@ -15,7 +15,8 @@
 | **Phase 2 — 인증** | ✅ 기능 완료 (P2.1~P2.3; P2.4 정리는 Phase 3 동반) | `18e4d64`, `c67ec18` |
 | **Phase 3 — 직접-DB/RPC 정리** | ✅ 완료 (callback·repo `.rpc`는 Phase 8 이연) | `a9688f2`, `4b7b75a`, `768da35`, `7cddeef` |
 | **Phase 4 — 서빙/런타임 검증** | 🔵 P4.1 서빙 검증 완료, P4.3 일부 대기 | (검증, 코드 무변경) |
-| Phase 5~8 | ⬜ 대기 | — |
+| **Phase 5 — 설정·번들 데이터 시드** | 🔵 P5.1·P5.3 완료, P5.2 이연 | (이번 커밋) |
+| Phase 6~8 | ⬜ 대기 | — |
 
 - **완료(Phase 1)**: SQLite 스키마(9테이블)·연결(WAL/FK)·마이그레이션(`drizzle/sqlite/`, 커밋)·`DB_PROVIDER=sqlite` / 7개 SQLite 레포(159테스트)·원자적 레이트리밋(`db.transaction`+`UPDATE…WHERE count<limit RETURNING`)·factory 배선.
 - **완료(Phase 2)**: `AUTH_PROVIDER=local`(Auth.js Credentials 단일 관리자 + JWT 무상태, scrypt 비번, `getAuthUser` 분기) / **P2.2** edge-safe 분할 설정(`local-auth-base`+`local-auth-edge`) + 미들웨어 `local` 세션 게이팅(`enforceAuthGate`) / `/api/auth/[...nextauth]/route.ts` provider 디스패치 핸들러 / **P2.3·P2.4** 로그인 페이지 Credentials 폼 + 관리자 `users` 멱등 시드(`seedAdmin`)·부팅 부트스트랩(`bootstrap`, instrumentation 배선 — P6.1 부팅 마이그레이션 일부 선반영) + `scripts/hashAdminPassword.ts`(`pnpm admin:hash`).
@@ -24,6 +25,11 @@
   - 라우트/페이지 전환: health·user-api-keys·suggest-modification·preview / **eventPersister**(sqlite 버그 수정) / **proxy**(진입 + 개인키 해결: 내부 헬퍼 raw `.from`→`createProjectRepository`/`createUserApiKeyRepository`) / **settings/api-keys**(`findAllByUser`) / **admin 4종**(qc-stats·keys-verify·trigger-qc·test-generation) 모두 레포 경유.
   - 신규 레포 메서드(3 구현체 + 인터페이스): `IEventRepository.countByTypeSince`/`findPayloadsByTypeSince`, `ICodeRepository.findMetadataByDateRange` — qc-stats `platform_events`/`generated_codes` 집계용(집계는 DB 오류 throw로 0-메트릭 은폐 방지).
   - 이연(Phase 8 동반): `callback`(raw `.from('users')`)은 Supabase Auth OAuth 전용 아티팩트(local 모드 미사용). repo 내부 `.rpc()` 6은 Supabase 레포 전용(sqlite 레포는 트랜잭션 대체 완료) → supabase 제거 시 동반 소멸.
+- **완료(Phase 5 — 설정·번들 데이터)**: 카탈로그·플래그를 **번들 JSON + 멱등 시드 함수**로 부팅 시 시드.
+  - `src/data/apiCatalog.json`(프로덕션 49행, 23 활성)·`src/data/featureFlags.json`(7) — 프로덕션 미러 생성 산출물. `scripts/generateSqliteSeed.ts`(`pnpm seed:generate`)로 Supabase에서 재생성(countries.json 패턴).
+  - `src/lib/db/sqlite/seedCatalog.ts`(`seedCatalog`/`seedFeatureFlags`, 빈 테이블일 때만 일괄 삽입·멱등) → `bootstrapSqlite`에 배선(마이그레이션→admin→catalog→flags). id·created_at은 프로덕션 값 보존(project_apis FK 일관성).
+  - **검증**: 실 sqlite 서버 스모크 5/5 — 부팅 후 DB `catalog=49·active=23·flags=7·users=1`, `GET /api/v1/catalog`가 시드 데이터 서빙. seedCatalog 단위 4/4(:memory:).
+  - **P5.2 이연**(verification_status cron SQLite write): 현 cron(`scripts/verifyCatalog.ts`)은 CI에서 Supabase에 쓴다. sqlite 셀프호스트는 검증을 컨테이너 내부에서 돌려야 하므로(볼륨 접근) Phase 6 배포 설계와 함께 다룬다. 시드된 `verification_status`(프로덕션 기준)가 baseline.
 - **검증(Phase 4)**: **P4.1 서빙 E2E 검증 완료** — 실 dev 서버(`DB_PROVIDER=sqlite`+`AUTH_PROVIDER=local`) 스모크 6/6: 부팅 부트스트랩(마이그레이션+admin 시드) → 게시 프로젝트+코드 시드 → `GET /site/demo` 200(`findBySlug`+`findByProject`+`assembleHtml` 모두 sqlite 경로 동작)·`SITE_CSP` 헤더·미존재 slug 404. P4.2(인메모리 상태)는 코드 무변경이라 자명. **P4.3**(배포 상태머신/레이트리밋 환불)은 레포 단위(SqliteRateLimitRepository 원자적 카운터·환불) 검증됨, 외부 배포(GitHub/Railway) 통합은 실배포에서 확인 필요.
 - **컷오버 전 사용자 준비물**: Railway 영속 볼륨(P0.1), env `AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`(`pnpm admin:hash`로 생성)·(선택)`ADMIN_NAME`·`SQLITE_PATH`·`ADMIN_USER_ID`.
 
@@ -108,7 +114,7 @@
 | P4.2 | 인메모리 상태(generationTracker·proxyCache·errorRateMonitor) 유지 확인(단일 인스턴스라 무변경) | — | S | 회귀 없음 |
 | P4.3 | 배포 상태머신(projects.status 전이) + 배포 레이트리밋/환불 SQLite 검증 | P1.5,P4.1 | S | 배포 흐름·환불 동작 |
 
-### Phase 5 — 설정·번들 데이터 (규모 S)
+### Phase 5 — 설정·번들 데이터 (규모 S) — 🔵 P5.1·P5.3 완료, P5.2 이연(Phase 6 동반)
 | ID | 작업 | 선행 | 규모 | AC |
 |---|---|---|---|---|
 | P5.1 | `api_catalog`(49행) 시드 → SQLite 시드 스크립트(기존 seed.sql 변환) | P1.2 | S | 시드 후 23 활성 동작 |

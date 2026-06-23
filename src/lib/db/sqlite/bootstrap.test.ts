@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type Database from 'better-sqlite3';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { createSqliteConnection, type SqliteDb } from './connection';
 import * as schema from './schema';
 import { getAdminUserId } from '@/lib/auth/adminCredentials';
@@ -29,7 +29,7 @@ describe('bootstrapSqlite', () => {
     process.env = { ...ORIG };
   });
 
-  it('빈 DB에서 마이그레이션을 적용한 뒤 관리자 행을 시드한다', () => {
+  it('빈 DB에서 마이그레이션을 적용한 뒤 관리자·카탈로그·플래그를 시드한다', () => {
     bootstrapSqlite(db);
 
     const row = db
@@ -38,6 +38,12 @@ describe('bootstrapSqlite', () => {
       .where(eq(schema.users.id, getAdminUserId()))
       .get();
     expect(row?.email).toBe('admin@example.com');
+
+    // 카탈로그(프로덕션 미러 49행)·플래그(7개)도 함께 시드된다
+    const catalog = db.select({ c: sql<number>`count(*)` }).from(schema.apiCatalog).get();
+    expect(catalog?.c).toBe(49);
+    const flags = db.select({ c: sql<number>`count(*)` }).from(schema.featureFlags).get();
+    expect(flags?.c).toBe(7);
   });
 
   it('두 번 호출해도 마이그레이션·시드가 멱등이다(throw 없음, 행 1개)', () => {
