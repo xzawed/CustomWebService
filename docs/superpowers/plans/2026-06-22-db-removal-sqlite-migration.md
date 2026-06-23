@@ -16,8 +16,9 @@
 | **Phase 3 — 직접-DB/RPC 정리** | ✅ 완료 (callback·repo `.rpc`는 Phase 8 이연) | `a9688f2`, `4b7b75a`, `768da35`, `7cddeef` |
 | **Phase 4 — 서빙/런타임 검증** | 🔵 P4.1 서빙 검증 완료, P4.3 일부 대기 | (검증, 코드 무변경) |
 | **Phase 5 — 설정·번들 데이터 시드** | 🔵 P5.1·P5.3 완료, P5.2 이연 | `1ff1834` |
-| **Phase 6 — 인프라/배포** | 🔵 P6.1·P6.4 완료(docker 검증), P6.2 일부·P6.3 이연 | (이번 커밋) |
-| Phase 7~8 | ⬜ 대기 | — |
+| **Phase 6 — 인프라/배포** | 🔵 P6.1·P6.4 완료(docker 검증), P6.2 일부·P6.3 이연 | `c5adbdf` |
+| **Phase 7 — 테스트 정리** | 🔵 P7.2·P7.3 완료, P7.1·P7.4는 Phase 8 동반 | (이번 커밋) |
+| **Phase 8 — 컷오버** | ⬜ 대기 (사용자 게이트) | — |
 
 - **완료(Phase 1)**: SQLite 스키마(9테이블)·연결(WAL/FK)·마이그레이션(`drizzle/sqlite/`, 커밋)·`DB_PROVIDER=sqlite` / 7개 SQLite 레포(159테스트)·원자적 레이트리밋(`db.transaction`+`UPDATE…WHERE count<limit RETURNING`)·factory 배선.
 - **완료(Phase 2)**: `AUTH_PROVIDER=local`(Auth.js Credentials 단일 관리자 + JWT 무상태, scrypt 비번, `getAuthUser` 분기) / **P2.2** edge-safe 분할 설정(`local-auth-base`+`local-auth-edge`) + 미들웨어 `local` 세션 게이팅(`enforceAuthGate`) / `/api/auth/[...nextauth]/route.ts` provider 디스패치 핸들러 / **P2.3·P2.4** 로그인 페이지 Credentials 폼 + 관리자 `users` 멱등 시드(`seedAdmin`)·부팅 부트스트랩(`bootstrap`, instrumentation 배선 — P6.1 부팅 마이그레이션 일부 선반영) + `scripts/hashAdminPassword.ts`(`pnpm admin:hash`).
@@ -38,6 +39,8 @@
   - ⚠️ **테스트 함정**(코드 무관): Git Bash(MSYS)가 `docker run -e SQLITE_PATH=/data/app.db`의 `/data/...`를 `C:/Program Files/Git/...`로 변환 → "directory does not exist". `MSYS_NO_PATHCONV=1`로 우회(SQLITE_PATH 미지정 시 코드 기본값 `/data/app.db`는 문자열 리터럴이라 무영향).
   - **컷오버 빌드/런타임**: 빌드 `--build-arg NEXT_PUBLIC_AUTH_PROVIDER=local`(+기존 supabase args 불필요 시 빈 값), 런타임 env `DB_PROVIDER=sqlite`·`AUTH_PROVIDER=local`·`AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`. **Railway Volume을 `/data`에 마운트 필수**.
   - **P6.2 잔여**: `@supabase/*` 의존 제거는 Phase 8(supabase 경로 제거와 함께). **P6.3 이연**(옵션 백업 크론) + P5.2 verification cron 컨테이너 내부화.
+- **완료(Phase 7 — 테스트 정리, 컷오버 전 가능 범위)**: P7.2(인증·미들웨어 테스트)는 Phase 2에서 완료. P7.3 라우트 테스트 모킹 일관화 — Phase 3에서 getDbProvider를 추가한 라우트(test-generation·qc-stats·trigger-qc) 테스트(`admin-test-generation`·`admin`)에 `@/lib/config/providers` 모킹 추가(native pg cold-init 차단). **P7.1**(supabase/Drizzle 레포 테스트 → `:memory:` 단순화)·**P7.4**(factory/connection/failover 테스트 정리)는 **Phase 8에서 supabase/postgres 레포를 제거할 때 동반**(현재 supabase 레포는 프로덕션 경로라 테스트를 선제거하면 안 됨).
+- **🚦 현재 위치 = 컷오버 게이트**: Phase 1~6 + 검증(P4.1)·테스트 정리(P7.2/P7.3)까지 **프로덕션 무영향으로 완료**. sqlite/local 스택이 docker로 빌드·실행·검증됨. **Phase 8(컷오버)부터는 프로덕션 supabase 경로를 제거**하므로 "무영향" 불변식을 깨는 비가역 변경 — **사용자 승인 + Railway 볼륨 준비 후** 진행한다.
 - **컷오버 전 사용자 준비물**: **Railway 영속 볼륨(P0.1) `/data` 마운트**(없으면 재배포마다 소실), env `AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`(`pnpm admin:hash`로 생성)·(선택)`ADMIN_NAME`·`SQLITE_PATH`·`ADMIN_USER_ID`, 빌드 `--build-arg NEXT_PUBLIC_AUTH_PROVIDER=local`.
 
 ## 1. 목표 & 확정 제약
@@ -136,7 +139,7 @@
 | P6.3 | (옵션) Litestream 사이드카(S3 허용 시) 또는 주기 `.backup` 크론(자체보관) | P0.4 | M | 백업 산출물 생성·복구 리허설 |
 | P6.4 | `pnpm test:prod` standalone 헬스체크 + 배포 검증 | P6.1,P6.2 | S | 헬스 200, 핵심 플로우 동작 |
 
-### Phase 7 — 테스트 재작성 (규모 L)
+### Phase 7 — 테스트 재작성 (규모 L) — 🔵 P7.2·P7.3 완료, P7.1·P7.4는 Phase 8 동반(레포 제거 시)
 | ID | 작업 | 선행 | 규모 | AC |
 |---|---|---|---|---|
 | P7.1 | 레포 구현 테스트 14파일 → SQLite `:memory:` 실DB 테스트로 **단순화**(손모킹 폐기 — 오히려 쉬워짐) | P1.4 | L | 레포 커버리지 회복 |
