@@ -37,3 +37,30 @@ export function enforceRateLimit(
     throw new RateLimitError();
   }
 }
+
+/**
+ * 이메일 링크(인증·비밀번호 재설정)에 쓸 공개 base URL을 도출한다.
+ *
+ * 보안: 비밀번호 재설정 같은 보안 링크를 **클라이언트가 위조 가능한 호스트 헤더**
+ * (`x-forwarded-host`/`host`)에서 만들면 host-header 인젝션(피해자에게 공격자 도메인
+ * 링크를 보내 토큰 탈취 → password reset poisoning)에 노출된다. 따라서 헤더를 신뢰하지
+ * 않고 **서버 설정에서만** 도출한다. 우선순위:
+ *  1) `APP_URL` 환경변수 (가장 명시적)
+ *  2) `NEXT_PUBLIC_ROOT_DOMAIN` (apex 도메인, https 가정)
+ *  3) 로컬/개발 폴백으로 요청 origin (프로덕션에선 위 둘 중 하나가 반드시 설정됨)
+ * `URL.origin`을 사용하므로 경로·후행 슬래시는 자동 정규화된다(호출부가
+ * `${baseUrl}/verify-email` 식으로 이어 붙임).
+ *
+ * 참고: 프록시(Railway) 뒤에서 `new URL(request.url).origin`은 내부 바인드 주소
+ * (예: `http://0.0.0.0:8080`)로 잡히므로 프로덕션 폴백으로 쓰면 안 된다 —
+ * 그래서 신뢰 가능한 `APP_URL`/`NEXT_PUBLIC_ROOT_DOMAIN`을 먼저 사용한다.
+ */
+export function getBaseUrl(request: Request): string {
+  const appUrl = process.env.APP_URL;
+  if (appUrl) return new URL(appUrl).origin;
+
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+  if (rootDomain) return new URL(`https://${rootDomain}`).origin;
+
+  return new URL(request.url).origin;
+}

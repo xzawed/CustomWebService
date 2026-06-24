@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { z } from 'zod/v4';
-import { parseJsonBody, enforceRateLimit } from './routeHelpers';
+import { parseJsonBody, enforceRateLimit, getBaseUrl } from './routeHelpers';
 import { ValidationError, RateLimitError } from '@/lib/utils/errors';
 
 const testSchema = z.object({ name: z.string(), age: z.number() });
@@ -81,5 +81,47 @@ describe('enforceRateLimit', () => {
     expect(() => enforceRateLimit(req1, uniquePrefix, 2, 60 * 1000)).not.toThrow();
     expect(() => enforceRateLimit(req2, uniquePrefix, 2, 60 * 1000)).not.toThrow();
     expect(() => enforceRateLimit(req3, uniquePrefix, 2, 60 * 1000)).toThrow(RateLimitError);
+  });
+});
+
+describe('getBaseUrl', () => {
+  const origAppUrl = process.env.APP_URL;
+  const origRoot = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+  afterEach(() => {
+    if (origAppUrl === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = origAppUrl;
+    if (origRoot === undefined) delete process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+    else process.env.NEXT_PUBLIC_ROOT_DOMAIN = origRoot;
+  });
+
+  // 내부 바인드 주소 + 위조된 호스트 헤더를 함께 흉내 — 헤더가 무시되는지 검증
+  function hostileReq(): Request {
+    return new Request('http://0.0.0.0:8080/api/v1/auth/forgot-password', {
+      method: 'POST',
+      headers: {
+        'x-forwarded-host': 'attacker.example.com',
+        host: 'attacker.example.com',
+        'x-forwarded-proto': 'http',
+      },
+    });
+  }
+
+  it('APP_URL이 있으면 우선하고 후행 슬래시를 제거한다 (위조 host 무시)', () => {
+    process.env.APP_URL = 'https://xzawed.xyz/';
+    expect(getBaseUrl(hostileReq())).toBe('https://xzawed.xyz');
+  });
+
+  it('APP_URL이 없으면 NEXT_PUBLIC_ROOT_DOMAIN을 쓰고 위조 host 헤더를 무시한다 (host-header 인젝션 방지)', () => {
+    delete process.env.APP_URL;
+    process.env.NEXT_PUBLIC_ROOT_DOMAIN = 'xzawed.xyz';
+    expect(getBaseUrl(hostileReq())).toBe('https://xzawed.xyz');
+  });
+
+  it('신뢰 가능한 설정이 모두 없을 때만 요청 origin으로 폴백한다 (로컬/개발)', () => {
+    delete process.env.APP_URL;
+    delete process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+    expect(getBaseUrl(new Request('https://localhost:3000/api', { method: 'POST' }))).toBe(
+      'https://localhost:3000',
+    );
   });
 });
