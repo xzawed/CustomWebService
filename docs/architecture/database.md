@@ -322,7 +322,7 @@ CREATE TABLE feature_flags (
     flag_name   TEXT NOT NULL UNIQUE,
     enabled     INTEGER DEFAULT 0,             -- boolean
     description TEXT,
-    rules       TEXT,                          -- json (현재 미사용 — 단일 사용자)
+    rules       TEXT,                          -- json (현재 미사용)
     updated_at  TEXT
 );
 ```

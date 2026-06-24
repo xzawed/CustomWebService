@@ -37,6 +37,10 @@ SQLite 컷오버(P8.2, 2026-06-23)로 인증 방식이 "셀프호스트 단일 �
 
 ## 대안 고려
 
+### A안 — (채택) Auth.js Credentials + scrypt + 무상태 JWT 유지, authorize만 DB 조회로 교체
+
+기존 인증 스택(Auth.js v5 Credentials, scrypt 해시, JWT 무상태 세션)을 그대로 유지하면서 `authorize` 함수만 env 한 쌍(`ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`) 비교에서 `users` 테이블 DB 조회 + 사용자별 해시 검증으로 교체한다. 변경 범위를 최소화하면서 다중 계정과 공개 회원가입을 지원하는 방향이다.
+
 ### B안: Auth.js DB 어댑터 재도입 (드리즐 어댑터)
 
 - `@auth/drizzle-adapter`를 사용해 Auth.js 기본 `users`/`accounts`/`sessions`/`verificationToken` 테이블을 복원한다.
