@@ -228,6 +228,23 @@ describe('SqliteUserRepository', () => {
       expect(fetched?.passwordHash).toBe('salt:deadbeef');
       expect(fetched?.emailVerified).toBeNull();
     });
+
+    it('update()로 emailVerified를 설정하면 DB에 영속되어 findById()로 반환된다 (Critical 회귀 방지)', async () => {
+      // 이전 버그: schema 프로퍼티명이 emailVerified(camelCase)라 Drizzle .set()이
+      // toDatabaseRow()의 email_verified 키를 인식 못해 컬럼이 항상 NULL로 남았음.
+      const created = await repo.create({
+        ...baseInput,
+        emailVerified: null,
+      });
+      expect(created.emailVerified).toBeNull();
+
+      const verifiedAt = '2026-06-24T00:00:00.000Z';
+      await repo.update(created.id, { emailVerified: verifiedAt });
+
+      const refetched = await repo.findById(created.id);
+      expect(refetched).not.toBeNull();
+      expect(refetched?.emailVerified).toBe(verifiedAt);
+    });
   });
 
   describe('count', () => {

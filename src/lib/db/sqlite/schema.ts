@@ -28,7 +28,7 @@ export const users = sqliteTable('users', {
   email: text('email').notNull().unique(),
   name: text('name'),
   avatar_url: text('avatar_url'),
-  emailVerified: text('email_verified'),
+  email_verified: text('email_verified'),
   password_hash: text('password_hash'),
   image: text('image'),
   preferences: text('preferences', { mode: 'json' }).$type<Record<string, unknown>>(),

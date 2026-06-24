@@ -187,5 +187,30 @@ describe('소유권 격리 (Task 18)', () => {
       const json = await res.json();
       expect(json.data.status).toBe('not_found');
     });
+
+    it('인메모리 tracker에 존재하지만 타인 소유이면 not_found를 반환한다 (ForbiddenError 누출 방지)', async () => {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(userB);
+
+      // tracker가 user-A 소유 진행 중 항목을 반환
+      const { generationTracker } = await import('@/lib/ai/generationTracker');
+      vi.mocked(generationTracker.get).mockReturnValue({
+        userId: 'user-A',
+        status: 'generating',
+        progress: 50,
+        step: 'stage1',
+        message: '생성 중',
+      } as never);
+
+      const { GET } = await import('@/app/api/v1/generate/status/[projectId]/route');
+      const res = await GET(
+        new Request(`https://app/api/v1/generate/status/${PROJECT_UUID}`),
+        { params: Promise.resolve({ projectId: PROJECT_UUID }) },
+      );
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      // 403이 아닌 not_found — 인플라이트 생성 존재 여부 누출 차단
+      expect(json.data.status).toBe('not_found');
+    });
   });
 });
