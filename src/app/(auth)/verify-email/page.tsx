@@ -7,13 +7,15 @@ function VerifyEmailInner() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
 
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>(
+    token ? 'loading' : 'error',
+  );
+  const [errorMessage, setErrorMessage] = useState<string | null>(
+    token ? null : '유효하지 않은 인증 링크입니다.',
+  );
 
   useEffect(() => {
     if (!token) {
-      setStatus('error');
-      setErrorMessage('유효하지 않은 인증 링크입니다.');
       return;
     }
 
