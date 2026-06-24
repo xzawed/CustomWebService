@@ -17,6 +17,21 @@ export const handlers = [
     HttpResponse.json({ success: true, data: { message: 'ok' } }, { status: 201 }),
   ),
 
+  // 이메일 인증 API mock
+  http.post('*/api/v1/auth/verify-email', () =>
+    HttpResponse.json({ success: true, data: {} }),
+  ),
+
+  // 비밀번호 찾기 API mock
+  http.post('*/api/v1/auth/forgot-password', () =>
+    HttpResponse.json({ success: true, data: {} }),
+  ),
+
+  // 비밀번호 재설정 API mock
+  http.post('*/api/v1/auth/reset-password', () =>
+    HttpResponse.json({ success: true, data: {} }),
+  ),
+
   // Resend 이메일 API mock
   http.post('https://api.resend.com/emails', () =>
     HttpResponse.json({ id: 'mock-email-id' }, { status: 200 }),
