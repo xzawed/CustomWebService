@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { z } from 'zod/v4';
-import { parseJsonBody, enforceRateLimit } from './routeHelpers';
+import { parseJsonBody, enforceRateLimit, getBaseUrl } from './routeHelpers';
 import { ValidationError, RateLimitError } from '@/lib/utils/errors';
 
 const testSchema = z.object({ name: z.string(), age: z.number() });
@@ -81,5 +81,41 @@ describe('enforceRateLimit', () => {
     expect(() => enforceRateLimit(req1, uniquePrefix, 2, 60 * 1000)).not.toThrow();
     expect(() => enforceRateLimit(req2, uniquePrefix, 2, 60 * 1000)).not.toThrow();
     expect(() => enforceRateLimit(req3, uniquePrefix, 2, 60 * 1000)).toThrow(RateLimitError);
+  });
+});
+
+describe('getBaseUrl', () => {
+  const originalAppUrl = process.env.APP_URL;
+  afterEach(() => {
+    if (originalAppUrl === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = originalAppUrl;
+  });
+
+  function reqWith(headers: Record<string, string>): Request {
+    // 내부 바인드 주소를 흉내내 — 프록시 헤더가 우선되는지 검증
+    return new Request('http://0.0.0.0:8080/api/v1/auth/forgot-password', { method: 'POST', headers });
+  }
+
+  it('APP_URL 환경변수가 있으면 우선하고 후행 슬래시를 제거한다', () => {
+    process.env.APP_URL = 'https://xzawed.xyz/';
+    expect(getBaseUrl(reqWith({ 'x-forwarded-host': 'evil.example.com' }))).toBe('https://xzawed.xyz');
+  });
+
+  it('APP_URL이 없으면 x-forwarded-host/proto로 공개 origin을 만든다 (내부 0.0.0.0 아님)', () => {
+    delete process.env.APP_URL;
+    const url = getBaseUrl(reqWith({ 'x-forwarded-host': 'xzawed.xyz', 'x-forwarded-proto': 'https' }));
+    expect(url).toBe('https://xzawed.xyz');
+  });
+
+  it('x-forwarded-proto 미설정 시 https를 기본 사용한다', () => {
+    delete process.env.APP_URL;
+    expect(getBaseUrl(reqWith({ 'x-forwarded-host': 'xzawed.xyz' }))).toBe('https://xzawed.xyz');
+  });
+
+  it('포워드 헤더가 없으면 요청 origin으로 폴백한다', () => {
+    delete process.env.APP_URL;
+    expect(getBaseUrl(new Request('https://fallback.example.com/api', { method: 'POST' }))).toBe(
+      'https://fallback.example.com',
+    );
   });
 });
