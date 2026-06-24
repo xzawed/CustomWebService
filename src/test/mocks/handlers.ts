@@ -32,6 +32,16 @@ export const handlers = [
     HttpResponse.json({ success: true, data: {} }),
   ),
 
+  // 이메일 인증 상태 API mock (기본: 미인증)
+  http.get('*/api/v1/auth/status', () =>
+    HttpResponse.json({ success: true, data: { verified: false } }),
+  ),
+
+  // 인증 메일 재발송 API mock
+  http.post('*/api/v1/auth/resend-verification', () =>
+    HttpResponse.json({ success: true, data: {} }),
+  ),
+
   // Resend 이메일 API mock
   http.post('https://api.resend.com/emails', () =>
     HttpResponse.json({ id: 'mock-email-id' }, { status: 200 }),
