@@ -1079,11 +1079,11 @@
     "requires_proxy": false,
     "credit_required": null,
     "cache_ttl_seconds": null,
-    "verification_status": "broken",
-    "verified_at": "2026-06-22T12:59:07.588+00:00",
-    "last_verification_note": "2026-06-22 자동 헬스체크: broken",
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (200, 복구 확인)",
     "created_at": "2026-03-26T11:51:21.691024+00:00",
-    "updated_at": "2026-06-22T21:40:57.750812+00:00"
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
   },
   {
     "id": "4ef4a3ef-5105-4da7-af24-6119fe2722fa",
@@ -1095,7 +1095,7 @@
     "auth_config": {},
     "rate_limit": "300",
     "changelog": [],
-    "is_active": false,
+    "is_active": true,
     "icon_url": null,
     "docs_url": "https://picsum.photos/",
     "endpoints": [
@@ -1128,11 +1128,11 @@
     "requires_proxy": false,
     "credit_required": null,
     "cache_ttl_seconds": null,
-    "verification_status": "broken",
-    "verified_at": null,
-    "last_verification_note": "picsum.photos Cloudflare 522/timeout 지속(2026-06-21~) — 수동 비활성화(2026-06-22). 복구 시 재검증 후 is_active=true 복원",
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (200, 복구 확인)",
     "created_at": "2026-03-26T11:51:21.691024+00:00",
-    "updated_at": "2026-06-22T11:51:42.094121+00:00"
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
   },
   {
     "id": "7b66ab19-4d00-4d39-a4f9-2c2b6c6367a4",
@@ -2489,5 +2489,616 @@
     "last_verification_note": "2026-05-01: HTTPS 전환. 개발계정 500건/일은 타 API 대비 매우 낮음. 운영계정 신청 권장.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
     "created_at": "2026-03-26T11:51:21.691024+00:00",
     "updated_at": "2026-05-01T05:56:30.495522+00:00"
+  },
+  {
+    "id": "65653418-a32c-423d-98e4-af692967f4d3",
+    "name": "Open-Meteo Geocoding",
+    "description": "도시·지명을 입력하면 위도/경도와 시간대, 인구를 알려줘요. 날씨·일출 API에 넣을 좌표를 구할 때 딱이에요. 가입·키 불필요.",
+    "category": "data",
+    "base_url": "https://geocoding-api.open-meteo.com",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://open-meteo.com/en/docs/geocoding-api",
+    "endpoints": [
+      {
+        "path": "/v1/search",
+        "method": "GET",
+        "parameters": {
+          "name": "string",
+          "count": "number",
+          "language": "string"
+        },
+        "description": "지명으로 위도/경도 검색 (name 필수, count·language 선택)"
+      }
+    ],
+    "tags": [
+      "data",
+      "geocoding",
+      "location",
+      "weather",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": 86400,
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (영구무료·키리스 확인)",
+    "created_at": "2026-06-24T18:00:00.000+00:00",
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
+  },
+  {
+    "id": "72dbcb1e-c4c4-4b86-8e3b-96655efbba2d",
+    "name": "Open-Meteo Air Quality",
+    "description": "위도/경도로 미세먼지(PM2.5·PM10), 오존, 유럽 AQI 등 대기질을 알려줘요. 미세먼지 위젯·대시보드에 좋아요. 가입·키 불필요.",
+    "category": "weather",
+    "base_url": "https://air-quality-api.open-meteo.com",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://open-meteo.com/en/docs/air-quality-api",
+    "endpoints": [
+      {
+        "path": "/v1/air-quality",
+        "method": "GET",
+        "parameters": {
+          "latitude": "number",
+          "longitude": "number",
+          "current": "string",
+          "hourly": "string"
+        },
+        "description": "좌표별 대기질 (current=pm2_5,pm10,european_aqi 등)"
+      }
+    ],
+    "tags": [
+      "weather",
+      "air-quality",
+      "pm25",
+      "미세먼지",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": 3600,
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (영구무료·키리스 확인)",
+    "created_at": "2026-06-24T18:00:00.000+00:00",
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
+  },
+  {
+    "id": "b79e9882-447a-42d2-b29d-cf6bc6a9f795",
+    "name": "Nager.Date (공휴일)",
+    "description": "나라별·연도별 공휴일을 알려줘요. 한국 공휴일도 한국어 이름으로 제공해요. 달력·일정 앱에 유용해요. 오픈소스·키 불필요.",
+    "category": "data",
+    "base_url": "https://date.nager.at",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://date.nager.at/swagger/index.html",
+    "endpoints": [
+      {
+        "path": "/api/v3/PublicHolidays/2026/KR",
+        "method": "GET",
+        "parameters": {
+          "year": "string",
+          "countryCode": "string"
+        },
+        "description": "연도/국가코드별 공휴일 (경로의 2026/KR을 원하는 값으로 변경)"
+      },
+      {
+        "path": "/api/v3/AvailableCountries",
+        "method": "GET",
+        "parameters": {},
+        "description": "지원 국가 코드 목록"
+      }
+    ],
+    "tags": [
+      "data",
+      "holidays",
+      "calendar",
+      "공휴일",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": 86400,
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (영구무료·키리스 확인)",
+    "created_at": "2026-06-24T18:00:00.000+00:00",
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
+  },
+  {
+    "id": "5dcf9d9a-d9cb-48f0-afd2-b5f61cd4f2c5",
+    "name": "Rick and Morty API",
+    "description": "릭 앤 모티 등장인물, 에피소드, 장소 정보를 제공해요. 카드·목록 UI 연습이나 팬 사이트에 좋아요. 오픈소스·키 불필요.",
+    "category": "entertainment",
+    "base_url": "https://rickandmortyapi.com",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://rickandmortyapi.com/documentation",
+    "endpoints": [
+      {
+        "path": "/api/character",
+        "method": "GET",
+        "parameters": {
+          "page": "number",
+          "name": "string"
+        },
+        "description": "등장인물 목록 (이름·페이지 필터)"
+      },
+      {
+        "path": "/api/character/1",
+        "method": "GET",
+        "parameters": {
+          "id": "string"
+        },
+        "description": "ID로 단건 조회 (경로의 1을 변경)"
+      },
+      {
+        "path": "/api/episode",
+        "method": "GET",
+        "parameters": {
+          "page": "number"
+        },
+        "description": "에피소드 목록"
+      }
+    ],
+    "tags": [
+      "entertainment",
+      "tv",
+      "characters",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": 86400,
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (영구무료·키리스 확인)",
+    "created_at": "2026-06-24T18:00:00.000+00:00",
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
+  },
+  {
+    "id": "6c31e6c8-0c29-44d0-98cd-0fd579ab6cb6",
+    "name": "Jikan (MyAnimeList)",
+    "description": "애니메이션·만화 정보(평점, 줄거리, 캐릭터)를 MyAnimeList 기반으로 제공해요. 애니 추천·검색 앱에 좋아요. 오픈소스·키 불필요.",
+    "category": "entertainment",
+    "base_url": "https://api.jikan.moe",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://docs.api.jikan.moe/",
+    "endpoints": [
+      {
+        "path": "/v4/anime/1",
+        "method": "GET",
+        "parameters": {
+          "id": "string"
+        },
+        "description": "ID로 애니 단건 조회 (경로의 1을 변경)"
+      },
+      {
+        "path": "/v4/anime",
+        "method": "GET",
+        "parameters": {
+          "q": "string",
+          "page": "number"
+        },
+        "description": "키워드로 애니 검색"
+      },
+      {
+        "path": "/v4/top/anime",
+        "method": "GET",
+        "parameters": {
+          "page": "number"
+        },
+        "description": "인기 애니 랭킹"
+      }
+    ],
+    "tags": [
+      "entertainment",
+      "anime",
+      "manga",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": 3600,
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (영구무료·키리스 확인)",
+    "created_at": "2026-06-24T18:00:00.000+00:00",
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
+  },
+  {
+    "id": "e0043eeb-749a-4890-94de-840d1a0c6164",
+    "name": "Open Food Facts",
+    "description": "전 세계 식품 바코드로 제품명·성분·영양정보·등급을 알려줘요. 식품·건강·다이어트 앱에 좋아요. 오픈데이터·키 불필요.",
+    "category": "data",
+    "base_url": "https://world.openfoodfacts.org",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://openfoodfacts.github.io/openfoodfacts-server/api/",
+    "endpoints": [
+      {
+        "path": "/api/v2/product/737628064502.json",
+        "method": "GET",
+        "parameters": {
+          "barcode": "string",
+          "fields": "string"
+        },
+        "description": "바코드로 제품 조회 (경로의 숫자를 바코드로 변경)"
+      },
+      {
+        "path": "/cgi/search.pl",
+        "method": "GET",
+        "parameters": {
+          "search_terms": "string",
+          "json": "number"
+        },
+        "description": "제품명 검색 (json=1 필요)"
+      }
+    ],
+    "tags": [
+      "data",
+      "food",
+      "nutrition",
+      "영양",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": 86400,
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (영구무료·키리스 확인)",
+    "created_at": "2026-06-24T18:00:00.000+00:00",
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
+  },
+  {
+    "id": "b9ce28de-e2ff-4e35-85c9-3ab2253b170a",
+    "name": "World Bank Open Data",
+    "description": "세계은행이 제공하는 나라별 경제·인구·개발 지표를 제공해요. 통계 대시보드·리포트에 좋아요. 공식 공공데이터·키 불필요.",
+    "category": "data",
+    "base_url": "https://api.worldbank.org",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://datahelpdesk.worldbank.org/knowledgebase/articles/889392",
+    "endpoints": [
+      {
+        "path": "/v2/country/KR?format=json",
+        "method": "GET",
+        "parameters": {
+          "countryCode": "string"
+        },
+        "description": "국가 기본 정보 (경로의 KR을 ISO 코드로 변경, format=json 필수)"
+      },
+      {
+        "path": "/v2/country/KR/indicator/SP.POP.TOTL?format=json",
+        "method": "GET",
+        "parameters": {
+          "countryCode": "string",
+          "indicator": "string"
+        },
+        "description": "지표별 시계열 (예: SP.POP.TOTL 인구)"
+      }
+    ],
+    "tags": [
+      "data",
+      "economy",
+      "statistics",
+      "통계",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": 86400,
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (영구무료·키리스 확인)",
+    "created_at": "2026-06-24T18:00:00.000+00:00",
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
+  },
+  {
+    "id": "bb29c4e4-e908-40f8-946a-6c9b9265fa6c",
+    "name": "disease.sh (세계 통계)",
+    "description": "나라별·세계 코로나19 및 보건 통계를 제공해요. 통계 위젯·지도 시각화에 좋아요. 오픈소스·키 불필요.",
+    "category": "data",
+    "base_url": "https://disease.sh",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://disease.sh/docs/",
+    "endpoints": [
+      {
+        "path": "/v3/covid-19/all",
+        "method": "GET",
+        "parameters": {},
+        "description": "전 세계 합계 통계"
+      },
+      {
+        "path": "/v3/covid-19/countries/KR",
+        "method": "GET",
+        "parameters": {
+          "country": "string"
+        },
+        "description": "국가별 통계 (경로의 KR 변경)"
+      }
+    ],
+    "tags": [
+      "data",
+      "statistics",
+      "covid",
+      "world",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": 3600,
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (영구무료·키리스 확인)",
+    "created_at": "2026-06-24T18:00:00.000+00:00",
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
+  },
+  {
+    "id": "9af883ae-1743-4609-9cd2-49bbd6f0b957",
+    "name": "ipify (내 IP 확인)",
+    "description": "요청한 클라이언트의 공인 IP 주소를 알려줘요. '내 IP 보기' 같은 도구에 좋아요. 오픈소스·무제한·키 불필요.",
+    "category": "utility",
+    "base_url": "https://api.ipify.org",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://www.ipify.org/",
+    "endpoints": [
+      {
+        "path": "/?format=json",
+        "method": "GET",
+        "parameters": {
+          "format": "string"
+        },
+        "description": "공인 IP 반환 (format=json 권장)"
+      }
+    ],
+    "tags": [
+      "utility",
+      "ip",
+      "network",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": null,
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (영구무료·키리스 확인)",
+    "created_at": "2026-06-24T18:00:00.000+00:00",
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
+  },
+  {
+    "id": "367cbeb9-eeb6-4dfe-86a8-3cb9881f96c5",
+    "name": "DiceBear (아바타 생성)",
+    "description": "시드 문자열로 다양한 스타일의 아바타 이미지(SVG)를 즉석에서 만들어줘요. 사용자 프로필 기본 이미지에 좋아요. 오픈소스·키 불필요.",
+    "category": "image",
+    "base_url": "https://api.dicebear.com",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://www.dicebear.com/styles/",
+    "endpoints": [
+      {
+        "path": "/9.x/identicon/svg",
+        "method": "GET",
+        "parameters": {
+          "style": "string",
+          "seed": "string",
+          "backgroundColor": "string"
+        },
+        "description": "스타일·시드로 아바타 생성 (경로의 identicon을 bottts·avataaars 등으로 변경)"
+      }
+    ],
+    "tags": [
+      "image",
+      "avatar",
+      "generator",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": 86400,
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (영구무료·키리스 확인)",
+    "created_at": "2026-06-24T18:00:00.000+00:00",
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
+  },
+  {
+    "id": "2407b7cb-21ed-4841-9aac-d8677ea786f3",
+    "name": "TheCocktailDB",
+    "description": "칵테일 레시피, 재료, 사진을 제공해요. TheMealDB의 칵테일 버전이에요. 음료·레시피 앱에 좋아요. 무료 개발용 키(1) 내장·가입 불필요.",
+    "category": "entertainment",
+    "base_url": "https://www.thecocktaildb.com/api/json/v1/1",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://www.thecocktaildb.com/api.php",
+    "endpoints": [
+      {
+        "path": "/random.php",
+        "method": "GET",
+        "parameters": {},
+        "description": "랜덤 칵테일 1개"
+      },
+      {
+        "path": "/search.php",
+        "method": "GET",
+        "parameters": {
+          "s": "string"
+        },
+        "description": "이름으로 칵테일 검색 (s)"
+      },
+      {
+        "path": "/filter.php",
+        "method": "GET",
+        "parameters": {
+          "c": "string",
+          "i": "string"
+        },
+        "description": "카테고리(c)·재료(i)로 필터"
+      }
+    ],
+    "tags": [
+      "entertainment",
+      "drinks",
+      "cocktails",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": 86400,
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (영구무료·키리스 확인)",
+    "created_at": "2026-06-24T18:00:00.000+00:00",
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
+  },
+  {
+    "id": "8fc64822-6ddf-4f9d-b44d-2a59dc9d107c",
+    "name": "Free Dictionary API",
+    "description": "영어 단어의 뜻, 발음(IPA·오디오), 예문, 동의어를 제공해요. 사전·단어장 앱에 좋아요. 오픈·키 불필요.",
+    "category": "data",
+    "base_url": "https://api.dictionaryapi.dev",
+    "auth_type": "none",
+    "auth_config": {},
+    "rate_limit": null,
+    "changelog": [],
+    "is_active": true,
+    "icon_url": null,
+    "docs_url": "https://dictionaryapi.dev/",
+    "endpoints": [
+      {
+        "path": "/api/v2/entries/en/hello",
+        "method": "GET",
+        "parameters": {
+          "word": "string"
+        },
+        "description": "단어 정의 조회 (경로의 hello를 원하는 단어로 변경)"
+      }
+    ],
+    "tags": [
+      "data",
+      "dictionary",
+      "words",
+      "사전",
+      "free",
+      "no-auth"
+    ],
+    "api_version": null,
+    "deprecated_at": null,
+    "successor_id": null,
+    "cors_supported": true,
+    "requires_proxy": false,
+    "credit_required": null,
+    "cache_ttl_seconds": 86400,
+    "verification_status": "verified",
+    "verified_at": "2026-06-24T18:00:00.000+00:00",
+    "last_verification_note": "2026-06-24 수동 라이브 검증: working (영구무료·키리스 확인)",
+    "created_at": "2026-06-24T18:00:00.000+00:00",
+    "updated_at": "2026-06-24T18:00:00.000+00:00"
   }
 ]
