@@ -85,37 +85,43 @@ describe('enforceRateLimit', () => {
 });
 
 describe('getBaseUrl', () => {
-  const originalAppUrl = process.env.APP_URL;
+  const origAppUrl = process.env.APP_URL;
+  const origRoot = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
   afterEach(() => {
-    if (originalAppUrl === undefined) delete process.env.APP_URL;
-    else process.env.APP_URL = originalAppUrl;
+    if (origAppUrl === undefined) delete process.env.APP_URL;
+    else process.env.APP_URL = origAppUrl;
+    if (origRoot === undefined) delete process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+    else process.env.NEXT_PUBLIC_ROOT_DOMAIN = origRoot;
   });
 
-  function reqWith(headers: Record<string, string>): Request {
-    // 내부 바인드 주소를 흉내내 — 프록시 헤더가 우선되는지 검증
-    return new Request('http://0.0.0.0:8080/api/v1/auth/forgot-password', { method: 'POST', headers });
+  // 내부 바인드 주소 + 위조된 호스트 헤더를 함께 흉내 — 헤더가 무시되는지 검증
+  function hostileReq(): Request {
+    return new Request('http://0.0.0.0:8080/api/v1/auth/forgot-password', {
+      method: 'POST',
+      headers: {
+        'x-forwarded-host': 'attacker.example.com',
+        host: 'attacker.example.com',
+        'x-forwarded-proto': 'http',
+      },
+    });
   }
 
-  it('APP_URL 환경변수가 있으면 우선하고 후행 슬래시를 제거한다', () => {
+  it('APP_URL이 있으면 우선하고 후행 슬래시를 제거한다 (위조 host 무시)', () => {
     process.env.APP_URL = 'https://xzawed.xyz/';
-    expect(getBaseUrl(reqWith({ 'x-forwarded-host': 'evil.example.com' }))).toBe('https://xzawed.xyz');
+    expect(getBaseUrl(hostileReq())).toBe('https://xzawed.xyz');
   });
 
-  it('APP_URL이 없으면 x-forwarded-host/proto로 공개 origin을 만든다 (내부 0.0.0.0 아님)', () => {
+  it('APP_URL이 없으면 NEXT_PUBLIC_ROOT_DOMAIN을 쓰고 위조 host 헤더를 무시한다 (host-header 인젝션 방지)', () => {
     delete process.env.APP_URL;
-    const url = getBaseUrl(reqWith({ 'x-forwarded-host': 'xzawed.xyz', 'x-forwarded-proto': 'https' }));
-    expect(url).toBe('https://xzawed.xyz');
+    process.env.NEXT_PUBLIC_ROOT_DOMAIN = 'xzawed.xyz';
+    expect(getBaseUrl(hostileReq())).toBe('https://xzawed.xyz');
   });
 
-  it('x-forwarded-proto 미설정 시 https를 기본 사용한다', () => {
+  it('신뢰 가능한 설정이 모두 없을 때만 요청 origin으로 폴백한다 (로컬/개발)', () => {
     delete process.env.APP_URL;
-    expect(getBaseUrl(reqWith({ 'x-forwarded-host': 'xzawed.xyz' }))).toBe('https://xzawed.xyz');
-  });
-
-  it('포워드 헤더가 없으면 요청 origin으로 폴백한다', () => {
-    delete process.env.APP_URL;
-    expect(getBaseUrl(new Request('https://fallback.example.com/api', { method: 'POST' }))).toBe(
-      'https://fallback.example.com',
+    delete process.env.NEXT_PUBLIC_ROOT_DOMAIN;
+    expect(getBaseUrl(new Request('https://localhost:3000/api', { method: 'POST' }))).toBe(
+      'https://localhost:3000',
     );
   });
 });
