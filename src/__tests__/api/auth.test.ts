@@ -17,6 +17,7 @@ vi.mock('@/lib/auth/index', () => ({
 import { POST as signupPOST } from '@/app/api/v1/auth/signup/route';
 import { POST as verifyPOST } from '@/app/api/v1/auth/verify-email/route';
 import { POST as forgotPOST } from '@/app/api/v1/auth/forgot-password/route';
+import { POST as resetPOST } from '@/app/api/v1/auth/reset-password/route';
 import { POST as resendPOST } from '@/app/api/v1/auth/resend-verification/route';
 import { getAuthUser } from '@/lib/auth/index';
 
@@ -67,6 +68,35 @@ describe('auth routes', () => {
     requestPasswordReset.mockResolvedValue(undefined);
     const res = await forgotPOST(jsonReq('https://app/api/v1/auth/forgot-password', { email: 'none@b.com' }, `ip-${Math.random()}`));
     expect(res.status).toBe(200);
+  });
+
+  describe('reset-password', () => {
+    it('성공 시 200 과 메시지를 반환하고 resetPassword(token, password)를 호출한다', async () => {
+      resetPassword.mockResolvedValue(undefined);
+      const res = await resetPOST(
+        jsonReq('https://app/api/v1/auth/reset-password', { token: 'tok123', password: 'newpass123' }),
+      );
+      expect(res.status).toBe(200);
+      expect(resetPassword).toHaveBeenCalledWith('tok123', 'newpass123');
+      const body = await res.json();
+      expect(body.success).toBe(true);
+    });
+
+    it('바디 없음(bad JSON) 시 400을 반환한다', async () => {
+      const res = await resetPOST(
+        jsonReq('https://app/api/v1/auth/reset-password', { token: '' }),
+      );
+      expect(res.status).toBe(400);
+      expect(resetPassword).not.toHaveBeenCalled();
+    });
+
+    it('필수 필드 누락 시 400을 반환한다', async () => {
+      const res = await resetPOST(
+        jsonReq('https://app/api/v1/auth/reset-password', { password: 'newpass123' }),
+      );
+      expect(res.status).toBe(400);
+      expect(resetPassword).not.toHaveBeenCalled();
+    });
   });
 
   describe('resend-verification', () => {
