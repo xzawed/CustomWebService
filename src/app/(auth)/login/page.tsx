@@ -102,6 +102,11 @@ export default function LoginPage() {
             </button>
           </form>
 
+        <div className="mt-6 flex items-center justify-between text-xs">
+          <a href="/signup" className="text-cyan-400 underline">회원가입</a>
+          <a href="/forgot-password" className="text-slate-400 underline">비밀번호를 잊으셨나요?</a>
+        </div>
+
         <p className="mt-6 text-center text-[11px] text-slate-500">
           로그인하면 <span className="text-slate-400 underline">이용약관</span>에 동의하는 것으로
           간주됩니다.
