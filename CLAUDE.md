@@ -124,7 +124,8 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - `AUTH_TRUST_HOST=true` — 커스텀 도메인/프록시 뒤 필수 (없으면 `/api/auth/*` 500)
 - `NEXT_PUBLIC_AUTH_PROVIDER=local` — 클라이언트 빌드타임 상수
 - `RESEND_API_KEY` — 이메일 발송 Resend API 키 (미설정 시 콘솔 no-op 폴백 — 이메일 실제 미발송)
-- `EMAIL_FROM` — 발신자 주소 (예: `noreply@xzawed.xyz`, `RESEND_API_KEY` 설정 시 필수)
+- `EMAIL_FROM` — 발신자 주소 (예: `noreply@xzawed.xyz`, `RESEND_API_KEY` 설정 시 필수. 빈 문자열 금지 — 발송 실패)
+- `APP_URL` — 이메일 링크(인증·재설정)의 공개 base URL (예: `https://xzawed.xyz`). 미설정 시 `NEXT_PUBLIC_ROOT_DOMAIN`→요청 origin 폴백. 프록시 뒤 0.0.0.0 링크 방지 + 호스트 헤더 미신뢰(reset poisoning 차단). 로직: `getBaseUrl`(`src/lib/auth/routeHelpers.ts`)
 - `SQLITE_PATH` — SQLite 파일 경로 (기본 `/data/app.db`, Railway Volume 마운트 필수)
 - `NEXT_PUBLIC_ROOT_DOMAIN` (서브도메인 가상 호스팅)
 - `ANTHROPIC_API_KEY`
