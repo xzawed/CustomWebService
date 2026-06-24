@@ -79,7 +79,7 @@ describe('POST /api/v1/projects/[id]/rollback', () => {
     expect(response.status).toBe(404);
   });
 
-  it('다른 사용자의 프로젝트면 404를 반환한다', async () => {
+  it('다른 사용자의 프로젝트면 403을 반환한다', async () => {
     const { getAuthUser } = await import('@/lib/auth/index');
     vi.mocked(getAuthUser).mockResolvedValue(mockUser);
 
@@ -93,7 +93,7 @@ describe('POST /api/v1/projects/[id]/rollback', () => {
     const response = await POST(makeRequest({ version: 1 }), {
       params: Promise.resolve({ id: 'proj-1' }),
     });
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(403);
   });
 
   it('version 필드가 누락되거나 유효하지 않으면 400을 반환한다', async () => {

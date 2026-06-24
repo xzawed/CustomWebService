@@ -6,6 +6,8 @@ import {
   AuthRequiredError,
   ForbiddenError,
   RateLimitError,
+  ConflictError,
+  EmailNotVerifiedError,
   GenerationError,
   DeployError,
   handleApiError,
@@ -64,6 +66,28 @@ describe('ForbiddenError', () => {
   it('커스텀 메시지를 받는다', () => {
     const err = new ForbiddenError('이 리소스에 접근할 수 없습니다');
     expect(err.message).toBe('이 리소스에 접근할 수 없습니다');
+  });
+});
+
+describe('ConflictError', () => {
+  it('statusCode가 409이다', () => {
+    const e = new ConflictError('이미 가입된 이메일입니다.');
+    expect(e.statusCode).toBe(409);
+    expect(e.code).toBe('CONFLICT');
+  });
+
+  it('기본 메시지를 사용한다', () => {
+    const e = new ConflictError();
+    expect(e.statusCode).toBe(409);
+    expect(e.code).toBe('CONFLICT');
+  });
+});
+
+describe('EmailNotVerifiedError', () => {
+  it('statusCode가 403이다', () => {
+    const e = new EmailNotVerifiedError();
+    expect(e.statusCode).toBe(403);
+    expect(e.code).toBe('EMAIL_NOT_VERIFIED');
   });
 });
 

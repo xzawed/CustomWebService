@@ -30,6 +30,8 @@ describe('SqliteUserRepository', () => {
     name: 'Admin',
     avatarUrl: 'https://example.com/a.png',
     preferences: { language: 'ko', theme: 'dark' },
+    passwordHash: null,
+    emailVerified: null,
   };
 
   describe('create', () => {
@@ -53,6 +55,8 @@ describe('SqliteUserRepository', () => {
         name: null,
         avatarUrl: null,
         preferences: {},
+        passwordHash: null,
+        emailVerified: null,
       });
       expect(user.name).toBeNull();
       expect(user.avatarUrl).toBeNull();
@@ -210,10 +214,43 @@ describe('SqliteUserRepository', () => {
     });
   });
 
+  describe('auth fields', () => {
+    it('passwordHash와 emailVerified를 저장·반환한다', async () => {
+      const created = await repo.create({
+        ...baseInput,
+        passwordHash: 'salt:deadbeef',
+        emailVerified: null,
+      });
+      expect(created.passwordHash).toBe('salt:deadbeef');
+      expect(created.emailVerified).toBeNull();
+
+      const fetched = await repo.findByEmail('admin@example.com');
+      expect(fetched?.passwordHash).toBe('salt:deadbeef');
+      expect(fetched?.emailVerified).toBeNull();
+    });
+
+    it('update()로 emailVerified를 설정하면 DB에 영속되어 findById()로 반환된다 (Critical 회귀 방지)', async () => {
+      // 이전 버그: schema 프로퍼티명이 emailVerified(camelCase)라 Drizzle .set()이
+      // toDatabaseRow()의 email_verified 키를 인식 못해 컬럼이 항상 NULL로 남았음.
+      const created = await repo.create({
+        ...baseInput,
+        emailVerified: null,
+      });
+      expect(created.emailVerified).toBeNull();
+
+      const verifiedAt = '2026-06-24T00:00:00.000Z';
+      await repo.update(created.id, { emailVerified: verifiedAt });
+
+      const refetched = await repo.findById(created.id);
+      expect(refetched).not.toBeNull();
+      expect(refetched?.emailVerified).toBe(verifiedAt);
+    });
+  });
+
   describe('count', () => {
     beforeEach(async () => {
-      await repo.create({ email: 'x@example.com', name: null, avatarUrl: null, preferences: {} });
-      await repo.create({ email: 'y@example.com', name: null, avatarUrl: null, preferences: {} });
+      await repo.create({ email: 'x@example.com', name: null, avatarUrl: null, preferences: {}, passwordHash: null, emailVerified: null });
+      await repo.create({ email: 'y@example.com', name: null, avatarUrl: null, preferences: {}, passwordHash: null, emailVerified: null });
     });
 
     it('필터 없이 전체 수를 센다', async () => {

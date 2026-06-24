@@ -12,7 +12,7 @@
  * text[]→text(mode:json $type<string[]>). DB 레벨 기본값은 스칼라/boolean에만 두고,
  * json/배열/타임스탬프는 앱(레포)·$defaultFn에서 채워 drizzle-kit 직렬화 quirk를 피한다.
  */
-import { sqliteTable, text, integer, primaryKey, unique } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, primaryKey, unique, index } from 'drizzle-orm/sqlite-core';
 
 const uuidPk = () =>
   text('id')
@@ -28,7 +28,8 @@ export const users = sqliteTable('users', {
   email: text('email').notNull().unique(),
   name: text('name'),
   avatar_url: text('avatar_url'),
-  emailVerified: text('email_verified'),
+  email_verified: text('email_verified'),
+  password_hash: text('password_hash'),
   image: text('image'),
   preferences: text('preferences', { mode: 'json' }).$type<Record<string, unknown>>(),
   created_at: createdAt(),
@@ -185,3 +186,20 @@ export const featureFlags = sqliteTable('feature_flags', {
   rules: text('rules', { mode: 'json' }).$type<Record<string, unknown>>(),
   updated_at: updatedAt(),
 });
+
+// ── 10. auth_tokens (이메일 인증 + 비밀번호 재설정 토큰) ──────────────────────
+export const authTokens = sqliteTable(
+  'auth_tokens',
+  {
+    id: uuidPk(),
+    user_id: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    token_hash: text('token_hash').notNull(),
+    type: text('type').notNull(), // 'email_verify' | 'password_reset'
+    expires_at: text('expires_at').notNull(),
+    consumed_at: text('consumed_at'),
+    created_at: createdAt(),
+  },
+  (t) => [index('auth_tokens_token_hash_idx').on(t.token_hash)],
+);

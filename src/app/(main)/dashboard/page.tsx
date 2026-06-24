@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth/index';
 import { createProjectService } from '@/services/factory';
 import { redirect } from 'next/navigation';
 import { ProjectGrid } from '@/components/dashboard/ProjectGrid';
+import { VerifyEmailBanner } from '@/components/dashboard/VerifyEmailBanner';
 import type { Project } from '@/types/project';
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
+      <VerifyEmailBanner />
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>내 서비스</h1>
         <Link

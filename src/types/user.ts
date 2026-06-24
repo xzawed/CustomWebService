@@ -11,6 +11,8 @@ export interface User {
   name: string | null;
   avatarUrl: string | null;
   preferences: UserPreferences;
+  passwordHash: string | null;
+  emailVerified: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,7 +1,7 @@
 # 시스템 아키텍처
 
-> **최종 업데이트:** 2026-06-23  
-> **구현 상태:** 운영 중 (SQLite + Auth.js local 컷오버 완료, P8.2). Vitest 목록 1,886개(145파일), Playwright 목록 33개 (수치는 SQLite 마이그레이션 안정화 후 재확인 필요)
+> **최종 업데이트:** 2026-06-24  
+> **구현 상태:** 운영 중 (SQLite + Auth.js local 컷오버 완료 P8.2, 공개 회원가입 다중 사용자 인증 도입). Vitest 목록 수치는 현 코드로 재확인 필요
 
 ---
 
@@ -79,10 +79,10 @@
 
 > **데이터 계층 (2026-06-23 컷오버):** 임베디드 **SQLite**(`better-sqlite3` + `drizzle-orm/better-sqlite3`, WAL 모드).
 > Railway 영속 볼륨(`/data/app.db`)에 단일 파일로 저장하며 **단일 인스턴스** 전제. Supabase·PostgreSQL·RLS는 제거됨.
-> Repository 구현체는 `src/repositories/sqlite/*` 7종이 유일하며, 인터페이스(`src/repositories/interfaces`) seam만 추상화로 남는다.
+> Repository 구현체는 `src/repositories/sqlite/*` 8종이 유일하며, 인터페이스(`src/repositories/interfaces`) seam만 추상화로 남는다.
 > 타입 매핑(pg→sqlite): uuid→text, jsonb→text(JSON, drizzle 자동 역직렬화), boolean→integer, timestamptz→ISO text.
 >
-> **부팅 시퀀스:** `src/instrumentation.ts` → `bootstrapSqlite(getSqliteDb())` 가 ① 마이그레이션(`drizzle/sqlite`) ② 단일 관리자 시드(`seedAdmin`) ③ 카탈로그/플래그 시드(`src/data/{apiCatalog,featureFlags}.json`)를 **모두 멱등**으로 실행한다. 컷오버 배경: [decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md)
+> **부팅 시퀀스:** `src/instrumentation.ts` → `bootstrapSqlite(getSqliteDb())` 가 ① 마이그레이션(`drizzle/sqlite`) ② 카탈로그/플래그 시드(`src/data/{apiCatalog,featureFlags}.json`)를 **멱등**으로 실행한다. `seedAdmin`은 제거됨 — 신규 환경은 `/signup`으로 첫 사용자를 생성한다. 컷오버 배경: [decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md)
 
 ---
 
@@ -105,13 +105,17 @@
 src/
 ├── app/                          # Next.js App Router (Presentation + API)
 │   ├── (auth)/                   # 인증 페이지 그룹
-│   │   └── login/page.tsx        # 관리자 로그인 UI (Auth.js Credentials — 이메일/비밀번호)
+│   │   ├── login/page.tsx        # 로그인 UI (Auth.js Credentials — 이메일/비밀번호)
+│   │   ├── signup/page.tsx       # 회원가입 UI
+│   │   ├── verify-email/page.tsx # 이메일 인증 완료 UI
+│   │   ├── forgot-password/page.tsx # 비밀번호 찾기 UI
+│   │   └── reset-password/page.tsx  # 비밀번호 재설정 UI
 │   ├── (main)/                   # 메인 페이지 그룹
 │   │   ├── catalog/page.tsx
 │   │   ├── builder/page.tsx
 │   │   ├── dashboard/page.tsx
 │   │   └── preview/[id]/page.tsx
-│   ├── api/v1/                   # API Routes (v1 버저닝, route.ts 26개 — 전체 목록은 docs/reference/api-endpoints.md 참조)
+│   ├── api/v1/                   # API Routes (v1 버저닝 — 전체 목록은 docs/reference/api-endpoints.md 참조)
 │   │   ├── catalog/
 │   │   │   ├── route.ts          # GET /api/v1/catalog
 │   │   │   ├── [id]/route.ts
@@ -138,7 +142,8 @@ src/
 │   │   ├── suggest-modification/route.ts
 │   │   ├── popular-services/route.ts
 │   │   ├── user-api-keys/route.ts
-│   │   ├── admin/                # 관리자 전용 (ADMIN_API_KEY 보호)
+│   │   │   ├── auth/             # /api/v1/auth/* — signup, verify-email, resend-verification, forgot-password, reset-password
+│   │   ├── admin/            # 관리자 전용 (ADMIN_API_KEY 보호 — 사용자 인증과 무관)
 │   │   │   ├── debug/route.ts
 │   │   │   ├── keys-verify/route.ts    # GET — 플랫폼 키 검증 (로직: src/lib/catalog/keyCheck.ts)
 │   │   │   ├── qc-stats/route.ts
@@ -214,8 +219,9 @@ src/
 │   ├── deployStore.ts            # 배포 상태
 │   └── authStore.ts              # 인증 상태
 │
-├── services/                     # Service Layer (비즈니스 로직 — 실제 4개 서비스)
+├── services/                     # Service Layer (비즈니스 로직)
 │   ├── factory.ts                # createProjectService, createCatalogService 등 팩토리 함수
+│   ├── authService.ts            # signup / verifyEmail / resendVerification / forgotPassword / resetPassword
 │   ├── catalogService.ts
 │   ├── projectService.ts
 │   ├── deployService.ts
@@ -225,14 +231,15 @@ src/
 │
 ├── repositories/                 # Repository Layer (데이터 접근)
 │   ├── interfaces/               # Repository 인터페이스 (IBase + I{User,Project,Catalog,Code,Event,UserApiKey,RateLimit}Repository)
-│   ├── sqlite/                   # ✅ SQLite 구현체 7종 (유일 구현 — better-sqlite3 동기 API)
+│   ├── sqlite/                   # ✅ SQLite 구현체 8종 (유일 구현 — better-sqlite3 동기 API)
 │   │   ├── SqliteUserRepository.ts
 │   │   ├── SqliteProjectRepository.ts
 │   │   ├── SqliteCatalogRepository.ts
 │   │   ├── SqliteCodeRepository.ts
 │   │   ├── SqliteEventRepository.ts
 │   │   ├── SqliteUserApiKeyRepository.ts
-│   │   └── SqliteRateLimitRepository.ts  # 원자적 레이트리밋 (동기 트랜잭션 + UPDATE…WHERE count<limit RETURNING)
+│   │   ├── SqliteRateLimitRepository.ts  # 원자적 레이트리밋 (동기 트랜잭션 + UPDATE…WHERE count<limit RETURNING)
+│   │   └── SqliteAuthTokenRepository.ts  # auth_tokens CRUD (email_verify / password_reset)
 │   ├── utils/                    # 공통 유틸 (parseEndpoints, CATEGORY 상수 등)
 │   └── factory.ts                # createProjectRepository, createCodeRepository 등 팩토리 함수
 │
@@ -252,16 +259,21 @@ src/
 │   │   ├── errors.ts             # isUniqueViolation 등 (SQLITE_CONSTRAINT_UNIQUE / "UNIQUE constraint failed")
 │   │   └── sqlite/
 │   │       ├── connection.ts     # getSqliteDb() — better-sqlite3 핸들 (WAL, SQLITE_PATH 기본 /data/app.db)
-│   │       ├── schema.ts         # drizzle-orm/better-sqlite3 스키마 (테이블 9개)
-│   │       ├── bootstrap.ts      # bootstrapSqlite() — 마이그레이션(drizzle/sqlite) + seedAdmin + seedCatalog (멱등)
-│   │       ├── seedAdmin.ts      # 단일 관리자 멱등 시드 (ADMIN_EMAIL / ADMIN_USER_ID)
+│   │       ├── schema.ts         # drizzle-orm/better-sqlite3 스키마 (테이블 10개 — auth_tokens 추가)
+│   │       ├── bootstrap.ts      # bootstrapSqlite() — 마이그레이션(drizzle/sqlite) + seedCatalog (멱등, seedAdmin 제거됨)
 │   │       └── seedCatalog.ts    # 카탈로그/플래그 시드 (src/data/{apiCatalog,featureFlags}.json)
+│   ├── email/                    # 이메일 발송
+│   │   └── emailService.ts       # sendVerificationEmail / sendPasswordResetEmail (Resend provider, no-op fallback)
 │   ├── auth/                     # Auth.js v5 local (Credentials + JWT 무상태, DB 어댑터 없음)
-│   │   ├── local-auth-config.ts  # Auth.js providers/callbacks 설정
-│   │   ├── authorize.ts          # Credentials authorize — ADMIN_EMAIL + bcrypt(ADMIN_PASSWORD_HASH) 검증
-│   │   ├── adminCredentials.ts   # 관리자 자격증명 로딩
+│   │   ├── local-auth-config.ts  # Auth.js providers/callbacks 설정 (authorize: DB 조회 + scrypt)
+│   │   ├── local-auth-base.ts    # Edge-safe JWT/세션 콜백 (node:crypto 미의존)
 │   │   ├── local-auth.ts         # Node 런타임 핸들러 / getAuthUser
-│   │   └── local-auth-edge.ts    # Edge 런타임용 경량 설정 (middleware)
+│   │   ├── local-auth-edge.ts    # Edge 런타임용 경량 설정 (middleware)
+│   │   ├── authorize.ts          # assertOwner — 프로젝트 소유권 검증 (ForbiddenError)
+│   │   ├── verifiedGuard.ts      # assertEmailVerified — 이메일 인증 게이트 (403 EMAIL_NOT_VERIFIED)
+│   │   ├── password.ts           # scrypt hashPassword / verifyPassword 유틸
+│   │   ├── tokens.ts             # auth_tokens 발급·검증·소비 (email_verify/password_reset)
+│   │   └── rateLimit.ts          # per-IP 인증 엔드포인트 레이트리밋
 │   ├── ai/
 │   │   ├── generationPipeline.ts  # 오케스트레이터 — generate/regenerate 공통
 │   │   ├── stageRunner.ts         # runStage1 / runStage2Function / runStage3
@@ -495,7 +507,7 @@ export function registerEventPersister(): void { ... }
 
 | 이벤트 | 발행 위치 |
 |--------|----------|
-| `USER_SIGNED_UP` | `seedAdmin` — 부팅 시 단일 관리자 최초 시드 시 (멱등) |
+| `USER_SIGNED_UP` | `authService.signup()` — 회원가입 완료 시 |
 | `PROJECT_CREATED` / `PROJECT_DELETED` / `PROJECT_UNPUBLISHED` | `projectService.ts` |
 | `CODE_GENERATED` | `generationSaver.ts` |
 | `CODE_GENERATION_FAILED` | `generationPipeline.ts` (handlePipelineFailure) |
@@ -610,22 +622,22 @@ export function getLimits(plan: string = 'free'): FeatureLimits {
 [사용자: 이메일/비밀번호로 로그인]
     │
     ▼ signIn('credentials', { email, password })
-[Auth.js Credentials provider] (local-auth-config.ts → authorize.ts)
-    ├── email === ADMIN_EMAIL 확인
-    ├── bcrypt.compare(password, ADMIN_PASSWORD_HASH) 검증
-    └── 성공 시 단일 관리자 사용자({ id: ADMIN_USER_ID }) 반환
+[Auth.js Credentials provider] (local-auth-config.ts)
+    ├── userRepo.findByEmail(email) → DB 사용자 조회
+    ├── verifyPassword(password, user.password_hash) scrypt 검증
+    └── 성공 시 { id: user.id, email, name } 반환 (실제 users.id)
     │
     ▼ JWT 발급 (AUTH_SECRET 서명, DB 어댑터 없음 — 무상태)
-[세션 쿠키] HttpOnly JWT
+[세션 쿠키] HttpOnly JWT (token.sub = user.id)
     │
     ▼ redirect /dashboard
-[보호 경로] getAuthUser() → JWT 디코드 → 단일 관리자 신원
+[보호 경로] getAuthUser() → JWT 디코드 → user.id로 실제 사용자 신원
+[생성·배포] assertEmailVerified() → email_verified IS NULL 시 403
 ```
 
-> **핵심**: 셀프호스트 **단일 관리자** 모델이다. OAuth(Google/GitHub)·Supabase Auth·DB 세션 어댑터는 제거됨.
-> 관리자 자격증명은 부팅 시 `seedAdmin`이 `users` 테이블에 멱등 삽입하며,
-> 비밀번호는 `ADMIN_PASSWORD_HASH`(`pnpm admin:hash`로 생성한 bcrypt 해시)로만 검증한다.
-> 세션은 `AUTH_SECRET`으로 서명한 JWT라 DB 조회 없이 무상태로 동작한다 (`AUTH_TRUST_HOST=true` — 프록시 뒤 운영).
+> **핵심**: 공개 셀프서비스 회원가입 + **계정별 완전 데이터 격리** 모델이다. OAuth·Supabase Auth·DB 세션 어댑터·env 단일 관리자(`ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`)는 제거됨.
+> 비밀번호는 사용자별 `scrypt` 해시(`users.password_hash`)로 저장. `seedAdminUser`는 제거됨 — 신규 환경은 `/signup`으로 첫 사용자를 생성한다.
+> 세션은 `AUTH_SECRET`으로 서명한 JWT라 무상태로 동작한다 (`AUTH_TRUST_HOST=true` — 프록시 뒤 운영).
 > 상세: [auth.md](auth.md)
 
 ---
@@ -642,5 +654,5 @@ export function getLimits(plan: string = 'free'): FeatureLimits {
 | 웹훅 알림 | EventBus 구독자 + DB | 이벤트 핸들러 추가 |
 | 모바일 앱 | API 레이어 재사용 | 별도 앱, API 공유 |
 
-> **참고:** 멀티 테넌시(organizations)·팀 협업·갤러리·좋아요 기능은 **제거됨** — 셀프호스트 단일 관리자 모델이다.
+> **참고:** 멀티 테넌시(organizations)·팀 협업·갤러리·좋아요 기능은 **제거됨**. 다중 사용자 모델이나 조직·역할 개념은 없이 **평등한 개인 계정** 구조.
 > `users`/`projects` 등 일부 테이블에 `organization_*` 컬럼이 스키마상 잔존하나 항상 `null`이며 어떤 기능도 이를 사용하지 않는다.

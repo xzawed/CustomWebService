@@ -91,7 +91,58 @@ pnpm cutover:migrate --out ./app.db [--user <보존할_Supabase_user_id>]
 - (옵션) Litestream으로 WAL→S3 연속 복제(~1s 손실창, S3 의존).
 - 크리티컬 쓰기 내구성은 이미 `synchronous=NORMAL` + 원자적 카운터(`BEGIN IMMEDIATE` 직렬화)로 확보.
 
-## 6. 알려진 잔여 / 주의
+## 6. 프로덕션 클린 리셋 (다중 사용자 전환 초기화)
+
+> **목적**: 다중 사용자 전환(2026-06-24) 후 기존 단일 관리자 시드 데이터를 포함한 프로덕션 DB를 깨끗하게 초기화하여 새 회원가입 흐름으로 첫 사용자를 등록한다.
+>
+> ⚠️ **이 절차는 비가역적이다**. 반드시 백업 후 진행하고, 사전에 사용자에게 다운타임을 안내하라.
+
+### 6.1 사전 백업
+
+```bash
+# Railway Volume에서 SQLite 파일 백업 (Railway 셸 또는 디버그 컨테이너에서 실행)
+cp /data/app.db /data/app.db.backup-$(date +%Y%m%d-%H%M%S)
+```
+
+백업 파일을 로컬로 내려받아 안전한 위치에 보관한다.
+
+### 6.2 사용자 데이터 삭제 (카탈로그·플래그 보존)
+
+```sql
+-- Railway 셸 또는 임시 컨테이너에서 SQLite CLI로 실행
+-- 삭제 순서: FK 의존 테이블부터 먼저 삭제
+DELETE FROM platform_events;
+DELETE FROM user_daily_limits;
+DELETE FROM user_api_keys;
+DELETE FROM generated_codes;
+DELETE FROM project_apis;
+DELETE FROM projects;
+DELETE FROM auth_tokens;
+DELETE FROM users;
+
+-- 보존 테이블 (삭제 안 함)
+-- api_catalog  → 카탈로그 데이터 유지
+-- feature_flags → 피처 플래그 유지
+```
+
+> **보존**: `api_catalog`(49행)·`feature_flags`(7행)는 삭제하지 않는다 — 부팅 시드는 빈 테이블일 때만 삽입하므로 재시드가 발생하지 않는다.
+
+### 6.3 재시작 → 첫 회원가입
+
+1. Railway 서비스를 **재배포 또는 재시작**한다.
+2. 부팅 시 `bootstrapSqlite`가 마이그레이션만 확인하고 카탈로그/플래그는 이미 있으므로 건너뜀.
+3. **`/signup` 페이지로 접속 → 첫 사용자 등록** — 이 계정이 플랫폼 최초 사용자가 된다.
+4. 이메일 인증 후 로그인 → 서비스 정상 이용 가능.
+
+### 6.4 주의사항
+
+- ⚠️ **게시된 사이트 다운**: `projects.slug`·`generated_codes` 삭제로 `slug.xzawed.xyz` 형태의 게시 사이트가 모두 다운된다. 리셋 전에 사용자에게 최종 확인한다.
+- ⚠️ **Resend 도메인 인증(사용자 작업)**: 이메일 인증·비밀번호 재설정 메일이 실제로 발송되려면 Resend 대시보드에서 `xzawed.xyz` 도메인의 SPF/DKIM 레코드를 DNS에 등록해야 한다. 미설정 시 `RESEND_API_KEY`가 있어도 발송 실패하거나 스팸 처리될 수 있다. `RESEND_API_KEY` 미설정 시에는 콘솔 no-op 폴백이 동작(이메일 미발송).
+- ⚠️ **`ENCRYPTION_KEY` 유지**: 사용자가 이후 API 키를 저장하면 이 키로 암호화된다. 키를 분실하면 저장된 API 키를 복호화할 수 없다.
+
+---
+
+## 7. 알려진 잔여 / 주의 (원 §6)
 
 - **P4.3**: 배포 레이트리밋/환불·상태머신은 레포 단위 검증됨. 외부 배포(GitHub/Railway) 통합은 실배포에서 확인.
 - **P5.2**: `verification_status` 갱신 cron은 현재 CI→Supabase. sqlite 셀프호스트는 컨테이너 내부 검증으로 전환 필요(시드된 상태가 baseline).

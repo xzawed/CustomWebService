@@ -9,6 +9,8 @@ const ko = {
   'error.server': '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
   'error.validation': '입력값이 올바르지 않습니다.',
   'error.database': '데이터베이스 오류가 발생했습니다.',
+  'error.conflict': '이미 존재하는 리소스입니다.',
+  'error.emailNotVerified': '이메일 인증이 필요합니다. 받은 편지함을 확인해주세요.',
   // Project service validation
   'project.validation.minApis': '최소 1개의 API를 선택해주세요.',
   'project.validation.maxApis': 'API는 최대 {max}개까지 선택 가능합니다.',

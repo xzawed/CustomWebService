@@ -17,7 +17,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 | State | Zustand (분리 스토어 + persist middleware) |
 | Form | React Hook Form + Zod |
 | Database | 임베디드 SQLite (better-sqlite3 + drizzle-orm, WAL · Railway Volume `/data/app.db`) |
-| Auth | Auth.js v5 (Credentials 단일 관리자 + JWT 무상태) — 셀프호스트 단일 사용자 |
+| Auth | Auth.js v5 (Credentials + JWT 무상태) — 공개 셀프서비스 회원가입, DB 사용자별 scrypt 인증, 이메일 인증 게이트 |
 | AI | Claude API (Anthropic SDK, claude-opus-4-7 기본, 조건부 Extended Thinking) |
 | Testing | Vitest, happy-dom, MSW |
 | CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
@@ -36,13 +36,14 @@ src/
 ├── hooks/           # 커스텀 React hooks
 ├── lib/             # 유틸리티
 │   ├── ai/          # AI 파이프라인 — generationPipeline(오케스트레이터), stageRunner, generationSaver, qualityLoop, generationTracker
-│   ├── auth/        # 인증 — getAuthUser, local-auth*(Credentials+JWT, edge-safe 분할 base/edge), adminCredentials(scrypt), authorize(assertOwner)
+│   ├── auth/        # 인증 — getAuthUser, local-auth*(Credentials+JWT, edge-safe 분할 base/edge), password(scrypt hashPassword/verifyPassword), tokens(auth_tokens 발급/검증), rateLimit(per-IP 스로틀), verifiedGuard(assertEmailVerified), authorize(assertOwner)
 │   ├── cache/       # proxyCache.ts — LRU+TTL 인메모리 캐시 (프록시 응답 서버사이드 캐시)
 │   ├── config/      # 환경변수 기반 설정 (features, providers, rateLimit, qc 등)
 │   ├── catalog/     # API 카탈로그 — healthCheck.ts(DB기반 라이브 검증 분류), keyCheck.ts(플랫폼 키 검증), activeApiCount.ts(활성 개수 동적 카운트 — 랜딩/카탈로그 마케팅 카피, 하드코딩 금지)
 │   ├── constants/   # 공용 상수 — cdn.ts (CSP CDN 화이트리스트, buildSiteCsp)
 │   ├── countries/   # 자체 호스팅 국가 데이터 API 로직 — transform(mledoze 변환), query(region/search 필터·코드 조회), types
-│   ├── db/          # 임베디드 SQLite — sqlite/(connection WAL/FK, schema 9테이블, migrator, bootstrap, seedAdmin, seedCatalog), errors(UNIQUE 위반 감지)
+│   ├── db/          # 임베디드 SQLite — sqlite/(connection WAL/FK, schema 10테이블, migrator, bootstrap, seedCatalog), errors(UNIQUE 위반 감지)
+│   ├── email/       # 이메일 발송 — emailService(sendVerificationEmail/sendPasswordResetEmail), Resend provider, no-op console fallback(RESEND_API_KEY 미설정 시)
 │   ├── deploy/      # 배포 관련
 │   ├── events/      # EventBus (pub/sub) + eventPersister (전체 이벤트 자동 DB 기록)
 │   ├── generation/  # pollGenerationStatus — 생성 상태 폴링 (builder/page.tsx에서 추출, 주입형·단위 테스트 대상)
@@ -54,7 +55,7 @@ src/
 │   └── utils/       # 공통 유틸리티, 에러 클래스
 ├── middleware.ts     # 서브도메인 라우팅, 보안 헤더 (CSP, HSTS)
 ├── providers/       # AI Provider (IAiProvider → ClaudeProvider)
-├── repositories/    # 데이터 접근 계층 — sqlite/(7 IRepository 구현), interfaces, utils, factory(무인자 SQLite 생성)
+├── repositories/    # 데이터 접근 계층 — sqlite/(8 IRepository 구현 — SqliteAuthTokenRepository 추가), interfaces, utils, factory(무인자 SQLite 생성)
 ├── services/        # 비즈니스 로직 계층
 ├── stores/          # Zustand 스토어
 ├── templates/       # 코드 생성 템플릿
@@ -81,9 +82,10 @@ pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요, CI에서 �
 
 ```bash
 # 운영 스크립트
-pnpm admin:hash '<비밀번호>'    # 단일 관리자 scrypt 해시 생성 → ADMIN_PASSWORD_HASH (scripts/hashAdminPassword.ts)
 pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.json) 재생성 (준-정적)
 ```
+
+> `pnpm admin:hash`(단일 관리자 해시 생성)는 다중 사용자 전환(2026-06-24)으로 **제거됨**. 계정 생성은 `/signup` 공개 페이지를 통해 수행한다.
 
 > 카탈로그 키 검증은 배포 런타임 관리자 엔드포인트 `GET /api/v1/admin/keys-verify`로 수행한다.
 > (Supabase 의존 CLI 스크립트 `catalog:healthcheck`·`keys:verify`·`seed:generate`·`cutover:migrate`는 SQLite 컷오버로 제거됨.)
@@ -120,8 +122,9 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 
 - `AUTH_SECRET` — Auth.js JWT 세션 서명 키 (필수)
 - `AUTH_TRUST_HOST=true` — 커스텀 도메인/프록시 뒤 필수 (없으면 `/api/auth/*` 500)
-- `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH`(`pnpm admin:hash`로 생성) — 단일 관리자 자격증명. 선택: `ADMIN_NAME`, `ADMIN_USER_ID`(기본 `00000000-0000-0000-0000-000000000001`)
 - `NEXT_PUBLIC_AUTH_PROVIDER=local` — 클라이언트 빌드타임 상수
+- `RESEND_API_KEY` — 이메일 발송 Resend API 키 (미설정 시 콘솔 no-op 폴백 — 이메일 실제 미발송)
+- `EMAIL_FROM` — 발신자 주소 (예: `noreply@xzawed.xyz`, `RESEND_API_KEY` 설정 시 필수)
 - `SQLITE_PATH` — SQLite 파일 경로 (기본 `/data/app.db`, Railway Volume 마운트 필수)
 - `NEXT_PUBLIC_ROOT_DOMAIN` (서브도메인 가상 호스팅)
 - `ANTHROPIC_API_KEY`
@@ -184,6 +187,8 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | Node 22 전면 상향 ADR (supabase-js 2.108 eager WebSocket 가드 대응·#154 오탐 근본 원인, 2026-06-22) | [docs/decisions/2026-06-22-node22-supabase-websocket-fix.md](docs/decisions/2026-06-22-node22-supabase-websocket-fix.md) |
 | verification_status 신선도·AI 추천 소비 ADR (B-2, cron --write + broken 제외·verified 우선, 2026-06-22) | [docs/decisions/2026-06-22-verification-status-consumption.md](docs/decisions/2026-06-22-verification-status-consumption.md) |
 | 카탈로그 등록(B-3 완료)·seed.sql 전면 재동기화(B-5) ADR (Countries 등록·프로덕션 미러, 2026-06-22) | [docs/decisions/2026-06-22-catalog-registration-and-seed-resync.md](docs/decisions/2026-06-22-catalog-registration-and-seed-resync.md) |
+| **공개 회원가입 + 다중 사용자 인증 ADR (단일 관리자 → DB 사용자 + 이메일 인증, 2026-06-24)** | [docs/decisions/2026-06-24-public-signup-multi-user-auth.md](docs/decisions/2026-06-24-public-signup-multi-user-auth.md) |
+| 공개 회원가입 다중 사용자 인증 설계 | [docs/superpowers/specs/2026-06-24-public-signup-multi-user-auth-design.md](docs/superpowers/specs/2026-06-24-public-signup-multi-user-auth-design.md) |
 
 - [README.md](README.md) — 프로젝트 전체 개요
 - [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) — PR 템플릿

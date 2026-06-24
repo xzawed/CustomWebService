@@ -9,6 +9,7 @@ vi.mock('@/repositories/sqlite', () => ({
   SqliteEventRepository: vi.fn(function (this: { _type: string }) { this._type = 'sqlite-event'; }),
   SqliteRateLimitRepository: vi.fn(function (this: { _type: string }) { this._type = 'sqlite-ratelimit'; }),
   SqliteUserApiKeyRepository: vi.fn(function (this: { _type: string }) { this._type = 'sqlite-apikey'; }),
+  SqliteAuthTokenRepository: vi.fn(function (this: { _type: string }) { this._type = 'sqlite-authtoken'; }),
 }));
 
 import {
@@ -19,6 +20,7 @@ import {
   createEventRepository,
   createRateLimitRepository,
   createUserApiKeyRepository,
+  createAuthTokenRepository,
 } from '@/repositories/factory';
 
 beforeEach(() => {
@@ -34,6 +36,7 @@ describe('repository factory (SQLite 단일 스택)', () => {
     ['createEventRepository', createEventRepository, 'sqlite-event'],
     ['createRateLimitRepository', createRateLimitRepository, 'sqlite-ratelimit'],
     ['createUserApiKeyRepository', createUserApiKeyRepository, 'sqlite-apikey'],
+    ['createAuthTokenRepository', createAuthTokenRepository, 'sqlite-authtoken'],
   ])('%s는 SQLite 구현을 반환한다', (_name, factory, expectedType) => {
     const repo = (factory as () => unknown)() as { _type: string };
     expect(repo._type).toBe(expectedType);

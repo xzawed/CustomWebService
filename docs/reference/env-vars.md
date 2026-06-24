@@ -4,13 +4,13 @@
 >
 > **Railway 설정 상태** 컬럼: ✅ 설정됨 / ❌ 미설정 / ➖ 해당 없음 (선택 변수)
 >
-> **아키텍처(2026-06-23 컷오버):** DB는 **임베디드 SQLite**(better-sqlite3, WAL, Railway 영속 볼륨 단일 인스턴스), 인증은 **Auth.js v5 Credentials 단일 관리자 + JWT 무상태**. Supabase·온프레미스 Postgres·OAuth(Google/GitHub)·`DB_PROVIDER`/`AUTH_PROVIDER` 분기는 모두 제거됨. `getDbProvider()`→`'sqlite'`, `getAuthProvider()`→`'local'` 상수. 컷오버 배경: [docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md).
+> **아키텍처(2026-06-23 컷오버 + 2026-06-24 다중 사용자 전환):** DB는 **임베디드 SQLite**(better-sqlite3, WAL, Railway 영속 볼륨 단일 인스턴스), 인증은 **Auth.js v5 Credentials + JWT 무상태**. 공개 셀프서비스 회원가입, DB 사용자별 scrypt 인증, 이메일 인증 게이트(Resend). Supabase·온프레미스 Postgres·OAuth(Google/GitHub)·`DB_PROVIDER`/`AUTH_PROVIDER` 분기·env 단일 관리자(`ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`/`ADMIN_USER_ID`)는 모두 제거됨. 컷오버 배경: [docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md). 다중 사용자 전환: [docs/decisions/2026-06-24-public-signup-multi-user-auth.md](../decisions/2026-06-24-public-signup-multi-user-auth.md).
 
 ---
 
 ## Database (SQLite)
 
-임베디드 SQLite. 부팅 시 `instrumentation.ts → bootstrapSqlite`가 마이그레이션(`drizzle/sqlite`) → 단일 관리자 시드 → 카탈로그/플래그 시드를 멱등 실행한다.
+임베디드 SQLite. 부팅 시 `instrumentation.ts → bootstrapSqlite`가 마이그레이션(`drizzle/sqlite`) → 카탈로그/플래그 시드를 멱등 실행한다. (`seedAdminUser`는 다중 사용자 전환으로 제거됨 — 첫 사용자는 `/signup`으로 생성)
 
 | 변수 | 기본값 | Railway | 설명 |
 |------|--------|---------|------|
@@ -20,17 +20,19 @@
 
 ## Auth (로컬 — Auth.js v5 Credentials)
 
-DB 어댑터 없는 JWT 무상태 세션. 단일 관리자만 로그인하는 셀프호스트 모델. 관리자 비밀번호 해시는 `pnpm admin:hash`로 생성한다.
+DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, DB 사용자별 scrypt 인증, 이메일 인증 게이트.
+이메일 발송은 Resend를 사용하며 `RESEND_API_KEY` 미설정 시 no-op 콘솔 폴백(이메일 미발송).
 
 | 변수 | 필수 | Railway | 설명 |
 |------|------|---------|------|
 | `AUTH_SECRET` | ✅ | ✅ | Auth.js 세션(JWT) 서명 키. 임의 시크릿(`openssl rand -base64 32`) |
 | `AUTH_TRUST_HOST` | ✅ (프록시 뒤) | ✅ `true` | 리버스 프록시(Railway) 뒤에서 호스트 헤더 신뢰. `true` 설정 |
-| `ADMIN_EMAIL` | ✅ | ✅ | 단일 관리자 로그인 이메일. `seedAdmin` 시드 대상 |
-| `ADMIN_PASSWORD_HASH` | ✅ | ✅ | 관리자 비밀번호 bcrypt 해시. `pnpm admin:hash`로 생성. 평문 비밀번호는 저장하지 않음 |
 | `NEXT_PUBLIC_AUTH_PROVIDER` | ✅ | ✅ `local` | 클라이언트 컴포넌트용 빌드 타임 상수. 값은 `local` 고정 |
-| `ADMIN_NAME` | 선택 | ➖ | 관리자 표시 이름. 미설정 시 기본 표시명 사용 |
-| `ADMIN_USER_ID` | 선택 | ➖ | 관리자 user id. 기본 `00000000-0000-0000-0000-000000000001` |
+| `RESEND_API_KEY` | 선택 | ➖ | Resend 이메일 API 키. 미설정 시 no-op 콘솔 폴백(이메일 인증 링크가 실제로 발송되지 않음 — 로컬/테스트 환경 전용) |
+| `EMAIL_FROM` | 선택 | ➖ | 이메일 발신자 주소 (예: `noreply@xzawed.xyz`). `RESEND_API_KEY` 설정 시 필수. 도메인 SPF/DKIM 설정 필요(Resend 대시보드) |
+
+> **제거된 변수 (2026-06-24)**: `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH`, `ADMIN_NAME`, `ADMIN_USER_ID` — env 단일 관리자 경로 완전 제거. 계정은 `/signup` 공개 회원가입으로 생성.
+> **유지**: `ADMIN_API_KEY`(진단 엔드포인트 `/api/v1/admin/*` 보호 — 사용자 인증과 무관, 아래 보안 섹션 참조).
 
 ---
 
@@ -149,4 +151,4 @@ DB 어댑터 없는 JWT 무상태 세션. 단일 관리자만 로그인하는 �
 > **Railway 상태 업데이트 방법:** Railway 대시보드 → Variables 탭에서 실제 설정 여부 확인 후 이 파일을 갱신한다.
 > Railway 상태가 변경될 때마다 이 표를 최신화하여 디버깅 시 추측을 없앤다.
 >
-> **최종 업데이트:** 2026-06-23 (SQLite 컷오버 — Supabase/Postgres/OAuth/Failover 변수 제거)
+> **최종 업데이트:** 2026-06-24 (공개 다중 사용자 인증 — ADMIN_EMAIL/ADMIN_PASSWORD_HASH/ADMIN_USER_ID/ADMIN_NAME 제거, RESEND_API_KEY/EMAIL_FROM 추가)

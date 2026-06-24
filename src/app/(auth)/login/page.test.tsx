@@ -63,4 +63,12 @@ describe('LoginPage local(Credentials) mode', () => {
       expect(screen.getByText('이메일 또는 비밀번호가 올바르지 않습니다.')).toBeTruthy();
     });
   });
+
+  it('회원가입·비밀번호 찾기 링크가 있다', () => {
+    renderComponent(<LoginPage />);
+    const signupLink = screen.getByRole('link', { name: /회원가입/ });
+    const forgotLink = screen.getByRole('link', { name: /비밀번호/ });
+    expect(signupLink.getAttribute('href')).toBe('/signup');
+    expect(forgotLink.getAttribute('href')).toBe('/forgot-password');
+  });
 });

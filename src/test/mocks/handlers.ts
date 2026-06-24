@@ -12,6 +12,41 @@ export const handlers = [
     HttpResponse.json({ projectId: params.projectId, status: 'completed' }),
   ),
 
+  // 회원가입 API mock
+  http.post('*/api/v1/auth/signup', () =>
+    HttpResponse.json({ success: true, data: { message: 'ok' } }, { status: 201 }),
+  ),
+
+  // 이메일 인증 API mock
+  http.post('*/api/v1/auth/verify-email', () =>
+    HttpResponse.json({ success: true, data: {} }),
+  ),
+
+  // 비밀번호 찾기 API mock
+  http.post('*/api/v1/auth/forgot-password', () =>
+    HttpResponse.json({ success: true, data: {} }),
+  ),
+
+  // 비밀번호 재설정 API mock
+  http.post('*/api/v1/auth/reset-password', () =>
+    HttpResponse.json({ success: true, data: {} }),
+  ),
+
+  // 이메일 인증 상태 API mock (기본: 미인증)
+  http.get('*/api/v1/auth/status', () =>
+    HttpResponse.json({ success: true, data: { verified: false } }),
+  ),
+
+  // 인증 메일 재발송 API mock
+  http.post('*/api/v1/auth/resend-verification', () =>
+    HttpResponse.json({ success: true, data: {} }),
+  ),
+
+  // Resend 이메일 API mock
+  http.post('https://api.resend.com/emails', () =>
+    HttpResponse.json({ id: 'mock-email-id' }, { status: 200 }),
+  ),
+
   // Anthropic Claude API mock
   http.post('https://api.anthropic.com/v1/messages', () => {
     return HttpResponse.json({

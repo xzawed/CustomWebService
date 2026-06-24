@@ -116,13 +116,13 @@ describe('POST /api/v1/suggest-modification', () => {
     expect(response.status).toBe(404);
   });
 
-  it('다른 사용자의 프로젝트면 404를 반환한다', async () => {
+  it('다른 사용자의 프로젝트면 403을 반환한다', async () => {
     await setupAuth();
     await setupProjectRepo({ ...mockProject, userId: 'other-user' });
 
     const { POST } = await import('@/app/api/v1/suggest-modification/route');
     const response = await POST(makeRequest({ projectId: VALID_PROJECT_ID }));
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(403);
   });
 
   it('정상 요청 시 suggestions를 반환한다', async () => {

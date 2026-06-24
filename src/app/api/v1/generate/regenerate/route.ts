@@ -22,6 +22,7 @@ import {
   ValidationError,
   handleApiError,
 } from '@/lib/utils/errors';
+import { assertEmailVerified } from '@/lib/auth/verifiedGuard';
 import { getLimits } from '@/lib/config/features';
 import { regenerateSchema } from '@/types/schemas';
 import { createSseWriter } from '@/lib/ai/sseWriter';
@@ -34,6 +35,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
+    await assertEmailVerified(user.id);
 
     let projectId: string;
     let feedback: string;
