@@ -156,6 +156,14 @@ jobs:
 
       - name: Run E2E tests
         run: pnpm test:e2e
+        env:
+          # 컷오버 이후 instrumentation이 getSqliteDb()를 무조건 호출하므로,
+          # E2E 런타임 서버(pnpm start)가 부팅하려면 SQLite env가 필요하다.
+          # (테스트 전용 값 — 프로덕션과 무관)
+          DB_PROVIDER: sqlite
+          SQLITE_PATH: /tmp/e2e-app.db
+          AUTH_SECRET: e2e-ci-secret-not-for-production
+          AUTH_TRUST_HOST: 'true'
 
       - name: Upload Playwright report
         if: always()
