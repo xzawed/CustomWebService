@@ -1,11 +1,11 @@
 # 데이터베이스 설계
 
-> **최종 업데이트:** 2026-06-23
+> **최종 업데이트:** 2026-06-24 (공개 다중 사용자 인증 도입 — auth_tokens 테이블 추가, users 다중 행)
 > **DB:** 임베디드 SQLite (better-sqlite3 + drizzle-orm/better-sqlite3, WAL 모드)
 
-## 사용 DB: 임베디드 SQLite (단일 인스턴스·단일 사용자)
+## 사용 DB: 임베디드 SQLite (단일 인스턴스·다중 사용자)
 
-이 서비스는 **셀프호스트 단일 관리자** 운영 모델이다. 데이터베이스는 외부 서버 없이
+이 서비스는 **공개 셀프서비스 회원가입 + 계정별 완전 데이터 격리** 모델이다. 데이터베이스는 외부 서버 없이
 애플리케이션 프로세스에 임베드된 **SQLite 파일 1개**(`/data/app.db`)로 구동된다.
 
 - **드라이버**: `better-sqlite3` (동기 API) + `drizzle-orm/better-sqlite3`
@@ -23,15 +23,15 @@
 ### 권한 모델: RLS 없음 → 앱 레벨 소유권 검증
 
 SQLite에는 Row Level Security가 없다. 모든 접근 제어는 **애플리케이션 레이어**에서
-처리한다. 단일 관리자 운용이므로 멀티 테넌시 정책은 불필요하며, 레포지토리/서비스
-계층의 `assertOwner` 류 소유권 검증으로 `user_id` 일치를 강제한다.
+처리한다. 다중 사용자 모델에서 **앱 레벨 `assertOwner` 검증이 계정 간 데이터 격리의 유일한 보안 경계**이다.
+레포지토리/서비스 계층에서 `user_id` 일치를 강제한다(`assertOwner` → 불일치 시 `ForbiddenError` 403).
 
 ---
 
 ## 1. 스키마 개요
 
 스키마의 단일 진실원천은 [`src/lib/db/sqlite/schema.ts`](../../src/lib/db/sqlite/schema.ts)
-(drizzle 정의)이다. 총 **9개 테이블**:
+(drizzle 정의)이다. 총 **10개 테이블** (2026-06-24 `auth_tokens` 추가):
 
 ```
 ┌──────────────┐           ┌────────────────────┐
@@ -41,11 +41,25 @@ SQLite에는 Row Level Security가 없다. 모든 접근 제어는 **애플리�
 │ email (UQ)   │   │       │ name               │   │
 │ name         │   │       │ category           │   │
 │ avatar_url   │   │       │ base_url           │   │
-│ preferences  │   │       │ auth_type / config │   │
-│ created_at   │   │       │ endpoints (json)   │   │
-└──────────────┘   │       │ verification_status│   │
-                   │       │ successor_id       │   │
-                   │       └────────────────────┘   │
+│ email_verified│  │       │ auth_type / config │   │
+│ password_hash│   │       │ endpoints (json)   │   │
+│ preferences  │   │       │ verification_status│   │
+│ created_at   │   │       │ successor_id       │   │
+└──────────────┘   │       └────────────────────┘   │
+                   │
+       ┌───────────┤ (auth_tokens)
+       │           │
+       ▼           │
+┌──────────────┐   │
+│ auth_tokens  │   │
+├──────────────┤   │
+│ id (PK)      │   │
+│ user_id (FK) │───┤
+│ token_hash   │   │
+│ type         │   │
+│ expires_at   │   │
+│ consumed_at  │   │
+└──────────────┘   │
        ┌───────────┤                                 │
        │           │                                 │
        ▼           │                                 │
@@ -94,6 +108,8 @@ SQLite에는 Row Level Security가 없다. 모든 접근 제어는 **애플리�
 > `gallery` / `project_likes` (갤러리 기능 제거), `event_log` (platform_events로 대체된 죽은 테이블).
 > `projects.organization_id`·`api_catalog`의 자기참조 `successor_id` 등 일부 **컬럼**은 레포 매퍼
 > 호환을 위해 nullable로 잔존하나 기능은 없고 항상 `null` 또는 미사용이다.
+>
+> **신규 (2026-06-24):** `auth_tokens` 테이블 추가, `users.password_hash` 컬럼 추가.
 
 ---
 
@@ -125,7 +141,7 @@ pg의 `23505`(unique_violation) 대신 SQLite는 `SQLITE_CONSTRAINT_UNIQUE` 에�
 
 아래 SQL은 SQLite 방언 기준이다 (drizzle 마이그레이션 `drizzle/sqlite/0000_*.sql`가 권위).
 
-### 3.1 users (단일 관리자 1행 운용)
+### 3.1 users (다중 사용자)
 
 ```sql
 CREATE TABLE users (
@@ -133,21 +149,18 @@ CREATE TABLE users (
     email          TEXT NOT NULL UNIQUE,
     name           TEXT,
     avatar_url     TEXT,
-    email_verified TEXT,                        -- Auth.js 호환 컬럼 (미사용)
+    email_verified TEXT,                        -- 인증 완료 시각(ISO8601). NULL이면 미인증
     image          TEXT,                        -- Auth.js 호환 컬럼 (미사용)
+    password_hash  TEXT,                        -- scrypt "salt:hash"(hex). Credentials 계정 필수
     preferences    TEXT,                        -- json: { language, theme, ... }
     created_at     TEXT,                        -- ISO8601
     updated_at     TEXT
 );
 ```
 
-> **단일 관리자 앵커**: 셀프호스트 단일 사용자 모델이므로 `users`에는 **관리자 1행**만
-> 존재한다. 이 행의 `id`는 Auth.js Credentials `authorize()`가 반환하는 관리자
-> 신원(`getAdminUserId()`, 기본 `00000000-0000-0000-0000-000000000001`,
-> `ADMIN_USER_ID`로 재정의 가능)과 반드시 일치해야 한다. 불일치 시 관리자가 프로젝트를
-> 만들 때 `projects.user_id → users.id` FK가 깨진다. 부팅 시 `seedAdminUser()`가 이 행을
-> 멱등 보장한다 (§4 참조). Auth는 무상태 JWT라 DB 어댑터/세션 테이블이 없다 —
-> 아키텍처: [docs/architecture/auth.md](./auth.md).
+> **다중 사용자 모델**: `users`에는 회원가입한 모든 사용자가 행으로 존재한다. 공개 `/signup` 엔드포인트로 가입하며, 부팅 시 `seedAdminUser()`는 **제거됨** — 더 이상 단일 관리자 행을 삽입하지 않는다.
+> `password_hash`는 scrypt `"salt:hash"` hex 형식. `email_verified`는 이메일 인증 완료 시각(NULL=미인증). 미인증 사용자는 로그인은 가능하나 생성·배포가 차단된다(`assertEmailVerified`).
+> Auth는 무상태 JWT라 DB 어댑터/세션 테이블이 없다 — 아키텍처: [docs/architecture/auth.md](./auth.md).
 
 ### 3.2 api_catalog (API 카탈로그)
 
@@ -317,6 +330,25 @@ CREATE TABLE feature_flags (
 플래그 시드 데이터는 [`src/data/featureFlags.json`](../../src/data/featureFlags.json)에서
 부팅 시 멱등 삽입된다 (§4).
 
+### 3.10 auth_tokens (이메일 인증·비밀번호 재설정 토큰)
+
+```sql
+CREATE TABLE auth_tokens (
+    id          TEXT PRIMARY KEY,               -- randomUUID
+    user_id     TEXT NOT NULL REFERENCES users(id),
+    token_hash  TEXT NOT NULL,                  -- 토큰 원문의 SHA-256 해시 (원문 미저장)
+    type        TEXT NOT NULL,                  -- 'email_verify' | 'password_reset'
+    expires_at  TEXT NOT NULL,                  -- 만료 ISO8601 (email_verify: +24h, password_reset: +1h)
+    consumed_at TEXT,                           -- 일회성 소비 표시 (NULL=미사용)
+    created_at  TEXT
+);
+-- 인덱스: token_hash (조회 키)
+```
+
+> 토큰 원문(랜덤 32바이트 base64url)은 이메일 링크에만 노출되며 DB에는 **SHA-256 해시만 저장**한다.
+> 사용 시 `consumed_at`을 기록해 일회성 보장. `email_verify`: 24시간 TTL, `password_reset`: 1시간 TTL.
+> 재설정 완료 시 동일 user의 미소비 reset 토큰을 일괄 무효화한다.
+
 ---
 
 ## 4. 마이그레이션 & 부팅 시드 (bootstrap)
@@ -328,6 +360,7 @@ drizzle-kit으로 생성한 SQLite 마이그레이션이 `drizzle/sqlite/`에 �
 ```
 drizzle/sqlite/
 ├── 0000_flaky_roulette.sql   # 초기 스키마 (9개 테이블)
+├── 0001_*.sql                # auth_tokens 테이블 + users.password_hash 추가 (10개 테이블)
 └── meta/                      # drizzle 스냅샷·저널
 ```
 
@@ -341,12 +374,12 @@ drizzle/sqlite/
 호출한다. 순서가 중요하며 **모든 단계는 멱등**(빈 테이블일 때만 삽입)이라
 재배포·재시작 시 안전하게 반복된다.
 
-1. **`runSqliteMigrations(db)`** — `drizzle/sqlite`의 마이그레이션을 적용해 테이블 생성
-2. **`seedAdminUser(db)`** — 단일 관리자 `users` 행 보장. `ADMIN_EMAIL` 미설정 시 no-op,
-   동일 `id` 행이 이미 있으면 덮어쓰지 않음
-3. **`seedCatalog(db)`** — `src/data/apiCatalog.json`(프로덕션 카탈로그 미러)을 빈
+1. **`runSqliteMigrations(db)`** — `drizzle/sqlite`의 마이그레이션을 적용해 테이블 생성 (10개 테이블)
+2. **`seedCatalog(db)`** — `src/data/apiCatalog.json`(프로덕션 카탈로그 미러)을 빈
    `api_catalog`에만 일괄 삽입. id·created_at은 프로덕션 값 그대로 유지(FK 일관성)
-4. **`seedFeatureFlags(db)`** — `src/data/featureFlags.json`을 빈 `feature_flags`에만 삽입
+3. **`seedFeatureFlags(db)`** — `src/data/featureFlags.json`을 빈 `feature_flags`에만 삽입
+
+> **`seedAdminUser`는 제거됨**: 공개 다중 사용자 전환(2026-06-24)으로 env 단일 관리자 시드가 불필요해졌다. 신규 환경은 `/signup`으로 첫 사용자를 생성한다.
 
 > 시드 데이터(`src/data/{apiCatalog,featureFlags}.json`)는 프로덕션
 > `api_catalog`/`feature_flags`를 미러링한 생성 산출물이다 — 손편집 금지.
