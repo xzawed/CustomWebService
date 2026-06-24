@@ -48,7 +48,8 @@ export function enforceRateLimit(
  *  1) `APP_URL` 환경변수 (가장 명시적)
  *  2) `NEXT_PUBLIC_ROOT_DOMAIN` (apex 도메인, https 가정)
  *  3) 로컬/개발 폴백으로 요청 origin (프로덕션에선 위 둘 중 하나가 반드시 설정됨)
- * 후행 슬래시는 제거한다(호출부가 `${baseUrl}/verify-email` 식으로 이어 붙임).
+ * `URL.origin`을 사용하므로 경로·후행 슬래시는 자동 정규화된다(호출부가
+ * `${baseUrl}/verify-email` 식으로 이어 붙임).
  *
  * 참고: 프록시(Railway) 뒤에서 `new URL(request.url).origin`은 내부 바인드 주소
  * (예: `http://0.0.0.0:8080`)로 잡히므로 프로덕션 폴백으로 쓰면 안 된다 —
@@ -56,10 +57,10 @@ export function enforceRateLimit(
  */
 export function getBaseUrl(request: Request): string {
   const appUrl = process.env.APP_URL;
-  if (appUrl) return appUrl.replace(/\/+$/, '');
+  if (appUrl) return new URL(appUrl).origin;
 
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;
-  if (rootDomain) return `https://${rootDomain.replace(/\/+$/, '')}`;
+  if (rootDomain) return new URL(`https://${rootDomain}`).origin;
 
   return new URL(request.url).origin;
 }
