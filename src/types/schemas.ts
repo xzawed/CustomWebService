@@ -89,3 +89,25 @@ export const suggestPreferencesSchema = z.object({
 export const triggerQcSchema = z.object({
   projectId: z.string().min(1),
 });
+
+// ── 인증 ──────────────────────────────────────────────────────────────────────
+// z.string().email()는 Zod v4에서 deprecated → z.string().trim().toLowerCase().pipe(z.email()) 사용
+const emailField = z.string().trim().toLowerCase().pipe(z.email());
+
+export const signupSchema = z.object({
+  email: emailField,
+  password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다.'),
+});
+
+export const forgotPasswordSchema = z.object({
+  email: emailField,
+});
+
+export const verifyEmailSchema = z.object({
+  token: z.string().min(1),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8, '비밀번호는 8자 이상이어야 합니다.'),
+});
