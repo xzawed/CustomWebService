@@ -1,4 +1,5 @@
 import { getAuthUser } from '@/lib/auth/index';
+import { assertOwner } from '@/lib/auth/authorize';
 import { createProjectRepository, createCodeRepository } from '@/repositories/factory';
 import { eventBus } from '@/lib/events/eventBus';
 import {
@@ -19,12 +20,13 @@ export async function POST(
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
 
-    // Verify ownership
+    // Verify project exists and caller owns it
     const projectRepo = createProjectRepository();
     const project = await projectRepo.findById(projectId);
-    if (!project || project.userId !== user.id) {
+    if (!project) {
       throw new NotFoundError('프로젝트', projectId);
     }
+    assertOwner(project, user.id);
 
     // Parse target version from body
     let targetVersion: number;

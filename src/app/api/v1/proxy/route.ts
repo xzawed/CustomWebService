@@ -205,6 +205,8 @@ async function resolveApiKey(
   const projectId = searchParams.get('projectId');
   if (projectId && UUID_RE.test(projectId)) {
     try {
+      // NOTE: 공개 사이트 런타임이 자기 프로젝트의 API 키를 해결하는 경로 — 소유권은
+      // 게시 사이트 서빙 의미상 적용하지 않는다(다중 사용자 격리는 '관리/편집'에만 적용).
       const project = await createProjectRepository().findById(projectId);
       if (project?.userId) {
         const userKey = await createUserApiKeyRepository().findByUserAndApi(

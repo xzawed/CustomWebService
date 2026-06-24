@@ -1,7 +1,8 @@
 import { getAuthUser } from '@/lib/auth/index';
+import { assertOwner } from '@/lib/auth/authorize';
 import { createProjectRepository, createCodeRepository } from '@/repositories/factory';
 import { assembleHtml } from '@/lib/ai/codeParser';
-import { AuthRequiredError, ForbiddenError, NotFoundError, ValidationError, handleApiError } from '@/lib/utils/errors';
+import { AuthRequiredError, NotFoundError, ValidationError, handleApiError } from '@/lib/utils/errors';
 import { PREVIEW_CSP } from '@/lib/constants/cdn';
 
 export async function GET(
@@ -18,9 +19,7 @@ export async function GET(
     if (!project) {
       throw new NotFoundError('프로젝트', projectId);
     }
-    if (project.userId !== user.id) {
-      throw new ForbiddenError();
-    }
+    assertOwner(project, user.id);
 
     // Get version from query params
     const url = new URL(request.url);

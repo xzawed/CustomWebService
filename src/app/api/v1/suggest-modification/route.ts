@@ -1,4 +1,5 @@
 import { getAuthUser } from '@/lib/auth/index';
+import { assertOwner } from '@/lib/auth/authorize';
 import { createProjectRepository, createCatalogRepository } from '@/repositories/factory';
 import { createRateLimitService } from '@/services/factory';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
@@ -28,12 +29,13 @@ export async function POST(request: Request): Promise<Response> {
     const rateLimitService = createRateLimitService();
     await rateLimitService.checkAndIncrementDailyLimit(user.id);
 
-    // Verify ownership via service client (RLS bypass for project lookup)
+    // Verify project exists and caller owns it
     const projectRepo = createProjectRepository();
     const project = await projectRepo.findById(projectId);
-    if (!project || project.userId !== user.id) {
+    if (!project) {
       throw new NotFoundError('프로젝트', projectId);
     }
+    assertOwner(project, user.id);
 
     // Fetch project's APIs
     const apiIds = await projectRepo.getProjectApiIds(projectId);
