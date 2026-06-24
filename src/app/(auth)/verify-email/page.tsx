@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import AuthCard from '@/components/auth/AuthCard';
 
 function VerifyEmailInner() {
   const searchParams = useSearchParams();
@@ -51,58 +52,39 @@ function VerifyEmailInner() {
   }, [token]);
 
   return (
-    <div
-      className="relative flex min-h-screen items-center justify-center px-6"
-      style={{ background: 'var(--bg-base)' }}
-    >
-      {/* Background orbs */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 top-1/3 h-80 w-80 rounded-full bg-cyan-500/[0.06] blur-[80px]" />
-        <div className="absolute -right-32 bottom-1/3 h-80 w-80 rounded-full bg-violet-500/[0.06] blur-[80px]" />
-      </div>
+    <AuthCard subtitle="이메일 인증">
+      {status === 'loading' && (
+        <p className="text-center text-sm text-slate-400">인증 중...</p>
+      )}
 
-      <div className="glass relative w-full max-w-sm rounded-2xl p-8">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">
-            <span className="gradient-text">Custom</span>
-            <span style={{ color: 'var(--text-primary)' }}>WebService</span>
-          </h1>
-          <p className="mt-2 text-sm text-slate-400">이메일 인증</p>
+      {status === 'success' && (
+        <div className="space-y-4 text-center">
+          <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-300">
+            이메일 인증 완료! 이제 서비스를 이용할 수 있습니다.
+          </div>
+          <a
+            href="/dashboard"
+            className="inline-block rounded-xl px-6 py-2.5 text-sm font-semibold text-white transition-all hover:shadow-lg"
+            style={{
+              background: 'var(--accent-gradient, linear-gradient(135deg,#06b6d4,#8b5cf6))',
+            }}
+          >
+            대시보드로 이동
+          </a>
         </div>
+      )}
 
-        {status === 'loading' && (
-          <p className="text-center text-sm text-slate-400">인증 중...</p>
-        )}
-
-        {status === 'success' && (
-          <div className="space-y-4 text-center">
-            <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-300">
-              이메일 인증 완료! 이제 서비스를 이용할 수 있습니다.
-            </div>
-            <a
-              href="/dashboard"
-              className="inline-block rounded-xl px-6 py-2.5 text-sm font-semibold text-white transition-all hover:shadow-lg"
-              style={{
-                background: 'var(--accent-gradient, linear-gradient(135deg,#06b6d4,#8b5cf6))',
-              }}
-            >
-              대시보드로 이동
-            </a>
+      {status === 'error' && (
+        <div className="space-y-4 text-center">
+          <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
+            {errorMessage}
           </div>
-        )}
-
-        {status === 'error' && (
-          <div className="space-y-4 text-center">
-            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
-              {errorMessage}
-            </div>
-            <a href="/login" className="text-sm text-cyan-400 underline">
-              로그인 페이지로 돌아가기
-            </a>
-          </div>
-        )}
-      </div>
-    </div>
+          <a href="/login" className="text-sm text-cyan-400 underline">
+            로그인 페이지로 돌아가기
+          </a>
+        </div>
+      )}
+    </AuthCard>
   );
 }
 
