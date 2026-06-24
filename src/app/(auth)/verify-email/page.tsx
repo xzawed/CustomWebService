@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-export default function VerifyEmailPage() {
+function VerifyEmailInner() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
 
@@ -101,5 +101,20 @@ export default function VerifyEmailPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          className="relative flex min-h-screen items-center justify-center px-6"
+          style={{ background: 'var(--bg-base)' }}
+        />
+      }
+    >
+      <VerifyEmailInner />
+    </Suspense>
   );
 }
