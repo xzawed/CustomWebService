@@ -140,6 +140,8 @@ export class SqliteUserRepository implements IUserRepository {
       name: row.name ?? null,
       avatarUrl: row.avatar_url ?? null,
       preferences: (row.preferences as UserPreferences) ?? {},
+      passwordHash: row.password_hash ?? null,
+      emailVerified: row.emailVerified ?? null,
       createdAt: row.created_at as string,
       updatedAt: row.updated_at as string,
     };

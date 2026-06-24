@@ -18,6 +18,8 @@ function mapSessionUser(sessionUser: {
     name: sessionUser.name ?? null,
     avatarUrl: sessionUser.image ?? null,
     preferences: {},
+    passwordHash: null,
+    emailVerified: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

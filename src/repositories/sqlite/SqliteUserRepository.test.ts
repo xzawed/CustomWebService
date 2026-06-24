@@ -30,6 +30,8 @@ describe('SqliteUserRepository', () => {
     name: 'Admin',
     avatarUrl: 'https://example.com/a.png',
     preferences: { language: 'ko', theme: 'dark' },
+    passwordHash: null,
+    emailVerified: null,
   };
 
   describe('create', () => {
@@ -53,6 +55,8 @@ describe('SqliteUserRepository', () => {
         name: null,
         avatarUrl: null,
         preferences: {},
+        passwordHash: null,
+        emailVerified: null,
       });
       expect(user.name).toBeNull();
       expect(user.avatarUrl).toBeNull();
@@ -210,10 +214,26 @@ describe('SqliteUserRepository', () => {
     });
   });
 
+  describe('auth fields', () => {
+    it('passwordHash와 emailVerified를 저장·반환한다', async () => {
+      const created = await repo.create({
+        ...baseInput,
+        passwordHash: 'salt:deadbeef',
+        emailVerified: null,
+      });
+      expect(created.passwordHash).toBe('salt:deadbeef');
+      expect(created.emailVerified).toBeNull();
+
+      const fetched = await repo.findByEmail('admin@example.com');
+      expect(fetched?.passwordHash).toBe('salt:deadbeef');
+      expect(fetched?.emailVerified).toBeNull();
+    });
+  });
+
   describe('count', () => {
     beforeEach(async () => {
-      await repo.create({ email: 'x@example.com', name: null, avatarUrl: null, preferences: {} });
-      await repo.create({ email: 'y@example.com', name: null, avatarUrl: null, preferences: {} });
+      await repo.create({ email: 'x@example.com', name: null, avatarUrl: null, preferences: {}, passwordHash: null, emailVerified: null });
+      await repo.create({ email: 'y@example.com', name: null, avatarUrl: null, preferences: {}, passwordHash: null, emailVerified: null });
     });
 
     it('필터 없이 전체 수를 센다', async () => {
