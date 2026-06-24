@@ -47,6 +47,20 @@ export class RateLimitError extends AppError {
   }
 }
 
+export class ConflictError extends AppError {
+  constructor(message = t('error.conflict')) {
+    super('CONFLICT', message, 409);
+    this.name = 'ConflictError';
+  }
+}
+
+export class EmailNotVerifiedError extends AppError {
+  constructor(message = t('error.emailNotVerified')) {
+    super('EMAIL_NOT_VERIFIED', message, 403);
+    this.name = 'EmailNotVerifiedError';
+  }
+}
+
 export class GenerationError extends AppError {
   constructor(message = t('error.generation')) {
     super('GENERATION_FAILED', message, 500);
