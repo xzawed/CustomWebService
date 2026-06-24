@@ -5,3 +5,4 @@ export { SqliteCatalogRepository } from './SqliteCatalogRepository';
 export { SqliteEventRepository } from './SqliteEventRepository';
 export { SqliteRateLimitRepository } from './SqliteRateLimitRepository';
 export { SqliteUserApiKeyRepository } from './SqliteUserApiKeyRepository';
+export { SqliteAuthTokenRepository } from './SqliteAuthTokenRepository';
