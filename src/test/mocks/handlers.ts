@@ -12,6 +12,11 @@ export const handlers = [
     HttpResponse.json({ projectId: params.projectId, status: 'completed' }),
   ),
 
+  // Resend 이메일 API mock
+  http.post('https://api.resend.com/emails', () =>
+    HttpResponse.json({ id: 'mock-email-id' }, { status: 200 }),
+  ),
+
   // Anthropic Claude API mock
   http.post('https://api.anthropic.com/v1/messages', () => {
     return HttpResponse.json({
