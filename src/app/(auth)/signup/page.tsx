@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import AuthCard from '@/components/auth/AuthCard';
+import AuthError from '@/components/auth/AuthError';
+import AuthField from '@/components/auth/AuthField';
+import AuthSubmitButton from '@/components/auth/AuthSubmitButton';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -37,73 +40,31 @@ export default function SignupPage() {
         </div>
       ) : (
         <>
-          {error && (
-            <div className="mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-center text-sm text-rose-400">
-              {error}
-            </div>
-          )}
+          <AuthError message={error} />
           <form className="space-y-3" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                이메일
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="username"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-cyan-500/40"
-                style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--glass-border)',
-                  color: 'var(--text-primary)',
-                }}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                비밀번호
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-cyan-500/40"
-                style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--glass-border)',
-                  color: 'var(--text-primary)',
-                }}
-              />
-              <p className="text-[11px] text-slate-500">8자 이상</p>
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex w-full items-center justify-center gap-3 rounded-xl px-4 py-3.5 text-sm font-semibold transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                background: 'var(--accent-gradient, linear-gradient(135deg,#06b6d4,#8b5cf6))',
-                color: '#fff',
-              }}
-            >
+            <AuthField
+              id="email"
+              label="이메일"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              required
+            />
+            <AuthField
+              id="password"
+              label="비밀번호"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              required
+              minLength={8}
+              hint="8자 이상"
+            />
+            <AuthSubmitButton loading={loading}>
               {loading ? '가입 중...' : '가입하기'}
-            </button>
+            </AuthSubmitButton>
           </form>
           <p className="mt-6 text-center text-xs text-slate-500">
             이미 계정이 있으신가요?{' '}

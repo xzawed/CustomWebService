@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import AuthCard from '@/components/auth/AuthCard';
+import AuthError from '@/components/auth/AuthError';
+import AuthField from '@/components/auth/AuthField';
+import AuthSubmitButton from '@/components/auth/AuthSubmitButton';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -40,47 +43,20 @@ export default function ForgotPasswordPage() {
         </div>
       ) : (
         <>
-          {error && (
-            <div className="mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-center text-sm text-rose-400">
-              {error}
-            </div>
-          )}
+          <AuthError message={error} />
           <form className="space-y-3" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium"
-                style={{ color: 'var(--text-primary)' }}
-              >
-                이메일
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="username"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all focus:ring-2 focus:ring-cyan-500/40"
-                style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--glass-border)',
-                  color: 'var(--text-primary)',
-                }}
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex w-full items-center justify-center gap-3 rounded-xl px-4 py-3.5 text-sm font-semibold transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                background: 'var(--accent-gradient, linear-gradient(135deg,#06b6d4,#8b5cf6))',
-                color: '#fff',
-              }}
-            >
+            <AuthField
+              id="email"
+              label="이메일"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              required
+            />
+            <AuthSubmitButton loading={loading}>
               {loading ? '전송 중...' : '재설정 링크 받기'}
-            </button>
+            </AuthSubmitButton>
           </form>
           <p className="mt-6 text-center text-xs text-slate-500">
             비밀번호가 기억나셨나요?{' '}
