@@ -29,7 +29,8 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 | `AUTH_TRUST_HOST` | ✅ (프록시 뒤) | ✅ `true` | 리버스 프록시(Railway) 뒤에서 호스트 헤더 신뢰. `true` 설정 |
 | `NEXT_PUBLIC_AUTH_PROVIDER` | ✅ | ✅ `local` | 클라이언트 컴포넌트용 빌드 타임 상수. 값은 `local` 고정 |
 | `RESEND_API_KEY` | 선택 | ➖ | Resend 이메일 API 키. 미설정 시 no-op 콘솔 폴백(이메일 인증 링크가 실제로 발송되지 않음 — 로컬/테스트 환경 전용) |
-| `EMAIL_FROM` | 선택 | ➖ | 이메일 발신자 주소 (예: `noreply@xzawed.xyz`). `RESEND_API_KEY` 설정 시 필수. 도메인 SPF/DKIM 설정 필요(Resend 대시보드) |
+| `EMAIL_FROM` | 선택 | ➖ | 이메일 발신자 주소 (예: `noreply@xzawed.xyz`). `RESEND_API_KEY` 설정 시 필수. 도메인 SPF/DKIM 설정 필요(Resend 대시보드). ⚠️ 빈 문자열이면 `?? 기본값` 폴백이 안 됨(null/undefined만 폴백) → 발송 실패하므로 반드시 값 지정. 도메인 미인증 시 `onboarding@resend.dev`는 Resend 가입 계정 이메일로만 발송 |
+| `APP_URL` | 권장 | ✅ `https://xzawed.xyz` | 이메일 링크(인증·비밀번호 재설정)의 공개 base URL. 미설정 시 `NEXT_PUBLIC_ROOT_DOMAIN` → 요청 origin 순으로 폴백. 프록시(Railway) 뒤에서 링크가 내부 주소(`0.0.0.0:8080`)로 잡히는 문제 방지 + 요청 호스트 헤더를 신뢰하지 않아 reset-password poisoning 차단 (`getBaseUrl`, `src/lib/auth/routeHelpers.ts`) |
 
 > **제거된 변수 (2026-06-24)**: `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH`, `ADMIN_NAME`, `ADMIN_USER_ID` — env 단일 관리자 경로 완전 제거. 계정은 `/signup` 공개 회원가입으로 생성.
 > **유지**: `ADMIN_API_KEY`(진단 엔드포인트 `/api/v1/admin/*` 보호 — 사용자 인증과 무관, 아래 보안 섹션 참조).
