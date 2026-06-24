@@ -4,6 +4,10 @@ import { sql, eq } from 'drizzle-orm';
 import { createSqliteConnection, runSqliteMigrations, type SqliteDb } from './connection';
 import * as schema from './schema';
 import { seedCatalog, seedFeatureFlags } from './seedCatalog';
+import catalogData from '@/data/apiCatalog.json';
+
+const TOTAL = (catalogData as unknown[]).length;
+const ACTIVE = (catalogData as Array<{ is_active: boolean }>).filter((x) => x.is_active).length;
 
 /**
  * 번들된 시드 데이터(src/data/*.json, 프로덕션 미러)를 :memory: SQLite에 시드하는지 검증.
@@ -27,23 +31,23 @@ describe('seedCatalog / seedFeatureFlags', () => {
     return db.select({ c: sql<number>`count(*)` }).from(table).get()?.c ?? 0;
   }
 
-  it('seedCatalog는 프로덕션 미러 49행을 시드한다(활성 23)', () => {
+  it('seedCatalog는 번들 전체 행을 시드한다(활성 카운트 일치)', () => {
     const n = seedCatalog(db);
-    expect(n).toBe(49);
-    expect(count(schema.apiCatalog)).toBe(49);
+    expect(n).toBe(TOTAL);
+    expect(count(schema.apiCatalog)).toBe(TOTAL);
 
     const active = db
       .select({ c: sql<number>`count(*)` })
       .from(schema.apiCatalog)
       .where(eq(schema.apiCatalog.is_active, true))
       .get();
-    expect(active?.c).toBe(23);
+    expect(active?.c).toBe(ACTIVE);
   });
 
   it('seedCatalog는 멱등이다(두 번째 호출 0, 행 유지)', () => {
-    expect(seedCatalog(db)).toBe(49);
+    expect(seedCatalog(db)).toBe(TOTAL);
     expect(seedCatalog(db)).toBe(0);
-    expect(count(schema.apiCatalog)).toBe(49);
+    expect(count(schema.apiCatalog)).toBe(TOTAL);
   });
 
   it('json/array/boolean 필드가 올바른 타입으로 역직렬화된다', () => {
