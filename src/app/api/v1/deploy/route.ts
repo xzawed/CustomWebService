@@ -4,6 +4,7 @@ import { createRateLimitRepository } from '@/repositories/factory';
 import type { DeployPlatform } from '@/providers/deploy/DeployProviderFactory';
 import { eventBus } from '@/lib/events/eventBus';
 import { AppError, AuthRequiredError, RateLimitError, ValidationError, handleApiError } from '@/lib/utils/errors';
+import { assertEmailVerified } from '@/lib/auth/verifiedGuard';
 import { logger } from '@/lib/utils/logger';
 import { getLimits } from '@/lib/config/features';
 import { deploySchema } from '@/types/schemas';
@@ -12,6 +13,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
+    await assertEmailVerified(user.id);
 
     let projectId: string;
     let platform: DeployPlatform;

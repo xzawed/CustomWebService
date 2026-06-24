@@ -41,6 +41,10 @@ vi.mock('@/repositories/factory', () => ({
   }),
 }));
 
+vi.mock('@/lib/auth/verifiedGuard', () => ({
+  assertEmailVerified: vi.fn().mockResolvedValue(undefined),
+}));
+
 // ---------- Test data ----------
 const mockUser = { id: 'user-1', email: 'test@test.com', name: null, avatarUrl: null };
 

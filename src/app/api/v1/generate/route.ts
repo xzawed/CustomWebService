@@ -17,6 +17,7 @@ import {
 } from '@/lib/ai/promptBuilder';
 import { getCorrelationId } from '@/lib/utils/correlationId';
 import { AuthRequiredError, ValidationError, handleApiError } from '@/lib/utils/errors';
+import { assertEmailVerified } from '@/lib/auth/verifiedGuard';
 import { generateSchema } from '@/types/schemas';
 import { templateRegistry } from '@/templates/TemplateRegistry';
 import { createSseWriter } from '@/lib/ai/sseWriter';
@@ -29,6 +30,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
+    await assertEmailVerified(user.id);
 
     let projectId: string;
     let templateId: string | undefined;
