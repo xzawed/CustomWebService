@@ -12,6 +12,11 @@ export const handlers = [
     HttpResponse.json({ projectId: params.projectId, status: 'completed' }),
   ),
 
+  // 회원가입 API mock
+  http.post('*/api/v1/auth/signup', () =>
+    HttpResponse.json({ success: true, data: { message: 'ok' } }, { status: 201 }),
+  ),
+
   // Resend 이메일 API mock
   http.post('https://api.resend.com/emails', () =>
     HttpResponse.json({ id: 'mock-email-id' }, { status: 200 }),
