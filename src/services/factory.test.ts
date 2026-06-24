@@ -5,6 +5,8 @@ vi.mock('@/repositories/factory', () => ({
   createCatalogRepository: vi.fn().mockReturnValue({ _type: 'catalog-repo' }),
   createCodeRepository: vi.fn().mockReturnValue({ _type: 'code-repo' }),
   createRateLimitRepository: vi.fn().mockReturnValue({ _type: 'ratelimit-repo' }),
+  createUserRepository: vi.fn().mockReturnValue({ _type: 'user-repo' }),
+  createAuthTokenRepository: vi.fn().mockReturnValue({ _type: 'authtoken-repo' }),
 }));
 vi.mock('@/services/projectService', () => ({
   ProjectService: vi.fn(function (this: { _type: string }) {
@@ -26,18 +28,30 @@ vi.mock('@/services/rateLimitService', () => ({
     this._type = 'RateLimitService';
   }),
 }));
+vi.mock('@/services/authService', () => ({
+  AuthService: vi.fn(function (this: { _type: string }) {
+    this._type = 'AuthService';
+  }),
+}));
+vi.mock('@/lib/email/emailService', () => ({
+  sendVerificationEmail: vi.fn(),
+  sendPasswordResetEmail: vi.fn(),
+}));
 
 import {
   createProjectService,
   createCatalogService,
   createDeployService,
   createRateLimitService,
+  createAuthService,
 } from '@/services/factory';
 import {
   createProjectRepository,
   createCatalogRepository,
   createCodeRepository,
   createRateLimitRepository,
+  createUserRepository,
+  createAuthTokenRepository,
 } from '@/repositories/factory';
 
 beforeEach(() => {
@@ -91,5 +105,18 @@ describe('createRateLimitService', () => {
   it('createRateLimitRepository를 인자 없이 호출한다', () => {
     createRateLimitService();
     expect(createRateLimitRepository).toHaveBeenCalledWith();
+  });
+});
+
+describe('createAuthService', () => {
+  it('returns an AuthService instance', () => {
+    const svc = createAuthService() as unknown as { _type: string };
+    expect(svc._type).toBe('AuthService');
+  });
+
+  it('repository 팩토리를 인자 없이 호출한다', () => {
+    createAuthService();
+    expect(createUserRepository).toHaveBeenCalledWith();
+    expect(createAuthTokenRepository).toHaveBeenCalledWith();
   });
 });
