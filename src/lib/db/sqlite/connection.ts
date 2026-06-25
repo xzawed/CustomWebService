@@ -43,6 +43,18 @@ export function getSqliteDb(): SqliteDb {
   return _db;
 }
 
+/**
+ * 싱글톤을 뒷받침하는 raw better-sqlite3 연결을 반환한다(없으면 초기화).
+ * 온라인 백업(`.backup()`)처럼 drizzle 래퍼가 노출하지 않는 기능에 접근할 때 사용한다.
+ */
+export function getSqliteRawConnection(): Database.Database {
+  getSqliteDb(); // 싱글톤 초기화 보장(DB_PROVIDER 가드도 여기서 적용)
+  if (!_raw) {
+    throw new Error('SQLite raw 연결이 초기화되지 않았습니다.');
+  }
+  return _raw;
+}
+
 /** 마이그레이션 적용 (부팅 시 또는 테스트 셋업). */
 export function runSqliteMigrations(db: SqliteDb, migrationsFolder = './drizzle/sqlite'): void {
   migrate(db, { migrationsFolder });

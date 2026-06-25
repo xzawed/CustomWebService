@@ -1,7 +1,7 @@
 # DB 제거 → 임베디드 SQLite 전환 (단일 사용자·셀프호스트) — WBS 계획
 
 - 날짜: 2026-06-22 (착수 2026-06-23, 완료 2026-06-23)
-- 상태: **✅ 완료 (2026-06-23 컷오버·배포 완료, 프로덕션 라이브)** — Phase 1~8 반영. 코드성 이연 2건: P5.2(verification cron 컨테이너 내부화) · P6.3(SQLite 백업 자동화). 진행 현황은 §0 참조.
+- 상태: **✅ 완료 (2026-06-23 컷오버·배포 완료, 프로덕션 라이브)** — Phase 1~8 반영. P6.3(SQLite 백업 자동화)는 2026-06-25 인프로세스 구현 완료. **코드성 이연 1건만 잔존**: P5.2(verification cron 컨테이너 내부화). 진행 현황은 §0 참조.
 - 근거: 정합성 감사(7차원 persistence surface) + 딥리서치(SQLite/Railway/Auth.js, 출처 포함) + 사용자 범위 결정 3건
 - 관련: [Supabase 사용 요소](../../../CLAUDE.md), provider 추상화([src/lib/config/providers.ts](../../../src/lib/config/providers.ts))
 
@@ -16,7 +16,7 @@
 | **Phase 3 — 직접-DB/RPC 정리** | ✅ 완료 (callback·repo `.rpc`는 Phase 8 이연) | `a9688f2`, `4b7b75a`, `768da35`, `7cddeef` |
 | **Phase 4 — 서빙/런타임 검증** | ✅ 완료 — P4.1 서빙 검증 + P4.3 외부 배포 통합은 컷오버 후 프로덕션 라이브로 검증됨 | (검증, 코드 무변경) |
 | **Phase 5 — 설정·번들 데이터 시드** | 🔵 P5.1·P5.3 완료, P5.2 이연 | `1ff1834` |
-| **Phase 6 — 인프라/배포** | ✅ P6.1·P6.2·P6.4 완료(docker 검증·supabase env 0 부팅은 P8.2로 충족), P6.3 이연(백업 자동화) | `c5adbdf` |
+| **Phase 6 — 인프라/배포** | ✅ P6.1~P6.4 완료(docker 검증·supabase env 0 부팅은 P8.2로 충족, P6.3 자동 백업은 2026-06-25 인프로세스 구현) | `c5adbdf` |
 | **Phase 7 — 테스트 정리** | 🔵 P7.2·P7.3 완료, P7.1·P7.4는 Phase 8 동반 | `c343ab0` |
 | **Phase 8 — 컷오버 + 정리** | ✅ **완료 (2026-06-23)** — 컷오버 + P8.2(supabase/pg/authjs 코드·의존 제거) + P8.3(문서) | `#162`·`#163`·`#164` → `28acede`+`4c528f3d`, 이후 P8.2/P8.3 |
 
@@ -40,7 +40,7 @@
   - **검증(docker build + run)**: 이미지 빌드 성공 → 컨테이너(`DB_PROVIDER=sqlite`+`AUTH_PROVIDER=local`, **supabase env 0개**) 부팅 → 부트스트랩이 볼륨에 마이그레이션+시드(`catalog=49·active=23·flags=7·users=1`) → `/api/v1/health` 200·`/dashboard` 307→`/login`·`/site/nope` 404·`/api/v1/catalog` 시드 서빙·부팅 에러 0. **P6.2 "supabase env 0 부팅" AC 충족**.
   - ⚠️ **테스트 함정**(코드 무관): Git Bash(MSYS)가 `docker run -e SQLITE_PATH=/data/app.db`의 `/data/...`를 `C:/Program Files/Git/...`로 변환 → "directory does not exist". `MSYS_NO_PATHCONV=1`로 우회(SQLITE_PATH 미지정 시 코드 기본값 `/data/app.db`는 문자열 리터럴이라 무영향).
   - **컷오버 빌드/런타임**: 빌드 `--build-arg NEXT_PUBLIC_AUTH_PROVIDER=local`(+기존 supabase args 불필요 시 빈 값), 런타임 env `DB_PROVIDER=sqlite`·`AUTH_PROVIDER=local`·`AUTH_SECRET`·`ADMIN_EMAIL`·`ADMIN_PASSWORD_HASH`. **Railway Volume을 `/data`에 마운트 필수**.
-  - **P6.2 잔여**: `@supabase/*` 의존 제거는 Phase 8(supabase 경로 제거와 함께). **P6.3 이연**(옵션 백업 크론) + P5.2 verification cron 컨테이너 내부화.
+  - **P6.2 잔여**: `@supabase/*` 의존 제거는 Phase 8(supabase 경로 제거와 함께)에서 완료. **P6.3 완료(2026-06-25)**: 인프로세스 주기 `.backup` 덤프 + 보관 정책(`src/lib/db/sqlite/backup.ts`, instrumentation 배선). 남은 이연은 P5.2 verification cron 컨테이너 내부화뿐.
 - **완료(Phase 7 — 테스트 정리, 컷오버 전 가능 범위)**: P7.2(인증·미들웨어 테스트)는 Phase 2에서 완료. P7.3 라우트 테스트 모킹 일관화 — Phase 3에서 getDbProvider를 추가한 라우트(test-generation·qc-stats·trigger-qc) 테스트(`admin-test-generation`·`admin`)에 `@/lib/config/providers` 모킹 추가(native pg cold-init 차단). **P7.1**(supabase/Drizzle 레포 테스트 → `:memory:` 단순화)·**P7.4**(factory/connection/failover 테스트 정리)는 **Phase 8에서 supabase/postgres 레포를 제거할 때 동반**(현재 supabase 레포는 프로덕션 경로라 테스트를 선제거하면 안 됨).
 - **🚦 현재 위치 = 컷오버 게이트**: Phase 1~6 + 검증(P4.1)·테스트 정리(P7.2/P7.3)까지 **프로덕션 무영향으로 완료**. sqlite/local 스택이 docker로 빌드·실행·검증됨. **Phase 8(컷오버)부터는 프로덕션 supabase 경로를 제거**하므로 "무영향" 불변식을 깨는 비가역 변경 — **사용자 승인 + Railway 볼륨 준비 후** 진행한다.
 - **컷오버 준비물 작성 완료(프로덕션 무변경)**: ① **단계별 런북** [docs/guides/sqlite-cutover-runbook.md](../../guides/sqlite-cutover-runbook.md)(볼륨·env·빌드인자·스위치·검증·롤백·P8.2 제거·백업). ② **데이터 이관 스크립트**(P8.1, 선택) `scripts/migrateSupabaseToSqlite.ts`(`pnpm cutover:migrate --out ./app.db [--user <id>]`) — self-contained(마이그레이션+카탈로그/플래그/관리자 시드+사용자 데이터 복사, user_id→단일 관리자 리맵). 산출 app.db를 볼륨 `/data`로 업로드. 둘 다 작성·type-check 통과, 실행은 사용자 컷오버 시점.
@@ -134,12 +134,12 @@
 | P5.2 | `verification_status` cron `--write` 경로를 SQLite write로 전환 | P5.1,P1.4 | S | cron이 SQLite 갱신 |
 | P5.3 | `feature_flags`(7) → SQLite 시드 또는 config 파일 | P1.2 | S | 플래그 읽기 동작 |
 
-### Phase 6 — 인프라/배포 (규모 M) — 🔵 P6.1·P6.4 완료(docker build+run 검증), P6.2 일부·P6.3 이연
+### Phase 6 — 인프라/배포 (규모 M) — ✅ P6.1~P6.4 완료 (P6.3 자동 백업 2026-06-25 구현)
 | ID | 작업 | 선행 | 규모 | AC |
 |---|---|---|---|---|
 | P6.1 | Dockerfile: `better-sqlite3` 네이티브 빌드(빌드 의존), 볼륨 경로, 부팅 시 마이그레이션 실행 | P1.2 | M | 컨테이너 부팅→마이그레이션→서비스 정상 |
 | P6.2 | 환경변수 정리(Supabase 제거), `DB_PROVIDER=sqlite`·`AUTH_PROVIDER` 단일화, supabase-js 의존 제거 | P3.3,P2.2 | S | Supabase env 0건에서 부팅 |
-| P6.3 | (옵션) Litestream 사이드카(S3 허용 시) 또는 주기 `.backup` 크론(자체보관) | P0.4 | M | 백업 산출물 생성·복구 리허설 |
+| P6.3 | ✅ 인프로세스 주기 `.backup` 덤프 + 보관 정책(`src/lib/db/sqlite/backup.ts`, instrumentation 배선, 2026-06-25). Litestream→S3는 향후 옵션 | P0.4 | M | 백업 산출물 생성·정리 단위 검증(22 테스트). 복구 리허설은 운영 시 |
 | P6.4 | `pnpm test:prod` standalone 헬스체크 + 배포 검증 | P6.1,P6.2 | S | 헬스 200, 핵심 플로우 동작 |
 
 ### Phase 7 — 테스트 재작성 (규모 L) — 🔵 P7.2·P7.3 완료, P7.1·P7.4는 Phase 8 동반(레포 제거 시)
