@@ -14,7 +14,9 @@
 > - REST Countries(v3.1 deprecated) 폐기
 > - 키 의존 7개(Unsplash·카카오 로컬/검색·공휴일·기상청 단기/중기·아파트 실거래가) — Railway env 키가 **빈 값(미설정)** 으로 확인되어 **비활성화**
 > - **현재 활성 23개**(전부 키 불필요·즉시 사용 가능): broken 0 · degraded 2(NASA·wheretheiss 지연) · 나머지 정상
-> ⚠️ "verified 우선 추천"은 현재 코드가 `verification_status`를 검색·추천에서 소비하지 않아 미적용(후속 과제). 상세: [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](../decisions/2026-06-21-api-catalog-health-monitoring.md)
+> ✅ "verified 우선 추천"은 **B-2(2026-06-22)로 구현 완료** — AI 추천(`POST /api/v1/suggest-apis`)이 `verification_status==='broken'` API를 후보에서 제외하고 `verified`에는 `[검증됨]` 배지로 우선 선택을 유도한다. 상세: [docs/decisions/2026-06-22-verification-status-consumption.md](../decisions/2026-06-22-verification-status-consumption.md)
+
+> **2026-06-25 주석**: 위 2026-06-21 메모의 `pnpm catalog:healthcheck` CLI와 Supabase cron은 SQLite 컷오버(P8.2)로 제거됨 — 헬스 모니터링은 배포 런타임 엔드포인트(`/api/v1/admin/qc-stats`·`keys-verify`)와 `ensureCatalog.ts` 멱등 정정으로 대체. 활성 API 수는 무료·키리스 12종 추가(#169) 후 증가했으며 정확한 수치는 `activeApiCount.ts`(동적 카운트)가 단일 출처.
 
 ---
 
