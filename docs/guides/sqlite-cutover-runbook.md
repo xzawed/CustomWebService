@@ -85,10 +85,15 @@ pnpm cutover:migrate --out ./app.db [--user <보존할_Supabase_user_id>]
 - 문서 전면 갱신(P8.3): `CLAUDE.md`(기술스택 표 Supabase→SQLite·아키텍처), `README`, `docs/reference/env-vars.md`.
 - 컷오버 ADR 작성(`docs/decisions/`).
 
-## 5. 운영 — 백업 (P6.3, 권장)
+## 5. 운영 — 백업 (P6.3, ✅ 구현됨 2026-06-25)
 
-- 자체보관 기본: Railway 볼륨 스냅샷 + 주기 SQLite `.backup` 덤프(컨테이너 내 크론 또는 사이드카).
-- (옵션) Litestream으로 WAL→S3 연속 복제(~1s 손실창, S3 의존).
+- **자동 인프로세스 백업**: 부팅 시 `instrumentation.register() → scheduleBackups`(`src/lib/db/sqlite/backup.ts`)가
+  주기적으로 `raw.backup()` 온라인 덤프를 `<SQLITE 디렉터리>/backups/app-YYYYMMDD-HHmmss.db`로 남기고,
+  `SQLITE_BACKUP_RETENTION`(기본 7)개만 보관(오래된 파일 자동 정리). 외부 의존·비용 없음.
+  - 환경변수: `SQLITE_BACKUP_ENABLED`(기본 true)·`SQLITE_BACKUP_INTERVAL_MS`(기본 24h)·`SQLITE_BACKUP_RETENTION`(기본 7)·`SQLITE_BACKUP_DIR`(기본 `/data/backups`). 상세: [env-vars.md](../reference/env-vars.md).
+  - **방어 범위**: 논리 손상·잘못된 마이그레이션·실수 삭제. **볼륨 자체 손실**은 Railway 볼륨 스냅샷이 담당.
+  - 복구: `cp /data/backups/app-<ts>.db /data/app.db`(서비스 중지 후) 또는 디버그 컨테이너에서 교체.
+- (옵션·향후) Litestream으로 WAL→S3 연속 복제(~1s 손실창, S3 의존·비용)로 오프-볼륨 DR 강화.
 - 크리티컬 쓰기 내구성은 이미 `synchronous=NORMAL` + 원자적 카운터(`BEGIN IMMEDIATE` 직렬화)로 확보.
 
 ## 6. 프로덕션 클린 리셋 (다중 사용자 전환 초기화)

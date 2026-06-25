@@ -42,7 +42,7 @@ src/
 │   ├── catalog/     # API 카탈로그 — healthCheck.ts(DB기반 라이브 검증 분류), keyCheck.ts(플랫폼 키 검증), activeApiCount.ts(활성 개수 동적 카운트 — 랜딩/카탈로그 마케팅 카피, 하드코딩 금지)
 │   ├── constants/   # 공용 상수 — cdn.ts (CSP CDN 화이트리스트, buildSiteCsp)
 │   ├── countries/   # 자체 호스팅 국가 데이터 API 로직 — transform(mledoze 변환), query(region/search 필터·코드 조회), types
-│   ├── db/          # 임베디드 SQLite — sqlite/(connection WAL/FK, schema 10테이블, migrator, bootstrap, seedCatalog, ensureCatalog), errors(UNIQUE 위반 감지)
+│   ├── db/          # 임베디드 SQLite — sqlite/(connection WAL/FK, schema 10테이블, migrator, bootstrap, seedCatalog, ensureCatalog, backup 주기 .backup 덤프+보관정책), errors(UNIQUE 위반 감지)
 │   ├── email/       # 이메일 발송 — emailService(sendVerificationEmail/sendPasswordResetEmail), Resend provider, no-op console fallback(RESEND_API_KEY 미설정 시)
 │   ├── deploy/      # 배포 관련
 │   ├── events/      # EventBus (pub/sub) + eventPersister (전체 이벤트 자동 DB 기록)
@@ -127,6 +127,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - `EMAIL_FROM` — 발신자 주소 (예: `noreply@xzawed.xyz`, `RESEND_API_KEY` 설정 시 필수. 빈 문자열 금지 — 발송 실패)
 - `APP_URL` — 이메일 링크(인증·재설정)의 공개 base URL (예: `https://xzawed.xyz`). 미설정 시 `NEXT_PUBLIC_ROOT_DOMAIN`→요청 origin 폴백. 프록시 뒤 0.0.0.0 링크 방지 + 호스트 헤더 미신뢰(reset poisoning 차단). 로직: `getBaseUrl`(`src/lib/auth/routeHelpers.ts`)
 - `SQLITE_PATH` — SQLite 파일 경로 (기본 `/data/app.db`, Railway Volume 마운트 필수)
+- `SQLITE_BACKUP_ENABLED`/`SQLITE_BACKUP_INTERVAL_MS`/`SQLITE_BACKUP_RETENTION`/`SQLITE_BACKUP_DIR` — 자동 SQLite 백업(P6.3). 부팅 시 `scheduleBackups`가 주기 `.backup` 덤프를 `<SQLITE 디렉터리>/backups/`에 남기고 최근 N개만 보관. 기본: enabled=true·24h·7개·`/data/backups`. 로직: `src/lib/db/sqlite/backup.ts` (상세: [env-vars.md](docs/reference/env-vars.md))
 - `NEXT_PUBLIC_ROOT_DOMAIN` (서브도메인 가상 호스팅)
 - `ANTHROPIC_API_KEY`
 - `ADMIN_API_KEY` — 관리자 API 인증 (QC 통계, 수동 QC 트리거)
@@ -261,6 +262,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - **SonarCloud vs Codecov 지표 불일치**: Codecov/Vitest는 `vitest.config.ts`의 `coverage.include` 범위(`src/lib/**`, `src/services/**`, `src/providers/**`, `src/repositories/**`, `src/components/**`)를 측정. SonarCloud는 전체 TypeScript를 더 넓게 측정할 수 있어 두 숫자는 구조적으로 차이가 날 수 있으며, 단순 설정 오류로 단정하지 않는다.
 - **temperature deprecated (Claude 4.x)**: Claude 4.x 모델(`claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`)은 `temperature` 파라미터를 지원하지 않음. ClaudeProvider에서 완전히 제거됨 (Extended Thinking 포함). `IAiPrompt.temperature` 필드는 legacy 호환용으로 유지하나 실제 API 호출에 사용하지 않음
 - **인메모리 rate limit 한계**: proxy의 Map 기반 리밋은 서버 재시작 시 초기화됨 (분당 카운터라 보안 영향 낮음). Railway 단일 인스턴스 전제 — 멀티 인스턴스 전환 시 Redis 등 외부 저장소 필요 (generationTracker와 동일 제약)
+- **SQLite 자동 백업 (P6.3, 인프로세스)**: `src/lib/db/sqlite/backup.ts`의 `scheduleBackups`가 `instrumentation.register()`에서 배선되어 주기적으로 `raw.backup()` 온라인 덤프를 `<SQLITE 디렉터리>/backups/app-YYYYMMDD-HHmmss.db`로 남기고 보관 정책(`SQLITE_BACKUP_RETENTION`, 기본 7)에 따라 오래된 파일을 정리한다. 타이머는 `.unref()`되어 종료를 막지 않고, `':memory:'`/비활성(`SQLITE_BACKUP_ENABLED=false`) 시 건너뛴다. **단일 인스턴스·동일 볼륨 전제** — 논리 손상·잘못된 마이그레이션·실수 삭제 방어용이며, 볼륨 자체 손실 대비(오프-볼륨 DR)는 Railway 볼륨 스냅샷 또는 Litestream→S3(옵션·비용) 담당. `selectBackupsToPrune`은 `app-<timestamp>.db` 패턴만 후보로 삼아 라이브 DB·WAL/SHM은 절대 삭제하지 않음
 - **배포/생성 레이트리밋 환불 (SQLite)**: 배포·생성 실패 시 `SqliteRateLimitRepository`가 일일 카운터를 in-process로 환불한다(`GREATEST(count-1, 0)`, 동기 트랜잭션). 과거 Supabase PG 함수(`decrement_daily_deploy`/`decrement_daily_generation`, migration 007/021)와 동일 보상 의미를 SQLite 레포 메서드로 재현 — `.rpc()` 호출 없음
 - **생성 상태 폴링 `not_found` 처리**: `/api/v1/generate/status`는 프로젝트 미존재·권한 없음 시 `status: 'not_found'`를 반환한다. `pollGenerationStatus`의 `GenerationStatusData.status` union에 `'not_found'`가 포함되어야 하며(누락 시 'unknown'으로 오처리되어 잘못된 사용자 메시지 표시), 전용 핸들러로 "프로젝트를 찾을 수 없습니다" 메시지를 낸다
 - **레이트리밋 우회 로깅**: `RATE_LIMIT_BYPASS_USER_IDS` 우회 적용 시 `logger.info('Rate limit bypass applied', ...)` 감사 로그를 남긴다(무로깅 우회는 운영 사각지대)

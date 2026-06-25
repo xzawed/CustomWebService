@@ -16,6 +16,17 @@
 |------|--------|---------|------|
 | `SQLITE_PATH` | `/data/app.db` | ➖ | SQLite DB 파일 경로. Railway 영속 볼륨 마운트 경로(`/data`)에 위치. 로컬 개발 시 별도 경로로 오버라이드 가능 |
 
+### 자동 백업 (P6.3)
+
+부팅 시 `instrumentation.ts → scheduleBackups`가 컨테이너 내에서 주기적으로 SQLite `.backup()` 온라인 덤프를 `<SQLITE 디렉터리>/backups/app-YYYYMMDD-HHmmss.db`로 남기고 보관 정책에 따라 오래된 파일을 정리한다. 외부 의존·비용 없음(단일 인스턴스·Railway 볼륨 전제). 로직: `src/lib/db/sqlite/backup.ts`. **논리 손상·잘못된 마이그레이션·실수 삭제 방어용**이며, 볼륨 자체 손실 대비는 Railway 볼륨 스냅샷이 담당(오프-볼륨 DR은 Litestream→S3 옵션, 비용 발생).
+
+| 변수 | 기본값 | Railway | 설명 |
+|------|--------|---------|------|
+| `SQLITE_BACKUP_ENABLED` | `true` | ➖ | `false`로 설정 시 자동 백업 비활성화 |
+| `SQLITE_BACKUP_INTERVAL_MS` | `86400000` (24h) | ➖ | 백업 주기(ms). 잘못된 값은 기본값으로 폴백 |
+| `SQLITE_BACKUP_RETENTION` | `7` | ➖ | 보관할 백업 개수(가장 최근 N개 유지, 나머지 삭제). 1 미만/비정수는 기본값으로 폴백 |
+| `SQLITE_BACKUP_DIR` | `<SQLITE_PATH 디렉터리>/backups` | ➖ | 백업 파일 디렉터리. 미설정 시 DB 파일과 같은 볼륨 하위 `backups/` |
+
 ---
 
 ## Auth (로컬 — Auth.js v5 Credentials)

@@ -1,7 +1,13 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import type DatabaseType from 'better-sqlite3';
-import { createSqliteConnection, runSqliteMigrations } from './connection';
+import {
+  createSqliteConnection,
+  runSqliteMigrations,
+  getSqliteDb,
+  getSqliteRawConnection,
+  resetSqliteConnection,
+} from './connection';
 import * as schema from './schema';
 
 let raw: DatabaseType.Database | undefined;
@@ -56,6 +62,37 @@ describe('SQLite 스키마 round-trip', () => {
 
     const found = db.select().from(schema.projects).where(eq(schema.projects.id, p.id)).all();
     expect(found).toHaveLength(1);
+  });
+});
+
+describe('getSqliteRawConnection', () => {
+  const prevProvider = process.env.DB_PROVIDER;
+  const prevPath = process.env.SQLITE_PATH;
+
+  afterEach(() => {
+    resetSqliteConnection();
+    if (prevProvider === undefined) delete process.env.DB_PROVIDER;
+    else process.env.DB_PROVIDER = prevProvider;
+    if (prevPath === undefined) delete process.env.SQLITE_PATH;
+    else process.env.SQLITE_PATH = prevPath;
+  });
+
+  it('returns the better-sqlite3 connection backing the singleton', () => {
+    process.env.DB_PROVIDER = 'sqlite';
+    process.env.SQLITE_PATH = ':memory:';
+    getSqliteDb();
+
+    const conn = getSqliteRawConnection();
+    expect(conn.open).toBe(true);
+    expect(conn.pragma('foreign_keys', { simple: true })).toBe(1);
+  });
+
+  it('initializes the singleton on first access if not yet created', () => {
+    process.env.DB_PROVIDER = 'sqlite';
+    process.env.SQLITE_PATH = ':memory:';
+
+    const conn = getSqliteRawConnection();
+    expect(conn.open).toBe(true);
   });
 
   it('foreign_keys 제약을 강제한다 (존재하지 않는 user_id)', () => {
