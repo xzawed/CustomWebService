@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { logger } from '@/lib/utils/logger';
 import {
   formatBackupTimestamp,
   selectBackupsToPrune,
@@ -232,5 +233,79 @@ describe('scheduleBackups', () => {
     );
     expect(scheduled).toBe(false);
     expect(() => stop()).not.toThrow();
+  });
+
+  it('uses real timers (unref + clearInterval) when timer deps are omitted', async () => {
+    let backups = 0;
+    // Only runFn is injected → default setIntervalFn/clearIntervalFn/now (real timers) are exercised.
+    // Large interval so the periodic tick never fires during the test; only the initial backup runs.
+    const stop = scheduleBackups(
+      {} as Database.Database,
+      { enabled: true, intervalMs: 1_000_000, retention: 7, dir: '/tmp/x' },
+      {
+        runFn: async () => {
+          backups++;
+          return { path: '/tmp/x/app.db', prunedCount: 0 };
+        },
+      }
+    );
+
+    expect(backups).toBe(1); // initial backup fired through the real schedule path
+    expect(() => stop()).not.toThrow(); // default clearIntervalFn clears the real interval
+  });
+
+  it('logs an error (without throwing) when a backup run rejects', async () => {
+    const errSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+
+    const stop = scheduleBackups(
+      {} as Database.Database,
+      { enabled: true, intervalMs: 1000, retention: 7, dir: '/tmp/x' },
+      {
+        runFn: async () => {
+          throw new Error('disk full');
+        },
+        setIntervalFn: () => 0,
+        clearIntervalFn: () => {},
+        now: () => new Date(0),
+      }
+    );
+
+    // flush the rejection-handling microtasks
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(errSpy).toHaveBeenCalledWith(
+      'SQLite backup failed',
+      expect.objectContaining({ error: 'disk full' })
+    );
+
+    stop();
+    errSpy.mockRestore();
+  });
+
+  it('stringifies non-Error rejections in the failure log', async () => {
+    const errSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+
+    const stop = scheduleBackups(
+      {} as Database.Database,
+      { enabled: true, intervalMs: 1000, retention: 7, dir: '/tmp/x' },
+      {
+        runFn: () => Promise.reject('boom'),
+        setIntervalFn: () => 0,
+        clearIntervalFn: () => {},
+        now: () => new Date(0),
+      }
+    );
+
+    // drain microtasks (rejection handler runs asynchronously)
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(errSpy).toHaveBeenCalledWith(
+      'SQLite backup failed',
+      expect.objectContaining({ error: 'boom' })
+    );
+
+    stop();
+    errSpy.mockRestore();
   });
 });
