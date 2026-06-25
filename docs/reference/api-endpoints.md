@@ -1030,3 +1030,34 @@ Authorization: Bearer <ADMIN_API_KEY>
 | 에러 코드 | HTTP | 설명 |
 |-----------|------|------|
 | `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
+
+### POST /api/v1/admin/verify-catalog
+활성 카탈로그 각 API의 GET 엔드포인트를 **배포 런타임에서 실제 호출**해 라이브 검증하고 `verification_status`를 갱신합니다(P5.2 — 컷오버로 제거된 CI cron의 대체). `working/degraded → verified`, `broken → broken`만, 그리고 **현재 값과 다를 때만** DB를 갱신하며, `key_gated`(키 의존 401/403)·`unknown`(예상치 못한 4xx)은 자동 판정 불가로 **기존 값을 보존**합니다(일시 장애·키 부재로 인한 오판 방지). 무인 스케줄러가 아닌 관리자 트리거 방식이라 플래핑·무인 outbound가 없습니다. 로직: [src/lib/catalog/verifyRunner.ts](../../src/lib/catalog/verifyRunner.ts).
+
+**Request:**
+```http
+POST /api/v1/admin/verify-catalog
+Authorization: Bearer <ADMIN_API_KEY>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "generatedAt": "2026-06-25T...",
+    "summary": { "checked": 36, "updated": 2, "unchanged": 30, "skipped": 4 },
+    "results": [
+      { "id": "...", "name": "JSONPlaceholder", "previous": "unverified", "health": "working", "next": "verified", "updated": true }
+    ]
+  }
+}
+```
+
+- `health`: `working` / `degraded`(느림·429) / `broken`(네트워크 실패·5xx·키리스 401·2xx 에러본문) / `key_gated`(키 의존 401/403) / `unknown`(예상치 못한 4xx)
+- `next`: 매핑된 `verification_status`(`verified`/`broken`) 또는 `null`(보존). `updated`: 실제 DB 변경 여부
+- `skipped`: 자동 판정 불가(`next=null` — key_gated/unknown/GET 엔드포인트 없음)
+
+| 에러 코드 | HTTP | 설명 |
+|-----------|------|------|
+| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
