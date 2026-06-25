@@ -200,6 +200,27 @@ function buildHeadInjections(html: string, safeCss: string): string {
   return parts.join('\n');
 }
 
+/** 너비/높이 속성을 (아직 없을 때만) 부여한다. */
+function withDimensions(attrs: string, width: string, height: string): string {
+  let out = attrs;
+  if (!/\bwidth\s*=/i.test(out)) out += ` width="${width}"`;
+  if (!/\bheight\s*=/i.test(out)) out += ` height="${height}"`;
+  return out;
+}
+
+/** picsum.photos URL에서 치수를 추출해 부여한다(매칭 없으면 원본 유지). */
+function addPicsumDimensions(attrs: string): string {
+  const sizeMatch = /picsum\.photos\/(?:seed\/[^/]+\/)?(\d+)\/(\d+)/i.exec(attrs);
+  return sizeMatch ? withDimensions(attrs, sizeMatch[1], sizeMatch[2]) : attrs;
+}
+
+/** Unsplash URL에서 치수를 추출해 부여한다(매칭 없으면 원본 유지). */
+function addUnsplashDimensions(attrs: string): string {
+  const unsplashWH =
+    /[?&]w=(\d+)&h=(\d+)/i.exec(attrs) || /source\.unsplash\.com\/(\d+)x(\d+)/i.exec(attrs);
+  return unsplashWH ? withDimensions(attrs, unsplashWH[1], unsplashWH[2]) : attrs;
+}
+
 /**
  * Process a single <img> tag's attributes: add lazy loading, decoding, and dimensions.
  * First 2 images (imgIndex ≤ 2) skip lazy loading (above the fold).
@@ -213,19 +234,9 @@ function processImgTag(attrs: string, imgIndex: number): string {
     newAttrs += ' decoding="async"';
   }
   if (/picsum\.photos/i.test(newAttrs)) {
-    const sizeMatch = /picsum\.photos\/(?:seed\/[^/]+\/)?(\d+)\/(\d+)/i.exec(newAttrs);
-    if (sizeMatch) {
-      if (!/\bwidth\s*=/i.test(newAttrs)) newAttrs += ` width="${sizeMatch[1]}"`;
-      if (!/\bheight\s*=/i.test(newAttrs)) newAttrs += ` height="${sizeMatch[2]}"`;
-    }
+    newAttrs = addPicsumDimensions(newAttrs);
   } else if (/images\.unsplash\.com/i.test(newAttrs) || /source\.unsplash\.com/i.test(newAttrs)) {
-    const unsplashWH =
-      /[?&]w=(\d+)&h=(\d+)/i.exec(newAttrs) ||
-      /source\.unsplash\.com\/(\d+)x(\d+)/i.exec(newAttrs);
-    if (unsplashWH) {
-      if (!/\bwidth\s*=/i.test(newAttrs)) newAttrs += ` width="${unsplashWH[1]}"`;
-      if (!/\bheight\s*=/i.test(newAttrs)) newAttrs += ` height="${unsplashWH[2]}"`;
-    }
+    newAttrs = addUnsplashDimensions(newAttrs);
   }
   return newAttrs;
 }

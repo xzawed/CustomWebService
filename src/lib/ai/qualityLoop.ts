@@ -29,22 +29,21 @@ export function hasFunctionalIssue(metrics: QualityMetrics): boolean {
   );
 }
 
+/** 재시도를 유발하는 렌더링 QC 체크 이름(실패 시 retry). */
+const BLOCKING_QC_CHECKS = ['consoleErrors', 'horizontalScroll', 'footerVisible', 'noLayoutOverlap'];
+
+/** 차단 대상 렌더링 QC 체크 중 하나라도 실패했는지. */
+function hasBlockingQcFailure(qcReport: QcReport): boolean {
+  return qcReport.checks.some((c) => BLOCKING_QC_CHECKS.includes(c.name) && !c.passed);
+}
+
 export function shouldRetryGeneration(
   metrics: QualityMetrics,
   qcReport?: QcReport | null
 ): boolean {
   if (metrics.structuralScore < QC_THRESHOLDS.QUALITY) return true;
   if (metrics.mobileScore < QC_THRESHOLDS.MOBILE) return true;
-  if (qcReport) {
-    const consoleCheck = qcReport.checks.find(c => c.name === 'consoleErrors');
-    const scrollCheck = qcReport.checks.find(c => c.name === 'horizontalScroll');
-    const footerCheck = qcReport.checks.find(c => c.name === 'footerVisible');
-    const overlapCheck = qcReport.checks.find(c => c.name === 'noLayoutOverlap');
-    if (consoleCheck && !consoleCheck.passed) return true;
-    if (scrollCheck && !scrollCheck.passed) return true;
-    if (footerCheck && !footerCheck.passed) return true;
-    if (overlapCheck && !overlapCheck.passed) return true;
-  }
+  if (qcReport && hasBlockingQcFailure(qcReport)) return true;
   if (hasFunctionalIssue(metrics)) return true;
   return false;
 }
