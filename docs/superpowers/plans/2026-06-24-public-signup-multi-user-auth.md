@@ -1,5 +1,7 @@
 # 공개 회원가입 + 다중 사용자 인증 Implementation Plan
 
+> **✅ 완료 (2026-06-24): Task 1~22 전부 구현·머지·배포됨** — PR #166(`feat/public-signup-multi-user`) + 후속 hotfix #167/#168/#169. 아래 체크박스(`- [ ]`)는 subagent-driven 실행 당시 미갱신 상태로 남았을 뿐이며 **실제 구현은 완료**다(신규 라우트 6종·페이지 5종, `users.password_hash`+`auth_tokens` 스키마, 단일 관리자 잔재 제거 모두 코드에 반영 확인). 잔여는 코드 외 사용자 작업 1건뿐 — 일반 사용자 공개가입 개방을 위한 Resend 도메인(`xzawed.xyz`) SPF/DKIM 인증 + `EMAIL_FROM=noreply@xzawed.xyz` 변경(DNS 작업). 배경: [ADR](../../decisions/2026-06-24-public-signup-multi-user-auth.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 단일 관리자(env 자격증명) 인증을 공개 셀프서비스 회원가입 + 계정별 완전 데이터 격리 모델로 전환한다.
