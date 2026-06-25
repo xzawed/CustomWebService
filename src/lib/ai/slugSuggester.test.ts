@@ -141,6 +141,33 @@ describe('suggestSlugs()', () => {
     expect(result).toEqual([]);
   });
 
+  it('유효 후보가 3개를 초과해도 최대 3개만 반환한다 (limit break)', async () => {
+    const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
+    vi.mocked(AiProviderFactory.createForTask).mockReturnValue(
+      makeProvider('["alpha-one", "beta-two", "gamma-three", "delta-four", "epsilon-five"]') as never,
+    );
+
+    const { suggestSlugs } = await import('./slugSuggester');
+    const result = await suggestSlugs({ context: '후보 다수 테스트' });
+
+    expect(result).toHaveLength(3);
+    expect(result).toEqual(['alpha-one', 'beta-two', 'gamma-three']);
+  });
+
+  it('비-Error 값으로 reject돼도 빈 배열 반환 (String(err) 경로)', async () => {
+    const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
+    vi.mocked(AiProviderFactory.createForTask).mockReturnValue({
+      name: 'claude',
+      model: 'claude-haiku-4-5',
+      generateCode: vi.fn().mockRejectedValue('문자열 에러'),
+      generateCodeStream: vi.fn(),
+      checkAvailability: vi.fn(),
+    } as never);
+
+    const { suggestSlugs } = await import('./slugSuggester');
+    await expect(suggestSlugs({ context: '문자열 에러 테스트' })).resolves.toEqual([]);
+  });
+
   it('pageTitle과 categoryHints 있을 때 user prompt에 포함됨', async () => {
     const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
     const mockProvider = makeProvider('["news-reader", "daily-news", "news-feed"]');
