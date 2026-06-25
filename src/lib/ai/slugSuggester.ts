@@ -31,21 +31,27 @@ function buildUserPrompt(input: SlugSuggestInput): string {
   return userParts.join('\n');
 }
 
-/** AI 응답 본문에서 JSON 배열을 추출한다. 미발견/파싱 실패 시 null(폴백 트리거). */
+/**
+ * AI 응답 본문에서 JSON 배열을 추출한다. 미발견/파싱 실패 시 null(폴백 트리거).
+ * 첫 `[`부터 그 뒤 첫 `]`까지를 후보로 삼는다. 정규식(`/\[[\s\S]*?\]/`) 대신
+ * 문자열 indexOf를 쓰는 이유: 백트래킹이 없어 super-linear(ReDoS) 위험이 없고 O(n)이다.
+ */
 function extractJsonArray(content: string): unknown[] | null {
-  const match = /\[[\s\S]*?\]/.exec(content);
-  if (!match) {
+  const start = content.indexOf('[');
+  const end = start === -1 ? -1 : content.indexOf(']', start);
+  if (start === -1 || end === -1) {
     logger.warn('slugSuggester: could not find JSON array in AI response', {
       content: content.slice(0, 200),
     });
     return null;
   }
+  const candidate = content.slice(start, end + 1);
   try {
-    const raw: unknown = JSON.parse(match[0]);
+    const raw: unknown = JSON.parse(candidate);
     if (!Array.isArray(raw)) throw new Error('Not an array');
     return raw;
   } catch {
-    logger.warn('slugSuggester: JSON parse failed', { raw: match[0].slice(0, 200) });
+    logger.warn('slugSuggester: JSON parse failed', { raw: candidate.slice(0, 200) });
     return null;
   }
 }
