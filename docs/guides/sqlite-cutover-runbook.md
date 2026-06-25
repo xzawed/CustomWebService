@@ -150,5 +150,5 @@ DELETE FROM users;
 ## 7. 알려진 잔여 / 주의 (원 §6)
 
 - **P4.3**: 배포 레이트리밋/환불·상태머신은 레포 단위 검증됨. 외부 배포(GitHub/Railway) 통합은 실배포에서 확인.
-- **P5.2**: `verification_status` 갱신 cron은 현재 CI→Supabase. sqlite 셀프호스트는 컨테이너 내부 검증으로 전환 필요(시드된 상태가 baseline).
+- **P5.2 (✅ 완료 2026-06-25)**: `verification_status` 라이브 갱신은 관리자 트리거 엔드포인트 `POST /api/v1/admin/verify-catalog`(ADMIN_API_KEY 보호, `src/lib/catalog/verifyRunner.ts`)로 구현. 배포 런타임에서 호출 시 활성 API GET 엔드포인트를 실제 검증해 `working/degraded→verified`·`broken→broken`만, 변경분만 DB 갱신(key_gated/unknown 보존). 무인 cron 대신 트리거를 채택해 일시 장애 플래핑·무인 outbound를 회피.
 - **단일 인스턴스 전제**: `generationTracker`·`proxyCache`·인메모리 레이트리밋·SQLite 단일 writer 모두 단일 인스턴스 가정. 수평 확장 시 외부 저장소 재이관 필요.
