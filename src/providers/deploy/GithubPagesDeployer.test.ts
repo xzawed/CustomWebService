@@ -8,6 +8,7 @@ vi.mock('@/lib/deploy/githubService', () => ({
   pushCode: vi.fn(),
   setSecrets: vi.fn(),
   enableGithubPages: vi.fn(),
+  deleteRepository: vi.fn(),
 }));
 
 vi.mock('@/lib/utils/logger', () => ({
@@ -175,12 +176,33 @@ describe('GithubPagesDeployer', () => {
   // deleteProject
   // ─────────────────────────────────────────────
   describe('deleteProject()', () => {
-    it('logger.warn을 호출하고 void를 반환한다', async () => {
-      const { logger } = await import('@/lib/utils/logger');
+    it('resolveRepo 결과로 github.deleteRepository를 호출한다', async () => {
+      mockGithub.deleteRepository.mockResolvedValue(undefined);
 
       await deployer.deleteProject('org/repo');
 
-      expect(logger.warn).toHaveBeenCalled();
+      expect(mockGithub.deleteRepository).toHaveBeenCalledWith('org/repo');
+    });
+
+    it('createProject로 등록된 name 키로도 삭제하고 repoMap에서 제거한다', async () => {
+      mockGithub.createRepository.mockResolvedValue({
+        repoUrl: 'https://github.com/org/svc-app',
+        fullName: 'org/svc-app',
+      });
+      mockGithub.deleteRepository.mockResolvedValue(undefined);
+
+      await deployer.createProject('app');
+      await deployer.deleteProject('app');
+
+      expect(mockGithub.deleteRepository).toHaveBeenCalledWith('org/svc-app');
+      // 맵에서 제거되어 이후 조회는 실패해야 한다
+      await expect(deployer.pushFiles('app', [])).rejects.toThrow('Repo not found for project: app');
+    });
+
+    it('github.deleteRepository 실패를 전파한다', async () => {
+      mockGithub.deleteRepository.mockRejectedValue(new Error('GitHub repo deletion failed: 403'));
+
+      await expect(deployer.deleteProject('org/repo')).rejects.toThrow('deletion failed: 403');
     });
   });
 

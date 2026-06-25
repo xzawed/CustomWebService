@@ -6,7 +6,7 @@ export class GithubPagesDeployer implements IDeployProvider {
   readonly name = 'github_pages';
   readonly supportedFeatures = ['static_only'] as const;
 
-  private repoMap = new Map<string, string>(); // projectId -> repoFullName
+  private readonly repoMap = new Map<string, string>(); // projectId -> repoFullName
 
   async createProject(name: string): Promise<{ projectId: string; repoUrl?: string }> {
     const repoName = `svc-${name}`;
@@ -68,10 +68,12 @@ export class GithubPagesDeployer implements IDeployProvider {
   }
 
   async deleteProject(projectId: string): Promise<void> {
-    // Deleting the repo is destructive; just log for now
-    logger.warn('GitHub Pages project deletion not implemented (requires repo deletion)', {
-      projectId,
-    });
+    const repoFullName = this.resolveRepo(projectId);
+    // GitHub repo 삭제는 비가역. 호출부(프로젝트 삭제 플로우)가 확인 게이트를 책임진다.
+    // 404(이미 없음)는 githubService가 멱등 처리한다.
+    await github.deleteRepository(repoFullName);
+    this.repoMap.delete(projectId);
+    logger.info('GitHub Pages project deleted', { projectId, repoFullName });
   }
 
   private resolveRepo(projectId: string): string {
