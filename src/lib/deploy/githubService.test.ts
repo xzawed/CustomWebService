@@ -381,3 +381,41 @@ describe('enableGithubPages()', () => {
     expect(body.source.path).toBe('/docs');
   });
 });
+
+// ── deleteRepository ────────────────────────────────────────────────────────
+
+describe('deleteRepository()', () => {
+  it('204 → DELETE /repos/:full_name 호출 후 정상 반환', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({}, 204));
+
+    const { deleteRepository } = await import('./githubService');
+    await expect(deleteRepository('test-org/svc-app')).resolves.toBeUndefined();
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe('https://api.github.com/repos/test-org/svc-app');
+    expect(init.method).toBe('DELETE');
+  });
+
+  it('404(이미 삭제됨) → 멱등 처리, 에러 throw 없음', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ message: 'Not Found' }, 404));
+
+    const { deleteRepository } = await import('./githubService');
+    await expect(deleteRepository('test-org/gone')).resolves.toBeUndefined();
+  });
+
+  it('403(권한 없음) → "GitHub repo deletion failed: 403" throw', async () => {
+    mockFetch.mockResolvedValueOnce(mockResponse({ message: 'Forbidden' }, 403));
+
+    const { deleteRepository } = await import('./githubService');
+    await expect(deleteRepository('test-org/svc-app')).rejects.toThrow(
+      'GitHub repo deletion failed: 403'
+    );
+  });
+
+  it('GITHUB_TOKEN 미설정 → "GITHUB_TOKEN is not set" throw', async () => {
+    vi.stubEnv('GITHUB_TOKEN', '');
+
+    const { deleteRepository } = await import('./githubService');
+    await expect(deleteRepository('test-org/svc-app')).rejects.toThrow('GITHUB_TOKEN is not set');
+  });
+});

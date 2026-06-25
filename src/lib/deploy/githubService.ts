@@ -60,6 +60,21 @@ export async function createRepository(
   };
 }
 
+export async function deleteRepository(repoFullName: string): Promise<void> {
+  const res = await fetch(`${GITHUB_API}/repos/${repoFullName}`, {
+    method: 'DELETE',
+    headers: getHeaders(),
+  });
+
+  // 204 = 삭제됨. 404 = 이미 없음 → 멱등 처리(성공으로 간주). 그 외는 에러.
+  if (!res.ok && res.status !== 404) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(`GitHub repo deletion failed: ${res.status} ${JSON.stringify(body)}`);
+  }
+
+  logger.info('GitHub repository deleted', { repoFullName, status: res.status });
+}
+
 export async function pushCode(repoFullName: string, files: FileEntry[]): Promise<void> {
   const headers = getHeaders();
 
