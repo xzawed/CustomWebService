@@ -186,4 +186,40 @@ describe('suggestSlugs()', () => {
     expect(callArgs.user).toContain('news');
     expect(callArgs.user).toContain('media');
   });
+
+  it('여러 줄(개행 포함) JSON 배열도 추출한다', async () => {
+    const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
+    vi.mocked(AiProviderFactory.createForTask).mockReturnValue(
+      makeProvider('[\n  "weather-app",\n  "daily-forecast",\n  "rain-checker"\n]') as never,
+    );
+
+    const { suggestSlugs } = await import('./slugSuggester');
+    const result = await suggestSlugs({ context: '개행 포함 응답' });
+
+    expect(result).toEqual(['weather-app', 'daily-forecast', 'rain-checker']);
+  });
+
+  it('닫는 대괄호가 없는 비정상 응답 → 빈 배열 (폴백)', async () => {
+    const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
+    vi.mocked(AiProviderFactory.createForTask).mockReturnValue(
+      makeProvider(`[${'a'.repeat(5000)}`) as never,
+    );
+
+    const { suggestSlugs } = await import('./slugSuggester');
+    const result = await suggestSlugs({ context: '닫는 괄호 없는 응답' });
+
+    expect(result).toEqual([]);
+  });
+
+  it('배열 앞 텍스트가 있어도 첫 배열을 추출한다 (첫 [ → 첫 ])', async () => {
+    const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
+    vi.mocked(AiProviderFactory.createForTask).mockReturnValue(
+      makeProvider('Here are the slugs: ["news-feed", "daily-news", "top-stories"]') as never,
+    );
+
+    const { suggestSlugs } = await import('./slugSuggester');
+    const result = await suggestSlugs({ context: '서두 텍스트 포함 응답' });
+
+    expect(result).toEqual(['news-feed', 'daily-news', 'top-stories']);
+  });
 });

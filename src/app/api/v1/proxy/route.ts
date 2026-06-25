@@ -193,7 +193,13 @@ async function buildSafeTargetUrl(
 
 async function resolveApiKey(
   apiId: string,
-  cfg: { param_name?: string; param_in?: string; env_var?: string },
+  cfg: {
+    param_name?: string;
+    param_in?: string;
+    env_var?: string;
+    prefix?: string;
+    header_prefix?: string;
+  },
   searchParams: URLSearchParams,
   headers: Record<string, string>,
   targetUrl: URL,
@@ -233,9 +239,15 @@ async function resolveApiKey(
   }
 
   if (resolvedKey && cfg.param_name) {
+    // 카탈로그 auth_config의 인증 스킴 prefix(카카오 "KakaoAK ", Unsplash "Client-ID ")를 적용한다.
+    // keyCheck.resolvePrefix와 동일한 우선순위(prefix → header_prefix). 단일 소스 중복을 피하려
+    // 인라인하되, env/사용자 키 값에 이미 prefix가 포함된 경우 이중 적용을 방지한다.
+    const prefix = cfg.prefix ?? cfg.header_prefix ?? '';
+    const injectedValue =
+      prefix && !resolvedKey.startsWith(prefix) ? `${prefix}${resolvedKey}` : resolvedKey;
     if (cfg.param_in === 'header') {
       // 가능하면 헤더 주입을 선호한다 (URL에 키가 남지 않음).
-      headers[cfg.param_name] = resolvedKey;
+      headers[cfg.param_name] = injectedValue;
     } else {
       // param_in='query': 업스트림 API가 쿼리 파라미터 인증만 지원하는 경우(예: 기상청/
       // OpenWeather의 serviceKey·appid). 이 경우 키가 요청 URL에 포함되어 업스트림 서버의
@@ -243,7 +255,7 @@ async function resolveApiKey(
       // 우리 측 방어: 이 URL은 fetch에만 사용되고 로깅/에러 메시지/응답 헤더로 노출되지 않는다
       // (proxy 라우트에 targetUrl 로깅 없음 확인). 키는 복호화된 평문이므로 헤더 인증이
       // 가능한 카탈로그 항목은 param_in='header'로 등록하는 것을 권장한다.
-      targetUrl.searchParams.set(cfg.param_name, resolvedKey);
+      targetUrl.searchParams.set(cfg.param_name, injectedValue);
     }
   }
 }
@@ -323,6 +335,8 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
       param_name?: string;
       param_in?: string;
       env_var?: string;
+      prefix?: string;
+      header_prefix?: string;
     };
     await resolveApiKey(apiId, cfg, searchParams, headers, targetUrl);
   }

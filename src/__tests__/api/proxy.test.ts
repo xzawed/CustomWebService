@@ -713,4 +713,108 @@ describe('GET /api/v1/proxy', () => {
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('API 키 prefix 적용 (auth_config.prefix/header_prefix)', () => {
+    const PREFIX_ENV = 'TEST_PROXY_PREFIX_KEY';
+
+    function makeKeyApi(authConfig: Record<string, unknown>) {
+      return { ...mockPublicApi, authType: 'api_key', authConfig };
+    }
+
+    async function wireApi(authConfig: Record<string, unknown>) {
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+      const { createCatalogRepository } = await import('@/repositories/factory');
+      vi.mocked(createCatalogRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue(makeKeyApi(authConfig)),
+      } as never);
+    }
+
+    afterEach(() => {
+      delete process.env[PREFIX_ENV];
+    });
+
+    it('header_prefix 선언 시 raw env 키에 prefix를 붙여 헤더로 주입한다 (카카오 KakaoAK)', async () => {
+      process.env[PREFIX_ENV] = 'rawkey123';
+      await wireApi({
+        param_name: 'Authorization',
+        param_in: 'header',
+        env_var: PREFIX_ENV,
+        header_prefix: 'KakaoAK ',
+      });
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+      const res = await GET(makeRequest(VALID_API_ID, '/search'));
+
+      expect(res.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'KakaoAK rawkey123' }),
+        }),
+      );
+    });
+
+    it('prefix 필드 선언 시에도 동일하게 적용한다 (Unsplash Client-ID)', async () => {
+      process.env[PREFIX_ENV] = 'unsplashkey';
+      await wireApi({
+        param_name: 'Authorization',
+        param_in: 'header',
+        env_var: PREFIX_ENV,
+        prefix: 'Client-ID ',
+      });
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+      const res = await GET(makeRequest(VALID_API_ID, '/photos'));
+
+      expect(res.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Client-ID unsplashkey' }),
+        }),
+      );
+    });
+
+    it('env 값에 이미 prefix가 포함된 경우 이중 적용하지 않는다', async () => {
+      process.env[PREFIX_ENV] = 'KakaoAK rawkey123';
+      await wireApi({
+        param_name: 'Authorization',
+        param_in: 'header',
+        env_var: PREFIX_ENV,
+        header_prefix: 'KakaoAK ',
+      });
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+      const res = await GET(makeRequest(VALID_API_ID, '/search'));
+
+      expect(res.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'KakaoAK rawkey123' }),
+        }),
+      );
+    });
+
+    it('prefix 미선언 API는 raw 키를 그대로 주입한다 (회귀 가드)', async () => {
+      process.env[PREFIX_ENV] = 'plainkey';
+      await wireApi({
+        param_name: 'X-API-Key',
+        param_in: 'header',
+        env_var: PREFIX_ENV,
+      });
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+      const res = await GET(makeRequest(VALID_API_ID, '/data'));
+
+      expect(res.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({ 'X-API-Key': 'plainkey' }),
+        }),
+      );
+    });
+  });
 });
