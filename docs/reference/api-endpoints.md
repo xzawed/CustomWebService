@@ -1061,3 +1061,30 @@ Authorization: Bearer <ADMIN_API_KEY>
 | 에러 코드 | HTTP | 설명 |
 |-----------|------|------|
 | `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
+
+### GET /api/v1/admin/catalog-dump
+프로덕션 `api_catalog` **전체 행(활성·비활성 포함)** 을 시드 동기화 diff용으로 덤프합니다. 공개 `GET /api/v1/catalog`는 활성 행만 반환하므로, 비활성(키 의존) 행까지 포함한 전체 파리티 검증에 사용합니다. `auth_config` 등 민감 필드는 제외한 **안전 투영**(id·name·category·authType·isActive·verificationStatus·verifiedAt·deprecatedAt·successorId·requiresProxy·apiVersion)만 반환하는 **읽기 전용** 진단입니다. 배포 런타임 전용(프로덕션 SQLite 읽기).
+
+**Request:**
+```http
+GET /api/v1/admin/catalog-dump
+Authorization: Bearer <ADMIN_API_KEY>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "generatedAt": "2026-06-29T...",
+    "summary": { "total": 61, "active": 36, "inactive": 25, "byVerificationStatus": { "verified": 30, "broken": 1, "key_gated": 24 } },
+    "items": [
+      { "id": "...", "name": "Countries (Self-hosted)", "category": "data", "authType": "none", "isActive": true, "verificationStatus": "verified", "verifiedAt": "2026-06-22T...", "deprecatedAt": null, "successorId": null, "requiresProxy": false, "apiVersion": "v1" }
+    ]
+  }
+}
+```
+
+| 에러 코드 | HTTP | 설명 |
+|-----------|------|------|
+| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
