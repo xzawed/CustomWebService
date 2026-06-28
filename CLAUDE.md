@@ -28,7 +28,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 ```
 src/
 ├── app/             # Next.js App Router (pages, layouts, API routes)
-│   ├── api/         # /api/v1/* REST endpoints (admin/ 하위 진단 라우트: debug, keys-verify, verify-catalog, qc-stats, test-generation, trigger-qc)
+│   ├── api/         # /api/v1/* REST endpoints (admin/ 하위 진단 라우트: debug, keys-verify, verify-catalog, catalog-dump, qc-stats, test-generation, trigger-qc)
 │   ├── (auth)/      # 인증 관련 페이지
 │   ├── (main)/      # 메인 페이지 그룹
 │   └── site/        # 서브도메인 서빙 ([slug])
