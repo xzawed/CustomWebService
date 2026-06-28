@@ -110,7 +110,7 @@ SonarCloud 32% → 50%+ 이상 끌어올리려면 `components/`, `app/`의 React
 
 우선순위 순:
 
-1. **`lib/ai/stageRunner.ts`** — Stage 실행 함수, evaluateComplexityScore와 유사하게 함수별 단위 테스트 가능
-2. **`lib/qc/qcChecks.ts` (현재 37%)** — 개별 체크 함수들은 DOM-free라 테스트 용이
-3. **`services/generationService.ts`** — 현재 커버되지 않은 브랜치 추가 가능
+1. ✅ **`lib/ai/stageRunner.ts`** — (해소됨) `stageRunner.test.ts`가 3개 Stage·progress 이벤트·ET 플래그·스로틀·취소·에러 전파를 포괄 검증
+2. ✅ **`lib/qc/qcChecks.ts`** — (해소됨, 2026-06-29) 37% → 86.6% 라인. `qcChecks.test.ts`가 12개 체크 함수를 Page 목으로 DOM 없이 검증(통과/실패/스킵/에러 분기 + interactiveBehavior 점수 매트릭스). 함수 커버리지가 낮게 보이는 것은 브라우저 내 실행 콜백(`page.evaluate`/`$$eval` 인자) 때문이며 목 기반 단위 테스트로는 불가피
+3. ✅ **서비스 레이어 미커버 분기** — (부분 해소, 2026-06-29) 원 항목 `services/generationService.ts`는 이후 `src/lib/ai/` 파이프라인 모듈로 리팩터되어 소멸. 대신 서비스 레이어의 실제 0% 갭이던 `services/rateLimitService.ts`를 100%로 커버(`rateLimitService.test.ts` — 우회/허용/80% 경고/한도초과/fail-open/보상감소 전 분기). 잔여 서비스 갭: `authService`·`deployService`·`projectService`(라우트 통합 테스트로 일부 간접 커버)
 4. **React 컴포넌트 테스트** — `@testing-library/react` 도입 시 SonarCloud 수치 극적 개선 가능 (단, ROI 고려 필요)
