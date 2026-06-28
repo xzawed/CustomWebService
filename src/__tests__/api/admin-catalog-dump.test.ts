@@ -99,4 +99,28 @@ describe('GET /api/v1/admin/catalog-dump', () => {
     expect(serialized).not.toContain('authConfig');
     expect(serialized).not.toContain('env_var');
   });
+
+  it('verificationStatus가 없는 행은 null로 투영하고 요약에 집계한다', async () => {
+    const noStatusItem = { ...activeItem, id: 'cat-nostatus', verificationStatus: undefined, verifiedAt: undefined };
+    findMany.mockResolvedValue({ items: [noStatusItem], total: 1 });
+    const { GET } = await import('@/app/api/v1/admin/catalog-dump/route');
+    const res = await GET(makeReq());
+    const body = await res.json();
+    expect(body.data.items[0].verificationStatus).toBeNull();
+    expect(body.data.summary.byVerificationStatus).toMatchObject({ null: 1 });
+  });
+
+  it('레포 오류 시 handleApiError로 위임한다(인증 통과 후)', async () => {
+    findMany.mockRejectedValue(new Error('db read fail'));
+    const { GET } = await import('@/app/api/v1/admin/catalog-dump/route');
+    const res = await GET(makeReq());
+    expect(res.status).toBeGreaterThanOrEqual(500);
+  });
+
+  it('OPTIONS 프리플라이트는 204 + CORS 헤더를 반환한다', async () => {
+    const { OPTIONS } = await import('@/app/api/v1/admin/catalog-dump/route');
+    const res = await OPTIONS();
+    expect(res.status).toBe(204);
+    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('GET');
+  });
 });
