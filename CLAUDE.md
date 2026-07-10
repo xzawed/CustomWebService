@@ -18,7 +18,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 | Form | React Hook Form + Zod |
 | Database | 임베디드 SQLite (better-sqlite3 + drizzle-orm, WAL · Railway Volume `/data/app.db`) |
 | Auth | Auth.js v5 (Credentials + JWT 무상태) — 공개 셀프서비스 회원가입, DB 사용자별 scrypt 인증, 이메일 인증 게이트 |
-| AI | Claude API (Anthropic SDK, claude-opus-4-7 기본, 조건부 Extended Thinking) |
+| AI | Claude API (Anthropic SDK, claude-opus-4-8 기본, 조건부 Extended Thinking) |
 | Testing | Vitest, happy-dom, MSW |
 | CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
 | Package Manager | pnpm |
@@ -136,7 +136,9 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - `GITHUB_TOKEN`, `RAILWAY_TOKEN` — 배포용
 - `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
 - `AI_MODEL_SUGGESTION` — 추천용 모델 (기본: `claude-haiku-4-5`)
-- `AI_MODEL_GENERATION` — 코드 생성 모델 (기본: `claude-opus-4-7`, Sonnet 폴백: `claude-sonnet-4-6`)
+- `AI_MODEL_GENERATION` — 코드 생성 모델 (기본: `claude-opus-4-8`, Sonnet 폴백: `claude-sonnet-4-6`)
+- `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` / `SLACK_WEBHOOK_URL` — 에러·알림 sink. **셋 다 미설정이면 프로덕션에 활성 에러 sink가 없다**(Sentry `enabled:false`, `sendSlackAlert` no-op) → `errorRateMonitor` 알림이 유실된다
+- `LOG_LEVEL` — 로그 상세도 (`debug`/`info`/`warn`/`error`, 기본 `info`)
 - `ET_COMPLEXITY_THRESHOLD` — Extended Thinking 활성화 임계값 (기본: 35점, `evaluateComplexityScore()` 결과 비교)
 - `QUALITY_LOOP_ITERATION_TIMEOUT_MS` — Quality Loop 반복당 타임아웃 (기본: 120000ms = 120초)
 - `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` — ET 활성화 시 Quality Loop 반복당 타임아웃 (기본: 200000ms = 200초). ET 응답이 최대 150초 소요되므로 일반 타임아웃(`QUALITY_LOOP_ITERATION_TIMEOUT_MS`)과 별도 설정
@@ -214,6 +216,16 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - 수정한 함수/파일을 호출하는 모든 경로를 나열하고 각각 검증
 - 단일 파일만 보고 끝내지 않고 cross-cutting concern(미들웨어, 공통 함수) 영향 확인
 
+### railway.toml `startCommand` 금지 (비root 실행 유지)
+- Railway는 **Dockerfile 배포에서 `startCommand`로 이미지의 `ENTRYPOINT`를 덮어쓴다**([공식 문서](https://docs.railway.com/deployments/start-command): *"the start command overrides the image's ENTRYPOINT in exec form"*)
+- `startCommand`를 지정하면 `Dockerfile`의 `/docker-entrypoint.sh`(→ `chown /data` + `su-exec nextjs:nodejs`)가 실행되지 않아 **컨테이너가 root로 뜬다**. Dockerfile에 `USER` 지시자가 없는 이유는 마운트 볼륨 쓰기 크래시 때문(의도적)
+- 기동 명령을 바꿔야 하면 `startCommand`가 아니라 `docker-entrypoint.sh`의 `exec su-exec ...` 줄을 고칠 것
+- 2026-07-10 수정 이력: `startCommand = "node server.js"` 제거로 비root 실행 복원
+
+### 클라이언트 IP 도출 규칙 (레이트리밋)
+- `x-forwarded-for`는 **최우측** 항목만 신뢰한다. 최좌측은 클라이언트가 위조할 수 있어 per-IP 리밋이 무력화된다
+- 단일 출처: `getClientIp()`(`src/lib/auth/rateLimit.ts`) — `adminAuth.verifyAdminKey()`와 동일 규칙. 새 리밋을 추가할 때 XFF를 직접 파싱하지 말 것
+
 ### QC 프로세스 (생성/재생성 공통)
 - **상세 절차**: [docs/guides/qc-process.md](docs/guides/qc-process.md) 참조 (8단계 표준 프로세스)
 - **파이프라인 설계**: [docs/architecture/ai-pipeline.md](docs/architecture/ai-pipeline.md) 참조 (3단계 Stage + Quality Loop)
@@ -247,7 +259,8 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 ## 타입 주의사항
 
 - `IAiProvider.tokensUsed` — `{ input: number; output: number }` 구조 (`inputTokens`/`outputTokens` 아님)
-- **Anthropic 모델 ID 주의**: 4.x 모델은 날짜 suffix 없이 사용 — `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`. 날짜 포함 ID(예: `claude-haiku-4-5-20251001`)는 404 반환 확인됨
+- **Anthropic 모델 ID 주의**: 4.x 모델은 날짜 suffix 없이 사용 — `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`, `claude-opus-4-8`. 날짜 포함 ID(예: `claude-haiku-4-5-20251001`)는 404 반환 확인됨
+- **모델 허용목록은 조용히 폴백한다**: `AI_MODEL_*` env가 `ALLOWED_CLAUDE_MODELS`(`AiProviderFactory.ts`)에 없으면 `logger.warn` 한 줄만 남기고 `TASK_DEFAULTS`로 폴백한다. 즉 **Railway env에 새 모델을 넣는 것만으로는 적용되지 않으며** 허용목록도 함께 고쳐야 한다. (2026-07-10: env가 `claude-opus-4-8`인데 허용목록에 없어 `opus-4-7`로 폴백 중이던 것을 발견·수정)
 - `AiProviderFactory.ts` 모델 ID 수정 시 `.test.ts`도 반드시 동시에 업데이트 (CI 파손 방지)
 - **JSON 필드명 이중성**: `parseEndpoints()`(`@/repositories/utils/endpointParser`, `SqliteCatalogRepository`가 사용) 같은 JSON 매퍼는 snake_case(`example_call`)와 camelCase(`exampleCall`) 둘 다 처리 필요 — 시드 JSON 직접 삽입 vs 코드 경로 차이
 - **Playwright 병렬 체크 주의**: 단일 `page` 인스턴스에서 `Promise.allSettled` 사용 시 viewport를 변경하는 체크는 반드시 다른 체크 완료 후 순차 실행 (`renderingQc.ts` 참고)

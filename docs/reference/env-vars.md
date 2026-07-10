@@ -54,8 +54,8 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 |------|------|---------|------|
 | `ANTHROPIC_API_KEY` | ✅ | ✅ | Claude API 키 |
 | `AI_PROVIDER` | 선택 | ➖ | AI Provider 선택. 현재 허용값은 `claude` 하나뿐 (기본). 그 외 값 설정 시 `AiProviderFactory.create()`가 `Unknown AI provider` 에러를 던짐. 코드 위치: `src/providers/ai/AiProviderFactory.ts` |
-| `AI_MODEL_SUGGESTION` | 선택 | ➖ | 컨텍스트 추천용 모델 (기본: `claude-haiku-4-5`). 허용값: `claude-haiku-4-5` · `claude-sonnet-4-6` · `claude-opus-4-6` · `claude-opus-4-7` |
-| `AI_MODEL_GENERATION` | 선택 | ➖ | 코드 생성용 모델 (기본: `claude-opus-4-7`). 허용값 동일. **주의**: 날짜 suffix 포함 ID(예: `claude-haiku-4-5-20251001`)는 Anthropic 404 반환 |
+| `AI_MODEL_SUGGESTION` | 선택 | ✅ `claude-haiku-4-5` | 컨텍스트 추천용 모델 (기본: `claude-haiku-4-5`). 허용값: `claude-haiku-4-5` · `claude-sonnet-4-6` · `claude-opus-4-6` · `claude-opus-4-7` · `claude-opus-4-8` |
+| `AI_MODEL_GENERATION` | 선택 | ✅ `claude-opus-4-8` | 코드 생성용 모델 (기본: `claude-opus-4-8`). 허용값 동일. **허용목록(`ALLOWED_CLAUDE_MODELS`)에 없는 값을 넣으면 경고 로그만 남기고 조용히 기본값으로 폴백**하므로, 모델 추가 시 `src/providers/ai/AiProviderFactory.ts`를 함께 수정할 것. **주의**: 날짜 suffix 포함 ID(예: `claude-haiku-4-5-20251001`)는 Anthropic 404 반환 |
 | `ET_COMPLEXITY_THRESHOLD` | 선택 | ➖ | Extended Thinking 활성화 복잡도 임계값 (기본: `35`). 0-100 점수 중 이 값 이상이면 ET 활성화. **빈 문자열 또는 0 이하 값 설정 시 기본값 35로 폴백** |
 
 ---
@@ -97,14 +97,21 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 
 ## 모니터링
 
+> ⚠️ **현재 프로덕션에는 활성 에러·알림 sink가 없다.** `SENTRY_DSN`·`NEXT_PUBLIC_SENTRY_DSN`·`SLACK_WEBHOOK_URL`이 모두 미설정이라
+> Sentry는 `enabled: false`로 부팅하고(`sentry.{server,client,edge}.config.ts`), `sendSlackAlert()`는 경고 로그만 남기고 반환한다.
+> 결과적으로 `errorRateMonitor`가 감지하는 **코드 생성 실패율 임계값 초과 알림이 아무 곳에도 전달되지 않는다.**
+> 실사용자 서비스이므로 최소 하나(Sentry DSN 또는 Slack Webhook)는 설정할 것을 권장한다.
+
 | 변수 | 필수 | Railway | 설명 |
 |------|------|---------|------|
-| `SENTRY_DSN` | 선택 | ❌ | Sentry 에러 수집 DSN (미설정 시 비활성화) |
+| `SENTRY_DSN` | 선택 | ❌ | Sentry 서버·edge 런타임 에러 수집 DSN. 미설정 시 `enabled: false`로 비활성화 |
+| `NEXT_PUBLIC_SENTRY_DSN` | 선택 | ❌ | Sentry **브라우저** 런타임 DSN (`sentry.client.config.ts`). 서버용 `SENTRY_DSN`과 별개로 설정해야 클라이언트 에러가 수집된다 |
 | `SENTRY_ORG` | 선택 | ❌ | Sentry 조직 슬러그 (소스맵 업로드용) |
 | `SENTRY_PROJECT` | 선택 | ❌ | Sentry 프로젝트 슬러그 |
 | `SENTRY_AUTH_TOKEN` | 선택 | ❌ | Sentry 소스맵 업로드 토큰 |
 | `SLACK_WEBHOOK_URL` | 선택 | ❌ | Slack 알림 Webhook URL. 미설정 시 알림 스킵. `slackAlert()` + `errorRateMonitor`에서 사용 |
 | `ERROR_RATE_ALERT_THRESHOLD` | 선택 | ➖ | 코드 생성 실패율 알림 임계값 (기본: `5`). 5분 윈도우 내 `CODE_GENERATION_FAILED` 횟수가 이 값 이상이면 Slack 알림 1회 발송 (윈도우 내 중복 알림 방지). 인메모리·단일 인스턴스 전제. 코드 위치: `src/lib/monitoring/errorRateMonitor.ts` |
+| `LOG_LEVEL` | 선택 | ➖ | 로그 상세도 임계값 (`debug`/`info`/`warn`/`error`, 기본 `info`). 이 값보다 낮은 레벨은 출력하지 않는다. 코드 위치: `src/lib/utils/logger.ts` |
 
 ---
 

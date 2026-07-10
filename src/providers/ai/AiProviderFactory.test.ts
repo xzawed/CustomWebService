@@ -7,7 +7,7 @@ vi.mock('./ClaudeProvider', () => ({
   ClaudeProvider: vi.fn(function(_apiKey: string, model?: string) {
     return {
       name: 'claude',
-      model: model ?? 'claude-opus-4-7',
+      model: model ?? 'claude-opus-4-8',
       generateCode: vi.fn(),
       generateCodeStream: vi.fn(),
       checkAvailability: vi.fn().mockResolvedValue({ available: true }),
@@ -74,7 +74,7 @@ describe('AiProviderFactory.createForTask()', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_PROVIDER;
     const provider = AiProviderFactory.createForTask('generation');
-    expect(provider.model).toBe('claude-opus-4-7');
+    expect(provider.model).toBe('claude-opus-4-8');
   });
 
   it('suggestion 태스크는 Haiku 모델을 사용한다', () => {
@@ -138,7 +138,21 @@ describe('AiProviderFactory.createForTask()', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_MODEL_GENERATION;
     const provider = AiProviderFactory.createForTask('generation');
-    expect(provider.model).toBe('claude-opus-4-7');
+    expect(provider.model).toBe('claude-opus-4-8');
+  });
+
+  it('AI_MODEL_GENERATION=claude-opus-4-8은 허용목록에 있어 그대로 사용된다', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    process.env.AI_MODEL_GENERATION = 'claude-opus-4-8';
+    const provider = AiProviderFactory.createForTask('generation');
+    expect(provider.model).toBe('claude-opus-4-8');
+  });
+
+  it('허용되지 않은 generation 모델은 기본값(opus-4-8)으로 폴백한다', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    process.env.AI_MODEL_GENERATION = 'claude-opus-4-8-20260101';
+    const provider = AiProviderFactory.createForTask('generation');
+    expect(provider.model).toBe('claude-opus-4-8');
   });
 
   it('모델이 다르면 다른 인스턴스를 반환한다', () => {
