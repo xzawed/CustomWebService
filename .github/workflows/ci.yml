@@ -79,18 +79,21 @@ jobs:
           NODE_ENV: test
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
           fail_ci_if_error: false
 
-      - name: SonarCloud Scan
+      # sonarcloud-github-action은 공식 deprecated(CI 로그에 경고 출력) → sonarqube-scan-action.
+      # 드롭인 대체이나 SonarCloud를 가리키려면 SONAR_HOST_URL을 명시해야 한다.
+      - name: SonarQube Scan
         if: github.actor != 'dependabot[bot]'
-        uses: SonarSource/sonarcloud-github-action@v5
+        uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e # v8.2.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
 
       - name: Upload coverage report
         if: always()
