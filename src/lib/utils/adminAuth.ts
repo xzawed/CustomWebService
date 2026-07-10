@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { getClientIp } from '@/lib/auth/rateLimit';
 import { ForbiddenError } from '@/lib/utils/errors';
 import { LRUMap } from '@/lib/utils/lruMap';
 import {
@@ -49,13 +50,8 @@ export function withAdminCors(response: Response): Response {
 }
 
 export function verifyAdminKey(request: Request): void {
-  // Rate limit check first
-  const forwarded = request.headers.get('x-forwarded-for');
-  const ip =
-    (forwarded ? forwarded.split(',').at(-1)?.trim() : null) ??
-    request.headers.get('x-real-ip') ??
-    'unknown';
-  checkRateLimit(ip);
+  // Rate limit check first. IP 도출은 getClientIp 단일 출처를 사용한다(XFF 최우측 — 위조 방지).
+  checkRateLimit(getClientIp(request));
 
   const header = request.headers.get('Authorization');
   if (!header?.startsWith('Bearer ')) {
