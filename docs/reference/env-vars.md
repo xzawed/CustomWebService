@@ -27,6 +27,24 @@
 | `SQLITE_BACKUP_RETENTION` | `7` | ➖ | 보관할 백업 개수(가장 최근 N개 유지, 나머지 삭제). 1 미만/비정수는 기본값으로 폴백 |
 | `SQLITE_BACKUP_DIR` | `<SQLITE_PATH 디렉터리>/backups` | ➖ | 백업 파일 디렉터리. 미설정 시 DB 파일과 같은 볼륨 하위 `backups/` |
 
+### 보존 정책 (무한 증가 테이블 정리)
+
+부팅 시 `instrumentation.ts → scheduleRetention`이 주기적으로 오래된 행을 삭제한다. `generated_codes`만 `pruneOldVersions()`로 정리되고 있었고, 아래 세 테이블은 삭제 경로가 전혀 없어 단조 증가했다(특히 `platform_events`는 EventBus의 **모든** 도메인 이벤트를 기록). 로직: `src/lib/db/sqlite/retention.ts`.
+
+**안전장치** — 삭제는 되돌릴 수 없으므로:
+- `auth_tokens`는 **만료됐거나 이미 사용된** 토큰만 지운다. 유효한 미사용 토큰은 아무리 오래돼도 보존한다(사용자의 이메일 인증·비밀번호 재설정 링크가 조용히 죽는 것을 방지).
+- `user_daily_limits`의 `usage_date` 비교는 **로컬 날짜** 기준이라 오늘 카운터가 지워지지 않는다.
+- 세 DELETE는 하나의 트랜잭션으로 묶여 부분 적용되지 않는다.
+- `0`·음수·비정수 값은 기본값으로 폴백한다(`EVENT_RETENTION_DAYS=0` 같은 오설정으로 전체 삭제되는 사고 방지).
+
+| 변수 | 기본값 | Railway | 설명 |
+|------|--------|---------|------|
+| `DB_RETENTION_ENABLED` | `true` | ➖ | `false`로 설정 시 보존 정책 비활성화 |
+| `DB_RETENTION_INTERVAL_MS` | `86400000` (24h) | ➖ | 정리 주기(ms) |
+| `EVENT_RETENTION_DAYS` | `90` | ➖ | `platform_events` 보존 일수. 이보다 오래된 감사 이벤트 삭제 |
+| `AUTH_TOKEN_RETENTION_DAYS` | `7` | ➖ | `auth_tokens` 유예 일수. 만료/사용된 지 이 기간이 지난 토큰만 삭제 |
+| `DAILY_LIMIT_RETENTION_DAYS` | `30` | ➖ | `user_daily_limits` 보존 일수 |
+
 ---
 
 ## Auth (로컬 — Auth.js v5 Credentials)
