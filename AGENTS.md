@@ -47,7 +47,7 @@ src/
 │   ├── generation/  # pollGenerationStatus — 생성 상태 폴링 (builder/page.tsx에서 추출, 주입형·단위 테스트 대상)
 │   ├── monitoring/  # slackAlert (Webhook 알림), errorRateMonitor (생성 실패율 임계값 감지)
 │   ├── i18n/        # 다국어 — t() 함수, ko.ts (한국어 메시지), types.ts (MessageKey)
-│   ├── qc/          # QC 로직 — browserPool, deepQcRunner, featureSmokeTest, qcChecks, renderingQc
+│   ├── qc/          # QC 로직 — browserPool, deepQcRunner, qcChecks, renderingQc (index.ts는 renderingQc만 export)
 │   ├── services/    # lib 레벨 유틸리티 서비스
 │   ├── templates/   # 코드 생성 템플릿 (lib 레벨)
 │   └── utils/       # 공통 유틸리티, 에러 클래스
@@ -235,7 +235,7 @@ pnpm keys:verify               # 플랫폼 API 키 설정 검증 (scripts/verify
 - **generationTracker 단일 인스턴스**: `src/lib/ai/generationTracker.ts`의 `generationTracker`는 모듈 레벨 싱글톤. TTL 차등: `generating` 30분, `completed`/`failed` 10분. Railway 단일 인스턴스 환경에서만 동작 — 멀티 인스턴스 배포 시 Redis 등 외부 저장소로 교체 필요
 - **생성 상태 폴링 추출**: `builder/page.tsx`의 SSE 폴백 폴링은 `src/lib/generation/pollGenerationStatus.ts`로 추출됨(주입형 `fetchFn`·`delay`·콜백, 단위 테스트 대상). `page.tsx`는 thin 래퍼. 상태 처리: `generating`→진행률 갱신, `completed`+result→완료, **`failed`→즉시 terminal 실패**(이전엔 maxAttempts까지 재시도하던 quirk를 교차검증 후 개선), `not_found`→프로젝트 미존재 메시지, 그 외(`unknown`)→연결 복구 실패 메시지
 - **모듈 레벨 상태가 있는 파일 테스트**: `let registered = false` 같은 모듈 레벨 플래그가 있는 파일은 테스트 간 상태 누출이 발생한다. `vi.resetModules()` + 매 테스트마다 `await import(...)` 동적 임포트로 격리한다 (`eventPersister.ts` 참고)
-- **api 라우트 테스트 — providers/supabase 모킹 불필요**: SQLite 컷오버(P8.2) 후 `@/lib/config/providers`는 상수만 반환하고 `failover`·`connection`(pg/drizzle-pg cold-init)은 제거됨. 과거 cold-init 차단용 `vi.mock('@/lib/config/providers'...)`·`vi.mock('@/lib/supabase/server'...)`는 전부 제거(잔존 시 미존재 모듈 모킹). `vitest.config.ts`의 `testTimeout`/`hookTimeout` 15000ms는 경합 마진으로 유지 — 배경: [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md)
+- **api 라우트 테스트 — providers/supabase 모킹 불필요**: SQLite 컷오버(P8.2) 후 `failover`·`connection`(pg/drizzle-pg cold-init)이 제거됐고, 상수만 반환하던 `@/lib/config/providers`도 2026-07-10 죽은 코드 정리로 **삭제됨**. 과거 cold-init 차단용 `vi.mock('@/lib/config/providers'...)`·`vi.mock('@/lib/supabase/server'...)`는 전부 제거(잔존 시 미존재 모듈 모킹). `vitest.config.ts`의 `testTimeout`/`hookTimeout` 15000ms는 경합 마진으로 유지 — 배경: [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md)
 - **happy-dom iframe 로드 노이즈 차단**: `vitest.config.ts`의 `environmentOptions.happyDOM.settings.navigation.disableChildFrameNavigation = true`로 iframe `src` 실제 로드를 막아 `DOMException NetworkError` 로그 flood를 차단함. v20에서 `disableIframePageLoading`은 deprecated이므로 사용 금지
 - **MSW `onUnhandledRequest:'error'`**: `src/test/setup.ts`가 미처리 요청을 즉시 실패시킴. 새 컴포넌트가 fetch하는 엔드포인트는 `src/test/mocks/handlers.ts`에 핸들러를 반드시 추가할 것. **caveat**: MSW `'error'`는 비동기 전파상 테스트를 항상 빨갛게 만들지는 않으므로(MSW #946/#943) 전체 통과가 "미처리 요청 부재"의 충분 증거는 아님
 - **SonarCloud vs Codecov 지표 불일치**: Codecov/Vitest는 `vitest.config.ts`의 `coverage.include` 범위(`src/lib/**`, `src/services/**`, `src/providers/**`, `src/repositories/**`, `src/components/**`)를 측정. SonarCloud는 전체 TypeScript를 더 넓게 측정할 수 있어 두 숫자는 구조적으로 차이가 날 수 있으며, 단순 설정 오류로 단정하지 않는다.

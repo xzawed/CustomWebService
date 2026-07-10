@@ -158,7 +158,7 @@ jobs:
           cat > /tmp/pr-body.md <<'EOF'
           ## Summary
           EOF
-          echo "${PR_BODY:-Automated fix by Claude CLI triggered via n8n}" >> /tmp/pr-body.md
+          echo "${PR_BODY:-Automated fix by Claude CLI (repository_dispatch)}" >> /tmp/pr-body.md
           cat >> /tmp/pr-body.md <<EOF
 
           ## Triggered by

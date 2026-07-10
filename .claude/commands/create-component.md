@@ -32,7 +32,7 @@
 ### 4. 상태 관리
 - 로컬 상태: `useState`, `useReducer`
 - 글로벌 상태: `src/stores/` 의 Zustand 스토어 사용
-- 폼: `react-hook-form` + `zod` 스키마
+- 폼: `useState` 로컬 상태 + 서버 측 `zod` 스키마 검증 (react-hook-form은 의존성에 없음)
 - 커스텀 훅: `src/hooks/` 확인 후 재사용 또는 새로 생성
 
 ### 5. 접근성

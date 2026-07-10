@@ -15,7 +15,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 | Framework | Next.js 16+ (App Router, TypeScript strict) |
 | UI | React 19, Tailwind CSS 4, Lucide React |
 | State | Zustand (분리 스토어 + persist middleware) |
-| Form | React Hook Form + Zod |
+| Form | React 로컬 상태(`useState`) + Zod (서버 검증) — React Hook Form 미사용 |
 | Database | 임베디드 SQLite (better-sqlite3 + drizzle-orm, WAL · Railway Volume `/data/app.db`) |
 | Auth | Auth.js v5 (Credentials + JWT 무상태) — 공개 셀프서비스 회원가입, DB 사용자별 scrypt 인증, 이메일 인증 게이트 |
 | AI | Claude API (Anthropic SDK, claude-opus-4-8 기본, 조건부 Extended Thinking) |
@@ -38,18 +38,18 @@ src/
 │   ├── ai/          # AI 파이프라인 — generationPipeline(오케스트레이터), stageRunner, generationSaver, qualityLoop, generationTracker
 │   ├── auth/        # 인증 — getAuthUser, local-auth*(Credentials+JWT, edge-safe 분할 base/edge), password(scrypt hashPassword/verifyPassword), tokens(auth_tokens 발급/검증), rateLimit(per-IP 스로틀), verifiedGuard(assertEmailVerified), authorize(assertOwner)
 │   ├── cache/       # proxyCache.ts — LRU+TTL 인메모리 캐시 (프록시 응답 서버사이드 캐시)
-│   ├── config/      # 환경변수 기반 설정 (features, providers, rateLimit, qc 등)
+│   ├── config/      # 환경변수 기반 설정 (features, rateLimit, qc, limits 등)
 │   ├── catalog/     # API 카탈로그 — healthCheck.ts(DB기반 라이브 검증 분류), verifyRunner.ts(라이브 검증 오케스트레이터·verification_status 갱신, admin 트리거), keyCheck.ts(플랫폼 키 검증), activeApiCount.ts(활성 개수 동적 카운트 — 랜딩/카탈로그 마케팅 카피, 하드코딩 금지)
 │   ├── constants/   # 공용 상수 — cdn.ts (CSP CDN 화이트리스트, buildSiteCsp)
 │   ├── countries/   # 자체 호스팅 국가 데이터 API 로직 — transform(mledoze 변환), query(region/search 필터·코드 조회), types
-│   ├── db/          # 임베디드 SQLite — sqlite/(connection WAL/FK, schema 10테이블, migrator, bootstrap, seedCatalog, ensureCatalog, backup 주기 .backup 덤프+보관정책), errors(UNIQUE 위반 감지)
+│   ├── db/          # 임베디드 SQLite — sqlite/(connection WAL/FK, schema 10테이블, migrator, bootstrap, seedCatalog, ensureCatalog, backup 주기 .backup 덤프+보관정책, retention 무한증가 테이블 정리), errors(UNIQUE 위반 감지)
 │   ├── email/       # 이메일 발송 — emailService(sendVerificationEmail/sendPasswordResetEmail), Resend provider, no-op console fallback(RESEND_API_KEY 미설정 시)
 │   ├── deploy/      # 배포 관련
 │   ├── events/      # EventBus (pub/sub) + eventPersister (전체 이벤트 자동 DB 기록)
 │   ├── generation/  # pollGenerationStatus — 생성 상태 폴링 (builder/page.tsx에서 추출, 주입형·단위 테스트 대상)
 │   ├── monitoring/  # slackAlert (Webhook 알림), errorRateMonitor (생성 실패율 임계값 감지)
 │   ├── i18n/        # 다국어 — t() 함수, ko.ts (한국어 메시지), types.ts (MessageKey)
-│   ├── qc/          # QC 로직 — browserPool, deepQcRunner, featureSmokeTest, qcChecks, renderingQc
+│   ├── qc/          # QC 로직 — browserPool, deepQcRunner, qcChecks, renderingQc (index.ts는 renderingQc만 export)
 │   ├── services/    # lib 레벨 유틸리티 서비스
 │   ├── templates/   # 코드 생성 템플릿 (lib 레벨)
 │   └── utils/       # 공통 유틸리티, 에러 클래스
@@ -269,13 +269,15 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - **generationTracker 단일 인스턴스**: `src/lib/ai/generationTracker.ts`의 `generationTracker`는 모듈 레벨 싱글톤. TTL 차등: `generating` 30분, `completed`/`failed` 10분. Railway 단일 인스턴스 환경에서만 동작 — 멀티 인스턴스 배포 시 Redis 등 외부 저장소로 교체 필요
 - **생성 상태 폴링 추출**: `builder/page.tsx`의 SSE 폴백 폴링은 `src/lib/generation/pollGenerationStatus.ts`로 추출됨(주입형 `fetchFn`·`delay`·콜백, 단위 테스트 대상). `page.tsx`는 thin 래퍼. 상태 처리: `generating`→진행률 갱신, `completed`+result→완료, **`failed`→즉시 terminal 실패**(이전엔 maxAttempts까지 재시도하던 quirk를 교차검증 후 개선), `not_found`→프로젝트 미존재 메시지, 그 외(`unknown`)→연결 복구 실패 메시지. 테스트는 DI-delay(즉시 resolve)로 결정적 검증, 기본 `setTimeout` 경로만 `vi.useFakeTimers()`+`runAllTimersAsync()`로 커버
 - **모듈 레벨 상태가 있는 파일 테스트**: `let registered = false` 같은 모듈 레벨 플래그가 있는 파일은 테스트 간 상태 누출이 발생한다. `vi.resetModules()` + 매 테스트마다 `await import(...)` 동적 임포트로 격리한다 (`eventPersister.ts` 참고)
-- **api 라우트 테스트 — providers/supabase 모킹 더 이상 불필요**: SQLite 컷오버(P8.2) 후 `@/lib/config/providers`는 상수만 반환하고 `@/lib/db/failover`·`@/lib/db/connection`(→pg/drizzle-pg native cold-init)은 제거됨. 과거 cold-init 차단용 `vi.mock('@/lib/config/providers', ...)`·`vi.mock('@/lib/supabase/server', ...)`는 전부 제거됨(잔존 시 존재하지 않는 모듈 모킹). `vitest.config.ts`의 `testTimeout`/`hookTimeout` 15000ms 상향은 경합 마진으로 유지 — 배경: [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md)
+- **api 라우트 테스트 — providers/supabase 모킹 더 이상 불필요**: SQLite 컷오버(P8.2) 후 `@/lib/db/failover`·`@/lib/db/connection`(→pg/drizzle-pg native cold-init)이 제거됐고, 상수만 반환하던 `@/lib/config/providers`도 2026-07-10 죽은 코드 정리로 **삭제됨**. 과거 cold-init 차단용 `vi.mock('@/lib/config/providers', ...)`·`vi.mock('@/lib/supabase/server', ...)`는 전부 제거됨(잔존 시 존재하지 않는 모듈 모킹). `vitest.config.ts`의 `testTimeout`/`hookTimeout` 15000ms 상향은 경합 마진으로 유지 — 배경: [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md)
 - **happy-dom iframe 로드 노이즈 차단**: `vitest.config.ts`의 `environmentOptions.happyDOM.settings.navigation.disableChildFrameNavigation = true`로 iframe `src` 실제 로드를 막아 `DOMException NetworkError` 로그 flood를 차단함. v20에서 `disableIframePageLoading`은 deprecated이므로 사용 금지. `disableFallbackToSetURL`(기본 false) 보존으로 `iframe.src` 속성은 그대로 반영되어 단언에는 무영향
 - **MSW `onUnhandledRequest:'error'`**: `src/test/setup.ts`가 미처리 요청을 즉시 실패시킴(향후 자동 fetch 컴포넌트 테스트의 무성 hang 예방). 새 컴포넌트가 fetch하는 엔드포인트는 `src/test/mocks/handlers.ts`에 핸들러를 반드시 추가할 것 (현재 Anthropic·`*/api/v1/preview/:id`·`*/api/v1/generate/status/:projectId` 커버). **caveat**: MSW `'error'`는 비동기 전파상 테스트를 항상 빨갛게 만들지는 않으므로(MSW #946/#943) 전체 통과가 "미처리 요청 부재"의 충분 증거는 아님
-- **SonarCloud vs Codecov 지표 불일치**: Codecov/Vitest는 `vitest.config.ts`의 `coverage.include` 범위(`src/lib/**`, `src/services/**`, `src/providers/**`, `src/repositories/**`, `src/components/**`)를 측정. SonarCloud는 전체 TypeScript를 더 넓게 측정할 수 있어 두 숫자는 구조적으로 차이가 날 수 있으며, 단순 설정 오류로 단정하지 않는다.
+- **SonarCloud vs Codecov 지표 불일치**: Codecov/Vitest는 `vitest.config.ts`의 `coverage.include` 범위(`src/lib/**`, `src/services/**`, `src/providers/**`, `src/repositories/**`, `src/components/**`, `src/types/**`, `src/hooks/**` + **선별된 app 라우트 화이트리스트**)만 측정. SonarCloud는 `sonar.sources=src` 전체를 측정한다. 두 숫자는 구조적으로 차이가 나며 단순 설정 오류로 단정하지 않는다.
+- **`coverage.include`에 없는 파일을 수정하면 CI가 빨개진다 (2026-07-10 실증)**: lcov에 데이터가 없는 파일의 변경 라인은 SonarCloud `new_coverage`와 `codecov/patch`에서 **0%로 계산**된다(파일이 무시되는 게 아니다). 라우트를 수정하면서 테스트를 붙였다면 `vitest.config.ts`의 `coverage.include`에도 **반드시 추가**할 것. 단위 테스트 대상이 아닌 파일(`src/instrumentation.ts` 등)은 `sonar-project.properties`의 `sonar.coverage.exclusions`와 `codecov.yml`의 `ignore`에 **양쪽 다** 등록해야 한다(한쪽만 하면 다른 쪽이 실패).
 - **temperature deprecated (Claude 4.x)**: Claude 4.x 모델(`claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`)은 `temperature` 파라미터를 지원하지 않음. ClaudeProvider에서 완전히 제거됨 (Extended Thinking 포함). `IAiPrompt.temperature` 필드는 legacy 호환용으로 유지하나 실제 API 호출에 사용하지 않음
 - **인메모리 rate limit 한계**: proxy의 Map 기반 리밋은 서버 재시작 시 초기화됨 (분당 카운터라 보안 영향 낮음). Railway 단일 인스턴스 전제 — 멀티 인스턴스 전환 시 Redis 등 외부 저장소 필요 (generationTracker와 동일 제약)
 - **SQLite 자동 백업 (P6.3, 인프로세스)**: `src/lib/db/sqlite/backup.ts`의 `scheduleBackups`가 `instrumentation.register()`에서 배선되어 주기적으로 `raw.backup()` 온라인 덤프를 `<SQLITE 디렉터리>/backups/app-YYYYMMDD-HHmmss.db`로 남기고 보관 정책(`SQLITE_BACKUP_RETENTION`, 기본 7)에 따라 오래된 파일을 정리한다. 타이머는 `.unref()`되어 종료를 막지 않고, `':memory:'`/비활성(`SQLITE_BACKUP_ENABLED=false`) 시 건너뛴다. **단일 인스턴스·동일 볼륨 전제** — 논리 손상·잘못된 마이그레이션·실수 삭제 방어용이며, 볼륨 자체 손실 대비(오프-볼륨 DR)는 Railway 볼륨 스냅샷 또는 Litestream→S3(옵션·비용) 담당. `selectBackupsToPrune`은 `app-<timestamp>.db` 패턴만 후보로 삼아 라이브 DB·WAL/SHM은 절대 삭제하지 않음
+- **DB 보존 정책 (무한 증가 테이블)**: `src/lib/db/sqlite/retention.ts`의 `scheduleRetention`이 `instrumentation.register()`에서 백업 스케줄러와 나란히 배선된다(주기 기본 24h, `.unref()`, `':memory:'`·`DB_RETENTION_ENABLED=false` 시 스킵). `generated_codes`만 `pruneOldVersions()`로 정리되고 `platform_events`(모든 도메인 이벤트)·`auth_tokens`·`user_daily_limits`는 삭제 경로가 없어 단조 증가하던 것을 해소. **되돌릴 수 없는 삭제이므로 안전장치 필수**: ① `auth_tokens`는 만료(`expires_at`)됐거나 사용된(`consumed_at`) 토큰만 삭제 — **유효한 미사용 토큰은 절대 삭제 금지**(인증·재설정 링크가 조용히 죽음), ② `user_daily_limits.usage_date`는 로컬 `YYYY-MM-DD`라 cutoff도 `localDateCutoff`(로컬 기준)를 써야 함(UTC로 자르면 타임존에 따라 오늘 카운터 삭제), ③ 세 DELETE는 단일 트랜잭션, ④ `0`·음수·비정수 env는 기본값 폴백(전체 삭제 사고 방지)
 - **배포/생성 레이트리밋 환불 (SQLite)**: 배포·생성 실패 시 `SqliteRateLimitRepository`가 일일 카운터를 in-process로 환불한다(`GREATEST(count-1, 0)`, 동기 트랜잭션). 과거 Supabase PG 함수(`decrement_daily_deploy`/`decrement_daily_generation`, migration 007/021)와 동일 보상 의미를 SQLite 레포 메서드로 재현 — `.rpc()` 호출 없음
 - **생성 상태 폴링 `not_found` 처리**: `/api/v1/generate/status`는 프로젝트 미존재·권한 없음 시 `status: 'not_found'`를 반환한다. `pollGenerationStatus`의 `GenerationStatusData.status` union에 `'not_found'`가 포함되어야 하며(누락 시 'unknown'으로 오처리되어 잘못된 사용자 메시지 표시), 전용 핸들러로 "프로젝트를 찾을 수 없습니다" 메시지를 낸다
 - **레이트리밋 우회 로깅**: `RATE_LIMIT_BYPASS_USER_IDS` 우회 적용 시 `logger.info('Rate limit bypass applied', ...)` 감사 로그를 남긴다(무로깅 우회는 운영 사각지대)
