@@ -71,7 +71,8 @@ export const deploySchema = z.object({
 // ── 사용자 API 키 ─────────────────────────────────────────────────────────────
 export const saveKeySchema = z.object({
   apiId: z.string().uuid(),
-  apiKey: z.string().min(1).max(500),
+  // trim()을 min() 앞에 두어 공백만 있는 키('   ')가 통과 후 빈 문자열로 저장되는 것을 막는다.
+  apiKey: z.string().trim().min(1).max(500),
 });
 
 // ── 생성 옵션 추천 ─────────────────────────────────────────────────────────────
