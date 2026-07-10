@@ -3,7 +3,6 @@ import { t } from '@/lib/i18n';
 
 // ── 재사용 단위 ──────────────────────────────────────────────────────────────
 export const projectIdSchema = z.string().uuid({ error: t('error.validation') });
-export const slugSchema = z.string().min(1).max(63);
 
 // ── 프로젝트 ─────────────────────────────────────────────────────────────────
 export const createProjectSchema = z.object({
@@ -26,10 +25,6 @@ export const rollbackSchema = z.object({
 
 export const slugCheckSchema = z.object({
   slug: z.string().min(1),
-});
-
-export const publishSchema = z.object({
-  slug: z.string().optional(),
 });
 
 // ── 코드 생성 ─────────────────────────────────────────────────────────────────
