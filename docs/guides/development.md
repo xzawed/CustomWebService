@@ -67,7 +67,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 // 2. 외부 라이브러리
-import { useDraggable } from '@dnd-kit/core';
+import { Sparkles } from 'lucide-react';
 
 // 3. 내부 모듈 (절대 경로)
 import { Button } from '@/components/ui/button';

@@ -47,6 +47,9 @@ function makeDetailedRequest(): Request {
 describe('GET /api/v1/health', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // adminAuth의 rateLimitMap은 모듈 레벨 LRUMap이라 테스트 간 카운터가 누적된다.
+    // resetModules로 매 테스트마다 새 모듈 인스턴스를 받아 순서 의존성을 제거한다.
+    vi.resetModules();
     process.env.ADMIN_API_KEY = TEST_ADMIN_KEY;
   });
 
@@ -88,8 +91,9 @@ describe('GET /api/v1/health', () => {
   });
 
   it('공개 health 요청은 관리자 레이트리밋 버킷을 소모하지 않는다', async () => {
-    // 공개 요청을 한도 이상 반복해도, 이후 정상 관리자 요청이 상세 응답을 받아야 한다.
-    // (isAdminAuthorized가 detailed 요청에서만 호출되기 때문)
+    // 공개 요청을 한도(RATE_LIMIT_PER_MIN 기본 60) 이상 반복해도,
+    // 이후 정상 관리자 요청이 상세 응답을 받아야 한다.
+    // (checkAdminAuth가 detailed 요청에서만 호출되기 때문)
     const { GET } = await import('@/app/api/v1/health/route');
     const publicIp = { 'x-forwarded-for': '203.0.113.77' };
     for (let i = 0; i < 120; i++) {
@@ -102,7 +106,51 @@ describe('GET /api/v1/health', () => {
       })
     );
     const body = await response.json();
+    expect(response.status).toBe(200);
     expect(body.checks).toBeDefined();
+  });
+
+  it('레이트리밋에 걸린 정상 관리자는 429를 받는다 (공개 ok로 은폐하지 않음)', async () => {
+    // 올바른 키로 한도를 초과하면, 조용히 status:'ok'를 돌려주어 실제 unhealthy를
+    // 은폐하는 대신 명시적으로 429를 반환해야 한다.
+    const { GET } = await import('@/app/api/v1/health/route');
+    const ip = { 'x-forwarded-for': '203.0.113.90' };
+    const detailed = (): Request =>
+      new Request('http://localhost/api/v1/health?detailed=true', {
+        headers: { Authorization: `Bearer ${TEST_ADMIN_KEY}`, ...ip },
+      });
+
+    let rateLimited: Response | null = null;
+    for (let i = 0; i < 70; i++) {
+      const res = await GET(detailed());
+      if (res.status === 429) {
+        rateLimited = res;
+        break;
+      }
+    }
+
+    expect(rateLimited).not.toBeNull();
+    expect(rateLimited!.headers.get('Retry-After')).toBe('60');
+    const body = await rateLimited!.json();
+    expect(body.status).toBe('rate_limited');
+    // 은폐 금지: 'ok'로 위장하지 않는다.
+    expect(body.status).not.toBe('ok');
+  });
+
+  it('레이트리밋에 걸린 잘못된 키는 여전히 공개 응답으로 폴백하지 않고 429를 받는다', async () => {
+    // 한도 검사가 키 검증보다 먼저 수행되므로, 익명 스팸도 429를 받는다(브루트포스 억제).
+    const { GET } = await import('@/app/api/v1/health/route');
+    const ip = { 'x-forwarded-for': '203.0.113.91' };
+    let last: Response | null = null;
+    for (let i = 0; i < 70; i++) {
+      last = await GET(
+        new Request('http://localhost/api/v1/health?detailed=true', {
+          headers: { Authorization: 'Bearer wrong-key', ...ip },
+        })
+      );
+      if (last.status === 429) break;
+    }
+    expect(last!.status).toBe(429);
   });
 
   it('DB 연결 정상 시 healthy 또는 degraded 상태를 반환한다', async () => {

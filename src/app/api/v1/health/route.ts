@@ -1,5 +1,5 @@
 import { getLimits } from '@/lib/config/features';
-import { isAdminAuthorized } from '@/lib/utils/adminAuth';
+import { checkAdminAuth } from '@/lib/utils/adminAuth';
 import { createCatalogRepository } from '@/repositories/factory';
 
 export const dynamic = 'force-dynamic';
@@ -17,9 +17,21 @@ export async function GET(request: Request): Promise<Response> {
   // 업타임 모니터 같은 공개 트래픽이 관리자 레이트리밋 버킷을 소모하지 않는다.
   if (!wantsDetailed) return publicStatus();
 
-  // 인증 실패는 403이 아니라 공개 응답으로 폴백한다(엔드포인트 존재 여부를 노출하지 않음).
-  // isAdminAuthorized는 timing-safe 비교 + per-IP 레이트리밋을 적용한다.
-  if (!isAdminAuthorized(request)) return publicStatus();
+  // checkAdminAuth는 timing-safe 비교 + per-IP 레이트리밋을 적용한다.
+  const auth = checkAdminAuth(request);
+
+  // 한도 초과는 **반드시 명시적으로 알린다.** 공개 응답(status:'ok')으로 폴백하면 올바른 키를
+  // 가진 관리자가 조용히 정상 상태를 통보받아 실제 unhealthy가 은폐된다. 인시던트 대응 런북이
+  // 이 엔드포인트를 반복 호출하는 경로라 실제 위험이다(docs/security/incident-response.md).
+  if (auth === 'rate_limited') {
+    return Response.json(
+      { status: 'rate_limited', timestamp: new Date().toISOString() },
+      { status: 429, headers: { 'Retry-After': '60' } }
+    );
+  }
+
+  // 인증 실패는 403이 아니라 공개 응답으로 폴백한다(상세 엔드포인트 존재 여부를 노출하지 않음).
+  if (auth === 'unauthorized') return publicStatus();
 
   const checks: Record<string, string> = {};
   const usage: Record<string, unknown> = {};

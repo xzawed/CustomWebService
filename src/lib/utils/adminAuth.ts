@@ -15,6 +15,13 @@ const _HMAC_KEY = crypto.randomBytes(32);
 // LRUMap으로 활성 IP 한도 초과 시 자동 evict (메모리 누적 차단)
 const rateLimitMap = new LRUMap<string, { count: number; resetAt: number }>(MAX_CONCURRENT_RATE_LIMIT_USERS);
 
+/**
+ * 레이트리밋 초과 전용 에러. `ForbiddenError`를 상속하므로 기존 admin 라우트의
+ * 403 응답 동작은 그대로 유지되고, `checkAdminAuth()`만 타입으로 인증 실패와 구분한다.
+ * (메시지 문자열 매칭은 취약하므로 쓰지 않는다.)
+ */
+class AdminRateLimitError extends ForbiddenError {}
+
 function checkRateLimit(ip: string): void {
   const now = Date.now();
   const entry = rateLimitMap.get(ip);
@@ -26,7 +33,7 @@ function checkRateLimit(ip: string): void {
   }
   entry.count++;
   if (entry.count > RATE_LIMIT_PER_MIN) {
-    throw new ForbiddenError('요청 한도 초과 — 잠시 후 다시 시도하세요');
+    throw new AdminRateLimitError('요청 한도 초과 — 잠시 후 다시 시도하세요');
   }
 }
 
@@ -68,6 +75,9 @@ export function verifyAdminKey(request: Request): void {
   }
 }
 
+/** `checkAdminAuth()`의 결과. 레이트리밋을 인증 실패와 반드시 구분한다. */
+export type AdminAuthResult = 'authorized' | 'unauthorized' | 'rate_limited';
+
 /**
  * verifyAdminKey의 비-throw 변형. 관리자 인증 실패 시 403이 아니라
  * **공개 응답으로 폴백**해야 하는 라우트(`/api/v1/health?detailed=true`)용.
@@ -75,12 +85,16 @@ export function verifyAdminKey(request: Request): void {
  * 인라인 `===` 비교를 쓰지 말 것 — 이 헬퍼를 통해야 timing-safe 비교와
  * per-IP 레이트리밋(브루트포스 방어)이 함께 적용된다.
  * 공개 경로가 레이트리밋을 소모하지 않도록, 관리자 응답을 원하는 요청에서만 호출한다.
+ *
+ * **`rate_limited`를 `unauthorized`로 뭉개지 말 것.** 그렇게 하면 올바른 키를 가진
+ * 관리자가 한도 초과 시 조용히 공개 응답(`status: 'ok'`)을 받아 **실제 unhealthy 상태가
+ * 은폐된다.** 인시던트 대응 런북이 `?detailed=true`를 반복 호출하는 경로라 실제로 위험하다.
  */
-export function isAdminAuthorized(request: Request): boolean {
+export function checkAdminAuth(request: Request): AdminAuthResult {
   try {
     verifyAdminKey(request);
-    return true;
-  } catch {
-    return false;
+    return 'authorized';
+  } catch (error) {
+    return error instanceof AdminRateLimitError ? 'rate_limited' : 'unauthorized';
   }
 }

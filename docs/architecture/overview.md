@@ -302,7 +302,6 @@ src/
 │   │   └── railwayService.ts      # ✅ Railway GraphQL API 연동
 │   ├── config/
 │   │   ├── features.ts           # 설정 기반 비즈니스 규칙
-│   │   ├── providers.ts          # getDbProvider()→'sqlite' / getAuthProvider()→'local' 상수 (env 분기 제거됨, seam만 유지)
 │   │   ├── qc.ts                 # QC 관련 설정
 │   │   └── rateLimit.ts          # Rate limit 설정
 │   ├── events/
@@ -320,7 +319,6 @@ src/
 │   │   ├── deepQcRunner.ts       # 비동기 Deep QC 실행 + ICodeRepository 메타데이터 업데이트
 │   │   ├── renderingQc.ts        # Fast/Deep QC 오케스트레이터
 │   │   ├── qcChecks.ts           # 개별 체크 함수 (12개)
-│   │   ├── featureSmokeTest.ts   # 기능 스모크 테스트
 │   │   └── browserPool.ts        # Playwright 브라우저 풀 (세마포어)
 │   └── utils/
 │       ├── errors.ts             # 커스텀 에러 클래스 (t() 기반 한국어 메시지)

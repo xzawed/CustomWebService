@@ -85,7 +85,7 @@
 | `src/lib/db/errors.test.ts` | `isUniqueViolation()` — Supabase/Drizzle 양쪽 23505 감지 |
 | `src/lib/encryption.test.ts` | AES-256-GCM 라운드트립, IV 랜덤성, 32바이트 키 검증, `maskApiKey` |
 | `src/lib/utils/errors.test.ts` | 에러 클래스별 HTTP statusCode, `handleApiError` — AppError/ZodError 분기 |
-| `src/lib/config/providers.test.ts` | `getDbProvider()` / `getAuthProvider()` 환경변수 분기 |
+| `src/lib/db/sqlite/retention.test.ts` | 보존 정책 — 유효 토큰 미삭제, 오늘 카운터 보존, 트랜잭션 롤백, env 폴백 |
 | `src/lib/events/eventBus.test.ts` | `on`/`emit`/`unsubscribe`, 복수 핸들러, 에러 격리 |
 | `src/lib/events/eventPersister.test.ts` | `registerEventPersister()` 멱등성, 이벤트 → DB 자동 저장, 실패 시 logger.warn |
 | `src/lib/monitoring/slackAlert.test.ts` | `SLACK_WEBHOOK_URL` 미설정 시 no-op, POST 전송, HTTP 실패·fetch 예외 시 에러 미전파, fields/이모지 포맷 검증 |

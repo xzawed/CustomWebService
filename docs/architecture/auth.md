@@ -147,7 +147,7 @@ export interface AuthUser {
 }
 ```
 
-`getAuthProvider()`(`lib/config/providers.ts`)는 항상 `'local'`을 반환하며 `AUTH_SECRET`이 없으면 throw한다.
+인증 provider seam은 없다. Auth.js v5 Credentials + JWT가 유일 경로이며 `AUTH_SECRET`은 Auth.js 설정(`lib/auth/local-auth-config`)이 직접 요구한다. (호출처가 0이던 `getAuthProvider()`와 `lib/config/providers.ts`는 2026-07-10 죽은 코드 정리로 삭제됨.)
 
 ### 환경변수
 
