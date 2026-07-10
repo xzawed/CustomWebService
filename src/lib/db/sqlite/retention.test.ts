@@ -284,6 +284,38 @@ describe('scheduleRetention', () => {
     });
   });
 
+  it('타이머를 주입하지 않으면 실제 setInterval을 쓰고 unref()로 종료를 막지 않는다', () => {
+    // 기본 주입값(setIntervalFn/clearIntervalFn) 경로 — 프로덕션이 실제로 타는 코드다.
+    const probe = setInterval(() => {}, 3_600_000);
+    const timerProto = Object.getPrototypeOf(probe) as { unref: () => unknown };
+    clearInterval(probe);
+
+    const unrefSpy = vi.spyOn(timerProto, 'unref');
+    const pruneFn = vi.fn().mockReturnValue({ events: 0, authTokens: 0, dailyLimits: 0 });
+
+    const stop = scheduleRetention(db, { ...CONFIG, intervalMs: 3_600_000 }, { pruneFn });
+
+    expect(pruneFn).toHaveBeenCalledTimes(1); // 부팅 직후 즉시 1회
+    expect(unrefSpy).toHaveBeenCalled(); // 타이머가 프로세스 종료를 막지 않는다
+
+    stop(); // 기본 clearIntervalFn 경로 — 타이머 정리
+    unrefSpy.mockRestore();
+  });
+
+  it('now를 주입하지 않으면 실제 시각을 사용한다 (기본 주입값 경로)', () => {
+    const pruneFn = vi.fn().mockReturnValue({ events: 0, authTokens: 0, dailyLimits: 0 });
+    const stop = scheduleRetention(db, CONFIG, {
+      pruneFn,
+      setIntervalFn: () => 'h',
+      clearIntervalFn: () => {},
+    });
+
+    expect(pruneFn).toHaveBeenCalledTimes(1);
+    const passedNow = pruneFn.mock.calls[0]![2] as Date;
+    expect(passedNow).toBeInstanceOf(Date);
+    stop();
+  });
+
   it('정리 실패는 삼켜지고 에러 로그만 남긴다 (부팅을 막지 않음)', () => {
     const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {});
 
