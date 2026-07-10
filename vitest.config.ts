@@ -42,6 +42,10 @@ export default defineConfig({
         'src/app/api/v1/countries/**/route.ts',
         'src/app/api/v1/deploy/route.ts',
         'src/app/api/v1/generate/route.ts',
+        // 2026-07-10: 라우트 테스트를 신규 추가하며 집계 대상에 편입
+        'src/app/api/v1/generate/regenerate/route.ts',
+        'src/app/api/v1/health/route.ts',
+        'src/app/api/v1/user-api-keys/route.ts',
         'src/app/api/v1/proxy/route.ts',
         'src/app/api/v1/suggest-apis/route.ts',
         'src/app/api/v1/suggest-context/route.ts',
@@ -53,6 +57,7 @@ export default defineConfig({
         'src/providers/**',
         'src/repositories/**',
         'src/components/**',
+        'src/types/**',
       ],
       exclude: ['src/test/**', 'src/components/builder/RePromptPanel.tsx'],
       thresholds: {

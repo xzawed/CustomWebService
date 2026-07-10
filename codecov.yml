@@ -1,0 +1,10 @@
+# Codecov 설정. lcov(coverage/lcov.info)는 vitest.config.ts의 coverage.include 범위만 담는다.
+# 그 범위 밖의 변경 파일은 커버리지 데이터가 없어 patch 계산에서 0%로 잡히므로,
+# 단위 테스트 대상이 아닌 파일만 명시적으로 무시한다(sonar.coverage.exclusions와 동일 기준).
+#
+# 임계값은 의도적으로 설정하지 않는다 — Codecov 기본값(auto)을 유지해 게이트를 느슨하게 만들지 않는다.
+ignore:
+  # Next 부팅 훅 — 동적 import + NEXT_RUNTIME 분기라 단위 테스트 대상이 아니다.
+  - "src/instrumentation.ts"
+  # Sentry 초기화 설정 (DSN 미설정 시 no-op)
+  - "sentry.*.config.ts"
