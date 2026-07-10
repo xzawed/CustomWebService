@@ -67,3 +67,20 @@ export function verifyAdminKey(request: Request): void {
     throw new ForbiddenError('유효하지 않은 관리자 키입니다');
   }
 }
+
+/**
+ * verifyAdminKey의 비-throw 변형. 관리자 인증 실패 시 403이 아니라
+ * **공개 응답으로 폴백**해야 하는 라우트(`/api/v1/health?detailed=true`)용.
+ *
+ * 인라인 `===` 비교를 쓰지 말 것 — 이 헬퍼를 통해야 timing-safe 비교와
+ * per-IP 레이트리밋(브루트포스 방어)이 함께 적용된다.
+ * 공개 경로가 레이트리밋을 소모하지 않도록, 관리자 응답을 원하는 요청에서만 호출한다.
+ */
+export function isAdminAuthorized(request: Request): boolean {
+  try {
+    verifyAdminKey(request);
+    return true;
+  } catch {
+    return false;
+  }
+}

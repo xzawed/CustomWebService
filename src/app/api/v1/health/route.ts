@@ -1,19 +1,25 @@
 import { getLimits } from '@/lib/config/features';
+import { isAdminAuthorized } from '@/lib/utils/adminAuth';
 import { createCatalogRepository } from '@/repositories/factory';
 
 export const dynamic = 'force-dynamic';
 
+function publicStatus(): Response {
+  return Response.json({ status: 'ok', timestamp: new Date().toISOString() });
+}
+
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const wantsDetailed = url.searchParams.get('detailed') === 'true';
-  const adminKey = process.env.ADMIN_API_KEY;
-  const isAuthorized =
-    adminKey && request.headers.get('authorization') === `Bearer ${adminKey}`;
 
-  // Public endpoint — returns minimal status only (no infrastructure details)
-  if (!wantsDetailed || !isAuthorized) {
-    return Response.json({ status: 'ok', timestamp: new Date().toISOString() });
-  }
+  // Public endpoint — returns minimal status only (no infrastructure details).
+  // 관리자 검사는 상세 응답을 요구한 요청에서만 수행한다. 그래야 Railway 헬스체크·
+  // 업타임 모니터 같은 공개 트래픽이 관리자 레이트리밋 버킷을 소모하지 않는다.
+  if (!wantsDetailed) return publicStatus();
+
+  // 인증 실패는 403이 아니라 공개 응답으로 폴백한다(엔드포인트 존재 여부를 노출하지 않음).
+  // isAdminAuthorized는 timing-safe 비교 + per-IP 레이트리밋을 적용한다.
+  if (!isAdminAuthorized(request)) return publicStatus();
 
   const checks: Record<string, string> = {};
   const usage: Record<string, unknown> = {};

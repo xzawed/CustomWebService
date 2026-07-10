@@ -63,6 +63,48 @@ describe('GET /api/v1/health', () => {
     expect(body.usage).toBeUndefined();
   });
 
+  it('detailed=true + 잘못된 관리자 키는 403이 아니라 공개 응답으로 폴백한다', async () => {
+    const { GET } = await import('@/app/api/v1/health/route');
+    const response = await GET(
+      new Request('http://localhost/api/v1/health?detailed=true', {
+        headers: { Authorization: 'Bearer wrong-key', 'x-forwarded-for': '203.0.113.50' },
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.status).toBe('ok');
+    expect(body.checks).toBeUndefined();
+    expect(body.usage).toBeUndefined();
+  });
+
+  it('detailed=true + Authorization 헤더 없으면 공개 응답으로 폴백한다', async () => {
+    const { GET } = await import('@/app/api/v1/health/route');
+    const response = await GET(new Request('http://localhost/api/v1/health?detailed=true'));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.checks).toBeUndefined();
+  });
+
+  it('공개 health 요청은 관리자 레이트리밋 버킷을 소모하지 않는다', async () => {
+    // 공개 요청을 한도 이상 반복해도, 이후 정상 관리자 요청이 상세 응답을 받아야 한다.
+    // (isAdminAuthorized가 detailed 요청에서만 호출되기 때문)
+    const { GET } = await import('@/app/api/v1/health/route');
+    const publicIp = { 'x-forwarded-for': '203.0.113.77' };
+    for (let i = 0; i < 120; i++) {
+      await GET(new Request('http://localhost/api/v1/health', { headers: publicIp }));
+    }
+
+    const response = await GET(
+      new Request('http://localhost/api/v1/health?detailed=true', {
+        headers: { Authorization: `Bearer ${TEST_ADMIN_KEY}`, ...publicIp },
+      })
+    );
+    const body = await response.json();
+    expect(body.checks).toBeDefined();
+  });
+
   it('DB 연결 정상 시 healthy 또는 degraded 상태를 반환한다', async () => {
     const { createCatalogRepository } = await import('@/repositories/factory');
     vi.mocked(createCatalogRepository).mockReturnValue(makeCatalogRepo(true));
