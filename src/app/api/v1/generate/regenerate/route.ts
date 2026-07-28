@@ -98,6 +98,7 @@ export async function POST(request: Request): Promise<Response> {
       { html: previousCode.codeHtml, css: previousCode.codeCss, js: previousCode.codeJs },
       feedback,
       projectApis,
+      projectId,
     );
     const stage2SystemPrompt = buildStage2SystemPrompt();
 

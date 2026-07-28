@@ -69,6 +69,21 @@ export async function resolveProxyContext(
   apiId: string,
   deps: ProxyContextDeps,
 ): Promise<ProxyContext | ProxyContextError> {
+  // 인가 판단에 필요한 조회가 실패하면 **fail closed** 한다. 폴백해서 진행하면
+  // 소유권을 확인하지 못한 채 키를 쓰게 된다(H-1의 실패 양상). 통제되지 않은 예외로
+  // 500을 내는 대신 명시적 404로 막는다.
+  try {
+    return await resolve(request, apiId, deps);
+  } catch {
+    return NOT_FOUND;
+  }
+}
+
+async function resolve(
+  request: Request,
+  apiId: string,
+  deps: ProxyContextDeps,
+): Promise<ProxyContext | ProxyContextError> {
   const url = new URL(request.url);
   const host = request.headers.get('host') ?? url.host;
   const slug = extractSiteSlug(host, deps.rootDomain);
@@ -85,7 +100,10 @@ export async function resolveProxyContext(
   const projectId = url.searchParams.get('projectId');
 
   // 2) apex + 세션 → app 모드(소유권 강제)
-  if (user?.id) {
+  //    user.id 타입 가드 — 타입상 string(non-nullable)이지만 인증 정보가 손상되면
+  //    런타임에 다른 타입이 들어올 수 있다. 레이트리밋 Map에 잘못된 키가 등록되거나
+  //    소유권 비교가 예상과 다르게 동작하므로 세션 없음으로 취급한다.
+  if (user?.id && typeof user.id === 'string') {
     if (!projectId) return { mode: 'app', user, project: null, linkedApiIds: [] };
     const project = await deps.findProjectById(projectId);
     if (!project) return NOT_FOUND;

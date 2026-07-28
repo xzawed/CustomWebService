@@ -6,6 +6,9 @@ import {
 } from '@/repositories/factory';
 import { decryptApiKey } from '@/lib/encryption';
 import { getAuthUser } from '@/lib/auth/index';
+import { getClientIp } from '@/lib/auth/rateLimit';
+import { resolveProxyContext, isProxyContextError } from '@/lib/proxy/resolveProxyContext';
+import { checkSiteRateLimit } from '@/lib/proxy/siteRateLimit';
 import { LRUMap } from '@/lib/utils/lruMap';
 import { proxyCache, buildCacheKey } from '@/lib/cache/proxyCache';
 import {
@@ -81,23 +84,11 @@ interface ValidatedRequest {
   searchParams: URLSearchParams;
 }
 
-async function validateRequest(request: Request): Promise<ValidatedRequest | Response> {
-  const user = await getAuthUser();
-  if (!user) {
-    return errorResponse(401, 'AUTH_REQUIRED', '로그인이 필요합니다.');
-  }
-
-  // user.id 가드 — 타입상 string(non-nullable)이지만 런타임에서 인증 정보 손상 시
-  // null/undefined가 들어올 수 있다. rate limit Map에 잘못된 키('null', 'undefined')가
-  // 등록되거나 RLS 우회 시도가 가능해지므로 401로 즉시 차단.
-  if (!user.id || typeof user.id !== 'string') {
-    return errorResponse(401, 'AUTH_REQUIRED', '로그인이 필요합니다.');
-  }
-
-  if (!checkProxyRateLimit(user.id)) {
-    return errorResponse(429, 'RATE_LIMITED', '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.');
-  }
-
+/**
+ * 파라미터 형식만 검증한다.
+ * 인증·인가는 resolveProxyContext가, 레이트리밋은 모드 판정 후 handleProxy가 담당한다.
+ */
+function validateParams(request: Request): ValidatedRequest | Response {
   const { searchParams } = new URL(request.url);
   const apiId = searchParams.get('apiId');
   const proxyPath = searchParams.get('proxyPath');
@@ -200,28 +191,25 @@ async function resolveApiKey(
     prefix?: string;
     header_prefix?: string;
   },
-  searchParams: URLSearchParams,
+  keyOwnerId: string | null,
   headers: Record<string, string>,
   targetUrl: URL,
-): Promise<void> {
+): Promise<{ usedPersonalKey: boolean }> {
   let resolvedKey: string | undefined;
+  let usedPersonalKey = false;
 
-  // 1) 프로젝트 오너의 개인 API 키 조회 (projectId가 있을 때)
-  //    raw DB 접근 대신 레포(SQLite)를 사용한다.
-  const projectId = searchParams.get('projectId');
-  if (projectId && UUID_RE.test(projectId)) {
+  // 1) 키 소유자의 개인 API 키 조회.
+  //    소유자는 resolveProxyContext가 결정한다 — site 모드는 Host로 확정된 게시
+  //    프로젝트의 오너, app 모드는 소유권이 검증된 호출자 본인. 이전에는 클라이언트가
+  //    보낸 projectId로 아무 사용자의 키나 복호화할 수 있었다(H-1).
+  if (keyOwnerId) {
     try {
-      // NOTE: 공개 사이트 런타임이 자기 프로젝트의 API 키를 해결하는 경로 — 소유권은
-      // 게시 사이트 서빙 의미상 적용하지 않는다(다중 사용자 격리는 '관리/편집'에만 적용).
-      const project = await createProjectRepository().findById(projectId);
-      if (project?.userId) {
-        const userKey = await createUserApiKeyRepository().findByUserAndApi(
-          project.userId,
-          apiId,
-        );
-        if (userKey?.encryptedKey) {
-          try { resolvedKey = decryptApiKey(userKey.encryptedKey); } catch { /* skip */ }
-        }
+      const userKey = await createUserApiKeyRepository().findByUserAndApi(keyOwnerId, apiId);
+      if (userKey?.encryptedKey) {
+        try {
+          resolvedKey = decryptApiKey(userKey.encryptedKey);
+          usedPersonalKey = true;
+        } catch { /* skip */ }
       }
     } catch { /* 조회 실패 시 플랫폼 키로 폴백 */ }
   }
@@ -258,6 +246,8 @@ async function resolveApiKey(
       targetUrl.searchParams.set(cfg.param_name, injectedValue);
     }
   }
+
+  return { usedPersonalKey };
 }
 
 function resolveContentType(rawContentType: string): string {
@@ -268,10 +258,38 @@ function resolveContentType(rawContentType: string): string {
 }
 
 async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Response> {
-  // 인증·레이트리밋·파라미터 검증
-  const validated = await validateRequest(request);
+  const validated = validateParams(request);
   if (validated instanceof Response) return validated;
   const { apiId, proxyPath, searchParams } = validated;
+
+  // 인가 판정 — site(익명·Host 바인딩) / app(세션·소유권 강제) 단일 진입점.
+  const projectRepo = createProjectRepository();
+  const ctx = await resolveProxyContext(request, apiId, {
+    getAuthUser,
+    findProjectBySlug: (slug) => projectRepo.findBySlug(slug),
+    findProjectById: (id) => projectRepo.findById(id),
+    getProjectApiIds: (id) => projectRepo.getProjectApiIds(id),
+    rootDomain: process.env.NEXT_PUBLIC_ROOT_DOMAIN,
+  });
+  if (isProxyContextError(ctx)) {
+    return errorResponse(ctx.error.status, ctx.error.code, ctx.error.message);
+  }
+
+  // 모드별 레이트리밋 — 익명 site는 IP+projectId, 세션 app은 기존 userId 버킷.
+  if (ctx.mode === 'site') {
+    const limit = checkSiteRateLimit(getClientIp(request), ctx.project.id);
+    if (!limit.allowed) {
+      return Response.json(
+        {
+          success: false,
+          error: { code: 'RATE_LIMITED', message: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
+        },
+        { status: 429, headers: { 'Retry-After': String(limit.retryAfterSec) } },
+      );
+    }
+  } else if (!checkProxyRateLimit(ctx.user.id)) {
+    return errorResponse(429, 'RATE_LIMITED', '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.');
+  }
 
   // Look up API using service role (bypasses RLS — read-only, catalog is semi-public)
   const catalogRepo = createCatalogRepository();
@@ -302,9 +320,32 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
     }
   }
 
-  // Cache check — GET 요청 + API에 cacheTtlSeconds 설정된 경우만 적용
+  // Inject API key — 키 소유자는 인가 컨텍스트가 결정한다(클라이언트 입력 아님).
+  // 캐시 판정이 usedPersonalKey에 의존하므로 캐시 조회보다 먼저 수행한다.
+  const headers: Record<string, string> = {
+    'User-Agent': 'CustomWebService-Proxy/1.0',
+    Accept: 'application/json',
+  };
+
+  let usedPersonalKey = false;
+  if (api.authType === 'api_key') {
+    const cfg = api.authConfig as {
+      param_name?: string;
+      param_in?: string;
+      env_var?: string;
+      prefix?: string;
+      header_prefix?: string;
+    };
+    ({ usedPersonalKey } = await resolveApiKey(apiId, cfg, ctx.project?.userId ?? null, headers, targetUrl));
+  }
+
+  // Cache 사용 여부 — GET + cacheTtlSeconds 설정 + **개인 키 미사용**인 경우만.
+  //
+  // buildCacheKey는 apiId:proxyPath:params뿐이라 키 신원이 들어가지 않는다. 익명 사이트
+  // 모드에서 오너의 개인 키로 받은 응답을 캐시하면 같은 항목이 다른 테넌트에게 서빙된다.
+  // 캐시 키에 소유자를 넣는 대신 개인 키 경로는 캐시를 건너뛴다(가장 단순하고 안전).
   const cacheTtlMs =
-    method === 'GET' && api.cacheTtlSeconds != null && api.cacheTtlSeconds > 0
+    method === 'GET' && !usedPersonalKey && api.cacheTtlSeconds != null && api.cacheTtlSeconds > 0
       ? api.cacheTtlSeconds * 1000
       : null;
 
@@ -322,23 +363,6 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
         },
       });
     }
-  }
-
-  // Inject API key — 우선순위: 사용자 키 > 프로젝트 오너 키 > 플랫폼 키
-  const headers: Record<string, string> = {
-    'User-Agent': 'CustomWebService-Proxy/1.0',
-    Accept: 'application/json',
-  };
-
-  if (api.authType === 'api_key') {
-    const cfg = api.authConfig as {
-      param_name?: string;
-      param_in?: string;
-      env_var?: string;
-      prefix?: string;
-      header_prefix?: string;
-    };
-    await resolveApiKey(apiId, cfg, searchParams, headers, targetUrl);
   }
 
   // Forward the request

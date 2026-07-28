@@ -939,12 +939,17 @@ ${designSection}
 export function buildStage1RegenerationUserPrompt(
   previousCode: { html: string; css: string; js: string },
   feedback: string,
-  apis: ApiCatalogItem[] = []
+  apis: ApiCatalogItem[] = [],
+  projectId?: string
 ): string {
   const apiSection = apis.length > 0
     ? `## 프로젝트에 연결된 API (반드시 활용)
 ${apis.map((api) => {
-  const callMethod = `서버 프록시 (인증 방식 무관): /api/v1/proxy?apiId=${api.id}&proxyPath=<경로>`;
+  // 최초 생성 프롬프트와 동일하게 projectId를 포함한다. 서브도메인은 Host로 프로젝트를
+  // 확정하지만, apex의 직접 게시 URL(/site/{slug})에서는 이 파라미터가 있어야
+  // 프록시가 익명 요청을 게시 사이트로 인식한다.
+  const projectParam = projectId ? `&projectId=${projectId}` : '';
+  const callMethod = `서버 프록시 (인증 방식 무관): /api/v1/proxy?apiId=${api.id}${projectParam}&proxyPath=<경로>`;
   return `### ${api.name} (ID: ${api.id})
 - 호출 방법: ${callMethod}
 - 인증: ${api.authType}`;
