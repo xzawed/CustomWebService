@@ -161,6 +161,8 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | 골든셋 API 목록 (검증된 10개, 즉시 사용 가능) | [docs/reference/golden-api-set.md](docs/reference/golden-api-set.md) |
 | 개발자 키 제공 방식 API 재활성화 ADR (31개 활성, 2026-05-01) | [docs/decisions/2026-05-01-developer-key-api-reactivation.md](docs/decisions/2026-05-01-developer-key-api-reactivation.md) |
 | 보안 인시던트 대응 절차 | [docs/security/incident-response.md](docs/security/incident-response.md) |
+| **의존성 감사 면제 목록 (pnpm audit 게이트 waiver)** | [docs/security/audit-waivers.md](docs/security/audit-waivers.md) |
+| 의존성 보안 일괄 상향·감사 게이트 2단계화 ADR (2026-07-28) | [docs/decisions/2026-07-28-dependency-security-updates.md](docs/decisions/2026-07-28-dependency-security-updates.md) |
 | 환경변수 목록 | [docs/reference/env-vars.md](docs/reference/env-vars.md) |
 | 에러 클래스 참조 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
 | 배포/운영 작업 | [docs/guides/deployment.md](docs/guides/deployment.md) |
@@ -225,6 +227,13 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 ### 클라이언트 IP 도출 규칙 (레이트리밋)
 - `x-forwarded-for`는 **최우측** 항목만 신뢰한다. 최좌측은 클라이언트가 위조할 수 있어 per-IP 리밋이 무력화된다
 - 단일 출처: `getClientIp()`(`src/lib/auth/rateLimit.ts`) — `adminAuth.verifyAdminKey()`와 동일 규칙. 새 리밋을 추가할 때 XFF를 직접 파싱하지 말 것
+
+### 의존성 감사 게이트 (`pnpm audit`)
+- CI는 2단계로 실행한다: ① `pnpm audit --prod --audit-level=high`(**프로덕션 트리 하드 게이트**), ② `pnpm audit --audit-level=high`(전체 트리, 검토된 면제 적용)
+- **감사는 트리 전체를 평가한다** — Dependabot이 패키지 하나만 올린 PR은 다른 취약점이 남아 있으면 무조건 실패한다. 보안 알림이 여러 건 쌓였으면 개별 PR을 하나씩 머지하려 하지 말고 **한 브랜치로 통합 상향**할 것 (2026-07-28: PR 4건이 전부 이 데드락으로 막혀 있었음)
+- 면제는 `package.json`의 `pnpm.auditConfig.ignoreGhsas`에 등록하고 **근거는 반드시 [docs/security/audit-waivers.md](docs/security/audit-waivers.md)에 기록**한다(JSON에 주석 불가). 등록 기준: ① 상위 최신 버전에도 픽스 없음 ② 프로덕션 번들 미포함 ③ 공격자 통제 입력 아님 — 셋 다 충족 시에만
+- **전이 의존성 오버라이드는 스코프를 좁힐 것**: `"brace-expansion@^5": "^5.0.8"`처럼 버전 범위를 명시한다. 전역 오버라이드는 메이저가 다른 소비자를 런타임에 깨뜨린다(v5 CJS는 named export라 `minimatch@3`의 `require(...)(pattern)` 호출이 깨짐 — 실증됨)
+- `sharp`는 `next`의 optionalDependency(`^0.34.5`)라 상위 상향으로 패치 버전에 도달하지 못한다 → `pnpm.overrides`로 상향. 변경 시 **Alpine musl 프리빌트(`@img/sharp-linuxmusl-x64`) 존재 여부와 lockfile 등재를 반드시 확인**(Dockerfile이 `node:22-alpine`)
 
 ### QC 프로세스 (생성/재생성 공통)
 - **상세 절차**: [docs/guides/qc-process.md](docs/guides/qc-process.md) 참조 (8단계 표준 프로세스)
