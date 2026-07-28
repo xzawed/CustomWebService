@@ -29,8 +29,7 @@ function makeDeps() {
   };
   const tokenRepo = {
     create: vi.fn(async () => {}),
-    findValidByHash: vi.fn(async (): Promise<{ id: string; userId: string } | null> => null),
-    consume: vi.fn(async () => {}),
+    consumeValid: vi.fn(async (): Promise<string | null> => null),
     invalidateByUserAndType: vi.fn(async () => {}),
   };
   const email = {
@@ -74,17 +73,17 @@ describe('AuthService.verifyEmail', () => {
   });
 
   it('유효하지 않은 토큰은 ValidationError', async () => {
-    deps.tokenRepo.findValidByHash.mockResolvedValue(null);
+    deps.tokenRepo.consumeValid.mockResolvedValue(null);
     await expect(svc.verifyEmail('bad-token')).rejects.toMatchObject({ code: 'INVALID_INPUT' });
   });
 
   it('유효한 토큰이면 사용자 emailVerified 업데이트', async () => {
     const { userId } = await svc.signup('user@example.com', 'pw12345678', 'https://app');
-    deps.tokenRepo.findValidByHash.mockResolvedValue({ id: 'tok1', userId });
+    deps.tokenRepo.consumeValid.mockResolvedValue(userId);
     await svc.verifyEmail('valid-token');
     const user = deps.users.get(userId)!;
     expect(user.emailVerified).not.toBeNull();
-    expect(deps.tokenRepo.consume).toHaveBeenCalled();
+    expect(deps.tokenRepo.consumeValid).toHaveBeenCalled();
   });
 });
 
@@ -153,13 +152,13 @@ describe('AuthService.resetPassword', () => {
   });
 
   it('유효하지 않은 토큰은 ValidationError', async () => {
-    deps.tokenRepo.findValidByHash.mockResolvedValue(null);
+    deps.tokenRepo.consumeValid.mockResolvedValue(null);
     await expect(svc.resetPassword('bad-token', 'newPw12345678')).rejects.toMatchObject({ code: 'INVALID_INPUT' });
   });
 
   it('유효한 토큰이면 비밀번호 업데이트 + 리셋 토큰 전체 무효화', async () => {
     const { userId } = await svc.signup('user@example.com', 'pw12345678', 'https://app');
-    deps.tokenRepo.findValidByHash.mockResolvedValue({ id: 'tok2', userId });
+    deps.tokenRepo.consumeValid.mockResolvedValue(userId);
     await svc.resetPassword('valid-token', 'newPw12345678');
     const user = deps.users.get(userId)!;
     expect(user.passwordHash).toMatch(/^[0-9a-f]+:[0-9a-f]+$/);

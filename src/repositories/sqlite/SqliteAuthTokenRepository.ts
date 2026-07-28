@@ -14,14 +14,16 @@ export class SqliteAuthTokenRepository implements IAuthTokenRepository {
       .run();
   }
 
-  async findValidByHash(
+  async consumeValid(
     tokenHash: string,
     type: AuthTokenType,
     now: string,
-  ): Promise<{ id: string; userId: string } | null> {
+  ): Promise<string | null> {
+    // 조건 검사와 갱신이 단일 UPDATE ... RETURNING으로 원자 실행된다.
+    // 조회와 소비를 분리하면 그 사이에 다른 요청이 같은 토큰을 소비할 수 있다.
     const row = this.db
-      .select({ id: schema.authTokens.id, userId: schema.authTokens.user_id })
-      .from(schema.authTokens)
+      .update(schema.authTokens)
+      .set({ consumed_at: now })
       .where(
         and(
           eq(schema.authTokens.token_hash, tokenHash),
@@ -30,17 +32,9 @@ export class SqliteAuthTokenRepository implements IAuthTokenRepository {
           gt(schema.authTokens.expires_at, now),
         ),
       )
-      .limit(1)
+      .returning({ userId: schema.authTokens.user_id })
       .get();
-    return row ?? null;
-  }
-
-  async consume(id: string, now: string): Promise<void> {
-    this.db
-      .update(schema.authTokens)
-      .set({ consumed_at: now })
-      .where(eq(schema.authTokens.id, id))
-      .run();
+    return row?.userId ?? null;
   }
 
   async invalidateByUserAndType(userId: string, type: AuthTokenType, now: string): Promise<void> {

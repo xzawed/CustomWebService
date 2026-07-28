@@ -28,9 +28,7 @@ export async function verifyAndConsumeToken(
   raw: string,
   type: AuthTokenType,
 ): Promise<string | null> {
-  const now = new Date().toISOString();
-  const found = await repo.findValidByHash(hashToken(raw), type, now);
-  if (!found) return null;
-  await repo.consume(found.id, now);
-  return found.userId;
+  // 조회와 소비를 분리하지 말 것 — 두 await 사이에 다른 요청이 같은 토큰을
+  // 소비할 수 있다(재설정 링크 재사용). 원자성은 repo.consumeValid의 단일 SQL이 보장한다.
+  return repo.consumeValid(hashToken(raw), type, new Date().toISOString());
 }
