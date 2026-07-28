@@ -23,13 +23,15 @@ describe('rateLimit', () => {
     const req = new Request('https://x', { headers: { 'x-forwarded-for': '203.0.113.9' } });
     expect(getClientIp(req)).toBe('203.0.113.9');
   });
-  it('getClientIp는 XFF가 없으면 x-real-ip로 폴백한다', () => {
+  // x-real-ip는 신뢰 경계가 붙였다는 보장이 없어 클라이언트가 위조·회전할 수 있다.
+  // 폴백을 두면 XFF 없는 경로에서 per-IP 한도가 통째로 무력화되므로 신뢰하지 않는다.
+  it('getClientIp는 XFF가 없으면 x-real-ip를 신뢰하지 않고 unknown을 반환한다', () => {
     const req = new Request('https://x', { headers: { 'x-real-ip': '198.51.100.7' } });
-    expect(getClientIp(req)).toBe('198.51.100.7');
+    expect(getClientIp(req)).toBe('unknown');
   });
-  it('getClientIp는 XFF가 빈 문자열이면 x-real-ip로 폴백한다', () => {
+  it('getClientIp는 XFF가 빈 문자열이어도 x-real-ip를 신뢰하지 않는다', () => {
     const req = new Request('https://x', { headers: { 'x-forwarded-for': '', 'x-real-ip': '198.51.100.7' } });
-    expect(getClientIp(req)).toBe('198.51.100.7');
+    expect(getClientIp(req)).toBe('unknown');
   });
   it('getClientIp는 어떤 헤더도 없을 시 "unknown" 반환', () => {
     const req = new Request('https://x');

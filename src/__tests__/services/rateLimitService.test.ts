@@ -35,7 +35,7 @@ describe('RateLimitService', () => {
   describe('checkAndIncrementDailyLimit', () => {
     it('allowed=true이면 정상 통과한다', async () => {
       const service = new RateLimitService(makeRepo({ allowed: true }));
-      await expect(service.checkAndIncrementDailyLimit('user-1')).resolves.toBeUndefined();
+      await expect(service.checkAndIncrementDailyLimit('user-1')).resolves.toEqual({ charged: true });
     });
 
     it('allowed=false이면 RateLimitError를 던진다', async () => {
@@ -48,7 +48,7 @@ describe('RateLimitService', () => {
     it('DB 오류 발생 시 fail-open — 예외 없이 통과한다', async () => {
       const service = new RateLimitService(makeRepo({ throwOnCheck: true }));
       // Should NOT throw — fail open
-      await expect(service.checkAndIncrementDailyLimit('user-1')).resolves.toBeUndefined();
+      await expect(service.checkAndIncrementDailyLimit('user-1')).resolves.toEqual({ charged: false });
     });
 
     it('올바른 limit 파라미터로 호출한다', async () => {
@@ -69,7 +69,7 @@ describe('RateLimitService', () => {
         const repo = makeRepo({ allowed: true });
         const service = new RateLimitService(repo);
 
-        await expect(service.checkAndIncrementDailyLimit('admin-2')).resolves.toBeUndefined();
+        await expect(service.checkAndIncrementDailyLimit('admin-2')).resolves.toEqual({ charged: false });
 
         // 리밋 검사(증가)는 건너뛴다
         expect(repo.checkAndIncrementDailyLimit).not.toHaveBeenCalled();

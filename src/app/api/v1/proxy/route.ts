@@ -9,7 +9,6 @@ import { getAuthUser } from '@/lib/auth/index';
 import { getClientIp } from '@/lib/auth/rateLimit';
 import { resolveProxyContext, isProxyContextError } from '@/lib/proxy/resolveProxyContext';
 import { checkSiteRateLimit } from '@/lib/proxy/siteRateLimit';
-import { LRUMap } from '@/lib/utils/lruMap';
 import { proxyCache, buildCacheKey } from '@/lib/cache/proxyCache';
 import {
   RATE_LIMIT_PER_MIN,
@@ -17,20 +16,32 @@ import {
   MAX_CONCURRENT_RATE_LIMIT_USERS,
 } from '@/lib/config/rateLimit';
 
-// 인메모리 Rate Limit: 사용자당 분당 RATE_LIMIT_PER_MIN회 (기본 60회)
-// LRUMap으로 활성 사용자 MAX_CONCURRENT_RATE_LIMIT_USERS 초과 시 가장 오래된
-// 항목 자동 evict (Railway 단일 인스턴스 메모리 누적 방지).
-const proxyRateLimit = new LRUMap<string, { count: number; resetAt: number }>(MAX_CONCURRENT_RATE_LIMIT_USERS);
+// 인메모리 Rate Limit: 사용자당 분당 RATE_LIMIT_PER_MIN회 (기본 60회).
+//
+// LRUMap을 쓰지 않는다 — 활성 사용자 수가 상한을 넘으면 **살아 있는 윈도의 카운터가
+// evict되어** 그 사용자의 다음 요청이 count:1로 다시 시작한다. 즉 동시 사용자가 많을수록
+// 한도가 무력화된다. 만료 버킷만 정리하고, 자리가 없으면 새 키를 거부(=차단)한다.
+// site 리미터(src/lib/proxy/siteRateLimit.ts)와 동일한 원칙.
+const proxyRateLimit = new Map<string, { count: number; resetAt: number }>();
 
 function checkProxyRateLimit(userId: string): boolean {
   const now = Date.now();
   const entry = proxyRateLimit.get(userId);
-  if (!entry || now >= entry.resetAt) {
-    proxyRateLimit.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= RATE_LIMIT_PER_MIN) return false;
+    entry.count++;
     return true;
   }
-  if (entry.count >= RATE_LIMIT_PER_MIN) return false;
-  entry.count++;
+
+  if (!entry && proxyRateLimit.size >= MAX_CONCURRENT_RATE_LIMIT_USERS) {
+    for (const [key, bucket] of proxyRateLimit) {
+      if (now >= bucket.resetAt) proxyRateLimit.delete(key);
+    }
+    // 만료분을 정리해도 자리가 없으면 활성 카운터를 버리는 대신 차단한다.
+    if (proxyRateLimit.size >= MAX_CONCURRENT_RATE_LIMIT_USERS) return false;
+  }
+
+  proxyRateLimit.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
   return true;
 }
 
@@ -60,9 +71,19 @@ const PRIVATE_IP_PATTERNS = [
 function isPrivateHost(hostname: string): boolean {
   if (BLOCKED_HOSTS.has(hostname)) return true;
   // URL 표준에서 IPv6는 대괄호로 감싸짐 (e.g. [fe80::1]) — 패턴 검사 전 제거
-  const bare = hostname.startsWith('[') && hostname.endsWith(']')
+  let bare = hostname.startsWith('[') && hostname.endsWith(']')
     ? hostname.slice(1, -1)
     : hostname;
+
+  // IPv4-mapped IPv6(::ffff:127.0.0.1, ::ffff:169.254.169.254)를 IPv4로 정규화한다.
+  // 정규화 없이는 IPv4 패턴에도 IPv6 패턴에도 걸리지 않아 사설/메타데이터 주소가 통과한다.
+  // Node의 dns.lookup이 매핑 형식을 돌려줄 수 있으므로 실제 도달 가능한 우회 경로다.
+  const mapped = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i.exec(bare);
+  if (mapped) bare = mapped[1];
+  // 16진 표기(::ffff:7f00:1)도 동일하게 취급 — 매핑 대역 자체를 차단한다.
+  if (/^::ffff:[0-9a-f]{1,4}:[0-9a-f]{1,4}$/i.test(bare)) return true;
+
+  if (BLOCKED_HOSTS.has(bare)) return true;
   return PRIVATE_IP_PATTERNS.some((p) => p.test(bare));
 }
 

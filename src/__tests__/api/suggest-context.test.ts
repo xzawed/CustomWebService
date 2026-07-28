@@ -18,7 +18,7 @@ vi.mock('@/lib/utils/logger', () => ({
 
 vi.mock('@/services/factory', () => ({
   createRateLimitService: vi.fn().mockReturnValue({
-    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue({ charged: true }),
   }),
 }));
 

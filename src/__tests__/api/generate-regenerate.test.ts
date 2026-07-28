@@ -146,7 +146,7 @@ async function setupHappyPath(overrides?: {
 
   const decrementMock = vi.fn().mockResolvedValue(undefined);
   vi.mocked(createRateLimitService).mockReturnValue({
-    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue({ charged: true }),
     decrementDailyLimit: decrementMock,
   } as never);
 

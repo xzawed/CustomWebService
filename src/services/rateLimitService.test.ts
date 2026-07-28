@@ -105,7 +105,7 @@ describe('RateLimitService.checkAndIncrementDailyLimit()', () => {
     repo.getCurrentUsage.mockRejectedValue(new Error('usage read fail'));
     const service = new RateLimitService(repo);
 
-    await expect(service.checkAndIncrementDailyLimit('user-1')).resolves.toBeUndefined();
+    await expect(service.checkAndIncrementDailyLimit('user-1')).resolves.toEqual({ charged: true });
     await flush();
     expect(eventBus.emit).not.toHaveBeenCalled();
   });
@@ -123,7 +123,8 @@ describe('RateLimitService.checkAndIncrementDailyLimit()', () => {
     repo.checkAndIncrementDailyLimit.mockRejectedValue(new Error('db down'));
     const service = new RateLimitService(repo);
 
-    await expect(service.checkAndIncrementDailyLimit('user-1')).resolves.toBeUndefined();
+    // fail-open은 카운터를 올리지 않으므로 charged=false — 실패해도 환불하면 안 된다.
+    await expect(service.checkAndIncrementDailyLimit('user-1')).resolves.toEqual({ charged: false });
     expect(logger.error).toHaveBeenCalledWith(
       'Rate limit check failed — failing open',
       expect.objectContaining({ userId: 'user-1', error: 'db down' })
@@ -135,7 +136,7 @@ describe('RateLimitService.checkAndIncrementDailyLimit()', () => {
     repo.checkAndIncrementDailyLimit.mockRejectedValue('raw string failure');
     const service = new RateLimitService(repo);
 
-    await expect(service.checkAndIncrementDailyLimit('user-1')).resolves.toBeUndefined();
+    await expect(service.checkAndIncrementDailyLimit('user-1')).resolves.toEqual({ charged: false });
     expect(logger.error).toHaveBeenCalledWith(
       'Rate limit check failed — failing open',
       expect.objectContaining({ error: 'raw string failure' })

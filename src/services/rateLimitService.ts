@@ -31,15 +31,16 @@ export class RateLimitService {
    * On DB error, fails open (allows the request) to avoid blocking
    * legitimate users due to infrastructure issues.
    *
-   * IMPORTANT: Call decrementDailyLimit() in the failure path if this
-   * method returned successfully but the generation subsequently failed.
+   * IMPORTANT: 반환된 `charged`가 true일 때만 실패 경로에서 decrementDailyLimit()을
+   * 호출할 것. 우회(bypass)와 fail-open은 카운터를 올리지 않으므로, 조건 없이 환불하면
+   * 사용자가 호출할 때마다 한도가 늘어난다.
    */
-  async checkAndIncrementDailyLimit(userId: string): Promise<void> {
+  async checkAndIncrementDailyLimit(userId: string): Promise<{ charged: boolean }> {
     const bypassIds = (process.env.RATE_LIMIT_BYPASS_USER_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
     if (bypassIds.includes(userId)) {
       // 무로깅 우회는 운영 가시성 사각지대를 만든다. 우회 적용 시 감사 로그를 남긴다.
       logger.info('Rate limit bypass applied', { userId, source: 'RATE_LIMIT_BYPASS_USER_IDS' });
-      return;
+      return { charged: false };
     }
 
     const limits = getLimits();
@@ -60,13 +61,16 @@ export class RateLimitService {
           });
         }
       }).catch(() => { /* 경고 실패는 무시 */ });
+      return { charged: true };
     } catch (err) {
       if (err instanceof RateLimitError) throw err;
-      // Fail open: DB error — allow the request to proceed
+      // Fail open: DB error — allow the request to proceed.
+      // 카운터는 올라가지 않았으므로 charged=false — 실패해도 환불하면 안 된다.
       logger.error('Rate limit check failed — failing open', {
         userId,
         error: err instanceof Error ? err.message : String(err),
       });
+      return { charged: false };
     }
   }
 

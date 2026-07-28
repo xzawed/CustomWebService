@@ -277,18 +277,35 @@ async function runLlmRetryIteration(
   const { systemPrompt, userFeedback, aiProvider, iterationTimeoutMs, useET, projectId, attempt } = options;
   try {
     const improvementPrompt = buildQualityImprovementPrompt(state.parsed, state.quality, state.qcReport, userFeedback);
+
+    // 타임아웃 시 in-flight Anthropic 호출을 실제로 취소한다.
+    //
+    // 이전에는 Promise.race만 걸어 race는 즉시 종료되지만 업스트림 요청은 SDK 타임아웃까지
+    // 계속 살아 있었다. 다음 반복이 또 다른 호출을 시작하므로 Opus/ET 호출이 중첩되어
+    // **토큰 비용이 이중으로 청구**됐고, 뒤늦게 거부되는 고아 Promise에는 핸들러가 붙어
+    // 있지 않아 unhandledRejection 위험도 있었다.
+    const controller = new AbortController();
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(
-        () => reject(new Error(`Quality loop iteration timed out after ${iterationTimeoutMs}ms`)),
-        iterationTimeoutMs,
-      );
+      timeoutId = setTimeout(() => {
+        controller.abort();
+        reject(new Error(`Quality loop iteration timed out after ${iterationTimeoutMs}ms`));
+      }, iterationTimeoutMs);
     });
+
+    const generation = aiProvider.generateCode({
+      system: systemPrompt,
+      user: improvementPrompt,
+      extendedThinking: useET,
+      abortSignal: controller.signal,
+    });
+    // abort로 인한 뒤늦은 거부가 unhandledRejection이 되지 않도록 핸들러를 미리 붙인다.
+    // (race에서 지는 쪽의 거부는 아무도 관찰하지 않는다.)
+    generation.catch(() => { /* 타임아웃 경로에서 관찰됨 */ });
+
     // race 종료 후 타이머를 정리한다. 성공 시에도 타이머가 만료(최대 200초)까지 살아남던 누수 차단.
-    const retryResponse = await Promise.race([
-      aiProvider.generateCode({ system: systemPrompt, user: improvementPrompt, extendedThinking: useET }),
-      timeoutPromise,
-    ]).finally(() => clearTimeout(timeoutId));
+    const retryResponse = await Promise.race([generation, timeoutPromise])
+      .finally(() => clearTimeout(timeoutId));
     const retryParsed = parseGeneratedCode(retryResponse.content);
 
     if (!retryParsed.html) {

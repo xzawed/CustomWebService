@@ -110,3 +110,24 @@ describe('GenerationTracker', () => {
     stopCleanup();
   });
 });
+
+describe('GenerationTracker — 엔트리 유실 관측 (M-5)', () => {
+  it('엔트리가 없는데 complete()가 호출되면 경고 로그를 남긴다', async () => {
+    // TTL(생성 중 30분)이나 size cap으로 엔트리가 사라진 뒤 완료된 경우.
+    // 코드는 저장됐는데 상태 폴링은 not_found를 보고하므로 조용히 넘기면 안 된다.
+    const { logger } = await import('@/lib/utils/logger');
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+
+    const { generationTracker, stopCleanup } = await import('./generationTracker');
+    generationTracker.complete('never-started', {
+      projectId: 'never-started', version: 1, previewUrl: '/p',
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Generation completed but tracker entry was already gone',
+      { projectId: 'never-started' },
+    );
+    warnSpy.mockRestore();
+    stopCleanup();
+  });
+});
