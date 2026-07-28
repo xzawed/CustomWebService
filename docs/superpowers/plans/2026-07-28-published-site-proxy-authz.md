@@ -149,11 +149,19 @@ function isSubdomainPassthrough(pathname: string): boolean {
 Run: `pnpm vitest run src/middleware.test.ts`
 Expected: PASS (신규 6건 포함 전체 통과)
 
-- [ ] **Step 5: 커버리지 등록 확인**
+- [ ] **Step 5: 커버리지 등록 (확인이 아니라 추가 — 현재 없음)**
 
-`vitest.config.ts`의 `coverage.include`에 `src/middleware.ts`가 있는지 확인한다. 없으면 추가한다.
+`src/middleware.ts`는 **현재 `coverage.include`에 없다**(확인됨). 누락 시 변경 라인이
+SonarCloud `new_coverage`·`codecov/patch`에서 0%로 계산되어 CI가 실패한다.
 
-Run: `grep -n "middleware" vitest.config.ts`
+`vitest.config.ts`의 `coverage.include` 배열에 추가한다:
+
+```ts
+        'src/middleware.ts',
+```
+
+Run: `grep -n "src/middleware.ts" vitest.config.ts`
+Expected: 한 줄 출력
 
 - [ ] **Step 6: 커밋**
 
@@ -219,18 +227,22 @@ function fakeRepo(): IAuthTokenRepository & { rows: Array<Record<string, unknown
 기존 테스트에 이어 추가한다.
 
 ```ts
-  it('동시 요청이 같은 토큰을 소비해도 한 번만 성공한다', async () => {
+  it('같은 토큰의 두 번째 소비는 null이다 (일회성 계약)', async () => {
     const repo = fakeRepo();
     const raw = await issueToken(repo, 'user-1', 'password_reset', EMAIL_VERIFY_TTL_MS);
 
-    const [a, b] = await Promise.all([
-      verifyAndConsumeToken(repo, raw, 'password_reset'),
-      verifyAndConsumeToken(repo, raw, 'password_reset'),
-    ]);
+    expect(await verifyAndConsumeToken(repo, raw, 'password_reset')).toBe('user-1');
+    expect(await verifyAndConsumeToken(repo, raw, 'password_reset')).toBeNull();
+  });
 
-    // 정확히 하나만 userId, 나머지는 null
-    expect([a, b].filter((x) => x === 'user-1')).toHaveLength(1);
-    expect([a, b].filter((x) => x === null)).toHaveLength(1);
+  it('verifyAndConsumeToken은 조회·소비를 나누지 않고 consumeValid 한 번만 호출한다', async () => {
+    // 2단계로 되돌아가면(조회 → await → 소비) 그 사이에 다른 요청이 끼어들 수 있다.
+    // 원자성의 실체는 SQL의 `WHERE consumed_at IS NULL`이고, 이 테스트는 호출부가
+    // 그 원자 연산을 우회하지 않는다는 계약을 고정한다.
+    const repo = fakeRepo();
+    const raw = await issueToken(repo, 'user-1', 'email_verify', EMAIL_VERIFY_TTL_MS);
+    await verifyAndConsumeToken(repo, raw, 'email_verify');
+    expect(repo.consumeValid).toHaveBeenCalledTimes(1);
   });
 
   it('만료된 토큰은 소비되지 않는다', async () => {
@@ -317,6 +329,41 @@ export async function verifyAndConsumeToken(
 
 `src/services/authService.test.ts`의 fake repo가 `findValidByHash`를 참조한다(32·77·83·156·162행). `consumeValid`로 교체한다. 예를 들어 `findValidByHash.mockResolvedValue({ id: 'tok1', userId })`는 `consumeValid.mockResolvedValue(userId)`로, `mockResolvedValue(null)`은 그대로 `null`이다.
 
+- [ ] **Step 6b: SQLite 레포 테스트 재작성 (이걸 빠뜨리면 CI가 깨진다)**
+
+`src/repositories/sqlite/SqliteAuthTokenRepository.test.ts`가 제거되는 `findValidByHash`(33·39·44·46·51·58·59행)와 `consume`(45행)을 직접 호출한다. **실 SQLite에 대한 유일한 원자성 검증**이므로 지우지 말고 `consumeValid` 기준으로 재작성한다.
+
+```ts
+  it('유효한 토큰을 소비하면 userId를 반환한다', async () => {
+    await repo.create('user-1', 'hash-a', 'email_verify', future);
+    expect(await repo.consumeValid('hash-a', 'email_verify', now)).toBe('user-1');
+  });
+
+  it('같은 토큰을 두 번 소비하면 두 번째는 null (실 SQLite 원자성)', async () => {
+    await repo.create('user-1', 'hash-c', 'password_reset', future);
+    expect(await repo.consumeValid('hash-c', 'password_reset', now)).toBe('user-1');
+    expect(await repo.consumeValid('hash-c', 'password_reset', now)).toBeNull();
+  });
+
+  it('만료된 토큰은 소비되지 않는다', async () => {
+    await repo.create('user-1', 'hash-d', 'password_reset', past);
+    expect(await repo.consumeValid('hash-d', 'password_reset', now)).toBeNull();
+  });
+
+  it('타입이 다르면 소비되지 않는다', async () => {
+    await repo.create('user-1', 'hash-e', 'email_verify', future);
+    expect(await repo.consumeValid('hash-e', 'password_reset', now)).toBeNull();
+  });
+
+  it('invalidateByUserAndType 이후에는 소비되지 않는다', async () => {
+    await repo.create('user-1', 'hash-f', 'password_reset', future);
+    await repo.invalidateByUserAndType('user-1', 'password_reset', now);
+    expect(await repo.consumeValid('hash-f', 'password_reset', now)).toBeNull();
+  });
+```
+
+기존 파일의 `repo`·`now`·`future`·`past` 셋업(상단 `beforeEach`)은 그대로 재사용한다.
+
 - [ ] **Step 7: 테스트 통과 확인**
 
 Run: `pnpm vitest run src/lib/auth/tokens.test.ts src/services/authService.test.ts`
@@ -330,7 +377,7 @@ Expected: 통과 — 제거한 메서드를 참조하는 곳이 남아 있으면
 - [ ] **Step 9: 커밋**
 
 ```bash
-git add src/repositories/interfaces/IAuthTokenRepository.ts src/repositories/sqlite/SqliteAuthTokenRepository.ts src/lib/auth/tokens.ts src/lib/auth/tokens.test.ts src/services/authService.test.ts
+git add src/repositories/interfaces/IAuthTokenRepository.ts src/repositories/sqlite/SqliteAuthTokenRepository.ts src/repositories/sqlite/SqliteAuthTokenRepository.test.ts src/lib/auth/tokens.ts src/lib/auth/tokens.test.ts src/services/authService.test.ts
 git commit -m "fix: 일회성 토큰을 원자적으로 소비 (H-2)
 
 findValidByHash → await → consume(id) 2단계였고 consume은 WHERE id만
@@ -536,6 +583,7 @@ Expected: FAIL — 모듈 없음
 import type { Project } from '@/types/project';
 import type { AuthUser } from '@/lib/auth/types';
 import { isValidSlug } from '@/lib/utils/slugify';
+import { assertOwner } from '@/lib/auth/authorize';
 
 /**
  * 프록시 요청의 인가 컨텍스트.
@@ -573,13 +621,20 @@ const FORBIDDEN: ProxyContextError = {
   error: { status: 403, code: 'FORBIDDEN', message: '권한이 없습니다.' },
 };
 
-/** Host 헤더에서 게시 사이트 slug를 추출한다. 서브도메인이 아니면 null. */
+/**
+ * Host 헤더에서 게시 사이트 slug를 추출한다. 서브도메인이 아니면 null.
+ *
+ * 호스트명은 대소문자를 구분하지 않으므로(RFC 4343) 비교 전에 소문자로 정규화한다.
+ * 정규화하지 않으면 `Weather.xzawed.xyz` 같은 요청이 endsWith·isValidSlug에서
+ * 조용히 탈락해 간헐적으로만 실패한다.
+ */
 export function extractSiteSlug(host: string, rootDomain: string | undefined): string | null {
   if (!rootDomain) return null;
-  if (host.includes('localhost') || host.includes('127.0.0.1')) return null;
-  const hostname = host.split(':')[0];
-  if (!hostname.endsWith(`.${rootDomain}`)) return null;
-  const slug = hostname.slice(0, -(rootDomain.length + 1));
+  const hostname = host.toLowerCase().split(':')[0];
+  if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) return null;
+  const root = rootDomain.toLowerCase();
+  if (!hostname.endsWith(`.${root}`)) return null;
+  const slug = hostname.slice(0, -(root.length + 1));
   // isValidSlug가 예약어(www·api·admin 등)와 형식을 함께 검사한다.
   return isValidSlug(slug) ? slug : null;
 }
@@ -608,8 +663,13 @@ export async function resolveProxyContext(
     if (!projectId) return { mode: 'app', user, project: null, linkedApiIds: [] };
     const project = await deps.findProjectById(projectId);
     if (!project) return NOT_FOUND;
-    // 기존 인가 규약과 동일하게 소유자가 아니면 403.
-    if (project.userId !== user.id) return FORBIDDEN;
+    // 소유권 규약은 assertOwner 한 곳에만 둔다 — 프록시 전용 비교식을 새로 만들면
+    // 규약이 갈라지고, 개인 키 해석부가 소유권을 확인하지 않던 H-1이 재발한다.
+    try {
+      assertOwner(project, user.id);
+    } catch {
+      return FORBIDDEN;
+    }
     const linkedApiIds = await deps.getProjectApiIds(project.id);
     if (!linkedApiIds.includes(apiId)) return API_NOT_LINKED;
     return { mode: 'app', user, project, linkedApiIds };
@@ -1136,10 +1196,73 @@ function keyOwnerIdOf(ctx: ProxyContext): string | null {
 
 호출부도 함께 수정한다: `resolveApiKey(apiId, cfg, keyOwnerIdOf(ctx), headers, targetUrl)`.
 
+- [ ] **Step 5b: 개인 키가 주입된 응답은 캐시하지 않는다 (M-4 가드레일)**
+
+`buildCacheKey`는 `apiId:proxyPath:params`뿐이라 **키 신원이 들어가지 않는다**. 지금까지는
+캐시 대상이 공개 키리스 API뿐이라 잠복 상태였지만, 이번 변경으로 **익명 호출자가 오너의 개인
+키로 업스트림을 호출**하게 되므로 같은 캐시 항목이 테넌트를 넘나들 위험이 실제화된다.
+내가 만든 위험이므로 여기서 최소한으로 닫는다.
+
+`resolveApiKey`가 개인 키를 주입했는지 호출부에 알리도록 반환값을 바꾼다.
+
+```ts
+// resolveApiKey 시그니처: Promise<void> → Promise<{ usedPersonalKey: boolean }>
+// 개인 키 분기에서 복호화에 성공하면 usedPersonalKey = true
+```
+
+호출부에서 캐시 저장·조회를 건너뛴다.
+
+```ts
+  // 개인 키로 받은 응답은 테넌트 간 공유가 불가하다. 캐시 키에 키 신원이 없으므로
+  // 캐시 자체를 건너뛴다(가장 단순하고 안전한 선택).
+  const cacheable = cacheTtlMs !== null && !usedPersonalKey;
+```
+
+`cacheTtlMs !== null` 조건을 쓰는 곳(조회 305-320행, 저장 353-355행, 응답 헤더 362-364행)을
+모두 `cacheable`로 바꾼다. 개인 키 경로는 `Cache-Control: no-store`가 되어야 한다.
+
+테스트를 추가한다.
+
+```ts
+  it('개인 키가 주입된 응답은 캐시하지 않는다 (M-4 가드레일)', async () => {
+    const { res } = await invokeProxy({
+      request: siteReq('weather.xzawed.xyz'),
+      user: null,
+      projectBySlug: PROJECT,
+      // 오너의 개인 키가 존재하는 상황을 만든다
+      personalKey: 'secret-key',
+    });
+    expect(res.headers.get('X-Cache')).toBeNull();
+    expect(res.headers.get('Cache-Control')).toContain('no-store');
+  });
+```
+
+`invokeProxy`에 `personalKey?: string` 옵션을 추가해 `userApiKeyRepo.findByUserAndApi`가
+`{ encryptedKey: 'enc' }`를 반환하게 하고, `decryptApiKey` mock이 그 값을 돌려주게 한다.
+
+- [ ] **Step 5c: 재생성 프롬프트에 projectId 추가**
+
+[`promptBuilder.ts:947`](../../../src/lib/ai/promptBuilder.ts)의
+`buildStage1RegenerationUserPrompt`가 만드는 프록시 URL에는 `projectId`가 없다(확인됨).
+서브도메인은 Host 모드로 덮이지만 apex 직접 게시 경로와 개인 키 해석이 이 파라미터에 의존한다.
+
+함수 시그니처에 `projectId?: string`을 추가하고 최초 생성 경로(830행)와 동일하게 만든다.
+
+```ts
+  const projectParam = projectId ? `&projectId=${projectId}` : '';
+  const callMethod = `서버 프록시 (인증 방식 무관): /api/v1/proxy?apiId=${api.id}${projectParam}&proxyPath=<경로>`;
+```
+
+호출부(재생성 라우트)에서 `project.id`를 넘긴다. 기존 호출부가 인자를 넘기지 않아도
+`projectId?`가 선택적이라 타입은 깨지지 않지만, **넘기지 않으면 이 수정이 무의미하므로
+호출부 수정까지 반드시 포함한다.**
+
+Run: `grep -rn "buildStage1RegenerationUserPrompt" src --include=*.ts` 로 호출부를 찾는다.
+
 - [ ] **Step 6: 테스트 통과 확인**
 
 Run: `pnpm vitest run src/__tests__/api/proxy.test.ts`
-Expected: PASS (기존 + 신규 6건)
+Expected: PASS (기존 + 신규 7건)
 
 - [ ] **Step 7: 전체 검증**
 
@@ -1170,6 +1293,7 @@ site 모드는 IP+projectId 리밋, app 모드는 기존 userId 리밋을 적용
 
 **Files:**
 - Modify: `CLAUDE.md`
+- Modify: `docs/reference/env-vars.md`
 - Create: `docs/decisions/2026-07-28-published-site-proxy-authz.md`
 
 **Interfaces:**
@@ -1219,6 +1343,18 @@ M-1~M-8 및 `AUTH_URL` 미설정 건 목록
 - **서브도메인 리라이트 예외**: `src/middleware.ts`의 `SUBDOMAIN_PASSTHROUGH_PREFIXES`에 있는 경로만 `/site/{slug}` 리라이트를 건너뛴다. 게시 사이트의 생성 JS가 상대경로 `/api/v1/proxy`로 호출하므로 이 예외가 없으면 API 데이터가 전부 404가 된다. 새 경로를 추가할 땐 최소 노출 원칙을 지킬 것
 - **프록시 인가는 `resolveProxyContext()` 단일 진입점**: site(익명·Host 바인딩)/app(세션·소유권 강제) 판정이 여기 한 곳에 있다. 라우트에 인가 분기를 새로 만들지 말 것 — 판단이 흩어져 개인 키 해석부가 소유권을 확인하지 않던 것이 H-1이었다
 ```
+
+- [ ] **Step 2b: 신규 환경변수 문서화**
+
+`docs/reference/env-vars.md`에 3개를 추가한다(프로젝트 문서 규칙: 환경변수는 이 파일이 단일 출처).
+
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `SITE_PROXY_RATE_LIMIT_PER_MIN` | 20 | 익명 게시 사이트 프록시 — IP+projectId 단위 분당 한도 |
+| `SITE_PROXY_PROJECT_LIMIT_PER_MIN` | 120 | 익명 게시 사이트 프록시 — 프로젝트 전역 분당 한도(분산 IP 상한) |
+| `MAX_SITE_RATE_LIMIT_BUCKETS` | 5000 | site 리미터가 동시에 추적하는 최대 버킷 수 |
+
+CLAUDE.md "환경변수" 절에도 한 줄씩 추가한다.
 
 - [ ] **Step 3: 전체 파이프라인 검증**
 
