@@ -35,7 +35,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Security audit
+      # 프로덕션 트리는 무조건 클린이어야 한다 — 런타임에 실제로 실려나가는 코드.
+      - name: Security audit (production tree)
+        run: pnpm audit --prod --audit-level=high
+
+      # 전체 트리(dev 포함). 상위 패키지 최신 버전에도 픽스가 없는 dev 전용 건은
+      # package.json의 pnpm.auditConfig.ignoreGhsas에 근거를 남기고 면제한다.
+      # 면제 목록은 docs/security/audit-waivers.md에서 관리·재검토.
+      - name: Security audit (full tree, reviewed waivers)
         run: pnpm audit --audit-level=high
 
       - name: Run ESLint
