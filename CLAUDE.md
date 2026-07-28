@@ -163,6 +163,8 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | 보안 인시던트 대응 절차 | [docs/security/incident-response.md](docs/security/incident-response.md) |
 | **의존성 감사 면제 목록 (pnpm audit 게이트 waiver)** | [docs/security/audit-waivers.md](docs/security/audit-waivers.md) |
 | 의존성 보안 일괄 상향·감사 게이트 2단계화 ADR (2026-07-28) | [docs/decisions/2026-07-28-dependency-security-updates.md](docs/decisions/2026-07-28-dependency-security-updates.md) |
+| **게시 사이트 프록시 복구·인가 모델 정비 ADR (C-1·C-2·H-1·H-2, 2026-07-28)** | [docs/decisions/2026-07-28-published-site-proxy-authz.md](docs/decisions/2026-07-28-published-site-proxy-authz.md) |
+| 게시 사이트 프록시 설계 spec | [docs/superpowers/specs/2026-07-28-published-site-proxy-authz-design.md](docs/superpowers/specs/2026-07-28-published-site-proxy-authz-design.md) |
 | better-sqlite3 v13 N-API 프리빌트 전환·빌드 툴체인 제거 ADR (2026-07-28) | [docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md](docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md) |
 | 환경변수 목록 | [docs/reference/env-vars.md](docs/reference/env-vars.md) |
 | 에러 클래스 참조 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
@@ -214,6 +216,8 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - 미리보기, 게시(직접), 게시(서브도메인) 3가지 경로 모두 추적
 - assembleHtml() 변경 시 CSS/JS 누락 여부 확인
 - "A에서는 되지만 B에서는 안 된다" 같은 경로별 차이가 없어야 함
+- **서브도메인 rewrite 예외**: `src/middleware.ts`의 `SUBDOMAIN_PASSTHROUGH_PREFIXES`에 있는 경로만 `/site/{slug}` rewrite를 건너뛴다. 게시 사이트의 생성 JS가 상대경로 `/api/v1/proxy`로 호출하므로 이 예외가 없으면 API 데이터가 전부 404가 된다(미리보기는 apex라 정상 동작해 드러나지 않음 — 2026-07-28 실측 발견). 새 경로 추가 시 최소 노출 원칙 유지
+- **프록시 인가는 `resolveProxyContext()` 단일 진입점**: site(익명·Host 바인딩)/app(세션·소유권 강제) 판정이 이 한 곳에 있다. 라우트에 인가 분기를 새로 만들지 말 것 — 판단이 흩어져 개인 키 해석부가 소유권을 확인하지 않던 것이 H-1이었다. 소유권은 `assertOwner` 재사용, Host로 프로젝트가 확정되면 클라이언트 `projectId`는 무시. 배경: [ADR](docs/decisions/2026-07-28-published-site-proxy-authz.md)
 
 ### 코드 수정 후
 - 수정한 함수/파일을 호출하는 모든 경로를 나열하고 각각 검증

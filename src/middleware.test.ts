@@ -77,3 +77,47 @@ describe('middleware — local-only 인증 게이트', () => {
     expect(res.headers.get('X-Frame-Options')).toBe('DENY');
   });
 });
+
+describe('middleware — 서브도메인 프록시 패스스루 (C-1)', () => {
+  const ORIG = { ...process.env };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_ROOT_DOMAIN = 'xzawed.xyz';
+  });
+
+  afterEach(() => {
+    process.env = { ...ORIG };
+  });
+
+  function subdomainReq(path: string): NextRequest {
+    return new NextRequest(new URL(`http://weather.xzawed.xyz${path}`), {
+      headers: { host: 'weather.xzawed.xyz' },
+    });
+  }
+
+  it('서브도메인의 하위 페이지 경로는 /site/{slug} 아래로 rewrite된다', async () => {
+    const res = await middleware(subdomainReq('/about'));
+    expect(res.headers.get('x-middleware-rewrite')).toContain('/site/weather/about');
+  });
+
+  it('서브도메인의 /api/v1/proxy는 rewrite되지 않는다 (게시 사이트가 상대경로로 호출)', async () => {
+    const res = await middleware(subdomainReq('/api/v1/proxy?apiId=x&proxyPath=/y'));
+    expect(res.headers.get('x-middleware-rewrite')).toBeNull();
+  });
+
+  it('패스스루 응답에도 보안 헤더가 적용된다', async () => {
+    const res = await middleware(subdomainReq('/api/v1/proxy'));
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+  });
+
+  it('패스스루(API)에는 CSP를 붙이지 않는다 (이중 적용 방지)', async () => {
+    const res = await middleware(subdomainReq('/api/v1/proxy'));
+    expect(res.headers.get('Content-Security-Policy')).toBeNull();
+  });
+
+  it('프록시가 아닌 /api 경로는 여전히 rewrite된다 (최소 노출)', async () => {
+    const res = await middleware(subdomainReq('/api/v1/projects'));
+    expect(res.headers.get('x-middleware-rewrite')).toContain('/site/weather');
+  });
+});

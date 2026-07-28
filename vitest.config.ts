@@ -37,6 +37,9 @@ export default defineConfig({
         'src/app/**/callback/route.ts',
         'src/app/**/login/page.tsx',
         'src/app/layout.tsx',
+        // 2026-07-28: 서브도메인 패스스루(C-1) 수정과 함께 집계 대상에 편입.
+        // 미포함 시 변경 라인이 SonarCloud new_coverage·codecov/patch에서 0%로 계산된다.
+        'src/middleware.ts',
         'src/app/api/v1/admin/**/route.ts',
         'src/app/api/v1/auth/**/route.ts',
         'src/app/api/v1/countries/**/route.ts',

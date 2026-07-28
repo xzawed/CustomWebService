@@ -433,15 +433,19 @@ describe('GET /api/v1/proxy', () => {
       };
       process.env.PLATFORM_API_KEY = 'platform-fallback-key';
 
-      const { createCatalogRepository, createProjectRepository } = await import(
-        '@/repositories/factory'
-      );
+      const { createCatalogRepository, createProjectRepository, createUserApiKeyRepository } =
+        await import('@/repositories/factory');
       vi.mocked(createCatalogRepository).mockReturnValue({
         findById: vi.fn().mockResolvedValue(apiWithKey),
       } as never);
-      // 프로젝트 조회 실패(레포 throw) → 플랫폼 키로 폴백
       vi.mocked(createProjectRepository).mockReturnValue({
-        findById: vi.fn().mockRejectedValue(new Error('DB 오류')),
+        findById: vi.fn().mockResolvedValue({ id: 'p-1', userId: mockUser.id, status: 'draft' }),
+        getProjectApiIds: vi.fn().mockResolvedValue([VALID_API_ID]),
+      } as never);
+      // 개인 키 조회 실패(레포 throw) → 플랫폼 키로 폴백.
+      // 인가(프로젝트 조회)는 성공해야 한다 — 인가 조회 실패는 폴백이 아니라 차단이다.
+      vi.mocked(createUserApiKeyRepository).mockReturnValue({
+        findByUserAndApi: vi.fn().mockRejectedValue(new Error('DB 오류')),
       } as never);
 
       const url = new URL('http://localhost/api/v1/proxy');
@@ -484,7 +488,8 @@ describe('GET /api/v1/proxy', () => {
         findById: vi.fn().mockResolvedValue(apiWithKey),
       } as never);
       vi.mocked(createProjectRepository).mockReturnValue({
-        findById: vi.fn().mockResolvedValue({ id: 'p-1', userId: 'owner-user-id' }),
+        findById: vi.fn().mockResolvedValue({ id: 'p-1', userId: mockUser.id, status: 'draft' }),
+        getProjectApiIds: vi.fn().mockResolvedValue([VALID_API_ID]),
       } as never);
       vi.mocked(createUserApiKeyRepository).mockReturnValue({
         findByUserAndApi: vi.fn().mockResolvedValue({ encryptedKey: 'corrupted-cipher' }),
@@ -522,7 +527,8 @@ describe('GET /api/v1/proxy', () => {
         findById: vi.fn().mockResolvedValue(apiWithKey),
       } as never);
       vi.mocked(createProjectRepository).mockReturnValue({
-        findById: vi.fn().mockResolvedValue({ id: 'p-1', userId: 'owner-user-id' }),
+        findById: vi.fn().mockResolvedValue({ id: 'p-1', userId: mockUser.id, status: 'draft' }),
+        getProjectApiIds: vi.fn().mockResolvedValue([VALID_API_ID]),
       } as never);
       const findByUserAndApi = vi.fn().mockResolvedValue({ encryptedKey: 'enc-personal' });
       vi.mocked(createUserApiKeyRepository).mockReturnValue({ findByUserAndApi } as never);
@@ -540,7 +546,7 @@ describe('GET /api/v1/proxy', () => {
       const res = await GET(req);
 
       // 개인 키가 레포 경로로 조회되어(raw .from 아님) 복호화에 사용됨
-      expect(findByUserAndApi).toHaveBeenCalledWith('owner-user-id', VALID_API_ID);
+      expect(findByUserAndApi).toHaveBeenCalledWith(mockUser.id, VALID_API_ID);
       expect(decryptApiKey).toHaveBeenCalledWith('enc-personal');
       expect(mockFetch).toHaveBeenCalled();
       expect([200, 502]).toContain(res.status);
@@ -816,5 +822,147 @@ describe('GET /api/v1/proxy', () => {
         }),
       );
     });
+  });
+});
+
+describe('프록시 인가 — site/app 모드 (C-2·H-1)', () => {
+  const ORIG_ENV = { ...process.env };
+  const PROJECT = { id: 'proj-1', userId: 'owner-1', status: 'published', slug: 'weather' };
+  const ATTACKER = { id: 'attacker', email: 'a@x.com', name: null, avatarUrl: null };
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    const { __resetSiteRateLimit } = await import('@/lib/proxy/siteRateLimit');
+    __resetSiteRateLimit();
+    process.env.NEXT_PUBLIC_ROOT_DOMAIN = 'xzawed.xyz';
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(makeSuccessResponse())));
+  });
+
+  afterEach(() => {
+    process.env = { ...ORIG_ENV };
+  });
+
+  function siteReq(host: string, extra = ''): Request {
+    return new Request(
+      `https://${host}/api/v1/proxy?apiId=${VALID_API_ID}&proxyPath=/data${extra}`,
+      { headers: { host } },
+    );
+  }
+
+  async function invokeProxy(opts: {
+    request: Request;
+    user?: typeof ATTACKER | null;
+    projectBySlug?: Record<string, unknown> | null;
+    projectById?: Record<string, unknown> | null;
+    linkedApiIds?: string[];
+    personalKey?: string;
+    api?: Record<string, unknown>;
+    times?: number;
+  }): Promise<{ res: Response; userApiKeyRepo: { findByUserAndApi: ReturnType<typeof vi.fn> } }> {
+    const { getAuthUser } = await import('@/lib/auth/index');
+    const factory = await import('@/repositories/factory');
+    const { decryptApiKey } = await import('@/lib/encryption');
+
+    vi.mocked(getAuthUser).mockResolvedValue(opts.user ?? null);
+
+    const userApiKeyRepo = {
+      findByUserAndApi: vi
+        .fn()
+        .mockResolvedValue(opts.personalKey ? { encryptedKey: 'enc' } : null),
+    };
+    vi.mocked(factory.createUserApiKeyRepository).mockReturnValue(userApiKeyRepo as never);
+    if (opts.personalKey) vi.mocked(decryptApiKey).mockReturnValue(opts.personalKey);
+
+    vi.mocked(factory.createProjectRepository).mockReturnValue({
+      findBySlug: vi.fn().mockResolvedValue(opts.projectBySlug ?? null),
+      findById: vi.fn().mockResolvedValue(opts.projectById ?? null),
+      getProjectApiIds: vi.fn().mockResolvedValue(opts.linkedApiIds ?? [VALID_API_ID]),
+    } as never);
+
+    vi.mocked(factory.createCatalogRepository).mockReturnValue({
+      findById: vi.fn().mockResolvedValue(opts.api ?? mockPublicApi),
+    } as never);
+
+    const { GET } = await import('@/app/api/v1/proxy/route');
+    let res!: Response;
+    for (let i = 0; i < (opts.times ?? 1); i++) {
+      res = await GET(opts.request);
+    }
+    return { res, userApiKeyRepo };
+  }
+
+  it('published 서브도메인의 익명 요청을 허용한다 (C-2)', async () => {
+    const { res } = await invokeProxy({
+      request: siteReq('weather.xzawed.xyz'),
+      user: null,
+      projectBySlug: PROJECT,
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('미게시 프로젝트의 서브도메인 요청은 404 (존재 여부 미노출)', async () => {
+    const { res } = await invokeProxy({
+      request: siteReq('weather.xzawed.xyz'),
+      user: null,
+      projectBySlug: { ...PROJECT, status: 'draft' },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('세션 사용자가 타인 projectId로 개인 키를 쓰려 하면 403 (H-1)', async () => {
+    const { res } = await invokeProxy({
+      request: siteReq('xzawed.xyz', '&projectId=proj-1'),
+      user: ATTACKER,
+      projectById: { ...PROJECT, userId: 'victim' },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('타인 projectId 요청에서는 개인 키 조회 자체가 일어나지 않는다 (H-1)', async () => {
+    const { userApiKeyRepo } = await invokeProxy({
+      request: siteReq('xzawed.xyz', '&projectId=proj-1'),
+      user: ATTACKER,
+      projectById: { ...PROJECT, userId: 'victim' },
+    });
+    expect(userApiKeyRepo.findByUserAndApi).not.toHaveBeenCalled();
+  });
+
+  it('프로젝트에 연결되지 않은 apiId는 403', async () => {
+    const { res } = await invokeProxy({
+      request: siteReq('weather.xzawed.xyz'),
+      user: null,
+      projectBySlug: PROJECT,
+      linkedApiIds: [],
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('site 모드 레이트리밋 초과 시 429 + Retry-After', async () => {
+    const { res } = await invokeProxy({
+      request: siteReq('weather.xzawed.xyz'),
+      user: null,
+      projectBySlug: PROJECT,
+      times: 25,
+    });
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBeTruthy();
+  });
+
+  it('개인 키가 주입된 응답은 캐시하지 않는다 (M-4 가드레일)', async () => {
+    const { res } = await invokeProxy({
+      request: siteReq('weather.xzawed.xyz'),
+      user: null,
+      projectBySlug: PROJECT,
+      personalKey: 'secret-key',
+      api: {
+        ...mockPublicApi,
+        authType: 'api_key',
+        cacheTtlSeconds: 300,
+        authConfig: { param_name: 'X-API-Key', param_in: 'header' },
+      },
+    });
+    expect(res.headers.get('X-Cache')).toBeNull();
+    expect(res.headers.get('Cache-Control')).toContain('no-store');
   });
 });
