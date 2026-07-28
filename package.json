@@ -30,7 +30,7 @@
     "isomorphic-dompurify": "^3.19.0",
     "libsodium-wrappers": "^0.8.4",
     "lucide-react": "^1.25.0",
-    "next": "^16.2.10",
+    "next": "^16.2.11",
     "next-auth": "5.0.0-beta.31",
     "playwright-core": "^1.61.1",
     "react": "^19.2.7",
