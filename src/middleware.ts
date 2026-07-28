@@ -4,6 +4,26 @@ import { getCorrelationId, CORRELATION_ID_HEADER } from '@/lib/utils/correlation
 const PROTECTED_ROUTES = ['/builder', '/dashboard', '/preview'];
 
 /**
+ * 서브도메인에서 `/site/{slug}` rewrite를 건너뛸 경로.
+ *
+ * 게시 사이트의 생성 JS는 상대경로 `/api/v1/proxy?...`로 API를 호출한다
+ * (promptBuilder가 CORS 때문에 직접 외부 URL 호출을 금지하므로 프록시 경유가 유일한 경로).
+ * rewrite되면 `/site/{slug}/api/v1/proxy`가 되는데 `/site/[slug]`는 단일 동적 세그먼트라
+ * 매칭되지 않아 404가 된다 — API를 쓰는 게시 사이트가 전부 데이터 로딩에 실패했다.
+ *
+ * `/api/*` 전체가 아니라 프록시 경로만 여는 이유: 세션 쿠키가 `__Host-` 프리픽스라
+ * 호스트 전용이므로 생성 사이트가 방문자 세션을 탈취할 수는 없지만, 불필요한
+ * 엔드포인트를 서브도메인에 노출할 이유가 없다(최소 노출).
+ */
+const SUBDOMAIN_PASSTHROUGH_PREFIXES = ['/api/v1/proxy'];
+
+function isSubdomainPassthrough(pathname: string): boolean {
+  return SUBDOMAIN_PASSTHROUGH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+/**
  * Auth.js(JWT, local) 보호 경로 게이팅.
  * 보호 경로가 아니거나 인증된 경우 null, 미인증이면 /login 리다이렉트 응답을 반환한다.
  *
@@ -37,7 +57,9 @@ export async function middleware(request: NextRequest) {
 
     if (!isLocalhost && host.endsWith(`.${rootDomain}`)) {
       const slug = host.slice(0, -(rootDomain.length + 1));
-      if (slug && slug !== 'www') {
+      // 패스스루 경로는 rewrite하지 않고 아래 일반 응답 경로로 흘려보낸다 —
+      // 그래야 correlation id·보안 헤더가 적용되고 isApi 판정으로 CSP를 건너뛴다.
+      if (slug && slug !== 'www' && !isSubdomainPassthrough(request.nextUrl.pathname)) {
         const url = request.nextUrl.clone();
         url.pathname = `/site/${slug}${url.pathname === '/' ? '' : url.pathname}`;
         // 서브도메인 사이트는 인증 세션 업데이트 불필요 — 직접 rewrite
