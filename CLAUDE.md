@@ -315,6 +315,22 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - **`pnpm.onlyBuiltDependencies`는 빈 배열을 유지한다 (키 삭제 금지)**: better-sqlite3 v13은 N-API 프리빌트를 패키지에 동봉하므로 빌드 스크립트가 필요 없다. 그런데 `binding.gyp`가 함께 배포되어 **npm/pnpm이 암묵적으로 `node-gyp rebuild`를 실행**한다 — 허용하면 Windows에서 `pnpm install`이 Visual Studio 탐색 실패로 깨지고 Linux에선 불필요한 소스 컴파일이 돈다. **키를 지우면 안 되는 이유**: pnpm 9는 키 부재 시 모든 스크립트를 실행하고(pnpm 10은 기본 차단), CI·Dockerfile이 `pnpm@9`를 쓴다. 빈 배열이 두 버전 모두에서 "아무것도 빌드 안 함"을 보장하는 유일한 표기다. Dockerfile에서 `g++/make/python3`를 제거한 것도 이 전제에 의존한다. 배경: [docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md](docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md)
 - **Node 22 고정 (engines/Dockerfile/워크플로)**: `package.json engines.node: ">=22"`, `node:22-alpine`, CI `node-version: 22`로 고정. 원래 사유였던 `@supabase/supabase-js` eager WebSocket 가드는 supabase-js 제거(P8.2)로 소멸했으나, **Node 22 핀은 유지**한다(다운그레이드 불필요). better-sqlite3는 프리빌트로 설치되며 musl alpine에서 프리빌트 부재 시 `g++/make/python3`로 소스 컴파일(Dockerfile deps 스테이지). 역사: [docs/decisions/2026-06-22-node22-supabase-websocket-fix.md](docs/decisions/2026-06-22-node22-supabase-websocket-fix.md)
 
+## 검수 후속 작업 (2026-07-28 전체 검수)
+
+전체 검수 13건 중 **11건은 PR #195·#196으로 해소·배포 완료**. 남은 항목은 GitHub Issue로 등록했다.
+`gh issue list --label audit-followup` 으로 확인.
+
+| Issue | 내용 | 성격 |
+|-------|------|------|
+| [#197](https://github.com/xzawed/CustomWebService/issues/197) | C-1·C-2 실환경 검증 — 테스트 프로젝트 게시 필요 | **검증 미완** (코드는 배포됨) |
+| [#198](https://github.com/xzawed/CustomWebService/issues/198) | M-5 generationTracker durable lock (SQLite 락 권장) | **부분 대응** — 관측만 추가됨 |
+| [#199](https://github.com/xzawed/CustomWebService/issues/199) | M-4 잔여 — 캐시 키에 키 신원 추가해 캐시 이득 회복 | 안전하나 비효율 |
+| [#200](https://github.com/xzawed/CustomWebService/issues/200) | site 프록시 오남용 모니터링 (프로젝트 전역 한도가 유일 경계) | 운영 가시성 |
+| [#201](https://github.com/xzawed/CustomWebService/issues/201) | Railway Wait for CI + env 단독 변경 시 재배포 FAILED | 원인 미확정 |
+
+배경: [게시 사이트 프록시 ADR](docs/decisions/2026-07-28-published-site-proxy-authz.md) ·
+[MEDIUM 항목 ADR](docs/decisions/2026-07-29-medium-audit-findings.md)
+
 ## 세션 시작 체크리스트 (필수)
 
 작업 세션을 시작할 때 아래 두 가지를 반드시 먼저 확인한다.
