@@ -137,6 +137,36 @@ describe('GET /api/v1/proxy', () => {
     it('AWS/GCP 메타데이터 169.254.169.254 → 403', async () => {
       await expectSsrfBlocked('http://169.254.169.254/latest/meta-data');
     });
+
+    // IPv4-mapped IPv6는 IPv4 패턴에도 IPv6 패턴에도 걸리지 않아 그대로 통과했다(M-7).
+    // dns.lookup이 매핑 형식을 돌려줄 수 있어 실제 도달 가능한 우회 경로다.
+    it('IPv4-mapped IPv6 루프백 ::ffff:127.0.0.1 → 403', async () => {
+      await expectSsrfBlocked('http://[::ffff:127.0.0.1]/internal');
+    });
+
+    it('IPv4-mapped IPv6 메타데이터 ::ffff:169.254.169.254 → 403', async () => {
+      await expectSsrfBlocked('http://[::ffff:169.254.169.254]/latest/meta-data');
+    });
+
+    it('DNS가 IPv4-mapped IPv6로 해석되면 → 403', async () => {
+      const { default: dnsDefault } = await import('dns/promises');
+      vi.mocked(dnsDefault.lookup).mockResolvedValueOnce({
+        address: '::ffff:169.254.169.254',
+        family: 6,
+      } as never);
+
+      const { getAuthUser } = await import('@/lib/auth/index');
+      vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+      const { createCatalogRepository } = await import('@/repositories/factory');
+      vi.mocked(createCatalogRepository).mockReturnValue({
+        findById: vi.fn().mockResolvedValue({ ...mockPublicApi, baseUrl: 'https://legit.example.com' }),
+      } as never);
+
+      const { GET } = await import('@/app/api/v1/proxy/route');
+      const res = await GET(makeRequest(VALID_API_ID, '/data'));
+      expect(res.status).toBe(403);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
   });
 
   describe('입력 검증', () => {

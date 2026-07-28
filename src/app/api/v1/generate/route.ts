@@ -48,8 +48,13 @@ export async function POST(request: Request): Promise<Response> {
 
     const rateLimitService = createRateLimitService();
     const projectService = createProjectService();
-    await rateLimitService.checkAndIncrementDailyLimit(user.id);
-    pendingDecrement = () => rateLimitService.decrementDailyLimit(user.id);
+    // charged=false(우회·fail-open)면 카운터가 오르지 않았으므로 환불 경로를 만들지 않는다.
+    // 조건 없이 환불하면 DB 오류가 날 때마다 사용자 한도가 늘어난다.
+    const { charged } = await rateLimitService.checkAndIncrementDailyLimit(user.id);
+    if (charged) pendingDecrement = () => rateLimitService.decrementDailyLimit(user.id);
+    const pipelineRateLimit = charged
+      ? rateLimitService
+      : { decrementDailyLimit: async (): Promise<void> => {} };
     const [project, apiIds] = await Promise.all([
       projectService.getById(projectId, user.id),
       projectService.getProjectApiIds(projectId),
@@ -114,7 +119,7 @@ export async function POST(request: Request): Promise<Response> {
           {
             codeRepo: createCodeRepository(),
             projectService,
-            rateLimitService,
+            rateLimitService: pipelineRateLimit,
             projectRepo: createProjectRepository(),
           },
         );

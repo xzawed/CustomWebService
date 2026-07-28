@@ -50,7 +50,7 @@ async function setupAuth() {
 
   const { createRateLimitService } = await import('@/services/factory');
   vi.mocked(createRateLimitService).mockReturnValue({
-    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue({ charged: true }),
     decrementDailyLimit: vi.fn().mockResolvedValue(undefined),
   } as never);
 }

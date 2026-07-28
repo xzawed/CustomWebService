@@ -1,4 +1,5 @@
 import { LRUMap } from '@/lib/utils/lruMap';
+import { logger } from '@/lib/utils/logger';
 
 const TTL_GENERATING_MS = 30 * 60 * 1000; // 30분 — 생성 중 상태는 더 오래 유지
 const TTL_TERMINAL_MS = 10 * 60 * 1000;  // 10분 — completed/failed
@@ -62,7 +63,14 @@ class GenerationTracker {
 
   complete(projectId: string, result: TrackerEntry['result']): void {
     const entry = this.entries.get(projectId);
-    if (!entry) return;
+    if (!entry) {
+      // 엔트리가 TTL(생성 중 30분) 또는 size cap으로 사라진 뒤 완료된 경우.
+      // 상태 폴링이 이 프로젝트를 not_found로 보고하게 되므로(코드는 저장됐는데도)
+      // 조용히 넘기지 않고 남긴다. 근본 해결은 외부 저장소 기반 durable lock이며
+      // 단일 인스턴스 인메모리 구조에서는 관측만 가능하다.
+      logger.warn('Generation completed but tracker entry was already gone', { projectId });
+      return;
+    }
 
     entry.status = 'completed';
     entry.progress = 100;

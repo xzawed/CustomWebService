@@ -52,8 +52,12 @@ export async function POST(request: Request): Promise<Response> {
     const correlationId = getCorrelationId(request);
 
     const rateLimitService = createRateLimitService();
-    await rateLimitService.checkAndIncrementDailyLimit(user.id);
-    pendingDecrement = () => rateLimitService.decrementDailyLimit(user.id);
+    // charged=false(우회·fail-open)면 카운터가 오르지 않았으므로 환불 경로를 만들지 않는다.
+    const { charged } = await rateLimitService.checkAndIncrementDailyLimit(user.id);
+    if (charged) pendingDecrement = () => rateLimitService.decrementDailyLimit(user.id);
+    const pipelineRateLimit = charged
+      ? rateLimitService
+      : { decrementDailyLimit: async (): Promise<void> => {} };
 
     const projectService = createProjectService();
     const [project, apiIds] = await Promise.all([
@@ -126,7 +130,7 @@ export async function POST(request: Request): Promise<Response> {
           {
             codeRepo,
             projectService,
-            rateLimitService,
+            rateLimitService: pipelineRateLimit,
             projectRepo: createProjectRepository(),
           },
         );

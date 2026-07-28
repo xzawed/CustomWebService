@@ -29,5 +29,12 @@ export function getClientIp(request: Request): string {
   const xff = request.headers.get('x-forwarded-for');
   const rightmost = xff?.split(',').at(-1)?.trim();
   if (rightmost) return rightmost;
-  return request.headers.get('x-real-ip')?.trim() || 'unknown';
+
+  // XFF가 없으면 x-real-ip로 폴백하지 않는다.
+  //
+  // x-real-ip는 신뢰 경계(Railway 엣지)가 붙였다는 보장이 없어 클라이언트가 자유롭게
+  // 위조·회전할 수 있다. 폴백을 두면 XFF가 없는 경로에서 per-IP 한도(signup·비밀번호
+  // 재설정 메일 발송)가 통째로 무력화된다. 식별 불가일 땐 단일 'unknown' 버킷으로
+  // 모아 fail-closed 한다 — 과차단이 우회보다 안전하다.
+  return 'unknown';
 }

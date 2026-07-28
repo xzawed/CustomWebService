@@ -439,8 +439,13 @@ export async function runGenerationPipeline(
     );
 
     // Quality Loop가 새 코드를 생성했을 수 있으므로 보안 검증을 재실행한다.
+    //
+    // 재계산 결과를 저장에도 넘긴다 — 이전에는 오류 검사에만 쓰고 저장에는 루프 이전
+    // validation을 그대로 넘겨, 실제 서빙되는 코드와 다른 코드의 securityCheckPassed·
+    // validationErrors가 DB에 남았다(QC 대시보드가 잘못된 코드를 근거로 판단하게 됨).
+    let finalValidation = validation;
     if (qualityLoopUsed) {
-      const finalValidation = validateAll(finalParsed.html, finalParsed.css, finalParsed.js);
+      finalValidation = validateAll(finalParsed.html, finalParsed.css, finalParsed.js);
       if (finalValidation.errors.length > 0) {
         logger.warn('Quality loop output failed security validation', { projectId, errors: finalValidation.errors });
         throw new Error(`생성된 코드에 보안 문제가 감지되었습니다: ${finalValidation.errors.join(', ')}`);
@@ -452,7 +457,7 @@ export async function runGenerationPipeline(
       {
         projectId, userId, correlationId,
         parsed: finalParsed, quality, qcReport, qualityLoopUsed,
-        validation, apis, projectContext, extraMetadata,
+        validation: finalValidation, apis, projectContext, extraMetadata,
         featureSpec,
         stage2Response: { provider: stage3Result.provider, model: stage3Result.model, durationMs: aggregatedDuration, tokensUsed: aggregatedTokens },
         userPromptUsed: stage3Result.userPrompt,
