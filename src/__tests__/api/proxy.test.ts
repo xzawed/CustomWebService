@@ -200,6 +200,49 @@ describe('GET /api/v1/proxy', () => {
     });
   });
 
+  // 16진 표기 IPv4-mapped IPv6도 대역째 차단한다(M-7).
+  it('16진 표기 IPv4-mapped IPv6 ::ffff:7f00:1 → 403', async () => {
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+    const { createCatalogRepository } = await import('@/repositories/factory');
+    vi.mocked(createCatalogRepository).mockReturnValue({
+      findById: vi.fn().mockResolvedValue({ ...mockPublicApi, baseUrl: 'http://[::ffff:7f00:1]/internal' }),
+    } as never);
+
+    const { GET } = await import('@/app/api/v1/proxy/route');
+    const res = await GET(makeRequest(VALID_API_ID, '/data'));
+    expect(res.status).toBe(403);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  // 활성 사용자 수가 상한을 넘으면 살아 있는 카운터를 버리는 대신 차단한다(M-6).
+  // LRUMap 시절에는 여기서 evict가 일어나 다음 요청이 count:1로 시작, 한도가 우회됐다.
+  it('활성 사용자 상한 초과 시 활성 카운터를 버리지 않고 새 사용자를 차단한다', async () => {
+    const { getAuthUser } = await import('@/lib/auth/index');
+    const { createCatalogRepository } = await import('@/repositories/factory');
+    vi.mocked(createCatalogRepository).mockReturnValue({
+      findById: vi.fn().mockResolvedValue(mockPublicApi),
+    } as never);
+
+    const { GET } = await import('@/app/api/v1/proxy/route');
+    const { MAX_CONCURRENT_RATE_LIMIT_USERS } = await import('@/lib/config/rateLimit');
+
+    // 상한까지 서로 다른 사용자로 버킷을 채운다.
+    for (let i = 0; i < MAX_CONCURRENT_RATE_LIMIT_USERS; i++) {
+      vi.mocked(getAuthUser).mockResolvedValue({ ...mockUser, id: `filler-${i}` });
+      await GET(makeRequest(VALID_API_ID, '/data'));
+    }
+
+    // 상한을 넘긴 신규 사용자는 차단된다(기존 카운터는 유지).
+    vi.mocked(getAuthUser).mockResolvedValue({ ...mockUser, id: 'overflow-user' });
+    const res = await GET(makeRequest(VALID_API_ID, '/data'));
+    expect(res.status).toBe(429);
+
+    // 이미 버킷을 가진 사용자는 계속 정상 동작한다.
+    vi.mocked(getAuthUser).mockResolvedValue({ ...mockUser, id: 'filler-0' });
+    expect((await GET(makeRequest(VALID_API_ID, '/data'))).status).toBe(200);
+  });
+
   it('rate limit 초과 (분당 60회) → 429', async () => {
     const { getAuthUser } = await import('@/lib/auth/index');
     vi.mocked(getAuthUser).mockResolvedValue(mockUser);
