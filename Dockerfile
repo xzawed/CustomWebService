@@ -1,9 +1,10 @@
 # ── Stage 1: Install dependencies ──
 FROM node:22-alpine AS deps
 RUN corepack enable && corepack prepare pnpm@9 --activate
-# better-sqlite3 네이티브 모듈 빌드 도구 (musl alpine에 프리빌트가 없으면 소스 컴파일).
-# DB_PROVIDER=sqlite 경로에서만 런타임 사용되지만, deps는 항상 빌드해 둔다.
-RUN apk add --no-cache g++ make python3
+# 빌드 툴체인(g++/make/python3) 불필요 — better-sqlite3 v13이 N-API 프리빌트를
+# 패키지에 직접 동봉하고(prebuilds/linuxmusl-x64.node), pnpm.onlyBuiltDependencies가
+# 빈 배열이라 암묵적 node-gyp rebuild 자체가 실행되지 않는다.
+# 네이티브 컴파일이 다시 필요해지면 `apk add --no-cache g++ make python3`를 복원할 것.
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --prod=false
