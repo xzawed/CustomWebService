@@ -137,7 +137,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
 - `AI_MODEL_SUGGESTION` — 추천용 모델 (기본: `claude-haiku-4-5`)
 - `AI_MODEL_GENERATION` — 코드 생성 모델 (기본: `claude-opus-5`, Sonnet 폴백: `claude-sonnet-5`)
-- `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` / `SLACK_WEBHOOK_URL` — 에러·알림 sink. **셋 다 미설정이면 프로덕션에 활성 에러 sink가 없다**(Sentry `enabled:false`, `sendSlackAlert` no-op) → `errorRateMonitor` 알림이 유실된다
+- `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` / `SLACK_WEBHOOK_URL` — 에러·알림 sink. **Slack만 사용**(`errorRateMonitor` 생성 실패율 + `scheduleBackups` 백업 실패/복구 → `sendSlackAlert`). **Sentry는 의도적으로 미도입**(#220). `SLACK_WEBHOOK_URL`이 Railway에 실제로 설정되기 전까지 경보는 여전히 유실된다(`sendSlackAlert` no-op)
 - `LOG_LEVEL` — 로그 상세도 (`debug`/`info`/`warn`/`error`, 기본 `info`)
 - `ET_COMPLEXITY_THRESHOLD` — Extended Thinking 활성화 임계값 (기본: 35점, `evaluateComplexityScore()` 결과 비교)
 - `QUALITY_LOOP_ITERATION_TIMEOUT_MS` — Quality Loop 반복당 타임아웃 (기본: 120000ms = 120초)
@@ -166,6 +166,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | 의존성 보안 일괄 상향·감사 게이트 2단계화 ADR (2026-07-28) | [docs/decisions/2026-07-28-dependency-security-updates.md](docs/decisions/2026-07-28-dependency-security-updates.md) |
 | **게시 사이트 프록시 복구·인가 모델 정비 ADR (C-1·C-2·H-1·H-2, 2026-07-28)** | [docs/decisions/2026-07-28-published-site-proxy-authz.md](docs/decisions/2026-07-28-published-site-proxy-authz.md) |
 | 게시 사이트 프록시 설계 spec | [docs/superpowers/specs/2026-07-28-published-site-proxy-authz-design.md](docs/superpowers/specs/2026-07-28-published-site-proxy-authz-design.md) |
+| **알림 sink Slack 고정·백업 실패 배선 ADR (#220, 2026-07-30)** | [docs/decisions/2026-07-30-monitoring-sink-slack-only.md](docs/decisions/2026-07-30-monitoring-sink-slack-only.md) |
 | **AI 추천 일일 쿼터 분리 ADR (#219, 2026-07-30)** | [docs/decisions/2026-07-30-suggestion-daily-quota-separation.md](docs/decisions/2026-07-30-suggestion-daily-quota-separation.md) |
 | 검수 MEDIUM 발견 항목 수정 ADR (M-1·2·3·5·6·7·8, 2026-07-29) | [docs/decisions/2026-07-29-medium-audit-findings.md](docs/decisions/2026-07-29-medium-audit-findings.md) |
 | **생성 락을 인메모리 tracker에서 SQLite로 분리 ADR (M-5 근본 해결, 2026-07-29)** | [docs/decisions/2026-07-29-durable-generation-lock.md](docs/decisions/2026-07-29-durable-generation-lock.md) |
@@ -256,6 +257,13 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 ### AI 호출 타임아웃 규칙
 - **타임아웃은 `Promise.race`만으로 끝내지 말고 `AbortSignal`을 함께 넘길 것**. race는 즉시 종료돼도 업스트림 호출은 SDK 타임아웃(최대 ~270초)까지 살아 있어, 다음 반복이 겹치면 **Opus/ET 토큰 비용이 이중 청구**된다. `AiPrompt.abortSignal` → `ClaudeProvider`의 `{ signal }`로 이미 배선되어 있다
 - race에서 지는 쪽의 거부는 아무도 관측하지 않으므로 생성 Promise에 no-op `.catch()`를 미리 붙여 `unhandledRejection`을 막을 것 (`qualityLoop.ts` 참고)
+
+### 백그라운드 스케줄러에 경보를 붙일 때 (백업·보존 등)
+- **순서를 못박는다: `logger.error`(동기) → 상태 전이(동기) → 경보(`void Promise.resolve(alertFn(...)).catch(...)`).** 알림 실패가 스케줄러를 죽이면 **알림 없는 상태보다 엄격히 나쁘다**
+- **`sendSlackAlert`에 비-reject 보장이 없다.** 내부 try/catch가 있지만 `try` 이전 경로·주입된 `alertFn`·향후 수정이 전부 위험이다. `scheduleBackups`의 `tick()`은 `void runFn(...).then(onOk, onErr)` 형태라 **핸들러가 던지거나 async 핸들러가 reject하면 `unhandledRejection`**이 된다 → `onReject` 안에서 `await alertFn`을 하지 말고 별도 voided promise로 분리할 것
+- `errorRateMonitor`가 `await sendSlackAlert`를 해도 되는 이유는 `EventBus.emit`이 핸들러를 `.catch`로 감싸기 때문이다. **스케줄러에는 그 래퍼가 없다** — EventBus 소비자 코드를 그대로 복사하면 안 된다
+- **매 주기 경보 금지 — 상태 전이만.** `null/true→fail` 1회(error), `fail→success` 1회(info 복구), 연속 실패는 억제. 최초 실행 실패도 경보한다(선행 성공을 기다리면 그게 조용한 죽음이다). 복구 경보를 빼면 억제가 정보를 삼킨다
+- 상태는 **클로저 로컬**로 둘 것(모듈 레벨 플래그 금지) — 인스턴스 독립이라 테스트가 `vi.resetModules()`를 안 써도 된다. 배경: [ADR](docs/decisions/2026-07-30-monitoring-sink-slack-only.md)
 
 ### 의존성 감사 게이트 (`pnpm audit`)
 - CI는 2단계로 실행한다: ① `pnpm audit --prod --audit-level=high`(**프로덕션 트리 하드 게이트**), ② `pnpm audit --audit-level=high`(전체 트리, 검토된 면제 적용)
@@ -392,7 +400,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 
 | Issue | 착수 계획서 | 착수 전 결정 필요 |
 |-------|------------|------------------|
-| [#220](https://github.com/xzawed/CustomWebService/issues/220) 활성 에러·알림 sink 부재 | [monitoring-sink-wiring](docs/superpowers/plans/2026-07-30-monitoring-sink-wiring.md) | Slack webhook / Sentry DSN 중 무엇을 등록할지 (값 제공 필요). **2026-04-27에 "SLACK_WEBHOOK_URL·errorRateMonitor 사용 안 함" 반대 결정이 있었으므로 뒤집는 게 맞는지 먼저 확인** |
+| [#220](https://github.com/xzawed/CustomWebService/issues/220) 활성 에러·알림 sink 부재 | [ADR](docs/decisions/2026-07-30-monitoring-sink-slack-only.md) · [계획서](docs/superpowers/plans/2026-07-30-monitoring-sink-wiring.md) | **결정 완료(2026-07-30)** — Slack 고정·Sentry 미도입, 2026-04-27 결정 뒤집음. 코드 배선 완료. **남은 것은 `SLACK_WEBHOOK_URL` 값 등록 + 합성 경보 도착 확인** |
 | [#221](https://github.com/xzawed/CustomWebService/issues/221) 계정 삭제·데이터 내보내기 부재 | [account-delete-and-export](docs/superpowers/plans/2026-07-30-account-delete-and-export.md) | `platform_events` payload 개인정보 처리 · 게시 사이트 연쇄 · 재가입 허용 |
 | [#222](https://github.com/xzawed/CustomWebService/issues/222) SQLite 복구 런북 부재 | [sqlite-restore-runbook](docs/superpowers/plans/2026-07-30-sqlite-restore-runbook.md) | 프로덕션 리허설 여부(다운타임 발생) |
 | [#223](https://github.com/xzawed/CustomWebService/issues/223) 로그인 레이트리밋 부재 | [login-rate-limit](docs/superpowers/plans/2026-07-30-login-rate-limit.md) | IP 단위 / 계정 단위 / 둘 다 (계정 단위는 잠금 DoS 위험) |

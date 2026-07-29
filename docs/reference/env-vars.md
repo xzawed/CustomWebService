@@ -115,19 +115,19 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 
 ## 모니터링
 
-> ⚠️ **현재 프로덕션에는 활성 에러·알림 sink가 없다.** `SENTRY_DSN`·`NEXT_PUBLIC_SENTRY_DSN`·`SLACK_WEBHOOK_URL`이 모두 미설정이라
-> Sentry는 `enabled: false`로 부팅하고(`sentry.{server,client,edge}.config.ts`), `sendSlackAlert()`는 경고 로그만 남기고 반환한다.
-> 결과적으로 `errorRateMonitor`가 감지하는 **코드 생성 실패율 임계값 초과 알림이 아무 곳에도 전달되지 않는다.**
-> 실사용자 서비스이므로 최소 하나(Sentry DSN 또는 Slack Webhook)는 설정할 것을 권장한다.
+> ⚠️ **알림 sink는 Slack으로 고정했다. Sentry는 의도적으로 도입하지 않는다** (#220).
+> 코드 경로: `errorRateMonitor`(생성 실패율) + `scheduleBackups`(SQLite 백업 실패·복구, 상태 전이 1회 경보) → `sendSlackAlert`.
+> **`SLACK_WEBHOOK_URL`이 Railway에 실제로 설정되기 전까지 sink는 비활성이다** — `sendSlackAlert`는 경고 로그만 남기고 반환하므로 경보는 여전히 유실된다.
+> Sentry 관련 env(`SENTRY_DSN` 등)는 코드에 남아 있으나 미사용·미도입 결정. 값을 넣지 않는 것이 기본이다.
 
 | 변수 | 필수 | Railway | 설명 |
 |------|------|---------|------|
-| `SENTRY_DSN` | 선택 | ❌ | Sentry 서버·edge 런타임 에러 수집 DSN. 미설정 시 `enabled: false`로 비활성화 |
-| `NEXT_PUBLIC_SENTRY_DSN` | 선택 | ❌ | Sentry **브라우저** 런타임 DSN (`sentry.client.config.ts`). 서버용 `SENTRY_DSN`과 별개로 설정해야 클라이언트 에러가 수집된다 |
-| `SENTRY_ORG` | 선택 | ❌ | Sentry 조직 슬러그 (소스맵 업로드용) |
-| `SENTRY_PROJECT` | 선택 | ❌ | Sentry 프로젝트 슬러그 |
-| `SENTRY_AUTH_TOKEN` | 선택 | ❌ | Sentry 소스맵 업로드 토큰 |
-| `SLACK_WEBHOOK_URL` | 선택 | ❌ | Slack 알림 Webhook URL. 미설정 시 알림 스킵. `slackAlert()` + `errorRateMonitor`에서 사용 |
+| `SENTRY_DSN` | 선택 | ❌ | (미도입) Sentry 서버·edge DSN. #220에서 Slack-only 결정 — 설정하지 않음. 미설정 시 `enabled: false` |
+| `NEXT_PUBLIC_SENTRY_DSN` | 선택 | ❌ | (미도입) Sentry 브라우저 DSN. 서버용 `SENTRY_DSN`과 별개 |
+| `SENTRY_ORG` | 선택 | ❌ | (미도입) Sentry 조직 슬러그 (소스맵 업로드용) |
+| `SENTRY_PROJECT` | 선택 | ❌ | (미도입) Sentry 프로젝트 슬러그 |
+| `SENTRY_AUTH_TOKEN` | 선택 | ❌ | (미도입) Sentry 소스맵 업로드 토큰 |
+| `SLACK_WEBHOOK_URL` | 선택 | ❌ | **활성 알림 sink.** Slack Incoming Webhook URL. 미설정 시 알림 스킵(로그 한 줄). `sendSlackAlert` ← `errorRateMonitor` + `scheduleBackups` 백업 실패/복구 |
 | `ERROR_RATE_ALERT_THRESHOLD` | 선택 | ➖ | 코드 생성 실패율 알림 임계값 (기본: `5`). 5분 윈도우 내 `CODE_GENERATION_FAILED` 횟수가 이 값 이상이면 Slack 알림 1회 발송 (윈도우 내 중복 알림 방지). 인메모리·단일 인스턴스 전제. 코드 위치: `src/lib/monitoring/errorRateMonitor.ts` |
 | `LOG_LEVEL` | 선택 | ➖ | 로그 상세도 임계값 (`debug`/`info`/`warn`/`error`, 기본 `info`). 이 값보다 낮은 레벨은 출력하지 않는다. 코드 위치: `src/lib/utils/logger.ts` |
 
