@@ -102,7 +102,29 @@ export class SqliteProjectRepository implements IProjectRepository {
   }
 
   async delete(id: string): Promise<void> {
-    this.db.delete(schema.projects).where(eq(schema.projects.id, id)).run();
+    // FK ON DELETE NO ACTION — 자식 정리를 앱 레벨 단일 트랜잭션으로 처리한다.
+    this.db.transaction((tx) => {
+      // 감사 로그는 프로젝트보다 오래 살아야 하므로 행을 지우지 않고 project_id만 분리한다.
+      tx.update(schema.platformEvents)
+        .set({ project_id: null })
+        .where(eq(schema.platformEvents.project_id, id))
+        .run();
+
+      tx.delete(schema.generatedCodes)
+        .where(eq(schema.generatedCodes.project_id, id))
+        .run();
+
+      tx.delete(schema.projectApis)
+        .where(eq(schema.projectApis.project_id, id))
+        .run();
+
+      // FK 없음(의도적)이지만 프로젝트별 휘발 상태 — 고아 락을 남기지 않는다.
+      tx.delete(schema.generationLocks)
+        .where(eq(schema.generationLocks.project_id, id))
+        .run();
+
+      tx.delete(schema.projects).where(eq(schema.projects.id, id)).run();
+    });
   }
 
   async count(filter?: Record<string, unknown>): Promise<number> {

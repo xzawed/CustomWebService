@@ -470,7 +470,7 @@ export type DomainEvent =
   | { type: 'DEPLOYMENT_STARTED'; payload: { projectId: string; platform: string } }
   | { type: 'DEPLOYMENT_COMPLETED'; payload: { projectId: string; url: string; platform: string } }
   | { type: 'DEPLOYMENT_FAILED'; payload: { projectId: string; error: string } }
-  | { type: 'PROJECT_DELETED'; payload: { projectId: string } }
+  | { type: 'PROJECT_DELETED'; payload: { deletedProjectId: string } }  // 삭제된 프로젝트는 FK로 못 가리킨다
   | { type: 'PROJECT_PUBLISHED'; payload: { projectId: string; userId: string; slug: string } }
   | { type: 'PROJECT_UNPUBLISHED'; payload: { projectId: string; userId: string } }
   | { type: 'API_QUOTA_WARNING'; payload: { service: string; usage: number; limit: number } }

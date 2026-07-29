@@ -168,6 +168,25 @@ describe('POST /api/v1/admin/test-generation', () => {
     expect(projectRepoMock.delete).not.toHaveBeenCalled();
   });
 
+  // 삭제 실패를 삼키고 cleanedUp:true 를 내보내면 운영에서 고아 프로젝트를 못 본다
+  it('delete 실패 시에도 200이며 cleanedUp은 false다', async () => {
+    pipelineMock.mockImplementation(async (_input, sse) => {
+      sse.send('complete', { projectId: mockCreatedProject.id, version: 1 });
+    });
+    projectRepoMock.delete.mockRejectedValue(new Error('FK constraint failed'));
+
+    const { POST } = await import('@/app/api/v1/admin/test-generation/route');
+    const res = await POST(
+      makeRequest({ userId: VALID_USER_ID, apiIds: [API_ID_1, API_ID_2, API_ID_3] }),
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.cleanedUp).toBe(false);
+    expect(projectRepoMock.delete).toHaveBeenCalledWith(mockCreatedProject.id);
+  });
+
   it('파이프라인 throw → handleApiError + 생성된 프로젝트 cleanup', async () => {
     pipelineMock.mockRejectedValue(new Error('Pipeline crashed'));
     const { POST } = await import('@/app/api/v1/admin/test-generation/route');
