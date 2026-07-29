@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { eq } from 'drizzle-orm';
 import type Database from 'better-sqlite3';
 import { createSqliteConnection, runSqliteMigrations, type SqliteDb } from '@/lib/db/sqlite/connection';
 import * as schema from '@/lib/db/sqlite/schema';
@@ -238,14 +239,168 @@ describe('SqliteProjectRepository', () => {
   });
 
   describe('delete', () => {
-    it('deletes the project', async () => {
+    function seedGeneratedCode(projectId: string, version = 1): void {
+      db.insert(schema.generatedCodes)
+        .values({
+          project_id: projectId,
+          version,
+        } as typeof schema.generatedCodes.$inferInsert)
+        .run();
+    }
+
+    function seedPlatformEvent(projectId: string, type = 'TEST_EVENT'): string {
+      const [row] = db
+        .insert(schema.platformEvents)
+        .values({
+          type,
+          payload: { projectId },
+          project_id: projectId,
+          user_id: USER_ID,
+        })
+        .returning()
+        .all();
+      return row.id;
+    }
+
+    function seedGenerationLock(projectId: string): void {
+      const now = new Date().toISOString();
+      db.insert(schema.generationLocks)
+        .values({
+          project_id: projectId,
+          user_id: USER_ID,
+          acquired_at: now,
+          heartbeat_at: now,
+        })
+        .run();
+    }
+
+    it('프로젝트를 삭제한다', async () => {
       const id = seedProject(db);
       await repo.delete(id);
       const found = await repo.findById(id);
       expect(found).toBeNull();
     });
 
-    it('is a no-op when id does not exist', async () => {
+    // 프로덕션 재현: draft + project_apis 만 있어도 FK 때문에 500이 나던 경로
+    it('project_apis 자식이 있어도 삭제에 성공한다', async () => {
+      const id = seedProject(db);
+      await repo.insertProjectApis(id, [API_ID, API_ID_2]);
+
+      await expect(repo.delete(id)).resolves.toBeUndefined();
+      expect(await repo.findById(id)).toBeNull();
+      expect(await repo.getProjectApiIds(id)).toEqual([]);
+    });
+
+    it('generated_codes 자식이 있어도 삭제에 성공한다', async () => {
+      const id = seedProject(db);
+      seedGeneratedCode(id, 1);
+      seedGeneratedCode(id, 2);
+
+      await expect(repo.delete(id)).resolves.toBeUndefined();
+      expect(await repo.findById(id)).toBeNull();
+      const remaining = db
+        .select()
+        .from(schema.generatedCodes)
+        .where(eq(schema.generatedCodes.project_id, id))
+        .all();
+      expect(remaining).toHaveLength(0);
+    });
+
+    // 감사 로그 보존 결정: 행 삭제 금지, project_id만 NULL — 회귀 시 감사 유실
+    it('platform_events는 남기고 project_id만 NULL로 분리한다', async () => {
+      const id = seedProject(db);
+      const eventId = seedPlatformEvent(id, 'PROJECT_CREATED');
+
+      await expect(repo.delete(id)).resolves.toBeUndefined();
+      expect(await repo.findById(id)).toBeNull();
+
+      const [event] = db
+        .select()
+        .from(schema.platformEvents)
+        .where(eq(schema.platformEvents.id, eventId))
+        .all();
+      expect(event).toBeDefined();
+      expect(event.project_id).toBeNull();
+      expect(event.payload).toEqual({ projectId: id });
+    });
+
+    it('generation_locks 행도 함께 제거한다', async () => {
+      const id = seedProject(db);
+      seedGenerationLock(id);
+
+      await expect(repo.delete(id)).resolves.toBeUndefined();
+      const locks = db
+        .select()
+        .from(schema.generationLocks)
+        .where(eq(schema.generationLocks.project_id, id))
+        .all();
+      expect(locks).toHaveLength(0);
+    });
+
+    it('모든 자식 종류가 있어도 한 트랜잭션으로 삭제된다', async () => {
+      const id = seedProject(db);
+      await repo.insertProjectApis(id, [API_ID]);
+      seedGeneratedCode(id);
+      const eventId = seedPlatformEvent(id);
+      seedGenerationLock(id);
+
+      await expect(repo.delete(id)).resolves.toBeUndefined();
+      expect(await repo.findById(id)).toBeNull();
+      expect(await repo.getProjectApiIds(id)).toEqual([]);
+      expect(
+        db.select().from(schema.generatedCodes).where(eq(schema.generatedCodes.project_id, id)).all()
+      ).toHaveLength(0);
+      expect(
+        db.select().from(schema.generationLocks).where(eq(schema.generationLocks.project_id, id)).all()
+      ).toHaveLength(0);
+      const [event] = db
+        .select()
+        .from(schema.platformEvents)
+        .where(eq(schema.platformEvents.id, eventId))
+        .all();
+      expect(event.project_id).toBeNull();
+    });
+
+    // 스코프 버그 방지: WHERE 누락 시 다른 프로젝트 데이터가 같이 지워짐
+    it('다른 프로젝트의 자식 행은 건드리지 않는다', async () => {
+      const target = seedProject(db, { name: 'Target' });
+      const other = seedProject(db, { name: 'Other' });
+
+      await repo.insertProjectApis(target, [API_ID]);
+      await repo.insertProjectApis(other, [API_ID_2]);
+      seedGeneratedCode(target, 1);
+      seedGeneratedCode(other, 1);
+      const otherEventId = seedPlatformEvent(other, 'KEEP_ME');
+      seedGenerationLock(target);
+      seedGenerationLock(other);
+
+      await repo.delete(target);
+
+      expect(await repo.findById(other)).not.toBeNull();
+      expect(await repo.getProjectApiIds(other)).toEqual([API_ID_2]);
+      expect(
+        db
+          .select()
+          .from(schema.generatedCodes)
+          .where(eq(schema.generatedCodes.project_id, other))
+          .all()
+      ).toHaveLength(1);
+      const [otherEvent] = db
+        .select()
+        .from(schema.platformEvents)
+        .where(eq(schema.platformEvents.id, otherEventId))
+        .all();
+      expect(otherEvent.project_id).toBe(other);
+      expect(
+        db
+          .select()
+          .from(schema.generationLocks)
+          .where(eq(schema.generationLocks.project_id, other))
+          .all()
+      ).toHaveLength(1);
+    });
+
+    it('존재하지 않는 id는 예외 없이 no-op이다', async () => {
       await expect(
         repo.delete('00000000-0000-0000-0000-000000000000')
       ).resolves.toBeUndefined();

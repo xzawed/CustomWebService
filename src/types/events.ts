@@ -29,7 +29,7 @@ export type DomainEvent =
       type: 'DEPLOYMENT_FAILED';
       payload: { projectId: string; error: string };
     }
-  | { type: 'PROJECT_DELETED'; payload: { projectId: string } }
+  | { type: 'PROJECT_DELETED'; payload: { deletedProjectId: string } }
   | {
       type: 'PROJECT_PUBLISHED';
       payload: { projectId: string; userId: string; slug: string };

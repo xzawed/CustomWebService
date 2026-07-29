@@ -187,6 +187,23 @@ describe('ProjectService.delete()', () => {
     await service.delete('proj-1', 'user-1');
     expect(projectRepo.delete).toHaveBeenCalledWith('proj-1');
   });
+
+  // payload.projectId면 persist가 FK로 죽은 프로젝트를 가리켜 감사 로그가 유실된다
+  it('PROJECT_DELETED는 deletedProjectId를 실어 낸다', async () => {
+    const { eventBus } = await import('@/lib/events/eventBus');
+    (projectRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'proj-1',
+      userId: 'user-1',
+    });
+    (projectRepo.delete as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+    await service.delete('proj-1', 'user-1');
+
+    expect(eventBus.emit).toHaveBeenCalledWith({
+      type: 'PROJECT_DELETED',
+      payload: { deletedProjectId: 'proj-1' },
+    });
+  });
 });
 
 describe('ProjectService.publish()', () => {

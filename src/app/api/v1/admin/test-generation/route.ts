@@ -20,6 +20,7 @@ import type { SseWriter } from '@/lib/ai/sseWriter';
 import type { Project, ProjectMetadata } from '@/types/project';
 import type { ApiCatalogItem } from '@/types/api';
 import { getCorrelationId } from '@/lib/utils/correlationId';
+import { logger } from '@/lib/utils/logger';
 
 const bodySchema = z.object({
   userId: z.string().uuid(),
@@ -116,8 +117,17 @@ export async function POST(request: Request): Promise<Response> {
       const completeEvent = events.find((e) => e.event === 'complete');
       const errorEvent = events.find((e) => e.event === 'error');
 
+      let cleanedUp = false;
       if (shouldCleanup) {
-        await projectRepo.delete(project.id).catch(() => {});
+        try {
+          await projectRepo.delete(project.id);
+          cleanedUp = true;
+        } catch (cleanupErr: unknown) {
+          logger.warn('Failed to cleanup test-generation project', {
+            projectId: project.id,
+            error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+          });
+        }
       }
 
       if (errorEvent) {
@@ -125,7 +135,7 @@ export async function POST(request: Request): Promise<Response> {
           success: false,
           data: {
             projectId: project.id,
-            cleanedUp: shouldCleanup,
+            cleanedUp,
             durationMs,
             apiIds,
             error: errorEvent.data,
@@ -138,7 +148,7 @@ export async function POST(request: Request): Promise<Response> {
         success: true,
         data: {
           projectId: project.id,
-          cleanedUp: shouldCleanup,
+          cleanedUp,
           durationMs,
           apiIds,
           complete: completeEvent?.data ?? null,
@@ -150,8 +160,12 @@ export async function POST(request: Request): Promise<Response> {
         try {
           const projectRepo = createProjectRepository();
           await projectRepo.delete(createdProjectId);
-        } catch {
-          // best-effort cleanup
+        } catch (cleanupErr: unknown) {
+          // best-effort cleanup — 진단 응답 자체는 원본 에러를 우선한다
+          logger.warn('Failed to cleanup test-generation project after error', {
+            projectId: createdProjectId,
+            error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+          });
         }
       }
       return handleApiError(error);

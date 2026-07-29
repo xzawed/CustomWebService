@@ -97,7 +97,9 @@ export class ProjectService {
   async delete(id: string, userId: string): Promise<void> {
     const project = await this.getById(id, userId);
     await this.projectRepo.delete(project.id);
-    eventBus.emit({ type: 'PROJECT_DELETED', payload: { projectId: id } });
+    // 삭제된 프로젝트를 FK로 가리킬 수 없으므로 자동 추출을 피한다.
+    // (persist가 payload.projectId를 project_id 컬럼에 넣으면 FK 위반으로 감사 로그가 유실된다)
+    eventBus.emit({ type: 'PROJECT_DELETED', payload: { deletedProjectId: id } });
   }
 
   async updateStatus(id: string, status: Project['status']): Promise<Project> {
