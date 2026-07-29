@@ -52,6 +52,14 @@ vi.mock('@/repositories/factory', () => ({
   createProjectRepository: vi.fn(() => projectRepoMock),
 }));
 
+// 라우트가 락을 획득하고 파이프라인(모킹됨)이 해제한다 — 짝을 맞추지 않으면
+// heartbeat가 없는 락을 갱신하려다 매번 경고가 남는다.
+vi.mock('@/lib/ai/generationLock', () => ({
+  acquireGenerationLock: vi.fn().mockResolvedValue(true),
+  releaseGenerationLock: vi.fn().mockResolvedValue(undefined),
+  startLockHeartbeat: vi.fn().mockReturnValue(() => {}),
+}));
+
 vi.mock('@/lib/ai/promptBuilder', () => ({
   buildStage1SystemPrompt: vi.fn(() => 'sys1'),
   buildStage1UserPrompt: vi.fn(() => 'user1'),

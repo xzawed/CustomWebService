@@ -7,3 +7,4 @@ export type { IEventRepository, PersistEventContext, EventRecord } from './IEven
 export type { IRateLimitRepository } from './IRateLimitRepository';
 export type { IUserApiKeyRepository, UserApiKey } from './IUserApiKeyRepository';
 export type { IAuthTokenRepository, AuthTokenType } from './IAuthTokenRepository';
+export type { IGenerationLockRepository, GenerationLock } from './IGenerationLockRepository';

@@ -7,6 +7,7 @@ import { runFastQc, isQcEnabled } from '@/lib/qc';
 import { eventBus } from '@/lib/events/eventBus';
 import { logger } from '@/lib/utils/logger';
 import { generationTracker } from '@/lib/ai/generationTracker';
+import { releaseGenerationLock, startLockHeartbeat } from '@/lib/ai/generationLock';
 import { runStage1, runStage2Function, runStage3 } from '@/lib/ai/stageRunner';
 import { saveGeneratedCode } from '@/lib/ai/generationSaver';
 import { extractFeatures } from '@/lib/ai/featureExtractor';
@@ -356,8 +357,10 @@ export async function runGenerationPipeline(
   );
   const pipelineSignal = pipelineAbortController.signal;
 
-  // route.ts에서 이미 start()를 호출했으므로 여기서는 중복 호출하지 않는다.
-  // (route.ts에서 isGenerating 체크 직후 start()를 호출하여 TOCTOU 레이스 제거)
+  // route.ts에서 이미 락 획득과 tracker.start()를 마쳤다. 여기서는 락이 살아 있음을 알리고
+  // (heartbeat), 끝날 때 반드시 해제하는 것만 담당한다 — 해제하지 않으면 stale 만료
+  // (기본 5분)까지 같은 프로젝트의 재생성이 409로 막힌다.
+  const stopHeartbeat = startLockHeartbeat(projectId);
 
   try {
     sse.send('progress', { step: 'analyzing', progress: 5, message: '분석 중...' });
@@ -474,5 +477,9 @@ export async function runGenerationPipeline(
     );
   } finally {
     clearTimeout(pipelineAbortTimer);
+    // 순서가 중요하다 — 타이머를 먼저 멈춘다. 해제 뒤에 heartbeat가 한 번 더 돌면
+    // 방금 지운 락을 되살릴 수는 없지만(UPDATE라 0행), 무의미한 경고 로그가 남는다.
+    stopHeartbeat();
+    await releaseGenerationLock(projectId);
   }
 }

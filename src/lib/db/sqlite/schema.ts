@@ -203,3 +203,26 @@ export const authTokens = sqliteTable(
   },
   (t) => [index('auth_tokens_token_hash_idx').on(t.token_hash)],
 );
+
+// ── 11. generation_locks (프로젝트별 생성 락 — durable) ───────────────────────
+//
+// `generationTracker`(인메모리 LRU+TTL)가 락을 겸하던 구조에서는 엔트리가 TTL이나
+// size cap으로 사라지면 락도 함께 사라져 같은 projectId로 두 번째 파이프라인이 시작될 수
+// 있었다(Opus/ET 이중 청구 + `getNextVersion()` 충돌). 락 책임만 DB로 분리한다.
+//
+// **FK를 두지 않는다.** 수명이 짧은 운영 상태이고, `project_id` FK가 있으면 스테일 락이
+// 남은 프로젝트의 삭제가 FK 위반으로 실패한다(admin/test-generation의 cleanup 경로가 실제로
+// 그렇다). 무결성은 stale 만료(heartbeat_at)와 release가 담당한다.
+//
+// 시각은 다른 테이블과 동일하게 ISO8601 UTC 문자열로 저장한다 — 고정 폭이라
+// `heartbeat_at < ?` 사전식 비교가 시간 비교와 일치한다.
+//
+// `retention.ts` 정리 대상에 넣지 않았다: 행은 projectId로 유일하고 정상 경로에서 해제되므로
+// 상한이 **프로젝트 수**다. 트래픽에 선형 비례하는 `platform_events`와 성격이 다르다.
+// (생성 도중 프로젝트가 삭제되면 행 1개가 고아로 남지만 다음 동명 projectId가 덮어쓴다.)
+export const generationLocks = sqliteTable('generation_locks', {
+  project_id: text('project_id').primaryKey(),
+  user_id: text('user_id').notNull(),
+  acquired_at: text('acquired_at').notNull(),
+  heartbeat_at: text('heartbeat_at').notNull(),
+});

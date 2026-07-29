@@ -174,6 +174,8 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 | `QUALITY_LOOP_MAX_ITERATIONS` | `2` | ✅ **`2` 운영 중** | 품질 루프 최대 반복 횟수. 기본 2회 (최대 3회 상한). **현재 2회 운영 중.** 낮출수록 총 생성 시간 단축 — Railway 300초 타임아웃 초과 방지용 |
 | `QUALITY_LOOP_STRICT_ADOPTION` | `true` | ➖ | 채택 가드: `true`(기본)는 한 점수 향상 + 다른 점수 동등 이상일 때만 retry 채택(시소 진동 방지). `false`로 설정 시 기존 OR 로직(한쪽 향상) 복원 — 운영 데이터 비교용 롤백 스위치 |
 | `PIPELINE_MAX_DURATION_MS` | `290000` | ➖ | 파이프라인 총 허용 시간(ms). Quality Loop 시작 전 `경과 시간 + iterationTimeout > 이 값`이면 반복 스킵. Railway 300초 한도를 고려해 기본값 290초(10초 여유). 미설정 시 290000 자동 사용 |
+| `GENERATION_LOCK_HEARTBEAT_MS` | `30000` | ➖ | 생성 락(`generation_locks`) 생존 신호 주기(ms). 파이프라인이 도는 동안 이 간격으로 `heartbeat_at`을 갱신한다. 0·음수·비정수는 기본값 폴백 |
+| `GENERATION_LOCK_STALE_MS` | `300000` | ➖ | 이 시간 동안 heartbeat가 없으면 죽은 락으로 보고 다른 요청이 탈취한다(ms). 크래시된 파이프라인이 프로젝트를 영구히 잠그지 않게 하는 안전장치. **heartbeat 주기보다 커야 하며**, 작거나 같으면 `heartbeat × 2`로 교정하고 `logger.warn`을 남긴다 |
 | `QC_QUALITY_THRESHOLD` | `60` | ➖ | 정적 QC 구조 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
 | `QC_MOBILE_THRESHOLD` | `60` | ➖ | 정적 QC 모바일 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
 | `QC_FAST_PASS_THRESHOLD` | `60` | ➖ | Fast QC 통과 기준 점수. 이 값 미만이면 Fast QC 실패로 판정 |

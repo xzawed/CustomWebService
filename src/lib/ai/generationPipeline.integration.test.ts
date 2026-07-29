@@ -51,6 +51,10 @@ vi.mock('@/lib/ai/generationTracker', () => ({
     complete: vi.fn(),
   },
 }));
+vi.mock('@/lib/ai/generationLock', () => ({
+  releaseGenerationLock: vi.fn().mockResolvedValue(undefined),
+  startLockHeartbeat: vi.fn(),
+}));
 vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
@@ -70,6 +74,7 @@ import { validateAll, evaluateQuality } from '@/lib/ai/codeValidator';
 import { runFastQc, isQcEnabled } from '@/lib/qc';
 import { eventBus } from '@/lib/events/eventBus';
 import { generationTracker } from '@/lib/ai/generationTracker';
+import { releaseGenerationLock, startLockHeartbeat } from '@/lib/ai/generationLock';
 import { assembleHtml } from '@/lib/ai/codeParser';
 import type { ApiCatalogItem } from '@/types/api';
 
@@ -154,6 +159,9 @@ describe('runGenerationPipeline()', () => {
     (assembleHtml as Mock).mockReturnValue('<html><body>assembled</body></html>');
     (validateAll as Mock).mockReturnValue({ errors: [], warnings: [] });
     (evaluateQuality as Mock).mockReturnValue(makeQualityMetrics());
+    // startLockHeartbeat는 항상 중지 함수를 돌려준다 — finally에서 호출되므로 기본값 필수.
+    (startLockHeartbeat as Mock).mockReturnValue(() => {});
+    (releaseGenerationLock as Mock).mockResolvedValue(undefined);
 
     const stageResult = makeStageResult();
     (runStage1 as Mock).mockResolvedValue(stageResult);
@@ -435,6 +443,59 @@ describe('runGenerationPipeline()', () => {
 
       const errorEvents = sse.events.filter(e => e.event === 'error');
       expect(errorEvents.length).toBe(1);
+    });
+  });
+
+  describe('생성 락 수명주기', () => {
+    it('성공적으로 끝나면 락을 해제한다 — 다음 요청이 막히지 않아야 한다', async () => {
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(releaseGenerationLock).toHaveBeenCalledWith('proj-1');
+    });
+
+    it('실패해도 락을 해제한다 — 실패한 생성이 프로젝트를 잠그면 안 된다', async () => {
+      (runStage1 as Mock).mockRejectedValue(new Error('AI 서비스 응답 없음'));
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(releaseGenerationLock).toHaveBeenCalledWith('proj-1');
+    });
+
+    it('실행 중 heartbeat를 시작하고 끝나면 반드시 멈춘다 — 타이머가 남으면 해제된 락을 되살린다', async () => {
+      const stop = vi.fn();
+      (startLockHeartbeat as Mock).mockReturnValue(stop);
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(startLockHeartbeat).toHaveBeenCalledWith('proj-1');
+      expect(stop).toHaveBeenCalled();
+    });
+
+    it('실패 경로에서도 heartbeat 타이머를 멈춘다', async () => {
+      const stop = vi.fn();
+      (startLockHeartbeat as Mock).mockReturnValue(stop);
+      (runStage1 as Mock).mockRejectedValue(new Error('AI 서비스 응답 없음'));
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(stop).toHaveBeenCalled();
+    });
+
+    it('heartbeat를 멈춘 뒤에 락을 해제한다 — 순서가 뒤집히면 이미 지운 락을 되살릴 수 있다', async () => {
+      const order: string[] = [];
+      (startLockHeartbeat as Mock).mockReturnValue(() => order.push('stop'));
+      (releaseGenerationLock as Mock).mockImplementation(async () => {
+        order.push('release');
+      });
+
+      const sse = makeSse();
+      await runGenerationPipeline(makeInput(), sse as never, makeServices());
+
+      expect(order).toEqual(['stop', 'release']);
     });
   });
 

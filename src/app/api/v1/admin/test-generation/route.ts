@@ -15,6 +15,7 @@ import {
   buildStage2FunctionUserPrompt,
 } from '@/lib/ai/promptBuilder';
 import { runGenerationPipeline } from '@/lib/ai/generationPipeline';
+import { acquireGenerationLock } from '@/lib/ai/generationLock';
 import type { SseWriter } from '@/lib/ai/sseWriter';
 import type { Project, ProjectMetadata } from '@/types/project';
 import type { ApiCatalogItem } from '@/types/api';
@@ -72,6 +73,11 @@ export async function POST(request: Request): Promise<Response> {
       } as Omit<Project, 'id' | 'createdAt' | 'updatedAt'>);
       createdProjectId = project.id;
       await projectRepo.insertProjectApis(project.id, apiIds);
+
+      // 파이프라인이 finally에서 락을 해제하므로 여기서 획득해 짝을 맞춘다. 획득하지 않으면
+      // heartbeat가 없는 락을 갱신하려다 매번 "lock disappeared" 경고를 남긴다.
+      // 프로젝트를 방금 만들었으므로 획득은 항상 성공한다.
+      await acquireGenerationLock(project.id, userId);
 
       const events: Array<{ event: string; data: unknown }> = [];
       const writer: SseWriter = {
