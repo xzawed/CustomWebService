@@ -278,6 +278,28 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - Railway 배포 성공 확인 후: `git tag deploy/YYYY-MM-DD-HHmm && git push origin --tags`
 - 배포 롤백이 필요할 때 태그 목록(`git tag -l 'deploy/*'`)으로 이전 커밋 빠르게 식별
 
+### Railway 배포 상태 판별 (FAILED를 오해하지 말 것)
+- **Wait for CI 활성.** 신규 커밋 배포는 그 커밋의 CI 실행이 끝날 때까지 `WAITING`에 머문다(실측 ~2.5분) → `INITIALIZING` → `BUILDING` → `SUCCESS`
+- **env 단독 변경 재배포는 정상 동작한다.** CI 실행은 *커밋*에 붙어 있어, 같은 커밋 재배포는 **이미 green인 그 실행을 재사용**한다. 2026-07-29 실증(프로브 변수 set → 같은 커밋 patch 재배포 → `WAITING` → `SUCCESS`), 2026-06-30에도 동일. **"env 바꾸면 FAILED가 정상"은 오해다** — 그렇게 알고 넘기면 진짜 실패를 놓친다
+- `railway variables --json`의 배포 메타에서 `patchId`가 있으면 **env/설정 변경으로 트리거된 재배포**, 없으면 커밋 배포다. `imageDigest`가 없으면 이미지 생성 전(=빌드 도달 전/중) 실패다
+
+| 상황 | 해석 |
+|------|------|
+| 신규 커밋 · `WAITING` 지속 | 정상 — CI 완료 대기 중 |
+| env 단독 변경 · 같은 커밋 · `SUCCESS` | 정상(실증) |
+| env 단독 변경 · 같은 커밋 · `FAILED` | **실제 실패 — 조사 필요.** 로그를 즉시 수집 |
+| 신규 커밋 · `BUILDING`/`DEPLOYING` 중 `FAILED` | 실제 배포 실패 |
+| 서비스 health 죽음 | 실제 장애 — 즉시 롤백 검토 |
+
+- **FAILED를 보면 로그를 즉시 수집할 것.** 후속 배포로 대체되면 사라진다(2026-07-28 건이 그래서 원인 미상으로 남았다)
+  ```bash
+  railway deployment list --json   # 실패 배포 id 확보
+  railway logs -b <deployment-id>  # 빌드 로그
+  railway logs -d <deployment-id>  # 배포 로그
+  ```
+- 실측 quirk: `railway variable set`은 재배포를 트리거하지만 **`railway variable delete`는 트리거하지 않는다**(삭제한 변수는 다음 배포에서야 컨테이너에서 사라진다)
+- 배경·실증 기록: [#201](https://github.com/xzawed/CustomWebService/issues/201)
+
 ## 개발 워크플로우
 
 - **브랜치 전략**: 모든 변경은 main에서 파생된 단기 브랜치에서 작업 후 PR → main 병합.
@@ -327,10 +349,10 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - **`pnpm.onlyBuiltDependencies`는 빈 배열을 유지한다 (키 삭제 금지)**: better-sqlite3 v13은 N-API 프리빌트를 패키지에 동봉하므로 빌드 스크립트가 필요 없다. 그런데 `binding.gyp`가 함께 배포되어 **npm/pnpm이 암묵적으로 `node-gyp rebuild`를 실행**한다 — 허용하면 Windows에서 `pnpm install`이 Visual Studio 탐색 실패로 깨지고 Linux에선 불필요한 소스 컴파일이 돈다. **키를 지우면 안 되는 이유**: pnpm 9는 키 부재 시 모든 스크립트를 실행하고(pnpm 10은 기본 차단), CI·Dockerfile이 `pnpm@9`를 쓴다. 빈 배열이 두 버전 모두에서 "아무것도 빌드 안 함"을 보장하는 유일한 표기다. Dockerfile에서 `g++/make/python3`를 제거한 것도 이 전제에 의존한다. 배경: [docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md](docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md)
 - **Node 22 고정 (engines/Dockerfile/워크플로)**: `package.json engines.node: ">=22"`, `node:22-alpine`, CI `node-version: 22`로 고정. 원래 사유였던 `@supabase/supabase-js` eager WebSocket 가드는 supabase-js 제거(P8.2)로 소멸했으나, **Node 22 핀은 유지**한다(다운그레이드 불필요). better-sqlite3는 프리빌트로 설치되며 musl alpine에서 프리빌트 부재 시 `g++/make/python3`로 소스 컴파일(Dockerfile deps 스테이지). 역사: [docs/decisions/2026-06-22-node22-supabase-websocket-fix.md](docs/decisions/2026-06-22-node22-supabase-websocket-fix.md)
 
-## 검수 후속 작업 (2026-07-28 전체 검수)
+## 검수 후속 작업 (2026-07-28 전체 검수) — **전건 종료(2026-07-29)**
 
-전체 검수 13건 중 **11건은 PR #195·#196으로 해소·배포 완료**. 남은 항목은 GitHub Issue로 등록했다.
-`gh issue list --label audit-followup` 으로 확인.
+전체 검수 13건 중 11건은 PR #195·#196으로 해소했고, 남겨 두었던 5건도 2026-07-29에 모두 종료했다.
+아래는 이력이며, 새 후속 작업은 `gh issue list --label audit-followup` 으로 확인한다.
 
 | Issue | 내용 | 성격 |
 |-------|------|------|
@@ -338,7 +360,9 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | ~~[#198](https://github.com/xzawed/CustomWebService/issues/198)~~ | M-5 generationTracker durable lock | **완료(2026-07-29)** — [ADR](docs/decisions/2026-07-29-durable-generation-lock.md) |
 | ~~[#199](https://github.com/xzawed/CustomWebService/issues/199)~~ | M-4 잔여 — 캐시 키에 키 신원 추가 | **완료(2026-07-29)** — [ADR](docs/decisions/2026-07-29-proxy-cache-key-identity.md) |
 | ~~[#200](https://github.com/xzawed/CustomWebService/issues/200)~~ | site 프록시 오남용 모니터링 | **완료(2026-07-29)** — [ADR](docs/decisions/2026-07-29-site-proxy-abuse-monitoring.md) · 기본값 재조정은 데이터 확보 후 |
-| [#201](https://github.com/xzawed/CustomWebService/issues/201) | Railway Wait for CI + env 단독 변경 시 재배포 FAILED | 원인 미확정 |
+| ~~[#201](https://github.com/xzawed/CustomWebService/issues/201)~~ | Railway env 단독 변경 시 재배포 FAILED | **가설 반증(2026-07-29)** — env 재배포는 정상. 판별 기준은 위 "Railway 배포 상태 판별" |
+
+검수 중 파생된 신규 이슈: [#204](https://github.com/xzawed/CustomWebService/issues/204) — 생성 사이트가 동일 API 요청을 동시 2회 발사(#197 실환경 검증 중 발견).
 
 배경: [게시 사이트 프록시 ADR](docs/decisions/2026-07-28-published-site-proxy-authz.md) ·
 [MEDIUM 항목 ADR](docs/decisions/2026-07-29-medium-audit-findings.md)
