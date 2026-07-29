@@ -1088,3 +1088,51 @@ Authorization: Bearer <ADMIN_API_KEY>
 | 에러 코드 | HTTP | 설명 |
 |-----------|------|------|
 | `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
+
+---
+
+### GET /api/v1/admin/site-proxy-stats
+게시 사이트 프록시(익명 site 모드)의 **프로젝트별 사용량**을 반환합니다. site 모드는 익명 방문자가 프로젝트 오너의 API 키로 업스트림을 호출하므로 레이트리밋이 유일한 방어선인데, 한도 초과가 429 응답으로만 나타나 **어느 프로젝트가 얼마나 소진되고 있는지 알 수 없었습니다.** 기본값(20/120)도 실사용 데이터 없이 정한 값이라 조정 근거가 필요합니다.
+
+집계는 `siteRateLimit`의 **인메모리 카운터**라 프로세스 재시작 시 초기화됩니다(레이트리밋 자체와 동일한 단일 인스턴스 전제). `since`가 집계 시작 시각입니다.
+
+**Request:**
+```http
+GET /api/v1/admin/site-proxy-stats?limit=50
+Authorization: Bearer <ADMIN_API_KEY>
+```
+
+| 쿼리 | 기본값 | 설명 |
+|------|--------|------|
+| `limit` | `50` | 호출량 상위 N개 프로젝트만 반환. 0·음수·비정수는 기본값 폴백 |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "since": "2026-07-29T10:00:00.000Z",
+    "limits": { "perIpPerMin": 20, "perProjectPerMin": 120 },
+    "trackedProjects": 3,
+    "returnedProjects": 3,
+    "truncated": false,
+    "projects": [
+      { "projectId": "...", "allowed": 842, "blockedByIp": 12, "blockedByProject": 0 }
+    ],
+    "note": "인메모리 집계 — 프로세스 재시작 시 초기화된다(단일 인스턴스 전제)."
+  }
+}
+```
+
+| 필드 | 의미 |
+|------|------|
+| `blockedByIp` | IP+projectId 버킷(20/분)에 걸린 횟수. 한 방문자의 과속 — 정상 트래픽에서도 나올 수 있음 |
+| `blockedByProject` | **프로젝트 전역 버킷(120/분)** 에 걸린 횟수. 분산 IP로도 우회되지 않는 실질 상한이므로 **0이 아니면 오남용 또는 한도 부족** 신호 |
+| `truncated` | 추적 용량(`MAX_SITE_RATE_LIMIT_BUCKETS`) 초과로 집계에서 빠진 프로젝트가 있음 |
+| `returnedProjects` vs `trackedProjects` | `limit`으로 잘린 개수와 전체 개수. 다르면 상위 N개만 본 것 |
+
+프로젝트 전역 한도에 도달하면 `logger.warn('Site proxy project limit reached')`가 **버킷당 윈도 1회** 남습니다(봇이 두드릴 때 로그 폭발 방지).
+
+| 에러 코드 | HTTP | 설명 |
+|-----------|------|------|
+| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |

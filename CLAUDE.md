@@ -28,7 +28,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 ```
 src/
 ├── app/             # Next.js App Router (pages, layouts, API routes)
-│   ├── api/         # /api/v1/* REST endpoints (admin/ 하위 진단 라우트: debug, keys-verify, verify-catalog, catalog-dump, qc-stats, test-generation, trigger-qc)
+│   ├── api/         # /api/v1/* REST endpoints (admin/ 하위 진단 라우트: debug, keys-verify, verify-catalog, catalog-dump, qc-stats, site-proxy-stats, test-generation, trigger-qc)
 │   ├── (auth)/      # 인증 관련 페이지
 │   ├── (main)/      # 메인 페이지 그룹
 │   └── site/        # 서브도메인 서빙 ([slug])
@@ -169,6 +169,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | 검수 MEDIUM 발견 항목 수정 ADR (M-1·2·3·5·6·7·8, 2026-07-29) | [docs/decisions/2026-07-29-medium-audit-findings.md](docs/decisions/2026-07-29-medium-audit-findings.md) |
 | **생성 락을 인메모리 tracker에서 SQLite로 분리 ADR (M-5 근본 해결, 2026-07-29)** | [docs/decisions/2026-07-29-durable-generation-lock.md](docs/decisions/2026-07-29-durable-generation-lock.md) |
 | **프록시 캐시 키에 키 신원 추가 ADR (M-4 잔여 해소, 2026-07-29)** | [docs/decisions/2026-07-29-proxy-cache-key-identity.md](docs/decisions/2026-07-29-proxy-cache-key-identity.md) |
+| **게시 사이트 프록시 오남용 모니터링 ADR (한도 소진 경고·사용량 지표, 2026-07-29)** | [docs/decisions/2026-07-29-site-proxy-abuse-monitoring.md](docs/decisions/2026-07-29-site-proxy-abuse-monitoring.md) |
 | better-sqlite3 v13 N-API 프리빌트 전환·빌드 툴체인 제거 ADR (2026-07-28) | [docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md](docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md) |
 | 환경변수 목록 | [docs/reference/env-vars.md](docs/reference/env-vars.md) |
 | 에러 클래스 참조 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
@@ -243,6 +244,12 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 ### 인메모리 레이트리밋 구현 규칙
 - **LRU eviction으로 활성 윈도를 버리지 말 것**. 용량 초과 시 살아 있는 카운터가 evict되면 다음 요청이 `count:1`로 시작해 한도가 우회된다(동시 사용자가 많을수록 심해짐 — 2026-07-29 수정)
 - 올바른 패턴: 만료 버킷만 정리하고, 정리 후에도 자리가 없으면 **새 키를 거부(차단)**한다. 우회보다 과차단이 안전하다. 구현 참고: `src/lib/proxy/siteRateLimit.ts`, `checkProxyRateLimit`(`proxy/route.ts`)
+
+### site 프록시 한도는 관측하면서 조정한다
+- 프로젝트 전역 한도(`SITE_PROXY_PROJECT_LIMIT_PER_MIN`, 기본 120)가 **분산 IP로도 우회되지 않는 실질 상한**이다. 도달하면 `logger.warn('Site proxy project limit reached')`가 **버킷당 윈도 1회** 남는다(봇이 두드릴 때 로그가 폭발하므로 매 요청 로깅 금지)
+- 사용량은 `GET /api/v1/admin/site-proxy-stats`(ADMIN_API_KEY)로 본다. `blockedByIp`(방문자 과속 — 정상일 수 있음)와 `blockedByProject`(**0이 아니면 오남용 또는 한도 부족**)를 반드시 구분해 해석할 것. 집계는 인메모리라 재시작 시 초기화된다
+- 기본값 20/120은 실사용 데이터 없이 정한 값이다. **조정 판단 기준표가 [ADR](docs/decisions/2026-07-29-site-proxy-abuse-monitoring.md)에 고정**되어 있으니 임의로 바꾸지 말고 지표를 근거로 바꿀 것
+- Slack 승격·Origin 바인딩은 **의도적으로 보류**했다(경보 임계를 정할 트래픽이 없고, Origin 헤더는 위조 가능해 단독 경계가 못 된다). 지표가 쌓인 뒤 판단한다
 
 ### AI 호출 타임아웃 규칙
 - **타임아웃은 `Promise.race`만으로 끝내지 말고 `AbortSignal`을 함께 넘길 것**. race는 즉시 종료돼도 업스트림 호출은 SDK 타임아웃(최대 ~270초)까지 살아 있어, 다음 반복이 겹치면 **Opus/ET 토큰 비용이 이중 청구**된다. `AiPrompt.abortSignal` → `ClaudeProvider`의 `{ signal }`로 이미 배선되어 있다
@@ -330,7 +337,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | ~~[#197](https://github.com/xzawed/CustomWebService/issues/197)~~ | C-1·C-2 실환경 검증 | **완료(2026-07-29)** — [ADR 검증 절](docs/decisions/2026-07-28-published-site-proxy-authz.md) |
 | ~~[#198](https://github.com/xzawed/CustomWebService/issues/198)~~ | M-5 generationTracker durable lock | **완료(2026-07-29)** — [ADR](docs/decisions/2026-07-29-durable-generation-lock.md) |
 | ~~[#199](https://github.com/xzawed/CustomWebService/issues/199)~~ | M-4 잔여 — 캐시 키에 키 신원 추가 | **완료(2026-07-29)** — [ADR](docs/decisions/2026-07-29-proxy-cache-key-identity.md) |
-| [#200](https://github.com/xzawed/CustomWebService/issues/200) | site 프록시 오남용 모니터링 (프로젝트 전역 한도가 유일 경계) | 운영 가시성 |
+| ~~[#200](https://github.com/xzawed/CustomWebService/issues/200)~~ | site 프록시 오남용 모니터링 | **완료(2026-07-29)** — [ADR](docs/decisions/2026-07-29-site-proxy-abuse-monitoring.md) · 기본값 재조정은 데이터 확보 후 |
 | [#201](https://github.com/xzawed/CustomWebService/issues/201) | Railway Wait for CI + env 단독 변경 시 재배포 FAILED | 원인 미확정 |
 
 배경: [게시 사이트 프록시 ADR](docs/decisions/2026-07-28-published-site-proxy-authz.md) ·
