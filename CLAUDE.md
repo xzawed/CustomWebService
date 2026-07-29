@@ -384,18 +384,19 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 
 ## 다음 작업 대기열 (2026-07-30 기준)
 
-각 항목은 **착수 계획서를 커밋한 draft PR**이 이미 열려 있다. 새 브랜치를 만들지 말고 해당 브랜치 위에서 이어서 작업한다.
+각 항목의 **착수 계획서는 main에 병합되어 있다**(PR #225~#228, 2026-07-30). 계획 브랜치는 병합과 함께 삭제됐으므로
+**착수 시 새 브랜치를 만든다** — 계획서를 읽고 그 위에서 구현하면 된다.
+
 계획서의 ⚠️ 표시는 **착수 전 사용자 판단이 필요한 지점**이다 — 그 결정 없이 구현하면 방향이 갈린다.
+아래 표의 마지막 열이 그 요약이며, 착수할 때 **먼저 물어볼 것**.
 
-| Issue | PR (draft) | 브랜치 | 착수 전 결정 필요 |
-|-------|-----------|--------|------------------|
-| [#220](https://github.com/xzawed/CustomWebService/issues/220) 활성 에러·알림 sink 부재 | [#225](https://github.com/xzawed/CustomWebService/pull/225) | `chore/220-monitoring-sink` | Slack webhook / Sentry DSN 중 무엇을 등록할지 (값 제공 필요) |
-| [#221](https://github.com/xzawed/CustomWebService/issues/221) 계정 삭제·데이터 내보내기 부재 | [#226](https://github.com/xzawed/CustomWebService/pull/226) | `feat/221-account-delete-export` | `platform_events` payload 개인정보 처리 · 게시 사이트 연쇄 · 재가입 허용 |
-| [#222](https://github.com/xzawed/CustomWebService/issues/222) SQLite 복구 런북 부재 | [#227](https://github.com/xzawed/CustomWebService/pull/227) | `docs/222-sqlite-restore-runbook` | 프로덕션 리허설 여부(다운타임 발생) |
-| [#223](https://github.com/xzawed/CustomWebService/issues/223) 로그인 레이트리밋 부재 | [#228](https://github.com/xzawed/CustomWebService/pull/228) | `fix/223-login-rate-limit` | IP 단위 / 계정 단위 / 둘 다 (계정 단위는 잠금 DoS 위험) |
-| [#216](https://github.com/xzawed/CustomWebService/issues/216) 데이터 확보 후 재검토 3건 | — | — | 트리거 조건 충족 전까지 착수 안 함 (PR을 만들면 썩는다) |
-
-계획서 위치: [docs/superpowers/plans/](docs/superpowers/plans/) — `2026-07-30-*.md`
+| Issue | 착수 계획서 | 착수 전 결정 필요 |
+|-------|------------|------------------|
+| [#220](https://github.com/xzawed/CustomWebService/issues/220) 활성 에러·알림 sink 부재 | [monitoring-sink-wiring](docs/superpowers/plans/2026-07-30-monitoring-sink-wiring.md) | Slack webhook / Sentry DSN 중 무엇을 등록할지 (값 제공 필요). **2026-04-27에 "SLACK_WEBHOOK_URL·errorRateMonitor 사용 안 함" 반대 결정이 있었으므로 뒤집는 게 맞는지 먼저 확인** |
+| [#221](https://github.com/xzawed/CustomWebService/issues/221) 계정 삭제·데이터 내보내기 부재 | [account-delete-and-export](docs/superpowers/plans/2026-07-30-account-delete-and-export.md) | `platform_events` payload 개인정보 처리 · 게시 사이트 연쇄 · 재가입 허용 |
+| [#222](https://github.com/xzawed/CustomWebService/issues/222) SQLite 복구 런북 부재 | [sqlite-restore-runbook](docs/superpowers/plans/2026-07-30-sqlite-restore-runbook.md) | 프로덕션 리허설 여부(다운타임 발생) |
+| [#223](https://github.com/xzawed/CustomWebService/issues/223) 로그인 레이트리밋 부재 | [login-rate-limit](docs/superpowers/plans/2026-07-30-login-rate-limit.md) | IP 단위 / 계정 단위 / 둘 다 (계정 단위는 잠금 DoS 위험) |
+| [#216](https://github.com/xzawed/CustomWebService/issues/216) 데이터 확보 후 재검토 3건 | — | 트리거 조건 충족 전까지 착수 안 함 (계획서를 미리 만들면 코드가 움직이는 동안 썩는다) |
 
 ## 세션 시작 체크리스트 (필수)
 
