@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   validateSecurity, validateFunctionality, evaluateQuality, validateAll,
   evaluateDataBinding, evaluateStructure, evaluateInteractivity, evaluateMobileResponsiveness,
+  detectAlpineDoubleInit,
 } from './codeValidator';
 
 describe('validateSecurity', () => {
@@ -85,6 +86,130 @@ describe('validateFunctionality', () => {
     const result = validateFunctionality(html, '', '');
     expect(result.passed).toBe(true);
     expect(result.errors).toHaveLength(0);
+  });
+
+  it('Alpine 이중 init 경고가 validateFunctionality 경고로 표면화되고 passed는 true를 유지한다', () => {
+    const html =
+      '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width"></head>' +
+      '<body><div x-data="app()" x-init="init()"></div></body></html>';
+    const result = validateFunctionality(html, '', '');
+    expect(result.passed).toBe(true);
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings.some((w) => w.includes('Alpine') && w.includes('init()'))).toBe(true);
+  });
+});
+
+describe('detectAlpineDoubleInit', () => {
+  describe('감지해야 하는 경우', () => {
+    it('x-data와 x-init="init()" 조합을 감지한다', () => {
+      const result = detectAlpineDoubleInit('<div x-data="app()" x-init="init()">');
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain('init()');
+    });
+
+    it('속성 순서가 바뀐 x-init + x-data도 감지한다', () => {
+      const result = detectAlpineDoubleInit('<div x-init="init()" x-data="app()">');
+      expect(result).toHaveLength(1);
+    });
+
+    it('x-init 값의 앞뒤 공백이 있어도 감지한다', () => {
+      const result = detectAlpineDoubleInit('<div x-data="app()"   x-init=" init() ">');
+      expect(result).toHaveLength(1);
+    });
+
+    it('홑따옴표 속성도 감지한다', () => {
+      const result = detectAlpineDoubleInit("<div x-data='app()' x-init='init()'>");
+      expect(result).toHaveLength(1);
+    });
+
+    it('await init() 형태를 감지한다', () => {
+      const result = detectAlpineDoubleInit('<div x-data="app()" x-init="await init()">');
+      expect(result).toHaveLength(1);
+    });
+
+    it('$nextTick 콜백 안의 init() 호출을 감지한다', () => {
+      const result = detectAlpineDoubleInit(
+        '<div x-data="app()" x-init="$nextTick(() => init())">',
+      );
+      expect(result).toHaveLength(1);
+    });
+
+    it('init(); other()처럼 연쇄 호출도 감지한다', () => {
+      const result = detectAlpineDoubleInit('<div x-data="app()" x-init="init(); other()">');
+      expect(result).toHaveLength(1);
+    });
+
+    it('위반 요소가 여러 개면 요소마다 경고를 하나씩 반환한다', () => {
+      const html =
+        '<div x-data="a()" x-init="init()"></div><section x-data="b()" x-init="init()"></section>';
+      const result = detectAlpineDoubleInit(html);
+      expect(result).toHaveLength(2);
+    });
+
+    it('값 없는 x-data도 감지한다 — Alpine은 이를 빈 객체로 보므로 init()이 ReferenceError로 죽는다', () => {
+      const result = detectAlpineDoubleInit('<div x-data x-init="init()">');
+      expect(result).toHaveLength(1);
+    });
+
+    it('경고에 문제의 x-init 식을 포함해 어느 요소인지 짚을 수 있게 한다', () => {
+      // 위반이 여러 개일 때 메시지가 전부 같으면 어디를 고쳐야 할지 알 수 없다.
+      const html =
+        '<div x-data="a()" x-init="init()"></div>' +
+        '<section x-data="b()" x-init="$nextTick(() => init())"></section>';
+      const [first, second] = detectAlpineDoubleInit(html);
+      expect(first).toContain('x-init="init()"');
+      expect(second).toContain('$nextTick(() => init())');
+      expect(first).not.toBe(second);
+    });
+
+    it('여러 줄에 걸쳐 속성이 있어도 감지한다', () => {
+      const html = `<div
+  class="card"
+  x-data="app()"
+  id="root"
+  x-init="init()"
+>`;
+      const result = detectAlpineDoubleInit(html);
+      expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('감지하지 않아야 하는 경우', () => {
+    it('다른 메서드명 loadData()는 감지하지 않는다', () => {
+      expect(detectAlpineDoubleInit('<div x-data="app()" x-init="loadData()">')).toEqual([]);
+    });
+
+    it('initialize()는 단어 경계로 구분되어 감지하지 않는다', () => {
+      expect(detectAlpineDoubleInit('<div x-data="app()" x-init="initialize()">')).toEqual([]);
+    });
+
+    it('initChart()는 단어 경계로 구분되어 감지하지 않는다', () => {
+      expect(detectAlpineDoubleInit('<div x-data="app()" x-init="initChart()">')).toEqual([]);
+    });
+
+    it('myInit()는 단어 경계로 구분되어 감지하지 않는다', () => {
+      expect(detectAlpineDoubleInit('<div x-data="app()" x-init="myInit()">')).toEqual([]);
+    });
+
+    it('this.initialize()는 감지하지 않는다', () => {
+      expect(detectAlpineDoubleInit('<div x-data="app()" x-init="this.initialize()">')).toEqual([]);
+    });
+
+    it('x-init 없이 x-data만 있으면 감지하지 않는다', () => {
+      expect(detectAlpineDoubleInit('<div x-data="app()">')).toEqual([]);
+    });
+
+    it('x-data 없이 x-init="init()"만 있으면 감지하지 않는다', () => {
+      expect(detectAlpineDoubleInit('<div x-init="init()">')).toEqual([]);
+    });
+
+    it('빈 문자열은 경고 없이 빈 배열을 반환한다', () => {
+      expect(detectAlpineDoubleInit('')).toEqual([]);
+    });
+
+    it('Alpine 속성이 없는 HTML은 경고 없이 빈 배열을 반환한다', () => {
+      expect(detectAlpineDoubleInit('<div class="app"><p>hello</p></div>')).toEqual([]);
+    });
   });
 });
 
