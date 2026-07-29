@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { adminCorsHeaders, verifyAdminKey, withAdminCors } from '@/lib/utils/adminAuth';
 import { handleApiError, jsonResponse } from '@/lib/utils/errors';
+import { describeTaskModels } from '@/providers/ai/AiProviderFactory';
 
 const req = createRequire(import.meta.url);
 
@@ -33,6 +34,9 @@ export async function GET(request: Request): Promise<Response> {
           platform: process.platform,
           arch: process.arch,
           nodeEnv: process.env.NODE_ENV,
+          // env 값만으로는 실제 적용 모델을 알 수 없다 — 허용목록에 없는 값은 조용히
+          // 기본값으로 폴백한다. `fellBack`이 true면 env가 무시되고 있다는 뜻이다.
+          models: describeTaskModels(),
           modules: {
             'playwright-core': tryRequire('playwright-core'),
             '@anthropic-ai/sdk': tryRequire('@anthropic-ai/sdk'),
