@@ -195,6 +195,32 @@ describe('ClaudeProvider', () => {
       expect(result.provider).toBe('claude');
       expect(result.model).toBe('claude-sonnet-5');
     });
+
+    // 파이프라인이 실제로 쓰는 경로는 스트리밍이다 — thinking 분기를 여기서도 고정한다.
+    it('extendedThinking 미활성 시 thinking을 disabled로 명시한다', async () => {
+      mockStreamOn.mockImplementation(() => {});
+
+      await provider.generateCodeStream({ system: 'sys', user: 'user' }, () => {});
+
+      const callArg = mockStream.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArg).toMatchObject({ thinking: { type: 'disabled' } });
+      expect(callArg).not.toHaveProperty('output_config');
+    });
+
+    it('extendedThinking 활성화 시 adaptive + effort:high를 전달한다', async () => {
+      mockStreamOn.mockImplementation(() => {});
+
+      await provider.generateCodeStream(
+        { system: 'sys', user: 'user', extendedThinking: true },
+        () => {}
+      );
+
+      const callArg = mockStream.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArg).toMatchObject({
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'high' },
+      });
+    });
   });
 
   describe('withRetry — 재시도 동작', () => {
