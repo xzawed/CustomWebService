@@ -2,13 +2,15 @@
  * 생성 상태 폴링 — SSE 스트림이 'complete' 없이 끊기거나(모바일 백그라운드 전환 등)
  * visibilitychange로 전환될 때 `/api/v1/generate/status/:projectId`를 주기적으로 조회한다.
  *
- * 원래 `builder/page.tsx`의 `handleGenerate` 클로저 내부에 있던 로직을 그대로 추출한 것이다.
- * 동작을 byte-for-byte 보존했으며(아래 주의 참고), 의존성을 주입받아 단위 테스트가 가능하다.
+ * 원래 `builder/page.tsx`의 `handleGenerate` 클로저 내부에 있던 로직을 추출한 것이며,
+ * 의존성을 주입받아 단위 테스트가 가능하다. 추출 당시에는 동작을 그대로 보존했으나
+ * 이후 두 가지를 개선했다(아래).
  *
- * **주의(기존 동작 보존)**:
- * - `status: 'failed'`는 즉시 실패시키지 않고 `throw` → catch에서 마지막 시도일 때만
- *   `failGeneration`. 즉 'failed'가 계속 반환되면 `maxAttempts`까지 재시도 후 실패한다.
- *   (개선 여지가 있으나 이번 추출은 동작 변경 없이 보존만 한다.)
+ * **현재 동작에서 헷갈리기 쉬운 지점**:
+ * - `status: 'failed'`는 **즉시 terminal 실패**다. 추출 시점에는 `throw` 후 마지막
+ *   시도에서만 실패시켜 `maxAttempts`까지 무의미하게 폴링했고, 이를 개선했다.
+ * - `status: 'not_found'`는 전용 메시지로 처리한다. 추출 시점에는 union에 없어
+ *   'unknown'으로 흘러 "연결 복구 안됨"이라는 잘못된 메시지가 나갔다.
  * - 응답이 `!res.ok`이면 루프를 `break`하여 "생성 시간이 초과되었습니다" 경로로 떨어진다.
  * - `status: 'completed'`인데 `result`가 없으면 'unknown'과 동일하게 처리된다.
  */
