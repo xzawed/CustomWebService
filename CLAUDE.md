@@ -322,7 +322,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 
 | Issue | 내용 | 성격 |
 |-------|------|------|
-| [#197](https://github.com/xzawed/CustomWebService/issues/197) | C-1·C-2 실환경 검증 — 테스트 프로젝트 게시 필요 | **검증 미완** (코드는 배포됨) |
+| ~~[#197](https://github.com/xzawed/CustomWebService/issues/197)~~ | C-1·C-2 실환경 검증 | **완료(2026-07-29)** — [ADR 검증 절](docs/decisions/2026-07-28-published-site-proxy-authz.md) |
 | [#198](https://github.com/xzawed/CustomWebService/issues/198) | M-5 generationTracker durable lock (SQLite 락 권장) | **부분 대응** — 관측만 추가됨 |
 | [#199](https://github.com/xzawed/CustomWebService/issues/199) | M-4 잔여 — 캐시 키에 키 신원 추가해 캐시 이득 회복 | 안전하나 비효율 |
 | [#200](https://github.com/xzawed/CustomWebService/issues/200) | site 프록시 오남용 모니터링 (프로젝트 전역 한도가 유일 경계) | 운영 가시성 |

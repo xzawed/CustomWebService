@@ -2,7 +2,7 @@
 
 ## 상태
 
-승인됨 — 구현 완료
+승인됨 — 구현 완료 · **실환경 검증 완료(2026-07-29)**
 
 ## 배경
 
@@ -148,18 +148,60 @@ Host 정규화(대문자·포트·예약 slug), 키 선택 격리(H-1 회귀 방
 - 모드 판정으로 옮기면서 `user.id` 타입 가드를 누락했는데 **기존 테스트가 잡아냈다**.
   `resolveProxyContext`로 이전해 보존했다.
 
-## 배포 후 확인
+## 배포 후 실환경 검증 (2026-07-29 완료, [#197](https://github.com/xzawed/CustomWebService/issues/197))
 
-게시된 사이트가 없어 실환경 확인은 배포 후 테스트 프로젝트를 하나 게시해 수행한다.
+배포 커밋 `3ef77c8`(태그 `deploy/2026-07-29-0120`) 기준 프로덕션에서 수행했다.
+검증용으로 키가 필요 없는 카탈로그 API 3종(Dog API · Rick and Morty · Open Trivia DB)을
+연결한 테스트 프로젝트를 생성·게시했다(`proxy-verify-197`).
+
+### 1단계 — 게시 사이트 없이도 판별 가능한 부분
+
+미존재 slug로도 **미들웨어 rewrite 여부**와 **세션 요구 여부**는 분리 관측된다.
+라우트 도달 실패는 `/site/[slug]` 404 HTML, 도달 성공은 프록시의 JSON 응답으로 나타난다.
+
+| 요청 | 결과 | 판정 |
+|------|------|------|
+| `probe-nonexistent.xzawed.xyz/api/v1/proxy` (파라미터 없음) | `400` JSON `INVALID_INPUT` | **C-1 해소** — rewrite되지 않고 라우트 도달 |
+| 같은 호스트 + 유효 파라미터, 익명 | `404` JSON `NOT_FOUND` | **C-2 해소** — `401 AUTH_REQUIRED`가 아님 |
+| `xzawed.xyz/api/v1/proxy` (apex, 익명, projectId 없음) | `401` JSON `AUTH_REQUIRED` | app 모드 대조군 정상 |
+| `probe-nonexistent.xzawed.xyz/api/v1/projects` | `404` HTML | 최소 노출 유지 (apex는 `401` JSON) |
+
+### 2단계 — 게시된 프로젝트로 완료 조건 3종
 
 ```bash
-# 1) 서브도메인 프록시 도달 (200 기대, 404면 패스스루 미적용)
-curl -s -o /dev/null -w "%{http_code}\n" "https://<slug>.xzawed.xyz/api/v1/proxy?apiId=<연결된 apiId>&proxyPath=/<경로>"
-# 2) 연결되지 않은 apiId 차단 (403 기대)
-curl -s -o /dev/null -w "%{http_code}\n" "https://<slug>.xzawed.xyz/api/v1/proxy?apiId=<무관한 apiId>&proxyPath=/x"
-# 3) 서브도메인의 다른 API 경로는 여전히 닫힘 (404 기대 — site 라우트로 rewrite)
-curl -s -o /dev/null -w "%{http_code}\n" "https://<slug>.xzawed.xyz/api/v1/projects"
+SLUG=proxy-verify-197
+DOG=7da97ff7-c9e2-4d1c-8c94-e179818ef530        # 프로젝트에 연결됨
+UNLINKED=02cea7ab-d89a-4e51-b9c5-32ed0fd00338   # PokéAPI — 미연결
+
+curl "https://$SLUG.xzawed.xyz/api/v1/proxy?apiId=$DOG&proxyPath=/api/breeds/image/random"
+curl "https://$SLUG.xzawed.xyz/api/v1/proxy?apiId=$UNLINKED&proxyPath=/api/v2/pokemon"
+curl "https://$SLUG.xzawed.xyz/api/v1/projects"
 ```
+
+| # | 기대 | 실측 | 응답 |
+|---|------|------|------|
+| 1 | `200` | **`200`** | `{"message":"https://images.dog.ceo/breeds/clumber/…","status":"success"}` |
+| 2 | `403` | **`403`** | `{"code":"API_NOT_LINKED","message":"이 사이트에 연결되지 않은 API입니다."}` |
+| 3 | `404` | **`404`** | `text/html` — site 라우트로 rewrite |
+
+### 3단계 — 브라우저 렌더링
+
+Playwright로 `https://proxy-verify-197.xzawed.xyz/` 를 익명 로드해 **생성된 JS가 상대경로
+`/api/v1/proxy`로 호출하고 데이터가 화면에 렌더링되는 것**을 확인했다. 프록시 요청 7건 중
+6건 `200`, 캐릭터 카드·갤러리에 실제 API 데이터가 표시됐다.
+
+curl만으로는 부족하다는 전제(생성 JS가 다른 형태로 호출할 수 있음)를 이 단계가 닫는다.
+
+### 부수 관찰 — 프록시 결함 아님
+
+나머지 1건은 `429`였고 **업스트림 Open Trivia DB의 자체 리밋**(1req/5초)이 패스스루된 것이다.
+근거: 우리 리미터의 429는 `errorResponse()`가 만들어 `X-Proxy-Api-Id`가 붙지 않는데, 관측된
+응답에는 붙어 있었다. `opentdb.com` 직접 2연타도 동일하게 `200`→`429`였고, 6초 간격을 두면
+프록시 경유도 `200`이었다.
+
+다만 **생성된 JS가 동일 퀴즈 요청을 동시에 2회 발사**하는 것은 사실이며, 업스트림 리밋이 빡빡한
+API에서 사용자에게 오류 화면이 노출된다. 프록시 인가·라우팅과는 무관한 **생성 품질 이슈**로
+별도 추적한다.
 
 ## 범위 밖 (다음 라운드)
 
