@@ -7,7 +7,7 @@ vi.mock('./ClaudeProvider', () => ({
   ClaudeProvider: vi.fn(function(_apiKey: string, model?: string) {
     return {
       name: 'claude',
-      model: model ?? 'claude-opus-4-8',
+      model: model ?? 'claude-opus-5',
       generateCode: vi.fn(),
       generateCodeStream: vi.fn(),
       checkAvailability: vi.fn().mockResolvedValue({ available: true }),
@@ -74,7 +74,7 @@ describe('AiProviderFactory.createForTask()', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_PROVIDER;
     const provider = AiProviderFactory.createForTask('generation');
-    expect(provider.model).toBe('claude-opus-4-8');
+    expect(provider.model).toBe('claude-opus-5');
   });
 
   it('suggestion 태스크는 Haiku 모델을 사용한다', () => {
@@ -138,21 +138,38 @@ describe('AiProviderFactory.createForTask()', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     delete process.env.AI_MODEL_GENERATION;
     const provider = AiProviderFactory.createForTask('generation');
-    expect(provider.model).toBe('claude-opus-4-8');
+    expect(provider.model).toBe('claude-opus-5');
   });
 
-  it('AI_MODEL_GENERATION=claude-opus-4-8은 허용목록에 있어 그대로 사용된다', () => {
+  it('AI_MODEL_GENERATION=claude-opus-4-8은 허용목록에 남아 있어 롤백용으로 그대로 사용된다', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     process.env.AI_MODEL_GENERATION = 'claude-opus-4-8';
     const provider = AiProviderFactory.createForTask('generation');
     expect(provider.model).toBe('claude-opus-4-8');
   });
 
-  it('허용되지 않은 generation 모델은 기본값(opus-4-8)으로 폴백한다', () => {
+  it('허용되지 않은 generation 모델은 기본값(opus-5)으로 폴백한다', () => {
     process.env.ANTHROPIC_API_KEY = 'test-key';
     process.env.AI_MODEL_GENERATION = 'claude-opus-4-8-20260101';
     const provider = AiProviderFactory.createForTask('generation');
-    expect(provider.model).toBe('claude-opus-4-8');
+    expect(provider.model).toBe('claude-opus-5');
+  });
+
+  it('claude-sonnet-5도 허용목록에 있다 — Opus 장애 시 폴백 경로', () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    process.env.AI_MODEL_GENERATION = 'claude-sonnet-5';
+    const provider = AiProviderFactory.createForTask('generation');
+    expect(provider.model).toBe('claude-sonnet-5');
+  });
+
+  it('구세대 모델 ID는 허용목록에 남겨 롤백을 막지 않는다', () => {
+    // 신모델에 문제가 생겼을 때 env만 되돌려 즉시 복구할 수 있어야 한다.
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    for (const legacy of ['claude-opus-4-7', 'claude-opus-4-6', 'claude-sonnet-4-6']) {
+      AiProviderFactory.clearCache();
+      process.env.AI_MODEL_GENERATION = legacy;
+      expect(AiProviderFactory.createForTask('generation').model).toBe(legacy);
+    }
   });
 
   it('모델이 다르면 다른 인스턴스를 반환한다', () => {

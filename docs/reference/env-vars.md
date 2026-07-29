@@ -72,8 +72,8 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 |------|------|---------|------|
 | `ANTHROPIC_API_KEY` | ✅ | ✅ | Claude API 키 |
 | `AI_PROVIDER` | 선택 | ➖ | AI Provider 선택. 현재 허용값은 `claude` 하나뿐 (기본). 그 외 값 설정 시 `AiProviderFactory.create()`가 `Unknown AI provider` 에러를 던짐. 코드 위치: `src/providers/ai/AiProviderFactory.ts` |
-| `AI_MODEL_SUGGESTION` | 선택 | ✅ `claude-haiku-4-5` | 컨텍스트 추천용 모델 (기본: `claude-haiku-4-5`). 허용값: `claude-haiku-4-5` · `claude-sonnet-4-6` · `claude-opus-4-6` · `claude-opus-4-7` · `claude-opus-4-8` |
-| `AI_MODEL_GENERATION` | 선택 | ✅ `claude-opus-4-8` | 코드 생성용 모델 (기본: `claude-opus-4-8`). 허용값 동일. **허용목록(`ALLOWED_CLAUDE_MODELS`)에 없는 값을 넣으면 경고 로그만 남기고 조용히 기본값으로 폴백**하므로, 모델 추가 시 `src/providers/ai/AiProviderFactory.ts`를 함께 수정할 것. **주의**: 날짜 suffix 포함 ID(예: `claude-haiku-4-5-20251001`)는 Anthropic 404 반환 |
+| `AI_MODEL_SUGGESTION` | 선택 | ✅ `claude-haiku-4-5` | 컨텍스트 추천용 모델 (기본: `claude-haiku-4-5` — 4.5가 최신 Haiku이므로 상향 대상 아님). 허용값: `claude-haiku-4-5` · `claude-sonnet-4-6` · `claude-sonnet-5` · `claude-opus-4-6` · `claude-opus-4-7` · `claude-opus-4-8` · `claude-opus-5` |
+| `AI_MODEL_GENERATION` | 선택 | ✅ `claude-opus-5` | 코드 생성용 모델 (기본: `claude-opus-5`). 허용값 동일. **허용목록(`ALLOWED_CLAUDE_MODELS`)에 없는 값은 경고 로그만 남기고 조용히 기본값으로 폴백**하므로 모델 추가 시 `src/providers/ai/AiProviderFactory.ts`를 함께 수정할 것. **구세대 ID를 목록에서 지우면 env 롤백이 무시된다.** 주의: 날짜 suffix 포함 ID는 허용목록에 없어 폴백됨 |
 | `ET_COMPLEXITY_THRESHOLD` | 선택 | ➖ | Extended Thinking 활성화 복잡도 임계값 (기본: `35`). 0-100 점수 중 이 값 이상이면 ET 활성화. **빈 문자열 또는 0 이하 값 설정 시 기본값 35로 폴백** |
 
 ---
