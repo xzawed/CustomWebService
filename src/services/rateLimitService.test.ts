@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('@/lib/config/features', () => ({
-  getLimits: vi.fn(() => ({ maxDailyGenerations: 10 })),
+  getLimits: vi.fn(() => ({ maxDailyGenerations: 10, maxDailySuggestions: 30 })),
 }));
 vi.mock('@/lib/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -22,6 +22,8 @@ type MockRepo = IRateLimitRepository & {
   checkAndIncrementDailyLimit: ReturnType<typeof vi.fn>;
   decrementDailyLimit: ReturnType<typeof vi.fn>;
   getCurrentUsage: ReturnType<typeof vi.fn>;
+  checkAndIncrementDailySuggestionLimit: ReturnType<typeof vi.fn>;
+  decrementDailySuggestionLimit: ReturnType<typeof vi.fn>;
 };
 
 function makeRepo(): MockRepo {
@@ -29,6 +31,8 @@ function makeRepo(): MockRepo {
     checkAndIncrementDailyLimit: vi.fn(),
     decrementDailyLimit: vi.fn(),
     getCurrentUsage: vi.fn(),
+    checkAndIncrementDailySuggestionLimit: vi.fn(),
+    decrementDailySuggestionLimit: vi.fn(),
   } as unknown as MockRepo;
 }
 
@@ -210,6 +214,98 @@ describe('RateLimitService.getCurrentUsage()', () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('Failed to read'),
       expect.objectContaining({ error: 'null' })
+    );
+  });
+});
+
+describe('RateLimitService.checkAndIncrementDailySuggestionLimit()', () => {
+  it('우회 목록에 포함된 userId는 한도 검사를 건너뛰고 감사 로그를 남긴다', async () => {
+    process.env.RATE_LIMIT_BYPASS_USER_IDS = 'admin-1, dev-2';
+    const repo = makeRepo();
+    const service = new RateLimitService(repo);
+
+    await expect(service.checkAndIncrementDailySuggestionLimit('admin-1')).resolves.toEqual({
+      charged: false,
+    });
+
+    expect(repo.checkAndIncrementDailySuggestionLimit).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(
+      'Rate limit bypass applied',
+      expect.objectContaining({ userId: 'admin-1' })
+    );
+  });
+
+  it('한도 미만이면 charged=true 를 반환하고 올바른 limit 을 전달한다', async () => {
+    const repo = makeRepo();
+    repo.checkAndIncrementDailySuggestionLimit.mockResolvedValue(true);
+    const service = new RateLimitService(repo);
+
+    await expect(service.checkAndIncrementDailySuggestionLimit('user-1')).resolves.toEqual({
+      charged: true,
+    });
+    expect(repo.checkAndIncrementDailySuggestionLimit).toHaveBeenCalledWith('user-1', 30);
+  });
+
+  it('한도 초과 시 RateLimitError 를 던지고 메시지는 추천 한도 문구를 쓴다', async () => {
+    const repo = makeRepo();
+    repo.checkAndIncrementDailySuggestionLimit.mockResolvedValue(false);
+    const service = new RateLimitService(repo);
+
+    await expect(service.checkAndIncrementDailySuggestionLimit('user-1')).rejects.toBeInstanceOf(
+      RateLimitError
+    );
+    await expect(service.checkAndIncrementDailySuggestionLimit('user-1')).rejects.toMatchObject({
+      message: expect.stringContaining('AI 추천 한도'),
+    });
+  });
+
+  it('DB 오류 시 fail-open 으로 charged=false 를 반환한다', async () => {
+    const repo = makeRepo();
+    repo.checkAndIncrementDailySuggestionLimit.mockRejectedValue(new Error('db down'));
+    const service = new RateLimitService(repo);
+
+    await expect(service.checkAndIncrementDailySuggestionLimit('user-1')).resolves.toEqual({
+      charged: false,
+    });
+    expect(logger.error).toHaveBeenCalledWith(
+      'Rate limit check failed — failing open',
+      expect.objectContaining({ userId: 'user-1', error: 'db down' })
+    );
+  });
+
+  it('80% 경고 이벤트를 발행하지 않는다 (suggestion 전용 사용량 조회 없음)', async () => {
+    const repo = makeRepo();
+    repo.checkAndIncrementDailySuggestionLimit.mockResolvedValue(true);
+    const service = new RateLimitService(repo);
+
+    await service.checkAndIncrementDailySuggestionLimit('user-1');
+    await flush();
+
+    expect(eventBus.emit).not.toHaveBeenCalled();
+    expect(repo.getCurrentUsage).not.toHaveBeenCalled();
+  });
+});
+
+describe('RateLimitService.decrementDailySuggestionLimit()', () => {
+  it('보상 감소를 리포지토리에 위임한다', async () => {
+    const repo = makeRepo();
+    repo.decrementDailySuggestionLimit.mockResolvedValue(undefined);
+    const service = new RateLimitService(repo);
+
+    await service.decrementDailySuggestionLimit('user-1');
+
+    expect(repo.decrementDailySuggestionLimit).toHaveBeenCalledWith('user-1');
+  });
+
+  it('감소 실패는 삼키고 경고 로그만 남긴다(best-effort)', async () => {
+    const repo = makeRepo();
+    repo.decrementDailySuggestionLimit.mockRejectedValue(new Error('decrement fail'));
+    const service = new RateLimitService(repo);
+
+    await expect(service.decrementDailySuggestionLimit('user-1')).resolves.toBeUndefined();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to decrement'),
+      expect.objectContaining({ userId: 'user-1', error: 'decrement fail' })
     );
   });
 });

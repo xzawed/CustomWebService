@@ -23,14 +23,20 @@ vi.mock('@/lib/ai/codeParser', () => ({
   assembleHtml: vi.fn().mockReturnValue('<!DOCTYPE html><html></html>'),
 }));
 
+vi.mock('@/lib/auth/verifiedGuard', () => ({
+  assertEmailVerified: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('@/services/factory', () => ({
   createRateLimitService: vi.fn().mockReturnValue({
     checkAndIncrementDailyLimit: vi.fn().mockResolvedValue({ charged: true }),
+    checkAndIncrementDailySuggestionLimit: vi.fn().mockResolvedValue({ charged: true }),
+    decrementDailySuggestionLimit: vi.fn().mockResolvedValue(undefined),
   }),
 }));
 
 vi.mock('@/providers/ai/AiProviderFactory', () => ({
-  AiProviderFactory: { create: vi.fn() },
+  AiProviderFactory: { create: vi.fn(), createForTask: vi.fn() },
 }));
 
 vi.mock('@/lib/events/eventBus', () => ({

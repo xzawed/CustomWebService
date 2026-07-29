@@ -139,6 +139,7 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 |------|--------|---------|------|
 | `MAX_APIS_PER_PROJECT` | `5` | ➖ | 프로젝트당 최대 API 수 |
 | `MAX_DAILY_GENERATIONS` | `10` | ➖ | 사용자당 일일 생성 횟수 |
+| `MAX_DAILY_SUGGESTIONS` | `30` | ➖ | 사용자당 일일 AI 추천(suggest-*) 횟수. free 기본 30, pro 오버라이드 150. 코드: `src/lib/config/features.ts` · `RateLimitService.checkAndIncrementDailySuggestionLimit` |
 | `MAX_PROJECTS_PER_USER` | `20` | ➖ | 사용자당 최대 프로젝트 수 |
 | `MAX_REGENERATIONS` | `5` | ➖ | 프로젝트당 재생성 횟수 |
 | `MAX_DEPLOY_PER_DAY` | `5` | ➖ | 사용자당 일일 최대 배포 횟수 |

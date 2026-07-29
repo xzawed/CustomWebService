@@ -1,4 +1,5 @@
 import { getAuthUser } from '@/lib/auth/index';
+import { assertEmailVerified } from '@/lib/auth/verifiedGuard';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { createRateLimitService } from '@/services/factory';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
@@ -12,12 +13,12 @@ interface SuggestApiItem {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  let pendingDecrement: (() => Promise<void>) | undefined;
+
   try {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
-
-    const rateLimitService = createRateLimitService();
-    await rateLimitService.checkAndIncrementDailyLimit(user.id);
+    await assertEmailVerified(user.id);
 
     let apis: SuggestApiItem[];
     try {
@@ -29,6 +30,12 @@ export async function POST(request: Request): Promise<Response> {
         return handleApiError(new ValidationError('잘못된 요청 형식입니다.'));
       }
       throw err;
+    }
+
+    const rateLimitService = createRateLimitService();
+    const { charged } = await rateLimitService.checkAndIncrementDailySuggestionLimit(user.id);
+    if (charged) {
+      pendingDecrement = () => rateLimitService.decrementDailySuggestionLimit(user.id);
     }
 
     const apiList = apis.map((a) => `- ${a.name}: ${a.description}`).join('\n');
@@ -77,6 +84,7 @@ export async function POST(request: Request): Promise<Response> {
 
     return jsonResponse({ success: true, data: { suggestions } });
   } catch (error) {
+    await pendingDecrement?.().catch(() => {});
     return handleApiError(error);
   }
 }

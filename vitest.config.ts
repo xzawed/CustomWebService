@@ -53,6 +53,8 @@ export default defineConfig({
         'src/app/api/v1/suggest-apis/route.ts',
         'src/app/api/v1/suggest-context/route.ts',
         'src/app/api/v1/suggest-modification/route.ts',
+        // 2026-07-30: #219(추천 쿼터 분리)로 수정하며 편입. 나머지 suggest 라우트는 이미 포함돼 있었다.
+        'src/app/api/v1/suggest-preferences/route.ts',
         'src/app/(auth)/**/page.tsx',
         'src/hooks/**',
         'src/lib/**',

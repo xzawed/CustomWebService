@@ -130,4 +130,45 @@ export class SqliteRateLimitRepository implements IRateLimitRepository {
       )
       .run();
   }
+
+  async checkAndIncrementDailySuggestionLimit(userId: string, limit: number): Promise<boolean> {
+    const usageDate = this.today();
+    return this.db.transaction((tx) => {
+      tx.insert(schema.userDailyLimits)
+        .values({ user_id: userId, usage_date: usageDate, suggestion_count: 0 })
+        .onConflictDoNothing()
+        .run();
+
+      const rows = tx
+        .update(schema.userDailyLimits)
+        .set({ suggestion_count: sql`${schema.userDailyLimits.suggestion_count} + 1` })
+        .where(
+          and(
+            eq(schema.userDailyLimits.user_id, userId),
+            eq(schema.userDailyLimits.usage_date, usageDate),
+            sql`${schema.userDailyLimits.suggestion_count} < ${limit}`,
+          ),
+        )
+        .returning({ count: schema.userDailyLimits.suggestion_count })
+        .all();
+
+      return rows.length > 0;
+    });
+  }
+
+  async decrementDailySuggestionLimit(userId: string): Promise<void> {
+    const usageDate = this.today();
+    this.db
+      .update(schema.userDailyLimits)
+      .set({
+        suggestion_count: sql`MAX(0, ${schema.userDailyLimits.suggestion_count} - 1)`,
+      })
+      .where(
+        and(
+          eq(schema.userDailyLimits.user_id, userId),
+          eq(schema.userDailyLimits.usage_date, usageDate),
+        ),
+      )
+      .run();
+  }
 }

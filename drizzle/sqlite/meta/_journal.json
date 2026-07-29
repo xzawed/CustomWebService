@@ -22,6 +22,13 @@
       "when": 1785323598240,
       "tag": "0002_icy_cassandra_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785340608673,
+      "tag": "0003_demonic_naoko",
+      "breakpoints": true
     }
   ]
 }

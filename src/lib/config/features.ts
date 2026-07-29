@@ -1,6 +1,7 @@
 export interface FeatureLimits {
   maxApisPerProject: number;
   maxDailyGenerations: number;
+  maxDailySuggestions: number;
   maxProjectsPerUser: number;
   maxRegenerationsPerProject: number;
   maxCodeVersionsPerProject: number;
@@ -19,6 +20,7 @@ function env(key: string, defaultValue: number): number {
 const DEFAULT_LIMITS: FeatureLimits = {
   maxApisPerProject: env('MAX_APIS_PER_PROJECT', 5),
   maxDailyGenerations: env('MAX_DAILY_GENERATIONS', 10),
+  maxDailySuggestions: env('MAX_DAILY_SUGGESTIONS', 30),
   maxProjectsPerUser: env('MAX_PROJECTS_PER_USER', 20),
   maxRegenerationsPerProject: env('MAX_REGENERATIONS', 5),
   maxCodeVersionsPerProject: env('MAX_CODE_VERSIONS', 10),
@@ -32,6 +34,7 @@ const PLAN_OVERRIDES: Record<string, Partial<FeatureLimits>> = {
   pro: {
     maxApisPerProject: 10,
     maxDailyGenerations: 50,
+    maxDailySuggestions: 150,
     maxProjectsPerUser: 100,
     maxCodeVersionsPerProject: 50,
     contextMaxLength: 5000,
