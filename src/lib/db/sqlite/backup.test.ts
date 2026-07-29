@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { SlackAlertOptions } from '@/lib/monitoring/slackAlert';
 import { logger } from '@/lib/utils/logger';
 import {
   formatBackupTimestamp,
@@ -307,5 +308,228 @@ describe('scheduleBackups', () => {
 
     stop();
     errSpy.mockRestore();
+  });
+
+  type RunOutcome = 'ok' | 'fail';
+
+  async function flushMicrotasks(): Promise<void> {
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+
+  type AlertFnMock = ReturnType<typeof vi.fn<(opts: SlackAlertOptions) => void | Promise<void>>>;
+
+  function scheduleWithOutcomes(
+    outcomes: RunOutcome[],
+    alertFn: AlertFnMock = vi.fn<(opts: SlackAlertOptions) => void | Promise<void>>().mockResolvedValue(
+      undefined
+    )
+  ): {
+    stop: () => void;
+    tick: () => void;
+    alertFn: AlertFnMock;
+  } {
+    let idx = 0;
+    let intervalCb: (() => void) | null = null;
+
+    const stop = scheduleBackups(
+      {} as Database.Database,
+      { enabled: true, intervalMs: 1000, retention: 7, dir: '/data/backups' },
+      {
+        runFn: async () => {
+          const outcome = outcomes[idx] ?? outcomes[outcomes.length - 1] ?? 'ok';
+          idx += 1;
+          if (outcome === 'fail') {
+            throw new Error('disk full');
+          }
+          return { path: '/data/backups/app.db', prunedCount: 0 };
+        },
+        setIntervalFn: (cb: () => void) => {
+          intervalCb = cb;
+          return 0;
+        },
+        clearIntervalFn: () => {},
+        now: () => new Date(0),
+        alertFn,
+      }
+    );
+
+    return {
+      stop,
+      tick: (): void => {
+        intervalCb!();
+      },
+      alertFn,
+    };
+  }
+
+  describe('backup failure alerting (state transitions)', () => {
+    it('null→fail: first-ever failure alerts once at error level', async () => {
+      const { stop, alertFn } = scheduleWithOutcomes(['fail']);
+      await flushMicrotasks();
+
+      expect(alertFn).toHaveBeenCalledTimes(1);
+      expect(alertFn.mock.calls[0][0]).toMatchObject({
+        level: 'error',
+        fields: expect.objectContaining({
+          dir: '/data/backups',
+          error: 'disk full',
+          consecutiveFailures: 1,
+        }),
+      });
+
+      stop();
+    });
+
+    it('true→false: success then failure alerts once at error level', async () => {
+      const { stop, tick, alertFn } = scheduleWithOutcomes(['ok', 'fail']);
+      await flushMicrotasks();
+      expect(alertFn).not.toHaveBeenCalled(); // null→true: no alert
+
+      tick();
+      await flushMicrotasks();
+
+      expect(alertFn).toHaveBeenCalledTimes(1);
+      expect(alertFn.mock.calls[0][0]).toMatchObject({ level: 'error' });
+
+      stop();
+    });
+
+    it('false→false: consecutive failures suppress further alerts', async () => {
+      const { stop, tick, alertFn } = scheduleWithOutcomes(['fail', 'fail', 'fail']);
+      await flushMicrotasks();
+      expect(alertFn).toHaveBeenCalledTimes(1);
+
+      tick();
+      await flushMicrotasks();
+      tick();
+      await flushMicrotasks();
+
+      expect(alertFn).toHaveBeenCalledTimes(1);
+      expect(alertFn.mock.calls[0][0]).toMatchObject({ level: 'error' });
+
+      stop();
+    });
+
+    it('false→true: recovery after failures alerts once at info level', async () => {
+      const { stop, tick, alertFn } = scheduleWithOutcomes(['fail', 'ok']);
+      await flushMicrotasks();
+      expect(alertFn).toHaveBeenCalledTimes(1);
+      expect(alertFn.mock.calls[0][0]).toMatchObject({ level: 'error' });
+
+      tick();
+      await flushMicrotasks();
+
+      expect(alertFn).toHaveBeenCalledTimes(2);
+      expect(alertFn.mock.calls[1][0]).toMatchObject({
+        level: 'info',
+        fields: expect.objectContaining({
+          dir: '/data/backups',
+          consecutiveFailures: 1,
+        }),
+      });
+
+      stop();
+    });
+
+    it('true→true: repeated successes do not alert', async () => {
+      const { stop, tick, alertFn } = scheduleWithOutcomes(['ok', 'ok']);
+      await flushMicrotasks();
+      tick();
+      await flushMicrotasks();
+
+      expect(alertFn).not.toHaveBeenCalled();
+
+      stop();
+    });
+
+    it('null→true: first-ever success does not alert', async () => {
+      const { stop, alertFn } = scheduleWithOutcomes(['ok']);
+      await flushMicrotasks();
+
+      expect(alertFn).not.toHaveBeenCalled();
+
+      stop();
+    });
+
+    it('increments consecutiveFailures across suppressed fails, reports on first alert, resets on success', async () => {
+      const { stop, tick, alertFn } = scheduleWithOutcomes(['fail', 'fail', 'fail', 'ok', 'fail']);
+      await flushMicrotasks();
+
+      expect(alertFn).toHaveBeenCalledTimes(1);
+      expect(alertFn.mock.calls[0][0].fields).toMatchObject({ consecutiveFailures: 1 });
+
+      tick(); // fail #2 — suppressed
+      await flushMicrotasks();
+      tick(); // fail #3 — suppressed
+      await flushMicrotasks();
+      expect(alertFn).toHaveBeenCalledTimes(1);
+
+      tick(); // recovery
+      await flushMicrotasks();
+      expect(alertFn).toHaveBeenCalledTimes(2);
+      expect(alertFn.mock.calls[1][0]).toMatchObject({
+        level: 'info',
+        fields: expect.objectContaining({ consecutiveFailures: 3 }),
+      });
+
+      tick(); // fail again after recovery — new edge
+      await flushMicrotasks();
+      expect(alertFn).toHaveBeenCalledTimes(3);
+      expect(alertFn.mock.calls[2][0]).toMatchObject({
+        level: 'error',
+        fields: expect.objectContaining({ consecutiveFailures: 1 }),
+      });
+
+      stop();
+    });
+
+    it('two scheduleBackups instances do not share alert state', async () => {
+      const alertA = vi
+        .fn<(opts: SlackAlertOptions) => void | Promise<void>>()
+        .mockResolvedValue(undefined);
+      const alertB = vi
+        .fn<(opts: SlackAlertOptions) => void | Promise<void>>()
+        .mockResolvedValue(undefined);
+
+      const a = scheduleWithOutcomes(['fail', 'fail'], alertA);
+      const b = scheduleWithOutcomes(['ok', 'ok'], alertB);
+      await flushMicrotasks();
+
+      expect(alertA).toHaveBeenCalledTimes(1);
+      expect(alertB).not.toHaveBeenCalled();
+
+      a.tick();
+      b.tick();
+      await flushMicrotasks();
+
+      // A still suppressed; B still quiet
+      expect(alertA).toHaveBeenCalledTimes(1);
+      expect(alertB).not.toHaveBeenCalled();
+
+      a.stop();
+      b.stop();
+    });
+
+    it('a rejecting alertFn does not skip logger.error and does not throw; stop() still works', async () => {
+      const errSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+      const alertFn = vi
+        .fn<(opts: SlackAlertOptions) => void | Promise<void>>()
+        .mockRejectedValue(new Error('webhook down'));
+
+      const { stop } = scheduleWithOutcomes(['fail'], alertFn);
+      await flushMicrotasks();
+      // drain alert rejection catch
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(errSpy).toHaveBeenCalledWith(
+        'SQLite backup failed',
+        expect.objectContaining({ error: 'disk full' })
+      );
+      expect(alertFn).toHaveBeenCalledTimes(1);
+      expect(() => stop()).not.toThrow();
+
+      errSpy.mockRestore();
+    });
   });
 });

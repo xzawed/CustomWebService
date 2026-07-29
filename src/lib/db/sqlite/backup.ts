@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type Database from 'better-sqlite3';
+import { sendSlackAlert, type SlackAlertOptions } from '@/lib/monitoring/slackAlert';
 import { logger } from '@/lib/utils/logger';
 import { getSqlitePath } from './connection';
 
@@ -101,12 +102,20 @@ interface ScheduleDeps {
   setIntervalFn?: (callback: () => void, ms: number) => unknown;
   clearIntervalFn?: (handle: unknown) => void;
   now?: () => Date;
+  /**
+   * 백업 실패·복구 경보. 기본 `sendSlackAlert`.
+   * 알림 실패가 스케줄러를 깨뜨리지 않도록 호출부는 항상 void+catch로 감싼다.
+   */
+  alertFn?: (opts: SlackAlertOptions) => void | Promise<void>;
 }
 
 /**
  * 주기 백업을 시작한다(부팅 시 즉시 1회 + 이후 `intervalMs` 간격). 비활성이면 no-op.
  * 타이머는 `unref()`하여 백업 때문에 프로세스가 종료를 못 하는 일이 없도록 한다.
  * 반환된 함수를 호출하면 스케줄을 중단한다. 의존성 주입으로 결정적 단위 테스트가 가능하다.
+ *
+ * 경보는 상태 전이만: null/true→fail 시 error 1회, fail→success 시 info 복구 1회.
+ * 연속 실패 중에는 억제한다. 상태·카운터는 클로저 로컬(인스턴스 독립, 모듈 플래그 없음).
  */
 export function scheduleBackups(
   raw: Database.Database,
@@ -118,17 +127,69 @@ export function scheduleBackups(
     setIntervalFn = (cb: () => void, ms: number): unknown => setInterval(cb, ms),
     clearIntervalFn = (handle: unknown): void => clearInterval(handle as ReturnType<typeof setInterval>),
     now = (): Date => new Date(),
+    alertFn = sendSlackAlert,
   } = deps;
 
   if (!config.enabled) return () => {};
 
+  /** null = 아직 완료된 실행 없음, true = 최근 성공, false = 최근 실패 */
+  let healthy: boolean | null = null;
+  let consecutiveFailures = 0;
+
+  const safeAlert = (opts: SlackAlertOptions): void => {
+    void Promise.resolve(alertFn(opts)).catch((alertErr: unknown) => {
+      logger.warn('SQLite backup alert failed', {
+        error: alertErr instanceof Error ? alertErr.message : String(alertErr),
+      });
+    });
+  };
+
   const tick = (): void => {
     void runFn(raw, config, now()).then(
-      (r) => logger.info('SQLite backup written', { path: r.path, pruned: r.prunedCount }),
-      (err: unknown) =>
-        logger.error('SQLite backup failed', {
-          error: err instanceof Error ? err.message : String(err),
-        })
+      (r) => {
+        logger.info('SQLite backup written', { path: r.path, pruned: r.prunedCount });
+
+        const wasFailing = healthy === false;
+        const failuresBeforeRecovery = consecutiveFailures;
+        healthy = true;
+        consecutiveFailures = 0;
+
+        if (wasFailing) {
+          safeAlert({
+            level: 'info',
+            title: 'SQLite 백업 복구',
+            message: `백업이 정상 복구되었습니다. (연속 실패 ${failuresBeforeRecovery}회 후)`,
+            fields: {
+              dir: config.dir,
+              consecutiveFailures: failuresBeforeRecovery,
+            },
+          });
+        }
+      },
+      (err: unknown) => {
+        // 1) log first (sync) — must not depend on alert
+        const error = err instanceof Error ? err.message : String(err);
+        logger.error('SQLite backup failed', { error });
+
+        // 2) state transition (sync) before any async alert
+        const shouldAlert = healthy !== false; // null (first) or true (was ok)
+        consecutiveFailures += 1;
+        healthy = false;
+
+        // 3) alert last — void+catch so webhook failures cannot poison the scheduler
+        if (shouldAlert) {
+          safeAlert({
+            level: 'error',
+            title: 'SQLite 백업 실패',
+            message: '주기 백업이 실패했습니다. 볼륨·디스크·경로를 확인하세요.',
+            fields: {
+              dir: config.dir,
+              error: error.slice(0, 200),
+              consecutiveFailures,
+            },
+          });
+        }
+      }
     );
   };
 
