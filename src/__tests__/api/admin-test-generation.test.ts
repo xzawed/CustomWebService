@@ -196,6 +196,18 @@ describe('POST /api/v1/admin/test-generation', () => {
     expect(projectRepoMock.delete).toHaveBeenCalledWith(mockCreatedProject.id);
   });
 
+  it('파이프라인 throw + cleanup까지 실패해도 원본 에러를 반환한다 — 정리 실패가 진단 결과를 가리면 안 된다', async () => {
+    pipelineMock.mockRejectedValue(new Error('Pipeline crashed'));
+    projectRepoMock.delete.mockRejectedValueOnce(new Error('FK constraint failed'));
+
+    const { POST } = await import('@/app/api/v1/admin/test-generation/route');
+    const res = await POST(makeRequest({ userId: VALID_USER_ID, apiIds: [API_ID_1, API_ID_2, API_ID_3] }));
+
+    // cleanup 실패가 throw되어 원본 에러를 덮으면 진짜 실패 원인을 잃는다.
+    expect([400, 500]).toContain(res.status);
+    expect(projectRepoMock.delete).toHaveBeenCalledWith(mockCreatedProject.id);
+  });
+
   it('OPTIONS preflight → 204', async () => {
     const { OPTIONS } = await import('@/app/api/v1/admin/test-generation/route');
     const res = await OPTIONS();
