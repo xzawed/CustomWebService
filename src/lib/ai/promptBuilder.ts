@@ -524,7 +524,7 @@ function showError(container, message) {
 
 ### 핵심 Alpine.js 규칙
 1. \`x-data\` — 컴포넌트 최상위에서 상태 선언. \`{ items: [], loading: true, error: null }\`
-2. \`x-init="loadData()"\` — 마운트 시 API 호출 자동 실행
+2. \`x-init="loadData()"\` — 마운트 시 API 호출 자동 실행. **로더 함수 이름을 \`init\`으로 짓지 말 것** (아래 참조)
 3. \`x-show\` — 조건부 표시 (DOM 유지, CSS display 토글)
 4. \`x-if\` — 조건부 렌더링 (DOM 추가/제거 — 성능 주의)
 5. \`x-for\` — 리스트 렌더링, 반드시 \`:key\` 설정
@@ -539,10 +539,36 @@ function showError(container, message) {
 // x-data="{ items: [], filter: '', get filteredItems() { return this.filter ? this.items.filter(i => i.title.includes(this.filter)) : this.items; } }"
 \`\`\`
 
+### ⛔ x-init에서 init() 호출 금지 (이중 실행)
+
+Alpine은 마운트 시 데이터 객체의 \`init()\`을 **자동으로 호출한다.** 같은 요소에
+\`x-init="init()"\`을 쓰면 \`init()\`이 **두 번 실행**되어 같은 API 요청이 동시에 두 번 나간다.
+업스트림 레이트리밋이 빡빡한 API(예: 1req/5초)에서는 두 번째가 429가 되어 사용자에게
+오류 화면이 그대로 보인다.
+
+\`\`\`html
+<!-- ❌ 잘못됨: init()이 두 번 실행된다 -->
+<div x-data="quizApp()" x-init="init()">
+<script>
+  function quizApp() {
+    return { async init() { await this.loadQuiz(); } };  // Alpine이 자동 호출
+  }
+</script>
+
+<!-- ✅ 방법 1: x-init을 지운다 (init은 자동 실행되므로 필요 없다) -->
+<div x-data="quizApp()">
+
+<!-- ✅ 방법 2: 로더 이름을 init이 아닌 것으로 짓고 x-init으로 부른다 -->
+<div x-data="quizApp()" x-init="loadData()">
+\`\`\`
+
+둘 중 하나만 쓴다. **\`init\`이라는 이름과 \`x-init\` 호출을 동시에 쓰지 않는다.**
+
 ### 금지 패턴
 - \`document.getElementById()\` — Alpine.js가 있으면 불필요
 - \`element.innerHTML = ...\` — x-html 또는 x-text 사용
 - 전역 변수로 상태 관리 — x-data로 캡슐화
+- \`x-init="init()"\` — 위 참조. 이중 실행으로 API 중복 요청 발생
 
 ## ★ 코드 반환 전 자가검증 5단계 (절대 필수 — 순서대로 실행)
 

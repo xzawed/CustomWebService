@@ -70,6 +70,91 @@ export function validateSecurity(code: string): ValidationResult {
   };
 }
 
+/**
+ * 따옴표 안의 `>`(예: x-init="$nextTick(() => init())")를 보존하며 여는 태그를 순회한다.
+ * 단순 `[^>]*` 스캔은 화살표 함수의 `>`에서 태그가 잘려 오탐·미탐이 난다.
+ *
+ * 정식 HTML 파서가 아니다 — `<script>` 본문의 `a<b` 같은 표현을 태그 시작으로 오인할 수
+ * 있다. 그 경우에도 잘라낸 조각에 `x-data`와 `x-init`이 동시에 들어 있어야 경고가 나므로
+ * 실질 오탐 가능성은 낮고, 결과는 경고(비차단)라 영향이 제한적이다. 정확도가 더 필요해지면
+ * 파서로 교체할 것.
+ */
+function forEachHtmlOpenTag(html: string, onTag: (tag: string) => void): void {
+  const len = html.length;
+  let i = 0;
+  while (i < len) {
+    if (html[i] === '<' && i + 1 < len && /[a-zA-Z]/i.test(html[i + 1]!)) {
+      const start = i;
+      i += 2;
+      let quote: '"' | "'" | null = null;
+      while (i < len) {
+        const c = html[i]!;
+        if (quote !== null) {
+          if (c === quote) {
+            quote = null;
+          }
+        } else if (c === '"' || c === "'") {
+          quote = c;
+        } else if (c === '>') {
+          onTag(html.slice(start, i + 1));
+          i += 1;
+          break;
+        }
+        i += 1;
+      }
+      continue;
+    }
+    i += 1;
+  }
+}
+
+/**
+ * Alpine.js 이중 init() 호출 패턴을 정적 검출한다.
+ *
+ * Alpine은 x-data 컴포넌트 마운트 시 데이터 객체의 init()을 자동 호출한다.
+ * 같은 요소에 x-init="init()"을 쓰면 init()이 두 번 실행되어 API 중복 요청·레이트리밋
+ * 오류 등이 발생할 수 있다. 데이터 객체에 init이 없으면 ReferenceError가 난다.
+ * 어느 쪽이든 버그이므로 JS 본문 검사 없이 HTML 속성만으로 판정한다.
+ *
+ * @returns 위반 요소당 한국어 경고 메시지 1개 (없으면 빈 배열)
+ */
+export function detectAlpineDoubleInit(html: string): string[] {
+  if (!html) {
+    return [];
+  }
+
+  const warnings: string[] = [];
+  // 메서드명이 정확히 init 인 호출만 — initialize/initChart/myInit 등은 제외
+  const initCallRegex = /\binit\s*\(/;
+
+  forEachHtmlOpenTag(html, (tag) => {
+    // x-data 존재 여부. **값이 없는 `x-data`도 포함한다** — Alpine은 이를 빈 객체로 취급하므로
+    // x-init의 init() 호출이 ReferenceError로 죽는다(값 있는 경우의 이중 실행과 마찬가지로 버그).
+    if (!/\bx-data\b/i.test(tag)) {
+      return;
+    }
+
+    // x-init 값 추출 (쌍/홑따옴표)
+    const xInitMatch = /\bx-init\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(tag);
+    if (!xInitMatch) {
+      return;
+    }
+
+    const expression = xInitMatch[1] ?? xInitMatch[2] ?? '';
+    if (initCallRegex.test(expression)) {
+      // 위반이 여러 개일 때 메시지가 전부 같으면 어느 요소를 고쳐야 할지 알 수 없다 —
+      // 문제의 식을 그대로 실어 지목 가능하게 한다.
+      warnings.push(
+        `Alpine.js 컴포넌트에 x-init="${expression}" 이 감지되었습니다. ` +
+          'Alpine은 마운트 시 데이터 객체의 init()을 자동 호출하므로 x-init에서 다시 부르면 이중 실행됩니다 ' +
+          '(API 중복 요청·레이트리밋 오류 등). x-init에서 init() 호출을 제거하고 본문만 데이터 객체에 두세요.',
+      );
+    }
+  });
+
+  return warnings;
+}
+
 export function validateFunctionality(html: string, _css: string, js: string): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -89,6 +174,9 @@ export function validateFunctionality(html: string, _css: string, js: string): V
       warnings.push('JavaScript 코드의 중괄호 수가 불일치합니다.');
     }
   }
+
+  // Alpine 이중 init — 품질 신호(경고)만; 게시를 막지 않음
+  warnings.push(...detectAlpineDoubleInit(html));
 
   return {
     passed: errors.length === 0,

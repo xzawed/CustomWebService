@@ -262,6 +262,12 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - **전이 의존성 오버라이드는 스코프를 좁힐 것**: `"brace-expansion@^5": "^5.0.8"`처럼 버전 범위를 명시한다. 전역 오버라이드는 메이저가 다른 소비자를 런타임에 깨뜨린다(v5 CJS는 named export라 `minimatch@3`의 `require(...)(pattern)` 호출이 깨짐 — 실증됨)
 - `sharp`는 `next`의 optionalDependency(`^0.34.5`)라 상위 상향으로 패치 버전에 도달하지 못한다 → `pnpm.overrides`로 상향. 변경 시 **Alpine musl 프리빌트(`@img/sharp-linuxmusl-x64`) 존재 여부와 lockfile 등재를 반드시 확인**(Dockerfile이 `node:22-alpine`)
 
+### 생성물의 Alpine.js 이중 init 금지
+- Alpine은 마운트 시 `x-data` 객체의 **`init()`을 자동 호출**한다. 같은 요소에 `x-init="init()"`을 쓰면 **두 번 실행**되어 같은 API 요청이 동시에 두 번 나간다 — 업스트림 리밋이 빡빡한 API(예: OpenTDB 1req/5초)에서 두 번째가 429가 되고 사용자에게 오류 화면이 보인다(2026-07-29 프로덕션 실측)
+- 2중 방어: ① `promptBuilder.ts`의 Alpine 절에 ❌/✅ 예시와 함께 명시 금지 ② `detectAlpineDoubleInit()`(`codeValidator.ts`)가 정적 검출해 `validateFunctionality` **경고**로 올린다. 보안 문제가 아니므로 `errors`가 아니라 `warnings` — 게시를 막지 않는다
+- 검출 규칙은 **JS 본문을 보지 않는다**. `x-init`이 `init`이라는 이름의 메서드를 부르면 정의돼 있으면 이중 실행, 없으면 ReferenceError라 어느 쪽이든 버그이기 때문. 단어 경계를 쓰므로 `initialize()`·`initChart()`·`myInit()`은 잡지 않는다
+- **프롬프트에 `x-init` 예시를 추가할 때 로더 이름을 `init`으로 짓지 말 것.** 원인은 프롬프트가 나쁜 예시를 준 게 아니라(당시 프롬프트엔 없었다) 모델이 로더를 자연스럽게 `init`으로 명명한 것이었다 — 좋은 예시만으로는 못 막고 명시 금지가 필요하다. 배경: [#204](https://github.com/xzawed/CustomWebService/issues/204)
+
 ### QC 프로세스 (생성/재생성 공통)
 - **상세 절차**: [docs/guides/qc-process.md](docs/guides/qc-process.md) 참조 (8단계 표준 프로세스)
 - **파이프라인 설계**: [docs/architecture/ai-pipeline.md](docs/architecture/ai-pipeline.md) 참조 (3단계 Stage + Quality Loop)
