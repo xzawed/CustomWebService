@@ -77,8 +77,8 @@ describe('ClaudeProvider', () => {
     expect(provider.name).toBe('claude');
   });
 
-  it('기본 model이 claude-sonnet-4-6이다', () => {
-    expect(provider.model).toBe('claude-sonnet-4-6');
+  it('기본 model이 claude-sonnet-5이다', () => {
+    expect(provider.model).toBe('claude-sonnet-5');
   });
 
   it('커스텀 모델을 지정할 수 있다', () => {
@@ -145,6 +145,22 @@ describe('ClaudeProvider', () => {
       });
       expect(callArg).not.toHaveProperty('temperature');
     });
+
+    it('extendedThinking 미활성 시 thinking을 disabled로 명시한다 — 생략하면 Opus 5가 기본으로 사고한다', async () => {
+      // Opus 4.8은 thinking 생략 = 사고 안 함이었지만 Opus 5는 생략 시 adaptive가 켜진다(실측).
+      // 생략한 채 두면 max_tokens를 thinking과 응답이 나눠 써 생성물이 잘리고 비용·지연이 늘어난다.
+      await provider.generateCode({ system: 'sys', user: 'user' });
+      const callArg = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArg).toMatchObject({ thinking: { type: 'disabled' } });
+    });
+
+    it('thinking을 끌 때 effort를 함께 보내지 않는다 — xhigh/max 조합은 400이다', async () => {
+      // Opus 5는 thinking:disabled + effort xhigh/max를 거부한다(실측 400).
+      // 기본 effort(high)에서만 허용되므로 끌 때는 effort를 아예 보내지 않는다.
+      await provider.generateCode({ system: 'sys', user: 'user' });
+      const callArg = mockCreate.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArg).not.toHaveProperty('output_config');
+    });
   });
 
   describe('generateCodeStream()', () => {
@@ -177,7 +193,7 @@ describe('ClaudeProvider', () => {
       );
 
       expect(result.provider).toBe('claude');
-      expect(result.model).toBe('claude-sonnet-4-6');
+      expect(result.model).toBe('claude-sonnet-5');
     });
   });
 

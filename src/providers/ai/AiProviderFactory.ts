@@ -5,18 +5,24 @@ import { ClaudeProvider } from './ClaudeProvider';
 export type AiProviderType = 'claude';
 export type AiTaskType = 'generation' | 'suggestion';
 
+// 구세대 ID를 지우지 않는다 — 신모델에 문제가 생겼을 때 Railway env만 되돌려
+// 즉시 복구할 수 있어야 한다. 목록에 없는 값은 조용히 기본값으로 폴백하므로,
+// 여기서 지우면 롤백 시도가 경고 한 줄만 남기고 무시된다.
 const ALLOWED_CLAUDE_MODELS = [
   'claude-haiku-4-5',
   'claude-sonnet-4-6',
+  'claude-sonnet-5',
   'claude-opus-4-6',
   'claude-opus-4-7',
   'claude-opus-4-8',
+  'claude-opus-5',
 ] as const;
 type AllowedClaudeModel = (typeof ALLOWED_CLAUDE_MODELS)[number];
 
+// suggestion은 Haiku 4.5 유지 — 4.5가 여전히 최신 Haiku다(Haiku 5는 없다).
 const TASK_DEFAULTS: Record<AiTaskType, AllowedClaudeModel> = {
   suggestion: 'claude-haiku-4-5',
-  generation: 'claude-opus-4-8',
+  generation: 'claude-opus-5',
 };
 
 const TASK_ENV_VARS: Record<AiTaskType, string> = {

@@ -18,7 +18,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 | Form | React 로컬 상태(`useState`) + Zod (서버 검증) — React Hook Form 미사용 |
 | Database | 임베디드 SQLite (better-sqlite3 + drizzle-orm, WAL · Railway Volume `/data/app.db`) |
 | Auth | Auth.js v5 (Credentials + JWT 무상태) — 공개 셀프서비스 회원가입, DB 사용자별 scrypt 인증, 이메일 인증 게이트 |
-| AI | Claude API (Anthropic SDK, claude-opus-4-8 기본, 조건부 Extended Thinking) |
+| AI | Claude API (Anthropic SDK, claude-opus-5 기본, 조건부 Extended Thinking) |
 | Testing | Vitest, happy-dom, MSW |
 | CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
 | Package Manager | pnpm |
@@ -136,7 +136,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - `GITHUB_TOKEN`, `RAILWAY_TOKEN` — 배포용
 - `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
 - `AI_MODEL_SUGGESTION` — 추천용 모델 (기본: `claude-haiku-4-5`)
-- `AI_MODEL_GENERATION` — 코드 생성 모델 (기본: `claude-opus-4-8`, Sonnet 폴백: `claude-sonnet-4-6`)
+- `AI_MODEL_GENERATION` — 코드 생성 모델 (기본: `claude-opus-5`, Sonnet 폴백: `claude-sonnet-5`)
 - `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` / `SLACK_WEBHOOK_URL` — 에러·알림 sink. **셋 다 미설정이면 프로덕션에 활성 에러 sink가 없다**(Sentry `enabled:false`, `sendSlackAlert` no-op) → `errorRateMonitor` 알림이 유실된다
 - `LOG_LEVEL` — 로그 상세도 (`debug`/`info`/`warn`/`error`, 기본 `info`)
 - `ET_COMPLEXITY_THRESHOLD` — Extended Thinking 활성화 임계값 (기본: 35점, `evaluateComplexityScore()` 결과 비교)
@@ -170,6 +170,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | **생성 락을 인메모리 tracker에서 SQLite로 분리 ADR (M-5 근본 해결, 2026-07-29)** | [docs/decisions/2026-07-29-durable-generation-lock.md](docs/decisions/2026-07-29-durable-generation-lock.md) |
 | **프록시 캐시 키에 키 신원 추가 ADR (M-4 잔여 해소, 2026-07-29)** | [docs/decisions/2026-07-29-proxy-cache-key-identity.md](docs/decisions/2026-07-29-proxy-cache-key-identity.md) |
 | **게시 사이트 프록시 오남용 모니터링 ADR (한도 소진 경고·사용량 지표, 2026-07-29)** | [docs/decisions/2026-07-29-site-proxy-abuse-monitoring.md](docs/decisions/2026-07-29-site-proxy-abuse-monitoring.md) |
+| **생성 모델 Opus 4.8 → Opus 5 상향 ADR (thinking 기본값 변경 대응, 2026-07-29)** | [docs/decisions/2026-07-29-llm-model-upgrade-opus5.md](docs/decisions/2026-07-29-llm-model-upgrade-opus5.md) |
 | better-sqlite3 v13 N-API 프리빌트 전환·빌드 툴체인 제거 ADR (2026-07-28) | [docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md](docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md) |
 | 환경변수 목록 | [docs/reference/env-vars.md](docs/reference/env-vars.md) |
 | 에러 클래스 참조 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
@@ -323,7 +324,10 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 ## 타입 주의사항
 
 - `IAiProvider.tokensUsed` — `{ input: number; output: number }` 구조 (`inputTokens`/`outputTokens` 아님)
-- **Anthropic 모델 ID 주의**: 4.x 모델은 날짜 suffix 없이 사용 — `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`, `claude-opus-4-8`. 날짜 포함 ID(예: `claude-haiku-4-5-20251001`)는 404 반환 확인됨
+- **Anthropic 모델 ID 주의**: 날짜 suffix 없이 사용 — `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-sonnet-5`, `claude-opus-4-6`, `claude-opus-4-7`, `claude-opus-4-8`, `claude-opus-5`. 날짜 포함 ID(예: `claude-haiku-4-5-20251001`)는 허용목록에 없어 기본값으로 폴백된다
+- **Opus 5에서 `thinking` 생략은 "사고 안 함"이 아니다**: Opus 4.8은 생략 = 사고 없음이었지만 **Opus 5는 생략 시 adaptive가 기본으로 켜진다**(2026-07-29 실측 — 생략 시 응답 블록이 `[thinking,text]`, `disabled`면 `[text]`). 생략하면 `max_tokens`(48000)를 thinking과 생성물이 나눠 써 **코드가 잘리고** 비용·지연이 는다. `ClaudeProvider`는 ET 비활성 경로에서 **`thinking: { type: 'disabled' }`를 명시**한다 — 지우지 말 것
+- **`thinking: disabled`에 `effort`를 함께 보내지 말 것**: Opus 5는 `disabled` + `effort: xhigh|max`를 **400으로 거부**한다(실측). 기본 effort(high)에서만 허용되므로 끌 때는 `output_config`를 아예 보내지 않는다. 테스트가 두 규약을 모두 고정한다
+- **모델 상향 시 구세대 ID를 허용목록에서 지우지 말 것**: 목록에 없는 env 값은 조용히 기본값으로 폴백하므로, 지우면 **env를 되돌리는 롤백이 무시된다**. 배경: [ADR](docs/decisions/2026-07-29-llm-model-upgrade-opus5.md)
 - **모델 허용목록은 조용히 폴백한다**: `AI_MODEL_*` env가 `ALLOWED_CLAUDE_MODELS`(`AiProviderFactory.ts`)에 없으면 `logger.warn` 한 줄만 남기고 `TASK_DEFAULTS`로 폴백한다. 즉 **Railway env에 새 모델을 넣는 것만으로는 적용되지 않으며** 허용목록도 함께 고쳐야 한다. (2026-07-10: env가 `claude-opus-4-8`인데 허용목록에 없어 `opus-4-7`로 폴백 중이던 것을 발견·수정)
 - `AiProviderFactory.ts` 모델 ID 수정 시 `.test.ts`도 반드시 동시에 업데이트 (CI 파손 방지)
 - **JSON 필드명 이중성**: `parseEndpoints()`(`@/repositories/utils/endpointParser`, `SqliteCatalogRepository`가 사용) 같은 JSON 매퍼는 snake_case(`example_call`)와 camelCase(`exampleCall`) 둘 다 처리 필요 — 시드 JSON 직접 삽입 vs 코드 경로 차이

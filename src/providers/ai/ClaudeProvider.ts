@@ -86,7 +86,7 @@ export class ClaudeProvider implements IAiProvider {
   readonly model: string;
   private client: Anthropic;
 
-  constructor(apiKey: string, model = 'claude-sonnet-4-6') {
+  constructor(apiKey: string, model = 'claude-sonnet-5') {
     // SDK 타임아웃 — Railway 300s HTTP 컷 전 안전 종료. 운영 중 조정이 필요한 경우
     // ANTHROPIC_TIMEOUT_MS 환경변수로 오버라이드 가능 (기본 270000ms = 270초).
     const timeoutMs = (() => {
@@ -110,10 +110,20 @@ export class ClaudeProvider implements IAiProvider {
         system: buildSystemParam(prompt.system),
         messages: [{ role: 'user', content: prompt.user }],
         max_tokens: prompt.maxTokens ?? 48000,
-        ...(useThinking && {
-          thinking: { type: 'adaptive' as const },
-          output_config: { effort: 'high' as const },
-        }),
+        // thinking을 **생략하지 않는다**. Opus 4.8은 생략 = 사고 안 함이었지만
+        // Opus 5는 생략 시 adaptive가 기본으로 켜진다(2026-07-29 실측: 생략하면
+        // 응답이 [thinking,text], disabled면 [text]). 생략한 채 두면 max_tokens를
+        // thinking과 생성물이 나눠 써 코드가 잘리고 비용·지연이 늘어난다.
+        //
+        // 끌 때 effort를 함께 보내지 않는 것도 의도적이다 — Opus 5는
+        // thinking:disabled + effort xhigh/max를 400으로 거부한다(실측). 기본 effort
+        // (high)에서만 허용되므로 아예 보내지 않아 조합 자체를 만들지 않는다.
+        ...(useThinking
+          ? {
+              thinking: { type: 'adaptive' as const },
+              output_config: { effort: 'high' as const },
+            }
+          : { thinking: { type: 'disabled' as const } }),
       }, { signal: prompt.abortSignal });
 
       const textBlock = result.content.find(
@@ -148,10 +158,20 @@ export class ClaudeProvider implements IAiProvider {
         system: buildSystemParam(prompt.system),
         messages: [{ role: 'user', content: prompt.user }],
         max_tokens: prompt.maxTokens ?? 48000,
-        ...(useThinking && {
-          thinking: { type: 'adaptive' as const },
-          output_config: { effort: 'high' as const },
-        }),
+        // thinking을 **생략하지 않는다**. Opus 4.8은 생략 = 사고 안 함이었지만
+        // Opus 5는 생략 시 adaptive가 기본으로 켜진다(2026-07-29 실측: 생략하면
+        // 응답이 [thinking,text], disabled면 [text]). 생략한 채 두면 max_tokens를
+        // thinking과 생성물이 나눠 써 코드가 잘리고 비용·지연이 늘어난다.
+        //
+        // 끌 때 effort를 함께 보내지 않는 것도 의도적이다 — Opus 5는
+        // thinking:disabled + effort xhigh/max를 400으로 거부한다(실측). 기본 effort
+        // (high)에서만 허용되므로 아예 보내지 않아 조합 자체를 만들지 않는다.
+        ...(useThinking
+          ? {
+              thinking: { type: 'adaptive' as const },
+              output_config: { effort: 'high' as const },
+            }
+          : { thinking: { type: 'disabled' as const } }),
       }, { signal: prompt.abortSignal });
 
       let accumulated = '';
