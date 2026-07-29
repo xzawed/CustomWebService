@@ -95,10 +95,11 @@ class GenerationTracker {
     return this.entries.get(projectId);
   }
 
-  isGenerating(projectId: string): boolean {
-    const entry = this.entries.get(projectId);
-    return entry !== undefined && entry.status === 'generating';
-  }
+  // `isGenerating`은 제거됐다. 이 tracker는 인메모리 LRU+TTL이라 엔트리가 사라지면
+  // "생성 중 아님"으로 보고했고, 그 틈으로 두 번째 파이프라인이 시작될 수 있었다
+  // (Opus/ET 이중 청구 + 같은 version으로 UNIQUE 위반). 중복 차단은 DB 락
+  // (`generation_locks`, `@/lib/ai/generationLock`)이 담당하고 여기는 진행률만 남긴다.
+  // 게이트를 다시 여기에 두지 말 것.
 
   stopCleanup(): void {
     if (this.cleanupTimer !== null) {

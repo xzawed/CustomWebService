@@ -8,6 +8,7 @@ import type {
   IRateLimitRepository,
   IUserApiKeyRepository,
   IAuthTokenRepository,
+  IGenerationLockRepository,
 } from '@/repositories/interfaces';
 
 // SQLite implementations — 임베디드 단일 인스턴스(유일한 DB 백엔드)
@@ -20,6 +21,7 @@ import {
   SqliteRateLimitRepository,
   SqliteUserApiKeyRepository,
   SqliteAuthTokenRepository,
+  SqliteGenerationLockRepository,
 } from '@/repositories/sqlite';
 
 export function createProjectRepository(): IProjectRepository {
@@ -52,4 +54,8 @@ export function createUserApiKeyRepository(): IUserApiKeyRepository {
 
 export function createAuthTokenRepository(): IAuthTokenRepository {
   return new SqliteAuthTokenRepository(getSqliteDb());
+}
+
+export function createGenerationLockRepository(): IGenerationLockRepository {
+  return new SqliteGenerationLockRepository(getSqliteDb());
 }

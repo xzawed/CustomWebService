@@ -35,14 +35,14 @@ src/
 ├── components/      # UI 컴포넌트 (builder/, catalog/, dashboard/, layout/, settings/, ui/)
 ├── hooks/           # 커스텀 React hooks
 ├── lib/             # 유틸리티
-│   ├── ai/          # AI 파이프라인 — generationPipeline(오케스트레이터), stageRunner, generationSaver, qualityLoop, generationTracker
+│   ├── ai/          # AI 파이프라인 — generationPipeline(오케스트레이터), stageRunner, generationSaver, qualityLoop, generationTracker(진행률 전용), generationLock(중복 생성 차단 — DB 락)
 │   ├── auth/        # 인증 — getAuthUser, local-auth*(Credentials+JWT, edge-safe 분할 base/edge), password(scrypt hashPassword/verifyPassword), tokens(auth_tokens 발급/검증), rateLimit(per-IP 스로틀), verifiedGuard(assertEmailVerified), authorize(assertOwner)
 │   ├── cache/       # proxyCache.ts — LRU+TTL 인메모리 캐시 (프록시 응답 서버사이드 캐시)
 │   ├── config/      # 환경변수 기반 설정 (features, rateLimit, qc, limits 등)
 │   ├── catalog/     # API 카탈로그 — healthCheck.ts(DB기반 라이브 검증 분류), verifyRunner.ts(라이브 검증 오케스트레이터·verification_status 갱신, admin 트리거), keyCheck.ts(플랫폼 키 검증), activeApiCount.ts(활성 개수 동적 카운트 — 랜딩/카탈로그 마케팅 카피, 하드코딩 금지)
 │   ├── constants/   # 공용 상수 — cdn.ts (CSP CDN 화이트리스트, buildSiteCsp)
 │   ├── countries/   # 자체 호스팅 국가 데이터 API 로직 — transform(mledoze 변환), query(region/search 필터·코드 조회), types
-│   ├── db/          # 임베디드 SQLite — sqlite/(connection WAL/FK, schema 10테이블, migrator, bootstrap, seedCatalog, ensureCatalog, backup 주기 .backup 덤프+보관정책, retention 무한증가 테이블 정리), errors(UNIQUE 위반 감지)
+│   ├── db/          # 임베디드 SQLite — sqlite/(connection WAL/FK, schema 11테이블, migrator, bootstrap, seedCatalog, ensureCatalog, backup 주기 .backup 덤프+보관정책, retention 무한증가 테이블 정리), errors(UNIQUE 위반 감지)
 │   ├── email/       # 이메일 발송 — emailService(sendVerificationEmail/sendPasswordResetEmail), Resend provider, no-op console fallback(RESEND_API_KEY 미설정 시)
 │   ├── deploy/      # 배포 관련
 │   ├── events/      # EventBus (pub/sub) + eventPersister (전체 이벤트 자동 DB 기록)
@@ -55,7 +55,7 @@ src/
 │   └── utils/       # 공통 유틸리티, 에러 클래스
 ├── middleware.ts     # 서브도메인 라우팅, 보안 헤더 (CSP, HSTS)
 ├── providers/       # AI Provider (IAiProvider → ClaudeProvider)
-├── repositories/    # 데이터 접근 계층 — sqlite/(8 IRepository 구현 — SqliteAuthTokenRepository 추가), interfaces, utils, factory(무인자 SQLite 생성)
+├── repositories/    # 데이터 접근 계층 — sqlite/(9 IRepository 구현 — SqliteGenerationLockRepository 추가), interfaces, utils, factory(무인자 SQLite 생성)
 ├── services/        # 비즈니스 로직 계층
 ├── stores/          # Zustand 스토어
 ├── templates/       # 코드 생성 템플릿
@@ -147,6 +147,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - `PIPELINE_MAX_DURATION_MS` — 파이프라인 총 허용 시간 (기본: 290000ms = 290초). Quality Loop 시작 시 `경과 시간 + iterationTimeout > 이 값`이면 반복을 건너뜀. Railway 300초 한도를 고려한 안전 마진 확보용
 - `QC_QUALITY_THRESHOLD`, `QC_MOBILE_THRESHOLD` — Quality Loop 재시도 트리거 점수 임계값 (각 기본: 60)
 - `RATE_LIMIT_BYPASS_USER_IDS` — 쉼표 구분 userId 목록. 포함된 계정은 일일 생성 한도 검사 스킵 (관리자/개발자 우회용)
+- `GENERATION_LOCK_HEARTBEAT_MS` / `GENERATION_LOCK_STALE_MS` — 생성 락 생존 신호 주기(기본 30초) / 죽은 락 판정 시간(기본 5분). **stale은 heartbeat보다 커야 하며** 아니면 `heartbeat × 2`로 교정하고 경고를 남긴다. 로직: `src/lib/config/generation.ts`
 - 전체 환경변수 목록은 [docs/reference/env-vars.md](docs/reference/env-vars.md) 참조
 
 ## 문서 참조
@@ -166,6 +167,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | **게시 사이트 프록시 복구·인가 모델 정비 ADR (C-1·C-2·H-1·H-2, 2026-07-28)** | [docs/decisions/2026-07-28-published-site-proxy-authz.md](docs/decisions/2026-07-28-published-site-proxy-authz.md) |
 | 게시 사이트 프록시 설계 spec | [docs/superpowers/specs/2026-07-28-published-site-proxy-authz-design.md](docs/superpowers/specs/2026-07-28-published-site-proxy-authz-design.md) |
 | 검수 MEDIUM 발견 항목 수정 ADR (M-1·2·3·5·6·7·8, 2026-07-29) | [docs/decisions/2026-07-29-medium-audit-findings.md](docs/decisions/2026-07-29-medium-audit-findings.md) |
+| **생성 락을 인메모리 tracker에서 SQLite로 분리 ADR (M-5 근본 해결, 2026-07-29)** | [docs/decisions/2026-07-29-durable-generation-lock.md](docs/decisions/2026-07-29-durable-generation-lock.md) |
 | better-sqlite3 v13 N-API 프리빌트 전환·빌드 툴체인 제거 ADR (2026-07-28) | [docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md](docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md) |
 | 환경변수 목록 | [docs/reference/env-vars.md](docs/reference/env-vars.md) |
 | 에러 클래스 참조 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
@@ -290,7 +292,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - **Playwright 병렬 체크 주의**: 단일 `page` 인스턴스에서 `Promise.allSettled` 사용 시 viewport를 변경하는 체크는 반드시 다른 체크 완료 후 순차 실행 (`renderingQc.ts` 참고)
 - **playwright-core executablePath 주의**: `playwright-core`는 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 환경변수를 자동으로 읽지 않음. `const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH; chromium.launch({ ...(executablePath && { executablePath }) })` 형태로 명시적 전달 필요 (미설정 시 executablePath를 전달하지 않아 playwright-core 기본 탐색 로직이 유지됨). `playwright`(풀 패키지)와 달리 `playwright-core`는 브라우저 다운로드·자동 경로 탐색을 수행하지 않음 (`browserPool.ts` 참고)
 - **slug 충돌 처리**: `assignUniqueSlug()` in `projectService.ts` — base → base-2 → … → base-10 → timestamp fallback; UNIQUE 위반 시 1회 재시도. SQLite UNIQUE 위반은 `isUniqueViolation()`(`@/lib/db/errors`)가 `SQLITE_CONSTRAINT_UNIQUE`/`SQLITE_CONSTRAINT_PRIMARYKEY`/"UNIQUE constraint failed" 메시지로 감지(레거시 23505도 폴백 인식)
-- **generationTracker 단일 인스턴스**: `src/lib/ai/generationTracker.ts`의 `generationTracker`는 모듈 레벨 싱글톤. TTL 차등: `generating` 30분, `completed`/`failed` 10분. Railway 단일 인스턴스 환경에서만 동작 — 멀티 인스턴스 배포 시 Redis 등 외부 저장소로 교체 필요
+- **generationTracker는 진행률 전용 — 중복 생성 게이트로 쓰지 말 것**: `src/lib/ai/generationTracker.ts`의 `generationTracker`는 모듈 레벨 싱글톤이고 TTL 차등(`generating` 30분, `completed`/`failed` 10분)이라 **엔트리가 사라지면 락도 사라진다**. 여기에 게이트를 두면 같은 projectId로 두 번째 파이프라인이 시작돼 Opus/ET 토큰이 이중 청구되고 같은 version으로 UNIQUE 위반이 난다. `isGenerating()`은 그래서 제거됐고 `generationTracker.test.ts`가 부재를 단언한다. 중복 차단은 **`@/lib/ai/generationLock`(DB `generation_locks`)** 담당: 라우트가 `acquireGenerationLock`으로 획득(실패 시 409), `runGenerationPipeline`이 heartbeat를 돌리고 `finally`에서 **중지 → 해제 순서로** 정리한다. 크래시 시 `GENERATION_LOCK_STALE_MS`(기본 5분) 후 자동 탈취. 배경: [ADR](docs/decisions/2026-07-29-durable-generation-lock.md)
 - **생성 상태 폴링 추출**: `builder/page.tsx`의 SSE 폴백 폴링은 `src/lib/generation/pollGenerationStatus.ts`로 추출됨(주입형 `fetchFn`·`delay`·콜백, 단위 테스트 대상). `page.tsx`는 thin 래퍼. 상태 처리: `generating`→진행률 갱신, `completed`+result→완료, **`failed`→즉시 terminal 실패**(이전엔 maxAttempts까지 재시도하던 quirk를 교차검증 후 개선), `not_found`→프로젝트 미존재 메시지, 그 외(`unknown`)→연결 복구 실패 메시지. 테스트는 DI-delay(즉시 resolve)로 결정적 검증, 기본 `setTimeout` 경로만 `vi.useFakeTimers()`+`runAllTimersAsync()`로 커버
 - **모듈 레벨 상태가 있는 파일 테스트**: `let registered = false` 같은 모듈 레벨 플래그가 있는 파일은 테스트 간 상태 누출이 발생한다. `vi.resetModules()` + 매 테스트마다 `await import(...)` 동적 임포트로 격리한다 (`eventPersister.ts` 참고)
 - **api 라우트 테스트 — providers/supabase 모킹 더 이상 불필요**: SQLite 컷오버(P8.2) 후 `@/lib/db/failover`·`@/lib/db/connection`(→pg/drizzle-pg native cold-init)이 제거됐고, 상수만 반환하던 `@/lib/config/providers`도 2026-07-10 죽은 코드 정리로 **삭제됨**. 과거 cold-init 차단용 `vi.mock('@/lib/config/providers', ...)`·`vi.mock('@/lib/supabase/server', ...)`는 전부 제거됨(잔존 시 존재하지 않는 모듈 모킹). `vitest.config.ts`의 `testTimeout`/`hookTimeout` 15000ms 상향은 경합 마진으로 유지 — 배경: [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md)
@@ -323,7 +325,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | Issue | 내용 | 성격 |
 |-------|------|------|
 | ~~[#197](https://github.com/xzawed/CustomWebService/issues/197)~~ | C-1·C-2 실환경 검증 | **완료(2026-07-29)** — [ADR 검증 절](docs/decisions/2026-07-28-published-site-proxy-authz.md) |
-| [#198](https://github.com/xzawed/CustomWebService/issues/198) | M-5 generationTracker durable lock (SQLite 락 권장) | **부분 대응** — 관측만 추가됨 |
+| ~~[#198](https://github.com/xzawed/CustomWebService/issues/198)~~ | M-5 generationTracker durable lock | **완료(2026-07-29)** — [ADR](docs/decisions/2026-07-29-durable-generation-lock.md) |
 | [#199](https://github.com/xzawed/CustomWebService/issues/199) | M-4 잔여 — 캐시 키에 키 신원 추가해 캐시 이득 회복 | 안전하나 비효율 |
 | [#200](https://github.com/xzawed/CustomWebService/issues/200) | site 프록시 오남용 모니터링 (프로젝트 전역 한도가 유일 경계) | 운영 가시성 |
 | [#201](https://github.com/xzawed/CustomWebService/issues/201) | Railway Wait for CI + env 단독 변경 시 재배포 FAILED | 원인 미확정 |

@@ -23,6 +23,7 @@ import { templateRegistry } from '@/templates/TemplateRegistry';
 import { createSseWriter } from '@/lib/ai/sseWriter';
 import { runGenerationPipeline } from '@/lib/ai/generationPipeline';
 import { generationTracker } from '@/lib/ai/generationTracker';
+import { acquireGenerationLock } from '@/lib/ai/generationLock';
 
 export async function POST(request: Request): Promise<Response> {
   let pendingDecrement: (() => Promise<void>) | undefined;
@@ -79,7 +80,10 @@ export async function POST(request: Request): Promise<Response> {
       }
     }
 
-    if (generationTracker.isGenerating(projectId)) {
+    // 중복 파이프라인 차단은 DB 락이 담당한다(단일 문 test-and-set이라 체크·획득 사이에
+    // 끼어들 틈이 없다). 인메모리 tracker가 락을 겸하던 구조에서는 TTL·size cap으로 엔트리가
+    // 사라지면 락도 사라져 두 번째 파이프라인이 시작될 수 있었다 — Opus/ET 이중 청구.
+    if (!(await acquireGenerationLock(projectId, user.id))) {
       await pendingDecrement?.().catch(() => {});
       pendingDecrement = undefined;
       return Response.json(
@@ -87,8 +91,7 @@ export async function POST(request: Request): Promise<Response> {
         { status: 409 },
       );
     }
-    // isGenerating 체크와 파이프라인 시작 사이의 TOCTOU 레이스를 닫기 위해
-    // ReadableStream 생성 전에 즉시 tracker 상태를 설정한다.
+    // tracker는 진행률 표시 전용 — 락 책임은 위에서 끝났다.
     generationTracker.start(projectId, user.id);
 
     const designPreferences = (project.metadata as Record<string, unknown>)?.designPreferences as DesignPreferences | undefined;

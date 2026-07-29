@@ -15,6 +15,13 @@
       "when": 1782265438782,
       "tag": "0001_pink_the_order",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785323598240,
+      "tag": "0002_icy_cassandra_nova",
+      "breakpoints": true
     }
   ]
 }

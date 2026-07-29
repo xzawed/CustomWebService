@@ -20,6 +20,14 @@ vi.mock('@/repositories/factory', () => ({
   createProjectRepository: vi.fn(),
 }));
 
+// 중복 파이프라인 차단은 DB 락(generation_locks)이 담당한다. 라우트는 락 모듈만 알면 되므로
+// 여기서 seam을 끊는다 — 락 자체의 원자성·stale 동작은 레포·모듈 단위 테스트가 고정한다.
+vi.mock('@/lib/ai/generationLock', () => ({
+  acquireGenerationLock: vi.fn().mockResolvedValue(true),
+  releaseGenerationLock: vi.fn().mockResolvedValue(undefined),
+  startLockHeartbeat: vi.fn().mockReturnValue(() => {}),
+}));
+
 vi.mock('@/lib/events/eventPersister', () => ({
   registerEventPersister: vi.fn(),
 }));
@@ -351,14 +359,44 @@ describe('POST /api/v1/generate', () => {
       decrementDailyLimit: decrementMock,
     } as never);
 
-    const { generationTracker } = await import('@/lib/ai/generationTracker');
-    vi.spyOn(generationTracker, 'isGenerating').mockReturnValueOnce(true);
+    const { acquireGenerationLock } = await import('@/lib/ai/generationLock');
+    vi.mocked(acquireGenerationLock).mockResolvedValueOnce(false);
 
     const { POST } = await import('@/app/api/v1/generate/route');
     const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
 
     expect(response.status).toBe(409);
     expect(decrementMock).toHaveBeenCalledWith('user-1');
+  });
+
+  it('락 획득 실패는 파이프라인 진입 전에 반환한다 — tracker.start도 호출되지 않는다', async () => {
+    await setupHappyPath();
+
+    const { acquireGenerationLock } = await import('@/lib/ai/generationLock');
+    vi.mocked(acquireGenerationLock).mockResolvedValueOnce(false);
+
+    const { generationTracker } = await import('@/lib/ai/generationTracker');
+    const startSpy = vi.spyOn(generationTracker, 'start');
+
+    const { POST } = await import('@/app/api/v1/generate/route');
+    const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
+
+    expect(response.status).toBe(409);
+    expect(startSpy).not.toHaveBeenCalled();
+  });
+
+  it('정상 경로에서는 호출자 본인을 소유자로 락을 획득한다', async () => {
+    await setupHappyPath();
+
+    const { acquireGenerationLock } = await import('@/lib/ai/generationLock');
+
+    const { POST } = await import('@/app/api/v1/generate/route');
+    await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
+
+    expect(acquireGenerationLock).toHaveBeenCalledWith(
+      '11111111-1111-4111-a111-111111111111',
+      'user-1',
+    );
   });
 
   it('AI 생성 실패 시 SSE error 이벤트를 전송하고 레이트리밋을 보상한다', async () => {

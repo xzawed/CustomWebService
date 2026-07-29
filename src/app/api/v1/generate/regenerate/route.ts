@@ -28,6 +28,7 @@ import { regenerateSchema } from '@/types/schemas';
 import { createSseWriter } from '@/lib/ai/sseWriter';
 import { runGenerationPipeline } from '@/lib/ai/generationPipeline';
 import { generationTracker } from '@/lib/ai/generationTracker';
+import { acquireGenerationLock } from '@/lib/ai/generationLock';
 
 export async function POST(request: Request): Promise<Response> {
   let pendingDecrement: (() => Promise<void>) | undefined;
@@ -85,7 +86,8 @@ export async function POST(request: Request): Promise<Response> {
       throw new NotFoundError('재생성할 기존 코드가 없습니다. 먼저 코드를 생성해주세요.');
     }
 
-    if (generationTracker.isGenerating(projectId)) {
+    // 중복 파이프라인 차단은 DB 락이 담당한다 — generate 라우트와 동일 규약.
+    if (!(await acquireGenerationLock(projectId, user.id))) {
       await pendingDecrement?.().catch(() => {});
       pendingDecrement = undefined;
       return Response.json(
@@ -93,8 +95,7 @@ export async function POST(request: Request): Promise<Response> {
         { status: 409 },
       );
     }
-    // isGenerating 체크와 파이프라인 시작 사이의 TOCTOU 레이스를 닫기 위해
-    // ReadableStream 생성 전에 즉시 tracker 상태를 설정한다.
+    // tracker는 진행률 표시 전용 — 락 책임은 위에서 끝났다.
     generationTracker.start(projectId, user.id);
 
     const stage1SystemPrompt = buildStage1SystemPrompt();

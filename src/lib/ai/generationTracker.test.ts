@@ -67,14 +67,11 @@ describe('GenerationTracker', () => {
     stopCleanup();
   });
 
-  it('isGenerating()은 generating 상태에서 true, completed 이후 false를 반환한다', async () => {
+  it('중복 생성 게이트를 노출하지 않는다 — 락은 DB(generation_locks)가 담당한다', async () => {
     const { generationTracker, stopCleanup } = await import('./generationTracker');
-    generationTracker.start('p5', 'user-1');
-    expect(generationTracker.isGenerating('p5')).toBe(true);
-
-    generationTracker.complete('p5', { projectId: 'p5', version: 1, previewUrl: '' });
-    expect(generationTracker.isGenerating('p5')).toBe(false);
-
+    // 인메모리 엔트리는 TTL·size cap으로 사라질 수 있어 락의 근거가 될 수 없다.
+    // 게이트가 여기로 되돌아오면 중복 파이프라인(토큰 이중 청구)이 재발한다.
+    expect((generationTracker as unknown as Record<string, unknown>).isGenerating).toBeUndefined();
     stopCleanup();
   });
 

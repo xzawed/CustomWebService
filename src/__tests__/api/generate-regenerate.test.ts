@@ -21,6 +21,13 @@ vi.mock('@/repositories/factory', () => ({
   createProjectRepository: vi.fn(),
 }));
 
+// 중복 파이프라인 차단은 DB 락(generation_locks)이 담당한다 — 라우트는 락 모듈만 알면 된다.
+vi.mock('@/lib/ai/generationLock', () => ({
+  acquireGenerationLock: vi.fn().mockResolvedValue(true),
+  releaseGenerationLock: vi.fn().mockResolvedValue(undefined),
+  startLockHeartbeat: vi.fn().mockReturnValue(() => {}),
+}));
+
 vi.mock('@/lib/events/eventPersister', () => ({
   registerEventPersister: vi.fn(),
 }));
@@ -275,7 +282,9 @@ describe('POST /api/v1/generate/regenerate', () => {
 
     const { generationTracker } = await import('@/lib/ai/generationTracker');
     const startSpy = vi.spyOn(generationTracker, 'start');
-    vi.spyOn(generationTracker, 'isGenerating').mockReturnValueOnce(true);
+
+    const { acquireGenerationLock } = await import('@/lib/ai/generationLock');
+    vi.mocked(acquireGenerationLock).mockResolvedValueOnce(false);
 
     const { POST } = await import('@/app/api/v1/generate/regenerate/route');
     const response = await POST(makeRequest({ projectId: PROJECT_ID, feedback: FEEDBACK }));
