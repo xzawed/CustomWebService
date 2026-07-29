@@ -5,4 +5,7 @@ export interface IRateLimitRepository {
   checkAndIncrementDailyDeployLimit(userId: string, limit: number): Promise<boolean>;
   /** Compensating decrement for a failed deployment (mirrors decrementDailyLimit). */
   decrementDailyDeployLimit(userId: string): Promise<void>;
+  checkAndIncrementDailySuggestionLimit(userId: string, limit: number): Promise<boolean>;
+  /** Compensating decrement for a failed AI suggestion (mirrors decrementDailyLimit). */
+  decrementDailySuggestionLimit(userId: string): Promise<void>;
 }

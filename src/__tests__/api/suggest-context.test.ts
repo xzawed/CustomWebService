@@ -5,6 +5,10 @@ vi.mock('@/lib/auth/index', () => ({
   getAuthUser: vi.fn(),
 }));
 
+vi.mock('@/lib/auth/verifiedGuard', () => ({
+  assertEmailVerified: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('@/providers/ai/AiProviderFactory', () => ({
   AiProviderFactory: {
     create: vi.fn(),
@@ -18,7 +22,8 @@ vi.mock('@/lib/utils/logger', () => ({
 
 vi.mock('@/services/factory', () => ({
   createRateLimitService: vi.fn().mockReturnValue({
-    checkAndIncrementDailyLimit: vi.fn().mockResolvedValue({ charged: true }),
+    checkAndIncrementDailySuggestionLimit: vi.fn().mockResolvedValue({ charged: true }),
+    decrementDailySuggestionLimit: vi.fn().mockResolvedValue(undefined),
   }),
 }));
 
@@ -52,9 +57,11 @@ async function setupAuth(user: typeof mockUser | null = mockUser) {
 
 // ---------- Tests ----------
 describe('POST /api/v1/suggest-context', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     vi.resetModules();
+    const { assertEmailVerified } = await import('@/lib/auth/verifiedGuard');
+    vi.mocked(assertEmailVerified).mockResolvedValue(undefined);
   });
 
   it('비로그인 시 401을 반환한다', async () => {
@@ -66,20 +73,40 @@ describe('POST /api/v1/suggest-context', () => {
     expect(response.status).toBe(401);
   });
 
-  it('apis 없으면 400을 반환한다', async () => {
+  it('미인증 이메일이면 charge 전에 차단한다', async () => {
+    await setupAuth();
+    const { assertEmailVerified } = await import('@/lib/auth/verifiedGuard');
+    const { EmailNotVerifiedError } = await import('@/lib/utils/errors');
+    vi.mocked(assertEmailVerified).mockRejectedValue(new EmailNotVerifiedError());
+
+    const { POST } = await import('@/app/api/v1/suggest-context/route');
+    const response = await POST(makeRequest({ apis: mockApis }));
+    expect(response.status).toBe(403);
+
+    const { createRateLimitService } = await import('@/services/factory');
+    expect(createRateLimitService).not.toHaveBeenCalled();
+  });
+
+  it('apis 없으면 400을 반환하고 limiter를 호출하지 않는다', async () => {
     await setupAuth();
 
     const { POST } = await import('@/app/api/v1/suggest-context/route');
     const response = await POST(makeRequest({}));
     expect(response.status).toBe(400);
+
+    const { createRateLimitService } = await import('@/services/factory');
+    expect(createRateLimitService).not.toHaveBeenCalled();
   });
 
-  it('apis 빈 배열이면 400을 반환한다', async () => {
+  it('apis 빈 배열이면 400을 반환하고 limiter를 호출하지 않는다', async () => {
     await setupAuth();
 
     const { POST } = await import('@/app/api/v1/suggest-context/route');
     const response = await POST(makeRequest({ apis: [] }));
     expect(response.status).toBe(400);
+
+    const { createRateLimitService } = await import('@/services/factory');
+    expect(createRateLimitService).not.toHaveBeenCalled();
   });
 
   it('apis 6개 초과 시 400을 반환한다', async () => {
@@ -94,14 +121,64 @@ describe('POST /api/v1/suggest-context', () => {
     const { POST } = await import('@/app/api/v1/suggest-context/route');
     const response = await POST(makeRequest({ apis: sixApis }));
     expect(response.status).toBe(400);
+
+    const { createRateLimitService } = await import('@/services/factory');
+    expect(createRateLimitService).not.toHaveBeenCalled();
   });
 
-  it('잘못된 JSON이면 400을 반환한다', async () => {
+  it('잘못된 JSON이면 400을 반환하고 limiter를 호출하지 않는다', async () => {
     await setupAuth();
 
     const { POST } = await import('@/app/api/v1/suggest-context/route');
     const response = await POST(makeRawRequest('not-json'));
     expect(response.status).toBe(400);
+
+    const { createRateLimitService } = await import('@/services/factory');
+    expect(createRateLimitService).not.toHaveBeenCalled();
+  });
+
+  it('AI throw 후 charged=true 이면 환불을 1회 호출한다', async () => {
+    await setupAuth();
+
+    const { createRateLimitService } = await import('@/services/factory');
+    const rateLimitService = {
+      checkAndIncrementDailySuggestionLimit: vi.fn().mockResolvedValue({ charged: true }),
+      decrementDailySuggestionLimit: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(createRateLimitService).mockReturnValue(rateLimitService as never);
+
+    const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
+    vi.mocked(AiProviderFactory.createForTask).mockReturnValue({
+      name: 'claude',
+      generateCode: vi.fn().mockRejectedValue(new Error('AI down')),
+    } as never);
+
+    const { POST } = await import('@/app/api/v1/suggest-context/route');
+    const response = await POST(makeRequest({ apis: mockApis }));
+    expect(response.status).toBe(500);
+    expect(rateLimitService.decrementDailySuggestionLimit).toHaveBeenCalledTimes(1);
+    expect(rateLimitService.decrementDailySuggestionLimit).toHaveBeenCalledWith(mockUser.id);
+  });
+
+  it('charged=false 이면 환불하지 않는다', async () => {
+    await setupAuth();
+
+    const { createRateLimitService } = await import('@/services/factory');
+    const rateLimitService = {
+      checkAndIncrementDailySuggestionLimit: vi.fn().mockResolvedValue({ charged: false }),
+      decrementDailySuggestionLimit: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(createRateLimitService).mockReturnValue(rateLimitService as never);
+
+    const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
+    vi.mocked(AiProviderFactory.createForTask).mockReturnValue({
+      name: 'claude',
+      generateCode: vi.fn().mockRejectedValue(new Error('AI down')),
+    } as never);
+
+    const { POST } = await import('@/app/api/v1/suggest-context/route');
+    await POST(makeRequest({ apis: mockApis }));
+    expect(rateLimitService.decrementDailySuggestionLimit).not.toHaveBeenCalled();
   });
 
   it('정상 요청 시 suggestions를 반환한다', async () => {
@@ -158,8 +235,15 @@ describe('POST /api/v1/suggest-context', () => {
     expect(json.data.suggestions).toEqual([]);
   });
 
-  it('일일 생성 한도를 소비한다', async () => {
+  it('일일 추천 한도를 소비한다', async () => {
     await setupAuth();
+
+    const { createRateLimitService } = await import('@/services/factory');
+    const rateLimitService = {
+      checkAndIncrementDailySuggestionLimit: vi.fn().mockResolvedValue({ charged: true }),
+      decrementDailySuggestionLimit: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(createRateLimitService).mockReturnValue(rateLimitService as never);
 
     const { AiProviderFactory } = await import('@/providers/ai/AiProviderFactory');
     vi.mocked(AiProviderFactory.createForTask).mockReturnValue({
@@ -177,6 +261,7 @@ describe('POST /api/v1/suggest-context', () => {
     const response = await POST(makeRequest({ apis: mockApis }));
 
     expect(response.status).toBe(200);
+    expect(rateLimitService.checkAndIncrementDailySuggestionLimit).toHaveBeenCalledWith(mockUser.id);
     const json = await response.json();
     expect(json.success).toBe(true);
     expect(json.data.suggestions).toHaveLength(3);

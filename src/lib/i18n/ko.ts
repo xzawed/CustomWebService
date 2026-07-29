@@ -31,6 +31,7 @@ const ko = {
   'deploy.progress.finalizing': '배포 마무리 중...',
   // Rate limit service
   'rateLimit.exceeded': '일일 생성 한도({limit}회)를 초과했습니다. 내일 다시 시도해주세요.',
+  'rateLimit.suggestionExceeded': '일일 AI 추천 한도({limit}회)를 초과했습니다. 내일 다시 시도해주세요.',
 } as const;
 
 export default ko;

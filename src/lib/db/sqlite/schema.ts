@@ -163,6 +163,7 @@ export const userDailyLimits = sqliteTable(
     usage_date: text('usage_date').notNull(),
     generation_count: integer('generation_count').default(0),
     deploy_count: integer('deploy_count').default(0),
+    suggestion_count: integer('suggestion_count').default(0),
   },
   (t) => [primaryKey({ columns: [t.user_id, t.usage_date] })],
 );

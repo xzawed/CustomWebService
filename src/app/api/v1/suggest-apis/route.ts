@@ -1,4 +1,5 @@
 import { getAuthUser } from '@/lib/auth/index';
+import { assertEmailVerified } from '@/lib/auth/verifiedGuard';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
 import { createCatalogService, createRateLimitService } from '@/services/factory';
 import { AuthRequiredError, ValidationError, handleApiError, jsonResponse } from '@/lib/utils/errors';
@@ -6,9 +7,12 @@ import { suggestApisSchema } from '@/types/schemas';
 import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
+  let pendingDecrement: (() => Promise<void>) | undefined;
+
   try {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
+    await assertEmailVerified(user.id);
 
     let context: string;
     try {
@@ -23,7 +27,10 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const rateLimitService = createRateLimitService();
-    await rateLimitService.checkAndIncrementDailyLimit(user.id);
+    const { charged } = await rateLimitService.checkAndIncrementDailySuggestionLimit(user.id);
+    if (charged) {
+      pendingDecrement = () => rateLimitService.decrementDailySuggestionLimit(user.id);
+    }
 
     // Fetch all active APIs from catalog
     const catalogService = createCatalogService();
@@ -119,6 +126,7 @@ ${context}
 
     return jsonResponse({ success: true, data: { recommendations: enriched } });
   } catch (error) {
+    await pendingDecrement?.().catch(() => {});
     return handleApiError(error);
   }
 }

@@ -23,6 +23,25 @@ describe('features config — env() isNaN fallback', () => {
     expect(limits.maxDailyGenerations).toBe(10);
   });
 
+  it('MAX_DAILY_SUGGESTIONS 미설정 시 free 기본값(30)을 사용한다', async () => {
+    const { getLimits } = await import('./features');
+    const limits = getLimits('free');
+    expect(limits.maxDailySuggestions).toBe(30);
+  });
+
+  it('MAX_DAILY_SUGGESTIONS가 비숫자 문자열이면 기본값(30)을 사용한다', async () => {
+    vi.stubEnv('MAX_DAILY_SUGGESTIONS', 'not-a-number');
+    const { getLimits } = await import('./features');
+    const limits = getLimits('free');
+    expect(limits.maxDailySuggestions).toBe(30);
+  });
+
+  it('pro 플랜에서는 maxDailySuggestions 오버라이드(150)가 적용된다', async () => {
+    const { getLimits } = await import('./features');
+    const limits = getLimits('pro');
+    expect(limits.maxDailySuggestions).toBe(150);
+  });
+
   it('비숫자 문자열 env면 기본값을 사용한다 (env() NaN 폴백)', async () => {
     vi.stubEnv('MAX_APIS_PER_PROJECT', 'abc');
     const { getLimits } = await import('./features');

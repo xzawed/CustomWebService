@@ -1,0 +1,1 @@
+ALTER TABLE `user_daily_limits` ADD `suggestion_count` integer DEFAULT 0;

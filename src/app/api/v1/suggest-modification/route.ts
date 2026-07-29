@@ -1,5 +1,6 @@
 import { getAuthUser } from '@/lib/auth/index';
 import { assertOwner } from '@/lib/auth/authorize';
+import { assertEmailVerified } from '@/lib/auth/verifiedGuard';
 import { createProjectRepository, createCatalogRepository } from '@/repositories/factory';
 import { createRateLimitService } from '@/services/factory';
 import { AiProviderFactory } from '@/providers/ai/AiProviderFactory';
@@ -8,9 +9,12 @@ import { suggestModificationSchema } from '@/types/schemas';
 import { logger } from '@/lib/utils/logger';
 
 export async function POST(request: Request): Promise<Response> {
+  let pendingDecrement: (() => Promise<void>) | undefined;
+
   try {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
+    await assertEmailVerified(user.id);
 
     let projectId: string;
     let prompt: string;
@@ -26,16 +30,19 @@ export async function POST(request: Request): Promise<Response> {
       throw err;
     }
 
-    const rateLimitService = createRateLimitService();
-    await rateLimitService.checkAndIncrementDailyLimit(user.id);
-
-    // Verify project exists and caller owns it
+    // Verify project exists and caller owns it — before charging the suggestion quota
     const projectRepo = createProjectRepository();
     const project = await projectRepo.findById(projectId);
     if (!project) {
       throw new NotFoundError('프로젝트', projectId);
     }
     assertOwner(project, user.id);
+
+    const rateLimitService = createRateLimitService();
+    const { charged } = await rateLimitService.checkAndIncrementDailySuggestionLimit(user.id);
+    if (charged) {
+      pendingDecrement = () => rateLimitService.decrementDailySuggestionLimit(user.id);
+    }
 
     // Fetch project's APIs
     const apiIds = await projectRepo.getProjectApiIds(projectId);
@@ -50,7 +57,7 @@ export async function POST(request: Request): Promise<Response> {
       ? `사용자가 입력한 부분적인 수정 방향: "${prompt}"\n이를 발전시킨 구체적인 수정 요청 3가지를 제안하세요.`
       : `현재 웹 서비스를 더 완성도 있게 개선할 수 있는 수정 아이디어 3가지를 제안하세요.`;
 
-    const provider = AiProviderFactory.create();
+    const provider = AiProviderFactory.createForTask('suggestion');
     const aiResponse = await provider.generateCode({
       system: `당신은 웹 서비스 UI/UX 개선 전문가입니다.
 사용자가 이미 생성한 웹 서비스를 더 좋게 개선하기 위한 수정 요청 문장 3가지를 제안합니다.
@@ -89,6 +96,7 @@ export async function POST(request: Request): Promise<Response> {
 
     return jsonResponse({ success: true, data: { suggestions } });
   } catch (error) {
+    await pendingDecrement?.().catch(() => {});
     return handleApiError(error);
   }
 }

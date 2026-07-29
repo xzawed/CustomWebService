@@ -108,4 +108,50 @@ export class RateLimitService {
       return 0;
     }
   }
+
+  /**
+   * AI 추천(suggest-*) 일일 한도. generation 쌍과 동일하게 bypass·fail-open·charged 계약을 따른다.
+   * 80% 경고 이벤트는 발행하지 않는다(전용 사용량 조회 메서드 없음).
+   */
+  async checkAndIncrementDailySuggestionLimit(userId: string): Promise<{ charged: boolean }> {
+    const bypassIds = (process.env.RATE_LIMIT_BYPASS_USER_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (bypassIds.includes(userId)) {
+      logger.info('Rate limit bypass applied', { userId, source: 'RATE_LIMIT_BYPASS_USER_IDS' });
+      return { charged: false };
+    }
+
+    const limits = getLimits();
+    try {
+      const allowed = await this.rateLimitRepo.checkAndIncrementDailySuggestionLimit(
+        userId,
+        limits.maxDailySuggestions
+      );
+      if (!allowed) {
+        throw new RateLimitError(t('rateLimit.suggestionExceeded', { limit: limits.maxDailySuggestions }));
+      }
+      return { charged: true };
+    } catch (err) {
+      if (err instanceof RateLimitError) throw err;
+      logger.error('Rate limit check failed — failing open', {
+        userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return { charged: false };
+    }
+  }
+
+  /**
+   * Compensating decrement for a failed suggestion after charge.
+   * Best-effort — errors are swallowed.
+   */
+  async decrementDailySuggestionLimit(userId: string): Promise<void> {
+    try {
+      await this.rateLimitRepo.decrementDailySuggestionLimit(userId);
+    } catch (err) {
+      logger.warn('Failed to decrement daily suggestion count (compensation)', {
+        userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 }
