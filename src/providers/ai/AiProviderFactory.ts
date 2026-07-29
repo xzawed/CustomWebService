@@ -49,6 +49,31 @@ function resolveTaskModel(task: AiTaskType): AllowedClaudeModel {
   return raw as AllowedClaudeModel;
 }
 
+export interface TaskModelDiagnostic {
+  /** `AI_MODEL_*` env 원본 값. 미설정이면 null. */
+  env: string | null;
+  /** 실제로 적용되는 모델. */
+  resolved: AllowedClaudeModel;
+  /** env를 지정했는데 허용목록에 없어 기본값으로 밀렸는지. */
+  fellBack: boolean;
+}
+
+/**
+ * 태스크별 모델 해석 결과. 진단 엔드포인트에서 소비한다.
+ *
+ * env 값만 보면 실제 적용 모델을 알 수 없다 — 허용목록에 없는 값은 경고 로그 한 줄만 남기고
+ * 조용히 기본값으로 폴백하기 때문이다. 2026-07-10에 `AI_MODEL_GENERATION`이 그렇게 밀려
+ * 구모델로 돌고 있던 것을 뒤늦게 발견한 적이 있어, `fellBack`으로 드러나게 한다.
+ */
+export function describeTaskModels(): Record<AiTaskType, TaskModelDiagnostic> {
+  const describe = (task: AiTaskType): TaskModelDiagnostic => {
+    const env = process.env[TASK_ENV_VARS[task]]?.trim() || null;
+    const resolved = resolveTaskModel(task);
+    return { env, resolved, fellBack: env !== null && env !== resolved };
+  };
+  return { generation: describe('generation'), suggestion: describe('suggestion') };
+}
+
 export class AiProviderFactory {
   private static providers = new Map<string, IAiProvider>();
 

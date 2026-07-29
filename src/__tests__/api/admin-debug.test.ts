@@ -65,6 +65,51 @@ describe('GET /api/v1/admin/debug', () => {
     expect(body.data.modules['@anthropic-ai/sdk']).toBe('ok');
   });
 
+  // 2026-07-10에 AI_MODEL_GENERATION이 허용목록에 없어 조용히 구모델로 폴백 중이던 것을
+  // 뒤늦게 발견한 적이 있다. env 값만 봐서는 실제 적용 모델을 알 수 없으므로 노출한다.
+  describe('모델 해석 진단', () => {
+    it('env 값과 실제 해석된 모델을 태스크별로 함께 반환한다', async () => {
+      process.env.AI_MODEL_GENERATION = 'claude-opus-5';
+      process.env.AI_MODEL_SUGGESTION = 'claude-haiku-4-5';
+
+      const { GET } = await import('@/app/api/v1/admin/debug/route');
+      const body = await (await GET(makeRequest())).json() as {
+        data: { models: Record<string, { env: string | null; resolved: string; fellBack: boolean }> }
+      };
+
+      expect(body.data.models.generation).toEqual({
+        env: 'claude-opus-5', resolved: 'claude-opus-5', fellBack: false,
+      });
+      expect(body.data.models.suggestion.resolved).toBe('claude-haiku-4-5');
+    });
+
+    it('허용목록에 없는 env는 fellBack=true로 드러난다 — 조용한 폴백을 눈에 보이게 한다', async () => {
+      process.env.AI_MODEL_GENERATION = 'claude-opus-9-nonexistent';
+
+      const { GET } = await import('@/app/api/v1/admin/debug/route');
+      const body = await (await GET(makeRequest())).json() as {
+        data: { models: Record<string, { env: string | null; resolved: string; fellBack: boolean }> }
+      };
+
+      expect(body.data.models.generation.env).toBe('claude-opus-9-nonexistent');
+      expect(body.data.models.generation.fellBack).toBe(true);
+      expect(body.data.models.generation.resolved).toBe('claude-opus-5');
+    });
+
+    it('env 미설정이면 env=null이고 폴백이 아니다 — 기본값 사용은 정상이다', async () => {
+      delete process.env.AI_MODEL_GENERATION;
+
+      const { GET } = await import('@/app/api/v1/admin/debug/route');
+      const body = await (await GET(makeRequest())).json() as {
+        data: { models: Record<string, { env: string | null; resolved: string; fellBack: boolean }> }
+      };
+
+      expect(body.data.models.generation.env).toBeNull();
+      expect(body.data.models.generation.fellBack).toBe(false);
+      expect(body.data.models.generation.resolved).toBe('claude-opus-5');
+    });
+  });
+
   it('모듈 로드 실패 시 FAIL: 접두사 문자열을 반환한다', async () => {
     requireMock.mockImplementation((id: string) => {
       if (id === 'playwright-core') throw new Error('Cannot find module');

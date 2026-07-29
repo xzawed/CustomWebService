@@ -967,7 +967,9 @@ Content-Type: application/json
 **연관 스크립트:** [scripts/runGenerationLoadTest.ts](../../scripts/runGenerationLoadTest.ts) — 골든셋 API 무작위 조합으로 N회 반복 호출하여 성공률·평균 응답 시간 집계.
 
 ### GET /api/v1/admin/debug
-`playwright-core`, `pg`, `drizzle-orm` 등 주요 npm 패키지의 모듈 로드 상태를 진단합니다. standalone 배포 후 500 오류 원인 규명(패키지 누락 여부 확인)에 사용합니다.
+주요 npm 패키지의 모듈 로드 상태와 **AI 모델 해석 결과**를 진단합니다. standalone 배포 후 500 오류 원인 규명(패키지 누락 여부)과, `AI_MODEL_*` env가 실제로 적용됐는지 확인에 사용합니다.
+
+> **`models` 필드를 왜 보는가**: 허용목록(`ALLOWED_CLAUDE_MODELS`)에 없는 env 값은 경고 로그 한 줄만 남기고 **조용히 기본값으로 폴백**한다. env 값만 봐서는 실제 적용 모델을 알 수 없어, 2026-07-10에 `AI_MODEL_GENERATION`이 밀려 구모델로 돌던 것을 뒤늦게 발견한 적이 있다. **모델을 바꾼 뒤에는 이 엔드포인트로 `fellBack: false`를 확인할 것.**
 
 **Request:**
 ```http
@@ -984,6 +986,10 @@ Authorization: Bearer <ADMIN_API_KEY>
     "platform": "linux",
     "arch": "x64",
     "nodeEnv": "production",
+    "models": {
+      "generation": { "env": "claude-opus-5", "resolved": "claude-opus-5", "fellBack": false },
+      "suggestion": { "env": "claude-haiku-4-5", "resolved": "claude-haiku-4-5", "fellBack": false }
+    },
     "modules": {
       "playwright-core": "ok",
       "@anthropic-ai/sdk": "ok",
@@ -994,6 +1000,12 @@ Authorization: Bearer <ADMIN_API_KEY>
   }
 }
 ```
+
+| `models.<task>` 필드 | 의미 |
+|---|---|
+| `env` | `AI_MODEL_*` env 원본 값. 미설정이면 `null` |
+| `resolved` | **실제로 적용되는 모델** |
+| `fellBack` | `true`면 env를 지정했는데 허용목록에 없어 무시되고 기본값이 쓰이는 중 — `AiProviderFactory.ts`의 `ALLOWED_CLAUDE_MODELS`를 고쳐야 한다 |
 
 모듈 로드 실패 시 해당 모듈 값이 `"FAIL: Cannot find module '...'"` 형태로 반환됩니다.
 
