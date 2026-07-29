@@ -9,7 +9,12 @@ import { getAuthUser } from '@/lib/auth/index';
 import { getClientIp } from '@/lib/auth/rateLimit';
 import { resolveProxyContext, isProxyContextError } from '@/lib/proxy/resolveProxyContext';
 import { checkSiteRateLimit } from '@/lib/proxy/siteRateLimit';
-import { proxyCache, buildCacheKey } from '@/lib/cache/proxyCache';
+import {
+  proxyCache,
+  buildCacheKey,
+  keyFingerprint,
+  NO_KEY_IDENTITY,
+} from '@/lib/cache/proxyCache';
 import {
   RATE_LIMIT_PER_MIN,
   RATE_LIMIT_WINDOW_MS,
@@ -215,9 +220,8 @@ async function resolveApiKey(
   keyOwnerId: string | null,
   headers: Record<string, string>,
   targetUrl: URL,
-): Promise<{ usedPersonalKey: boolean }> {
+): Promise<{ keyIdentity: string }> {
   let resolvedKey: string | undefined;
-  let usedPersonalKey = false;
 
   // 1) 키 소유자의 개인 API 키 조회.
   //    소유자는 resolveProxyContext가 결정한다 — site 모드는 Host로 확정된 게시
@@ -229,7 +233,6 @@ async function resolveApiKey(
       if (userKey?.encryptedKey) {
         try {
           resolvedKey = decryptApiKey(userKey.encryptedKey);
-          usedPersonalKey = true;
         } catch { /* skip */ }
       }
     } catch { /* 조회 실패 시 플랫폼 키로 폴백 */ }
@@ -268,7 +271,11 @@ async function resolveApiKey(
     }
   }
 
-  return { usedPersonalKey };
+  // 캐시 격리용 신원 — 실제로 **주입된 값**을 기준으로 한다. 주입 여부(param_name 유무)까지
+  // 반영해야 키가 있어도 주입되지 않은 경로가 키 있는 응답과 섞이지 않는다.
+  return {
+    keyIdentity: resolvedKey && cfg.param_name ? keyFingerprint(resolvedKey) : NO_KEY_IDENTITY,
+  };
 }
 
 function resolveContentType(rawContentType: string): string {
@@ -342,13 +349,13 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
   }
 
   // Inject API key — 키 소유자는 인가 컨텍스트가 결정한다(클라이언트 입력 아님).
-  // 캐시 판정이 usedPersonalKey에 의존하므로 캐시 조회보다 먼저 수행한다.
+  // 캐시 키가 주입된 키의 신원에 의존하므로 캐시 조회보다 먼저 수행한다.
   const headers: Record<string, string> = {
     'User-Agent': 'CustomWebService-Proxy/1.0',
     Accept: 'application/json',
   };
 
-  let usedPersonalKey = false;
+  let keyIdentity: string = NO_KEY_IDENTITY;
   if (api.authType === 'api_key') {
     const cfg = api.authConfig as {
       param_name?: string;
@@ -357,21 +364,22 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
       prefix?: string;
       header_prefix?: string;
     };
-    ({ usedPersonalKey } = await resolveApiKey(apiId, cfg, ctx.project?.userId ?? null, headers, targetUrl));
+    ({ keyIdentity } = await resolveApiKey(apiId, cfg, ctx.project?.userId ?? null, headers, targetUrl));
   }
 
-  // Cache 사용 여부 — GET + cacheTtlSeconds 설정 + **개인 키 미사용**인 경우만.
+  // Cache 사용 여부 — GET + cacheTtlSeconds 설정.
   //
-  // buildCacheKey는 apiId:proxyPath:params뿐이라 키 신원이 들어가지 않는다. 익명 사이트
-  // 모드에서 오너의 개인 키로 받은 응답을 캐시하면 같은 항목이 다른 테넌트에게 서빙된다.
-  // 캐시 키에 소유자를 넣는 대신 개인 키 경로는 캐시를 건너뛴다(가장 단순하고 안전).
+  // 개인 키 경로도 캐시한다. 격리는 캐시 키의 `keyIdentity` 세그먼트가 담당한다 —
+  // 다른 키로 받은 응답은 다른 항목이 되므로 교차 테넌트 유출이 성립하지 않는다.
+  // (이전에는 키 신원이 없어 개인 키 경로 전체를 캐시에서 제외했고, 키 의존 API가
+  //  캐시 이득을 전혀 못 받았다.)
   const cacheTtlMs =
-    method === 'GET' && !usedPersonalKey && api.cacheTtlSeconds != null && api.cacheTtlSeconds > 0
+    method === 'GET' && api.cacheTtlSeconds != null && api.cacheTtlSeconds > 0
       ? api.cacheTtlSeconds * 1000
       : null;
 
   if (cacheTtlMs !== null) {
-    const cacheKey = buildCacheKey(apiId, proxyPath, forwardedParams);
+    const cacheKey = buildCacheKey(apiId, proxyPath, forwardedParams, keyIdentity);
     const cached = proxyCache.get(cacheKey);
     if (cached) {
       return new Response(cached.body, {
@@ -396,7 +404,7 @@ async function handleProxy(request: Request, method: 'GET' | 'POST'): Promise<Re
 
   // 2xx 응답만 캐시 저장 (오류 응답은 캐시하지 않음)
   if (cacheTtlMs !== null && upstream.status >= 200 && upstream.status < 300) {
-    const cacheKey = buildCacheKey(apiId, proxyPath, forwardedParams);
+    const cacheKey = buildCacheKey(apiId, proxyPath, forwardedParams, keyIdentity);
     proxyCache.set(cacheKey, { body, contentType: resolvedContentType, status: upstream.status }, cacheTtlMs);
   }
 

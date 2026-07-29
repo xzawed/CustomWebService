@@ -903,13 +903,16 @@ describe('프록시 인가 — site/app 모드 (C-2·H-1)', () => {
   const PROJECT = { id: 'proj-1', userId: 'owner-1', status: 'published', slug: 'weather' };
   const ATTACKER = { id: 'attacker', email: 'a@x.com', name: null, avatarUrl: null };
 
+  let siteFetch: ReturnType<typeof vi.fn>;
+
   beforeEach(async () => {
     vi.clearAllMocks();
     vi.resetModules();
     const { __resetSiteRateLimit } = await import('@/lib/proxy/siteRateLimit');
     __resetSiteRateLimit();
     process.env.NEXT_PUBLIC_ROOT_DOMAIN = 'xzawed.xyz';
-    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(makeSuccessResponse())));
+    siteFetch = vi.fn().mockImplementation(() => Promise.resolve(makeSuccessResponse()));
+    vi.stubGlobal('fetch', siteFetch);
   });
 
   afterEach(() => {
@@ -1022,20 +1025,61 @@ describe('프록시 인가 — site/app 모드 (C-2·H-1)', () => {
     expect(res.headers.get('Retry-After')).toBeTruthy();
   });
 
-  it('개인 키가 주입된 응답은 캐시하지 않는다 (M-4 가드레일)', async () => {
+  // ── M-4: 캐시 키에 키 신원을 넣어 격리를 유지하면서 캐시를 되살린다 (#199) ─────────
+  //
+  // 이전에는 개인 키가 주입되면 캐시를 통째로 건너뛰었다(가드레일). 안전했지만 키 의존 API는
+  // 캐시 이득을 전혀 못 받았다. 이제 주입된 키의 지문이 캐시 키에 들어가므로,
+  // 같은 키끼리만 공유하고 다른 키는 격리된다.
+  const KEYED_API = {
+    ...mockPublicApi,
+    authType: 'api_key' as const,
+    cacheTtlSeconds: 300,
+    authConfig: { param_name: 'X-API-Key', param_in: 'header' },
+  };
+
+  it('개인 키가 주입돼도 캐시가 동작한다 (M-4 잔여 해소)', async () => {
     const { res } = await invokeProxy({
       request: siteReq('weather.xzawed.xyz'),
       user: null,
       projectBySlug: PROJECT,
       personalKey: 'secret-key',
-      api: {
-        ...mockPublicApi,
-        authType: 'api_key',
-        cacheTtlSeconds: 300,
-        authConfig: { param_name: 'X-API-Key', param_in: 'header' },
-      },
+      api: KEYED_API,
     });
-    expect(res.headers.get('X-Cache')).toBeNull();
-    expect(res.headers.get('Cache-Control')).toContain('no-store');
+    expect(res.headers.get('X-Cache')).toBe('MISS');
+    expect(res.headers.get('Cache-Control')).toContain('max-age=300');
+  });
+
+  it('같은 개인 키를 쓰는 두 요청은 캐시를 공유한다 — 업스트림 1회', async () => {
+    await invokeProxy({
+      request: siteReq('weather.xzawed.xyz'),
+      user: null,
+      projectBySlug: PROJECT,
+      personalKey: 'same-key',
+      api: KEYED_API,
+      times: 2,
+    });
+    expect(siteFetch).toHaveBeenCalledOnce();
+  });
+
+  it('서로 다른 개인 키로 받은 응답은 캐시를 공유하지 않는다 — 교차 테넌트 유출 차단', async () => {
+    const first = await invokeProxy({
+      request: siteReq('weather.xzawed.xyz'),
+      user: null,
+      projectBySlug: PROJECT,
+      personalKey: 'owner-A-key',
+      api: KEYED_API,
+    });
+    expect(first.res.headers.get('X-Cache')).toBe('MISS');
+
+    // 같은 apiId·경로·파라미터지만 키가 다르다 → 앞선 응답을 받아서는 안 된다.
+    const second = await invokeProxy({
+      request: siteReq('weather.xzawed.xyz'),
+      user: null,
+      projectBySlug: PROJECT,
+      personalKey: 'owner-B-key',
+      api: KEYED_API,
+    });
+    expect(second.res.headers.get('X-Cache')).toBe('MISS');
+    expect(siteFetch).toHaveBeenCalledTimes(2);
   });
 });

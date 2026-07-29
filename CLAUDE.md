@@ -168,6 +168,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | 게시 사이트 프록시 설계 spec | [docs/superpowers/specs/2026-07-28-published-site-proxy-authz-design.md](docs/superpowers/specs/2026-07-28-published-site-proxy-authz-design.md) |
 | 검수 MEDIUM 발견 항목 수정 ADR (M-1·2·3·5·6·7·8, 2026-07-29) | [docs/decisions/2026-07-29-medium-audit-findings.md](docs/decisions/2026-07-29-medium-audit-findings.md) |
 | **생성 락을 인메모리 tracker에서 SQLite로 분리 ADR (M-5 근본 해결, 2026-07-29)** | [docs/decisions/2026-07-29-durable-generation-lock.md](docs/decisions/2026-07-29-durable-generation-lock.md) |
+| **프록시 캐시 키에 키 신원 추가 ADR (M-4 잔여 해소, 2026-07-29)** | [docs/decisions/2026-07-29-proxy-cache-key-identity.md](docs/decisions/2026-07-29-proxy-cache-key-identity.md) |
 | better-sqlite3 v13 N-API 프리빌트 전환·빌드 툴체인 제거 ADR (2026-07-28) | [docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md](docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md) |
 | 환경변수 목록 | [docs/reference/env-vars.md](docs/reference/env-vars.md) |
 | 에러 클래스 참조 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
@@ -221,6 +222,8 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - "A에서는 되지만 B에서는 안 된다" 같은 경로별 차이가 없어야 함
 - **서브도메인 rewrite 예외**: `src/middleware.ts`의 `SUBDOMAIN_PASSTHROUGH_PREFIXES`에 있는 경로만 `/site/{slug}` rewrite를 건너뛴다. 게시 사이트의 생성 JS가 상대경로 `/api/v1/proxy`로 호출하므로 이 예외가 없으면 API 데이터가 전부 404가 된다(미리보기는 apex라 정상 동작해 드러나지 않음 — 2026-07-28 실측 발견). 새 경로 추가 시 최소 노출 원칙 유지
 - **프록시 인가는 `resolveProxyContext()` 단일 진입점**: site(익명·Host 바인딩)/app(세션·소유권 강제) 판정이 이 한 곳에 있다. 라우트에 인가 분기를 새로 만들지 말 것 — 판단이 흩어져 개인 키 해석부가 소유권을 확인하지 않던 것이 H-1이었다. 소유권은 `assertOwner` 재사용, Host로 프로젝트가 확정되면 클라이언트 `projectId`는 무시. 배경: [ADR](docs/decisions/2026-07-28-published-site-proxy-authz.md)
+
+- **프록시 캐시 키에는 반드시 키 신원을 넣는다**: `buildCacheKey(apiId, proxyPath, params, keyIdentity)`의 4번째 인자는 **필수**다(선택으로 두면 잊었을 때 조용히 교차 테넌트 유출이 돌아온다). `keyIdentity`는 실제로 주입된 키의 `keyFingerprint()`(sha256 앞 16자)이고 주입이 없으면 `NO_KEY_IDENTITY`(`'none'`). 익명 site 모드가 **오너의 개인 키로 업스트림을 호출**하므로 키가 다르면 캐시 항목도 달라야 한다. 원문을 넣지 말 것 — 캐시 키는 로그·디버깅에서 보일 수 있다. 플랫폼 키도 지문을 쓰며(동작 동일 + 키 교체 시 자동 무효화), 응답 본문은 여전히 메모리에 평문이므로 민감 데이터 API에 `cacheTtlSeconds`를 부여할 때는 별도 검토 필요. 배경: [ADR](docs/decisions/2026-07-29-proxy-cache-key-identity.md)
 
 ### 코드 수정 후
 - 수정한 함수/파일을 호출하는 모든 경로를 나열하고 각각 검증
@@ -326,7 +329,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 |-------|------|------|
 | ~~[#197](https://github.com/xzawed/CustomWebService/issues/197)~~ | C-1·C-2 실환경 검증 | **완료(2026-07-29)** — [ADR 검증 절](docs/decisions/2026-07-28-published-site-proxy-authz.md) |
 | ~~[#198](https://github.com/xzawed/CustomWebService/issues/198)~~ | M-5 generationTracker durable lock | **완료(2026-07-29)** — [ADR](docs/decisions/2026-07-29-durable-generation-lock.md) |
-| [#199](https://github.com/xzawed/CustomWebService/issues/199) | M-4 잔여 — 캐시 키에 키 신원 추가해 캐시 이득 회복 | 안전하나 비효율 |
+| ~~[#199](https://github.com/xzawed/CustomWebService/issues/199)~~ | M-4 잔여 — 캐시 키에 키 신원 추가 | **완료(2026-07-29)** — [ADR](docs/decisions/2026-07-29-proxy-cache-key-identity.md) |
 | [#200](https://github.com/xzawed/CustomWebService/issues/200) | site 프록시 오남용 모니터링 (프로젝트 전역 한도가 유일 경계) | 운영 가시성 |
 | [#201](https://github.com/xzawed/CustomWebService/issues/201) | Railway Wait for CI + env 단독 변경 시 재배포 FAILED | 원인 미확정 |
 

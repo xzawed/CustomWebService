@@ -94,6 +94,10 @@ GET https://testprobe.xzawed.xyz/api/v1/proxy?…  → 404   (rewrite되어 라�
 경로는 캐시를 건너뛴다(가장 단순하고 안전). 캐시 판정이 `usedPersonalKey`에 의존하므로
 키 해석을 캐시 조회보다 앞으로 옮겼다.
 
+> **후속(2026-07-29, [#199](https://github.com/xzawed/CustomWebService/issues/199))**: 이 가드레일은
+> **캐시 키에 키 지문을 넣는 방식으로 대체됐다.** 격리를 유지하면서 키 의존 API의 캐시 이득을
+> 회복한다. 배경: [프록시 캐시 키 신원 ADR](2026-07-29-proxy-cache-key-identity.md)
+
 ### 6. 토큰 원자적 소비
 
 조회 → `await` → 소비 2단계였고 `consume`은 `WHERE id`만 검사했다. 단일 문으로 대체한다.
