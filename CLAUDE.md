@@ -382,6 +382,21 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 배경: [게시 사이트 프록시 ADR](docs/decisions/2026-07-28-published-site-proxy-authz.md) ·
 [MEDIUM 항목 ADR](docs/decisions/2026-07-29-medium-audit-findings.md)
 
+## 다음 작업 대기열 (2026-07-30 기준)
+
+각 항목은 **착수 계획서를 커밋한 draft PR**이 이미 열려 있다. 새 브랜치를 만들지 말고 해당 브랜치 위에서 이어서 작업한다.
+계획서의 ⚠️ 표시는 **착수 전 사용자 판단이 필요한 지점**이다 — 그 결정 없이 구현하면 방향이 갈린다.
+
+| Issue | PR (draft) | 브랜치 | 착수 전 결정 필요 |
+|-------|-----------|--------|------------------|
+| [#220](https://github.com/xzawed/CustomWebService/issues/220) 활성 에러·알림 sink 부재 | [#225](https://github.com/xzawed/CustomWebService/pull/225) | `chore/220-monitoring-sink` | Slack webhook / Sentry DSN 중 무엇을 등록할지 (값 제공 필요) |
+| [#221](https://github.com/xzawed/CustomWebService/issues/221) 계정 삭제·데이터 내보내기 부재 | [#226](https://github.com/xzawed/CustomWebService/pull/226) | `feat/221-account-delete-export` | `platform_events` payload 개인정보 처리 · 게시 사이트 연쇄 · 재가입 허용 |
+| [#222](https://github.com/xzawed/CustomWebService/issues/222) SQLite 복구 런북 부재 | [#227](https://github.com/xzawed/CustomWebService/pull/227) | `docs/222-sqlite-restore-runbook` | 프로덕션 리허설 여부(다운타임 발생) |
+| [#223](https://github.com/xzawed/CustomWebService/issues/223) 로그인 레이트리밋 부재 | [#228](https://github.com/xzawed/CustomWebService/pull/228) | `fix/223-login-rate-limit` | IP 단위 / 계정 단위 / 둘 다 (계정 단위는 잠금 DoS 위험) |
+| [#216](https://github.com/xzawed/CustomWebService/issues/216) 데이터 확보 후 재검토 3건 | — | — | 트리거 조건 충족 전까지 착수 안 함 (PR을 만들면 썩는다) |
+
+계획서 위치: [docs/superpowers/plans/](docs/superpowers/plans/) — `2026-07-30-*.md`
+
 ## 세션 시작 체크리스트 (필수)
 
 작업 세션을 시작할 때 아래 두 가지를 반드시 먼저 확인한다.
