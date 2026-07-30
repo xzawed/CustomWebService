@@ -183,6 +183,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | SQLite 전환 WBS 계획 (Phase 1~8) | [docs/superpowers/plans/2026-06-22-db-removal-sqlite-migration.md](docs/superpowers/plans/2026-06-22-db-removal-sqlite-migration.md) |
 | SQLite 컷오버 런북 | [docs/guides/sqlite-cutover-runbook.md](docs/guides/sqlite-cutover-runbook.md) |
 | **SQLite 복구 런북 (손상·오염 시 백업 되돌리기, #222)** | [docs/guides/sqlite-restore-runbook.md](docs/guides/sqlite-restore-runbook.md) |
+| **알림 sink 설정·검증 (Slack webhook 발급 → 등록 → 합성 경보, #220)** | [docs/guides/monitoring-sink-setup.md](docs/guides/monitoring-sink-setup.md) |
 | (역사) DB/Auth Provider 추상화 ADR — 컷오버로 single-stack 됨 | [docs/decisions/provider-migration.md](docs/decisions/provider-migration.md) |
 | 설계 결정 배경 | [docs/decisions/](docs/decisions/) |
 | 2단계 생성 파이프라인 설계 (초기 설계 문서, 현재 3-Stage로 확장됨 — 설계 원칙 참고용) | [docs/superpowers/specs/2026-04-14-two-stage-generation-design.md](docs/superpowers/specs/2026-04-14-two-stage-generation-design.md) |
@@ -407,21 +408,29 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 배경: [게시 사이트 프록시 ADR](docs/decisions/2026-07-28-published-site-proxy-authz.md) ·
 [MEDIUM 항목 ADR](docs/decisions/2026-07-29-medium-audit-findings.md)
 
-## 다음 작업 대기열 (2026-07-30 기준)
+## 다음 작업 대기열 (2026-07-31 기준)
 
-각 항목의 **착수 계획서는 main에 병합되어 있다**(PR #225~#228, 2026-07-30). 계획 브랜치는 병합과 함께 삭제됐으므로
-**착수 시 새 브랜치를 만든다** — 계획서를 읽고 그 위에서 구현하면 된다.
+**열린 이슈 3건. 코드 작업은 전부 끝났고, 남은 둘은 사용자가 손을 대야 진행된다.**
+2026-07-30 세션에서 #219·#221·#223을 종료했고 #220·#222는 코드·문서까지 끝낸 뒤 마지막 단계만 남겼다.
 
-계획서의 ⚠️ 표시는 **착수 전 사용자 판단이 필요한 지점**이다 — 그 결정 없이 구현하면 방향이 갈린다.
-아래 표의 마지막 열이 그 요약이며, 착수할 때 **먼저 물어볼 것**.
+| Issue | 상태 | 다음 세션이 할 일 |
+|-------|------|------------------|
+| [#220](https://github.com/xzawed/CustomWebService/issues/220) 에러·알림 sink | **코드 완료**(PR #231) | **`SLACK_WEBHOOK_URL` 값이 등록되면** 합성 경보를 발생시켜 도착 확인. 절차 전부: [monitoring-sink-setup.md](docs/guides/monitoring-sink-setup.md) |
+| [#222](https://github.com/xzawed/CustomWebService/issues/222) SQLite 복구 | **런북·로컬 리허설 완료**(PR #234) | **시간대만 정해지면** 프로덕션 쓰기 리허설. 체크리스트: [복구 런북 하단](docs/guides/sqlite-restore-runbook.md) |
+| [#216](https://github.com/xzawed/CustomWebService/issues/216) 데이터 확보 후 재검토 3건 | 트리거 **전부 미충족**(2026-07-30 실측) | **착수하지 않는다.** 손대면 근거 없는 변경이다. 재확인만 할 것 |
 
-| Issue | 착수 계획서 | 착수 전 결정 필요 |
-|-------|------------|------------------|
-| [#220](https://github.com/xzawed/CustomWebService/issues/220) 활성 에러·알림 sink 부재 | [ADR](docs/decisions/2026-07-30-monitoring-sink-slack-only.md) · [계획서](docs/superpowers/plans/2026-07-30-monitoring-sink-wiring.md) | **결정 완료(2026-07-30)** — Slack 고정·Sentry 미도입, 2026-04-27 결정 뒤집음. 코드 배선 완료. **남은 것은 `SLACK_WEBHOOK_URL` 값 등록 + 합성 경보 도착 확인** |
-| [#221](https://github.com/xzawed/CustomWebService/issues/221) 계정 삭제·데이터 내보내기 부재 | [account-delete-and-export](docs/superpowers/plans/2026-07-30-account-delete-and-export.md) | `platform_events` payload 개인정보 처리 · 게시 사이트 연쇄 · 재가입 허용 |
-| [#222](https://github.com/xzawed/CustomWebService/issues/222) SQLite 복구 런북 부재 | [sqlite-restore-runbook](docs/superpowers/plans/2026-07-30-sqlite-restore-runbook.md) | 프로덕션 리허설 여부(다운타임 발생) |
-| [#223](https://github.com/xzawed/CustomWebService/issues/223) 로그인 레이트리밋 부재 | [login-rate-limit](docs/superpowers/plans/2026-07-30-login-rate-limit.md) | IP 단위 / 계정 단위 / 둘 다 (계정 단위는 잠금 DoS 위험) |
-| [#216](https://github.com/xzawed/CustomWebService/issues/216) 데이터 확보 후 재검토 3건 | — | 트리거 조건 충족 전까지 착수 안 함 (계획서를 미리 만들면 코드가 움직이는 동안 썩는다) |
+### 착수 전 사용자에게 물어볼 것 (이 둘이 유일한 블로커)
+
+1. **#220** — Slack webhook URL을 Railway에 등록했는지. **값을 대화로 받지 말 것**(시크릿) — 대시보드에서 직접 설정하도록 안내하고, `railway variable list`로 **키 존재만** 확인한다.
+2. **#222** — 프로덕션 쓰기 리허설을 진행할 **시간대**. 재시작 다운타임 ~30–60초 + 백업 시점 이후 쓰기 롤백이 발생한다.
+
+### #216 트리거 재확인 방법 (변경은 하지 말 것)
+
+| 항목 | 확인 |
+|---|---|
+| site 프록시 한도 | `GET /api/v1/admin/site-proxy-stats` → `trackedProjects`가 0이면 미충족 |
+| 캐시 민감도 플래그 | `src/data/apiCatalog.json`에서 `cache_ttl_seconds` + `auth_type=api_key` + `is_active=true`가 동시에 참인 행이 생겼는지. **기상청 단기·중기예보가 비활성으로 잠들어 있다가 활성화되면 즉시 해당** |
+| adaptive thinking 확대 | 제품 결정. 생성 품질을 올려야 할 필요가 생겼을 때만 |
 
 ## 세션 시작 체크리스트 (필수)
 
