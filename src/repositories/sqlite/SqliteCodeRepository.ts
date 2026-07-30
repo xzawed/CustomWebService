@@ -135,6 +135,17 @@ export class SqliteCodeRepository implements ICodeRepository {
     return row ? this.toDomain(row) : null;
   }
 
+  async findAllByProject(projectId: string): Promise<GeneratedCode[]> {
+    const rows = this.db
+      .select()
+      .from(schema.generatedCodes)
+      .where(eq(schema.generatedCodes.project_id, projectId))
+      .orderBy(schema.generatedCodes.version)
+      .all();
+
+    return rows.map((row) => this.toDomain(row));
+  }
+
   async countByProject(projectId: string): Promise<number> {
     const result = this.db
       .select({ total: drizzleCount() })

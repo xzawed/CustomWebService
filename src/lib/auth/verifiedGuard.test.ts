@@ -14,8 +14,11 @@ describe('assertEmailVerified', () => {
     findById.mockResolvedValue({ id: 'u1', emailVerified: '2026-06-24T00:00:00.000Z' });
     await expect(assertEmailVerified('u1')).resolves.toBeUndefined();
   });
-  it('사용자 미존재면 throw', async () => {
+  it('사용자 미존재면 AUTH_REQUIRED(401) throw — EMAIL_NOT_VERIFIED(403)가 아님', async () => {
     findById.mockResolvedValue(null);
-    await expect(assertEmailVerified('u1')).rejects.toMatchObject({ code: 'EMAIL_NOT_VERIFIED' });
+    await expect(assertEmailVerified('u1')).rejects.toMatchObject({
+      code: 'AUTH_REQUIRED',
+      statusCode: 401,
+    });
   });
 });

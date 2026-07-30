@@ -3,6 +3,8 @@ import type { GeneratedCode, CodeMetadata } from '@/types/project';
 
 export interface ICodeRepository extends IBaseRepository<GeneratedCode> {
   findByProject(projectId: string, version?: number): Promise<GeneratedCode | null>;
+  /** 프로젝트의 모든 코드 버전(version 오름차순). 없으면 빈 배열. */
+  findAllByProject(projectId: string): Promise<GeneratedCode[]>;
   countByProject(projectId: string): Promise<number>;
   pruneOldVersions(projectId: string, keepCount: number): Promise<void>;
   getNextVersion(projectId: string): Promise<number>;

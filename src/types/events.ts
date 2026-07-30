@@ -30,6 +30,9 @@ export type DomainEvent =
       payload: { projectId: string; error: string };
     }
   | { type: 'PROJECT_DELETED'; payload: { deletedProjectId: string } }
+  // deletedUserId — persist()가 payload.userId를 user_id FK로 추출하므로
+  // 삭제 직후 userId를 쓰면 FK 위반으로 감사 로그가 유실된다(PROJECT_DELETED 동일 함정).
+  | { type: 'USER_DELETED'; payload: { deletedUserId: string } }
   | {
       type: 'PROJECT_PUBLISHED';
       payload: { projectId: string; userId: string; slug: string };

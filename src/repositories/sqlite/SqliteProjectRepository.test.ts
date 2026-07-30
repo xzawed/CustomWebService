@@ -494,6 +494,28 @@ describe('SqliteProjectRepository', () => {
       const ids = await repo.getProjectApiIds(projectId);
       expect(ids).toEqual([]);
     });
+
+    it('getProjectApiLinks returns apiId + config (null config ok)', async () => {
+      const projectId = seedProject(db);
+      await repo.insertProjectApis(projectId, [API_ID]);
+      db.insert(schema.projectApis)
+        .values({
+          project_id: projectId,
+          api_id: API_ID_2,
+          config: { units: 'metric' },
+        } as typeof schema.projectApis.$inferInsert)
+        .run();
+
+      const links = await repo.getProjectApiLinks(projectId);
+      const byId = Object.fromEntries(links.map((l) => [l.apiId, l.config]));
+      expect(byId[API_ID]).toBeNull();
+      expect(byId[API_ID_2]).toEqual({ units: 'metric' });
+    });
+
+    it('getProjectApiLinks returns empty array when none', async () => {
+      const projectId = seedProject(db);
+      expect(await repo.getProjectApiLinks(projectId)).toEqual([]);
+    });
   });
 
   describe('countTodayGenerations', () => {

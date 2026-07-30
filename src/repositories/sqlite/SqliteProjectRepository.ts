@@ -195,6 +195,24 @@ export class SqliteProjectRepository implements IProjectRepository {
     return rows.map((row) => row.api_id);
   }
 
+  async getProjectApiLinks(
+    projectId: string,
+  ): Promise<Array<{ apiId: string; config: Record<string, unknown> | null }>> {
+    const rows = this.db
+      .select({
+        api_id: schema.projectApis.api_id,
+        config: schema.projectApis.config,
+      })
+      .from(schema.projectApis)
+      .where(eq(schema.projectApis.project_id, projectId))
+      .all();
+
+    return rows.map((row) => ({
+      apiId: row.api_id,
+      config: (row.config as Record<string, unknown> | null) ?? null,
+    }));
+  }
+
   async findBySlug(slug: string): Promise<Project | null> {
     const rows = this.db
       .select()
