@@ -248,6 +248,23 @@ describe('SqliteCodeRepository', () => {
     });
   });
 
+  describe('findAllByProject', () => {
+    it('모든 버전을 version 오름차순으로 반환한다', async () => {
+      await repo.create(baseInput({ version: 2, codeHtml: 'v2' }));
+      await repo.create(baseInput({ version: 1, codeHtml: 'v1' }));
+      await repo.create(baseInput({ version: 3, codeHtml: 'v3' }));
+
+      const all = await repo.findAllByProject(projectId);
+      expect(all.map((c) => c.version)).toEqual([1, 2, 3]);
+      expect(all.map((c) => c.codeHtml)).toEqual(['v1', 'v2', 'v3']);
+    });
+
+    it('없으면 빈 배열', async () => {
+      expect(await repo.findAllByProject(projectId)).toEqual([]);
+      expect(await repo.findAllByProject(crypto.randomUUID())).toEqual([]);
+    });
+  });
+
   describe('countByProject', () => {
     it('프로젝트별 행 수를 센다', async () => {
       await repo.create(baseInput({ version: 1 }));

@@ -573,17 +573,74 @@ X-Frame-Options: DENY
 
 ## 8. 인증 (Auth)
 
-Supabase Auth 사용 - 별도 API 구현 불필요
+Auth.js Credentials + JWT. 세션 쿠키 필요(공개 엔드포인트 제외). 가입·인증·재설정 라우트는 `/api/v1/auth/*` 및 `/api/auth/*`(Auth.js 핸들러).
 
-| 기능 | 방식 |
-|------|------|
-| 소셜 로그인 | Google, GitHub OAuth (`signInWithOAuth()`) |
-| OAuth 콜백 | 서버사이드 Route Handler (`/callback` → PKCE 코드 교환) |
-| 사용자 레코드 생성 | 첫 로그인 시 `callback/route.ts`에서 `users` 테이블에 자동 생성 (`id = auth.uid()`) |
-| 로그아웃 | Supabase `signOut()` |
-| 세션 관리 | Supabase 자동 관리 (미들웨어에서 쿠키 갱신) |
+### GET /api/v1/auth/export
+현재 로그인 사용자의 계정 데이터를 JSON으로 내보낸다 (`#221`).
+
+**인증:** 필요 (`getAuthUser` — DB 행 존재 확인). **이메일 인증은 요구하지 않음.**
+
+**레이트리밋:** 사용자당 3회/시간 (`export:{userId}` + 클라이언트 IP, auth 인메모리 리미터).
+
+**Response headers:**
+- `Content-Disposition: attachment; filename="customwebservice-export-YYYY-MM-DD.json"` (UTC 날짜)
+
+**Response body (`data`):**
+```json
+{
+  "schemaVersion": 1,
+  "exportedAt": "2026-07-30T12:00:00.000Z",
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "name": null,
+    "avatarUrl": null,
+    "preferences": {},
+    "emailVerified": "2026-06-01T00:00:00.000Z",
+    "createdAt": "…",
+    "updatedAt": "…"
+  },
+  "projects": [
+    {
+      "id": "uuid",
+      "userId": "uuid",
+      "name": "…",
+      "context": "…",
+      "status": "generated",
+      "…": "프로젝트 메타 전체",
+      "projectApis": [{ "apiId": "uuid", "config": {} }],
+      "generatedCodes": [
+        {
+          "version": 1,
+          "codeHtml": "…",
+          "codeCss": "…",
+          "codeJs": "…",
+          "framework": "vanilla",
+          "aiModel": "…",
+          "aiPromptUsed": "…",
+          "tokenUsage": { "input": 0, "output": 0 },
+          "dependencies": [],
+          "metadata": {}
+        }
+      ]
+    }
+  ],
+  "userApiKeys": [
+    { "apiId": "uuid", "isVerified": true, "createdAt": "…" }
+  ]
+}
+```
+
+**포함하지 않음:** `passwordHash`, `auth_tokens`, `generation_locks`, `user_daily_limits`, API 키 ciphertext/평문(`encryptedKey` 등). `userApiKeys`는 메타데이터만.
+
+| 상태 | 코드 | 설명 |
+|------|------|------|
+| 200 | — | 내보내기 JSON |
+| 401 | `AUTH_REQUIRED` | 미인증·삭제된 세션 |
+| 429 | `RATE_LIMITED` | 시간당 한도 초과 |
 
 ---
+
 
 ## 9. 에러 코드
 
