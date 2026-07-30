@@ -134,6 +134,62 @@ describe('rateLimit', () => {
       expect(isLimited(b, 1)).toBe(true);
     });
 
+    // 만료된 기존 키는 같은 슬롯을 덮어써야 한다. isLimited를 먼저 호출하면 그 안에서
+    // 만료분을 지워 버려 이 경로에 도달하지 않으므로, 여기서는 의도적으로 호출하지 않는다.
+    // 덮어쓰기가 아니라 신규 삽입으로 처리되면 cap이 가득일 때 만료 키의 재사용이
+    // 거부되어(용량 검사에 걸려) 정상 사용자가 막힌다.
+    it('recordFailure는 만료된 기존 키를 새 윈도로 덮어쓴다 (count 리셋, 슬롯 재사용)', () => {
+      vi.useFakeTimers();
+      const key = 'reuse-record';
+      const windowMs = 5_000;
+
+      expect(recordFailure(key, windowMs)).toBe(true);
+      expect(recordFailure(key, windowMs)).toBe(true);
+      expect(isLimited(key, 2)).toBe(true);
+
+      vi.advanceTimersByTime(windowMs + 1);
+
+      // isLimited를 거치지 않고 바로 기록 → 만료 슬롯 덮어쓰기 경로
+      expect(recordFailure(key, windowMs)).toBe(true);
+      expect(isLimited(key, 2)).toBe(false); // count가 1로 리셋됨
+      expect(isLimited(key, 1)).toBe(true);
+    });
+
+    // cap 가득 → sweep으로 자리가 생기면 fail-closed가 풀려야 한다.
+    // 풀리지 않으면 한 번 가득 찬 뒤로 신규 사용자가 영구히 막힌다.
+    it('cap이 가득해도 sweep으로 자리가 생기면 isLimited가 다시 false가 된다', () => {
+      vi.useFakeTimers();
+      const windowMs = 60_000;
+
+      for (let i = 0; i < MAX_AUTH_RATE_LIMIT_BUCKETS; i++) {
+        expect(recordFailure(`cap-fill-${i}`, windowMs)).toBe(true);
+      }
+      // 가득 찬 동안 없는 키는 fail-closed
+      expect(isLimited('newcomer', 5)).toBe(true);
+
+      // 전부 만료 → sweep이 자리를 비운다
+      vi.advanceTimersByTime(windowMs + 1);
+      expect(isLimited('newcomer', 5)).toBe(false);
+      expect(recordFailure('newcomer', windowMs)).toBe(true);
+    });
+
+    it('checkRateLimit도 만료된 기존 키를 새 윈도로 덮어쓴다', () => {
+      vi.useFakeTimers();
+      const key = 'reuse-check';
+      const windowMs = 5_000;
+
+      expect(checkRateLimit(key, 2, windowMs)).toBe(true);
+      expect(checkRateLimit(key, 2, windowMs)).toBe(true);
+      expect(checkRateLimit(key, 2, windowMs)).toBe(false); // 한도 도달
+
+      vi.advanceTimersByTime(windowMs + 1);
+
+      // 만료 후 같은 키 → 새 윈도로 다시 허용
+      expect(checkRateLimit(key, 2, windowMs)).toBe(true);
+      expect(checkRateLimit(key, 2, windowMs)).toBe(true);
+      expect(checkRateLimit(key, 2, windowMs)).toBe(false);
+    });
+
     it('만료된 버킷만 정리하고 활성 윈도는 유지한다 (cap 도달 시 신규 키 거부)', () => {
       vi.useFakeTimers();
       const windowMs = 60_000;
