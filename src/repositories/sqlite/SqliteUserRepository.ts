@@ -91,6 +91,11 @@ export class SqliteUserRepository implements IUserRepository {
     return this.toDomain(row);
   }
 
+  /**
+   * 단일 행 DELETE. 자식 테이블 FK(ON DELETE NO ACTION)가 남아 있으면 500.
+   * **계정 삭제에는 사용하지 말 것** — `cascadeDeleteUser`(`@/lib/auth/deleteAccountCascade`)가
+   * 단일 트랜잭션으로 자식을 정리하는 프로덕션 경로다.
+   */
   async delete(id: string): Promise<void> {
     this.db.delete(schema.users).where(eq(schema.users.id, id)).run();
   }

@@ -639,6 +639,31 @@ Auth.js Credentials + JWT. 세션 쿠키 필요(공개 엔드포인트 제외). 
 | 401 | `AUTH_REQUIRED` | 미인증·삭제된 세션 |
 | 429 | `RATE_LIMITED` | 시간당 한도 초과 |
 
+### DELETE /api/v1/auth/account
+계정 삭제. 자식 데이터를 **단일 SQLite 트랜잭션**으로 정리하고(`cascadeDeleteUser`), 감사 로그(`platform_events`)는 행을 보존한 채 `user_id` 분리 + payload 익명화. 게시 사이트·생성 코드·키·토큰·일일 한도 포함 연쇄 삭제 (`#221`).
+
+**인증:** 필요 (`getAuthUser` — DB 행 존재 확인).
+
+**Body:**
+```json
+{ "password": "current-password" }
+```
+비밀번호 재인증 필수. 틀리거나 누락되면 **삭제를 시작하지 않는다.**
+
+**레이트리밋:** 사용자당 5회/시간 (`delete-account:{userId}` + IP).
+
+**부수 효과:**
+- Auth.js 세션 쿠키 `Max-Age=0` 만료
+- `USER_DELETED` 이벤트 payload `{ deletedUserId }` (커밋 **이후**; `userId` 키 금지 — persist FK 함정)
+- 외부 GitHub deploy 산출물은 현재 best-effort 미정리(TODO)
+
+| 상태 | 코드 | 설명 |
+|------|------|------|
+| 200 | — | `{ "deleted": true }` |
+| 400 | `INVALID_INPUT` | 비밀번호 누락·형식 오류 |
+| 401 | `AUTH_REQUIRED` | 미인증·잘못된 비밀번호·삭제된 세션 |
+| 429 | `RATE_LIMITED` | 시간당 한도 초과 |
+
 ---
 
 
