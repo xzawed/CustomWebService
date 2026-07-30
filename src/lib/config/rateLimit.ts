@@ -39,3 +39,28 @@ export const SITE_PROXY_PROJECT_LIMIT_PER_MIN = envInt('SITE_PROXY_PROJECT_LIMIT
 
 /** site 리미터가 동시에 추적하는 최대 버킷 수. 초과 시 만료 항목만 정리한다. */
 export const MAX_SITE_RATE_LIMIT_BUCKETS = envInt('MAX_SITE_RATE_LIMIT_BUCKETS', 5000);
+
+/**
+ * 로그인 실패 per-IP 한도. 기본 10회/15분.
+ * signup(5/h)보다 느슨하다 — 오타·모바일 IP 변동을 허용하고, 이메일 발송 비용이 없다.
+ */
+export const LOGIN_IP_FAIL_LIMIT = envInt('LOGIN_IP_FAIL_LIMIT', 10);
+
+/** 로그인 실패 per-IP 윈도우(ms). 기본 15분. */
+export const LOGIN_IP_WINDOW_MS = envInt('LOGIN_IP_WINDOW_MS', 15 * 60_000);
+
+/**
+ * 로그인 실패 per-account(제출 이메일) 한도. 기본 5회/5분.
+ * 짧은 윈도만 쓴다 — 장기 잠금이 되면 공격자가 계정을 가둘 수 있다.
+ */
+export const LOGIN_ACCOUNT_FAIL_LIMIT = envInt('LOGIN_ACCOUNT_FAIL_LIMIT', 5);
+
+/** 로그인 실패 per-account 윈도우(ms). 기본 5분. */
+export const LOGIN_ACCOUNT_WINDOW_MS = envInt('LOGIN_ACCOUNT_WINDOW_MS', 5 * 60_000);
+
+/**
+ * auth 리미터(`src/lib/auth/rateLimit.ts`)가 동시에 추적하는 최대 버킷 수.
+ * signup/forgot/resend/login 키가 공유 Map을 쓴다. 초과 시 만료분만 정리하고
+ * 자리가 없으면 **신규 키를 거부(과차단)** 한다 — 활성 윈도 LRU eviction 금지.
+ */
+export const MAX_AUTH_RATE_LIMIT_BUCKETS = envInt('MAX_AUTH_RATE_LIMIT_BUCKETS', 10_000);
