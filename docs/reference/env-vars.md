@@ -159,6 +159,11 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 | `SITE_PROXY_RATE_LIMIT_PER_MIN` | `20` | ➖ | 익명 게시 사이트 프록시 — IP+projectId 단위 분당 한도 |
 | `SITE_PROXY_PROJECT_LIMIT_PER_MIN` | `120` | ➖ | 익명 게시 사이트 프록시 — 프로젝트 전역 분당 한도. 분산 IP로 한 오너의 API 키를 소진시키는 것을 막는 **실질 상한**. 도달 시 `logger.warn('Site proxy project limit reached')`가 버킷당 윈도 1회 남고, 사용량은 `GET /api/v1/admin/site-proxy-stats`로 확인한다. 조정 기준: [모니터링 ADR](../decisions/2026-07-29-site-proxy-abuse-monitoring.md) |
 | `MAX_SITE_RATE_LIMIT_BUCKETS` | `5000` | ➖ | site 리미터가 동시에 추적하는 최대 버킷 수. 초과 시 만료 항목만 정리하고 활성 카운터는 유지(한도 우회 방지) |
+| `LOGIN_IP_FAIL_LIMIT` | `10` | ➖ | 로그인 실패 per-IP 한도. 윈도우(`LOGIN_IP_WINDOW_MS`) 내 실패 횟수. 코드: `src/lib/auth/local-auth-config.ts` `authorizeWithLoginRateLimit` · `src/lib/config/rateLimit.ts` |
+| `LOGIN_IP_WINDOW_MS` | `900000` (15분) | ➖ | 로그인 실패 per-IP 윈도우(ms). 짧은 시간 한도 — 장기 IP 잠금 없음 |
+| `LOGIN_ACCOUNT_FAIL_LIMIT` | `5` | ➖ | 로그인 실패 per-account 한도. 버킷 키는 **제출 이메일**(trim+lowercase) — 계정 존재 여부를 노출하지 않음. 장기 계정 잠금 없음 |
+| `LOGIN_ACCOUNT_WINDOW_MS` | `300000` (5분) | ➖ | 로그인 실패 per-account 윈도우(ms). 분산 stuffing 상한. 만료 후 자동 회복 |
+| `MAX_AUTH_RATE_LIMIT_BUCKETS` | `10000` | ➖ | auth 인메모리 리미터(`src/lib/auth/rateLimit.ts`) 최대 버킷 수. signup·forgot-password·resend·login이 **동일 Map**을 쓴다. 초과 시 만료분만 정리하고 자리가 없으면 **신규 키 거부(과차단)** — 활성 윈도 LRU eviction 금지. 키 플러드 시 signup/forgot도 fail-closed되는 것이 의도(우회보다 안전). 용량 소진 시 `logger.warn('Auth rate limit capacity exhausted…')`가 분당 1회 |
 | `RATE_LIMIT_BYPASS_USER_IDS` | `` (빈 문자열) | ➖ | 쉼표 구분 userId 목록. 포함된 계정은 일일 생성 한도(`MAX_DAILY_GENERATIONS`) 검사 스킵. 관리자·개발자 계정 우회용. 코드 위치: `src/services/rateLimitService.ts` `checkAndIncrementDailyLimit()` |
 | `PROXY_CACHE_MAX_ENTRIES` | `500` | ➖ | 프록시 응답 캐시(`proxyCache`)의 LRU 최대 항목 수. 빈 문자열·숫자 아님·0 이하 값 설정 시 기본값 500으로 폴백. 인메모리·per-instance — 서버 재시작 시 초기화. 코드 위치: `src/lib/cache/proxyCache.ts` |
 

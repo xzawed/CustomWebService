@@ -166,6 +166,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | 의존성 보안 일괄 상향·감사 게이트 2단계화 ADR (2026-07-28) | [docs/decisions/2026-07-28-dependency-security-updates.md](docs/decisions/2026-07-28-dependency-security-updates.md) |
 | **게시 사이트 프록시 복구·인가 모델 정비 ADR (C-1·C-2·H-1·H-2, 2026-07-28)** | [docs/decisions/2026-07-28-published-site-proxy-authz.md](docs/decisions/2026-07-28-published-site-proxy-authz.md) |
 | 게시 사이트 프록시 설계 spec | [docs/superpowers/specs/2026-07-28-published-site-proxy-authz-design.md](docs/superpowers/specs/2026-07-28-published-site-proxy-authz-design.md) |
+| **로그인 레이트리밋 ADR (#223, IP+계정 잠금 없는 방식, 2026-07-30)** | [docs/decisions/2026-07-30-login-rate-limit.md](docs/decisions/2026-07-30-login-rate-limit.md) |
 | **알림 sink Slack 고정·백업 실패 배선 ADR (#220, 2026-07-30)** | [docs/decisions/2026-07-30-monitoring-sink-slack-only.md](docs/decisions/2026-07-30-monitoring-sink-slack-only.md) |
 | **AI 추천 일일 쿼터 분리 ADR (#219, 2026-07-30)** | [docs/decisions/2026-07-30-suggestion-daily-quota-separation.md](docs/decisions/2026-07-30-suggestion-daily-quota-separation.md) |
 | 검수 MEDIUM 발견 항목 수정 ADR (M-1·2·3·5·6·7·8, 2026-07-29) | [docs/decisions/2026-07-29-medium-audit-findings.md](docs/decisions/2026-07-29-medium-audit-findings.md) |
@@ -246,7 +247,16 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 
 ### 인메모리 레이트리밋 구현 규칙
 - **LRU eviction으로 활성 윈도를 버리지 말 것**. 용량 초과 시 살아 있는 카운터가 evict되면 다음 요청이 `count:1`로 시작해 한도가 우회된다(동시 사용자가 많을수록 심해짐 — 2026-07-29 수정)
-- 올바른 패턴: 만료 버킷만 정리하고, 정리 후에도 자리가 없으면 **새 키를 거부(차단)**한다. 우회보다 과차단이 안전하다. 구현 참고: `src/lib/proxy/siteRateLimit.ts`, `checkProxyRateLimit`(`proxy/route.ts`)
+- 올바른 패턴: 만료 버킷만 정리하고, 정리 후에도 자리가 없으면 **새 키를 거부(차단)**한다. 우회보다 과차단이 안전하다. 구현 참고: `src/lib/proxy/siteRateLimit.ts`, `checkProxyRateLimit`(`proxy/route.ts`), `src/lib/auth/rateLimit.ts`
+- **읽기 전용 검사(`isLimited`)는 없는 키라도 cap이 가득이면 `true`를 반환할 것**(fail-closed). 아니면 키를 회전시켜 "첫 실패는 항상 공짜"를 무한히 얻는다
+- `src/lib/auth/rateLimit.ts`는 signup·forgot·resend·login이 **Map 하나를 공유**한다. `MAX_AUTH_RATE_LIMIT_BUCKETS`(기본 10000) 소진 시 signup·forgot이 과차단될 수 있으며 이는 의도된 fail-closed다
+
+### 로그인 스로틀 (`authorizeWithLoginRateLimit`)
+- **계정 버킷은 조회된 사용자가 아니라 "제출된 이메일"로 키를 잡는다.** 미존재/존재가 같은 동작을 해야 계정 존재 여부가 새지 않는다
+- **실패만 세고, 성공하면 이메일 키만 지운다**(IP 키는 유지 — 공유 NAT에서 한 명의 성공이 전체 예산을 리셋하면 약해진다)
+- **한도 초과 시 `return null`.** 일반 `Error`를 던지면 Auth.js가 `CallbackRouteError`로 감싸 클라이언트에 `error=Configuration`으로 보인다(서버 버그처럼 보임). 향후 UX 코드를 붙이더라도 IP/계정·존재 여부에 따라 코드를 달리하면 오라클이 되므로 **항상 같은 코드**여야 한다
+- 한도 검사는 **DB 조회·scrypt 이전에** 한다
+- **`authorize`의 `request`는 `@auth/core`가 재구성한 것**이다(`new Request(url, { headers, method, body })`). 헤더가 빠지면 `getClientIp`가 조용히 `'unknown'`으로 붕괴해 per-IP 한도가 사실상 사라진다 — `local-auth-config.test.ts`의 XFF 회귀 테스트가 이 결합을 고정한다. 배경: [ADR](docs/decisions/2026-07-30-login-rate-limit.md)
 
 ### site 프록시 한도는 관측하면서 조정한다
 - 프로젝트 전역 한도(`SITE_PROXY_PROJECT_LIMIT_PER_MIN`, 기본 120)가 **분산 IP로도 우회되지 않는 실질 상한**이다. 도달하면 `logger.warn('Site proxy project limit reached')`가 **버킷당 윈도 1회** 남는다(봇이 두드릴 때 로그가 폭발하므로 매 요청 로깅 금지)
