@@ -8,3 +8,15 @@ ignore:
   - "src/instrumentation.ts"
   # Sentry 초기화 설정 (DSN 미설정 시 no-op)
   - "sentry.*.config.ts"
+  # 2026-07-31: sonar.coverage.exclusions에는 있는데 여기엔 없어 비대칭이던 항목.
+  # vitest coverage.include에서도 exclude돼 lcov 데이터가 아예 없으므로, 이 파일을 수정하면
+  # Sonar는 통과하는데 codecov/patch만 0%로 계산해 CI가 빨개진다.
+  - "src/components/builder/RePromptPanel.tsx"
+#
+# 미해결 비대칭 (의도적으로 추측 수정하지 않음):
+#   sonar.coverage.exclusions 의 `src/app/**/page.tsx`·`src/app/**/layout.tsx` 에 대응하는
+#   항목을 여기 넣지 않았다. ① `src/app/layout.tsx`는 vitest coverage.include에 있어 실제
+#   lcov 데이터가 존재하므로 ignore하면 데이터를 버린다. ② `(main)` 같은 괄호 디렉터리 글롭은
+#   codecov의 경로 매처 동작을 로컬에서 검증할 수 없다(vitest의 picomatch에서 괄호가 조용히
+#   매칭 0건이 되는 실제 버그가 있었으므로 추측으로 넣지 않는다).
+#   현황과 판단 근거: docs/reference/test-coverage-map.md
