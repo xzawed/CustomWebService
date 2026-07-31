@@ -48,8 +48,12 @@
 
 ```bash
 railway link            # 프로젝트 연결 확인
-railway ssh "ls -la /data /data/backups"
+railway ssh --service CustomWebService "ls -la /data /data/backups"
 ```
+
+> **`--service CustomWebService`를 붙일 것.** Railway 프로젝트 `xzawed`에는 서비스가 3개
+> (`CustomWebService`·`ArcanaInsight`·`SCAManager`) 있다. 생략하면 엉뚱한 서비스에 붙을 수 있다.
+> 이 문서의 모든 `railway ssh`/`railway redeploy`는 이 플래그를 전제한다.
 
 확인할 것:
 
@@ -75,7 +79,22 @@ b.close();
 `integrity: ok`가 아니거나 행 수가 비정상이면 **그 백업은 쓰지 않는다.** 이전 백업으로 내려간다.
 
 > 경로의 `better-sqlite3@13.0.1`은 버전이 올라가면 바뀐다. 다음으로 찾는다:
-> `railway ssh "find /app -maxdepth 5 -type d -name better-sqlite3"`
+> `railway ssh --service CustomWebService "find /app -maxdepth 5 -type d -name better-sqlite3"`
+
+#### 검증 후 반드시 잔재를 지운다 (2026-07-31 리허설에서 발견)
+
+백업 파일을 **`readonly: true`로 열어도** SQLite가 WAL 모드 DB의 읽기 락을 잡느라
+`<백업명>.db-shm`(32KB)과 `<백업명>.db-wal`(0B)을 백업 디렉터리에 만든다.
+그런데 `selectBackupsToPrune`은 **`app-<timestamp>.db` 패턴만 후보로 삼으므로 이 잔재를 영원히 회수하지 않는다.**
+
+```bash
+railway ssh --service CustomWebService "rm -f /data/backups/*.db-wal /data/backups/*.db-shm"
+```
+
+- **지워도 안전하다** — `.backup()` 산출물은 자기완결 파일이고, 읽기 전용 열기는 데이터를 쓰지 않는다.
+  실측: 잔재 삭제 후 백업 3개 전부 `integrity: ok` + 행 수 정상이었다(백업 파일 mtime도 변하지 않았다).
+- 복구 절차 자체에는 영향이 없다(2단계는 `.db`만 복사한다). **디스크 누수와 인시던트 중 혼란**이 문제다 —
+  "이 백업엔 왜 WAL이 붙어 있지?"를 사고 한복판에서 따지게 된다.
 
 ---
 
@@ -100,6 +119,10 @@ railway ssh "
 `INCIDENT_DIR` 값을 기록해 둔다.
 
 > **`cp`이지 `mv`가 아니다** — 앱이 아직 살아 있는 상태에서 원본을 옮기면 열린 fd와 어긋난다.
+>
+> **`railway ssh`는 root로 붙으므로 `/data/incident-*`는 root 소유로 생성된다**(실측).
+> 앱은 `nextjs`로 도는데 이 디렉터리는 앱이 읽을 필요가 없으니 그대로 둬도 무방하다.
+> 6) 롤백은 root로 `cp -a` 후 `chown nextjs:nodejs`를 하므로 영향받지 않는다.
 
 ### 2) 파일 교체 (앱이 도는 중에 `mv`로 inode 치환)
 
@@ -130,8 +153,8 @@ railway ssh "
 ### 3) 재시작으로 확정
 
 ```bash
-railway deployment list --json | head -20     # 현재 배포 id 확인
-railway redeploy                              # 또는 대시보드에서 Restart
+railway deployment list --json | head -20                 # 현재 배포 id 확인
+railway redeploy --service CustomWebService -y            # 또는 대시보드에서 Restart
 ```
 
 재시작하면 컨테이너가 새 `/data/app.db`를 열고, `instrumentation.register()`가
@@ -139,6 +162,11 @@ railway redeploy                              # 또는 대시보드에서 Restar
 
 배포 상태 판별은 [CLAUDE.md의 "Railway 배포 상태 판별"](../../CLAUDE.md) 절을 따른다
 (신규 커밋이 아니면 `WAITING`이 길게 이어질 수 있다).
+
+> **`railway redeploy`는 단순 재시작이 아니라 이미지 빌드부터 다시 한다.** 실측(2026-07-31):
+> 트리거 → `BUILDING`(~2분 10초) → `DEPLOYING`(~22초) → `SUCCESS`. **트리거에서 SUCCESS까지 2분 32초.**
+> 같은 커밋 재배포라 CI 대기(`WAITING`)는 없었다.
+> 더 짧게 끝내려면 대시보드 **Restart**를 쓴다(빌드를 건너뛴다).
 
 ### 4) 검증 — 무엇을 보고 "성공"이라 하는가
 
@@ -235,45 +263,71 @@ railway redeploy
 |---|---|---|
 | 2026-07-30 | 로컬 (better-sqlite3 13.0.1, Node 24) | 위 "실측으로 확인된 전제" 6항목 전부 확인. 크래시 WAL 재생으로 복구가 무효화되는 것과 구버전 백업 마이그레이션 자동 적용을 포함 |
 | 2026-07-30 | 프로덕션 (읽기 전용 조사) | `/data` 파일 구성·백업 7개 존재·백업본 무결성 `ok`·app.db 단독 테이블 0개 확인 |
-| — | 프로덕션 (쓰기 리허설) | **미수행.** 다운타임이 발생하므로 시간대 합의 후 진행 — 아래 체크리스트 |
-
-> **문서만 쓰고 끝내지 않는다는 것이 이 이슈의 요지다.** 프로덕션 쓰기 리허설을 마치면
-> 실제 소요 시간·걸린 지점을 이 표와 본문에 반영할 것.
+| **2026-07-31** | **프로덕션 (쓰기 리허설)** | **성공.** 위 "복구 절차" 1)~5)를 그대로 실행. 총 5분, 롤백된 데이터 0건. 아래 실측 참조 |
 
 ---
 
-## 프로덕션 쓰기 리허설 실행 체크리스트 (#222 잔여)
+## 프로덕션 쓰기 리허설 실측 (2026-07-31, #222 완료)
 
-> 사용자가 **프로덕션까지 리허설**을 승인했다. 남은 것은 **시간대 합의**뿐이다.
-> 다음 세션은 이 체크리스트만 따르면 되고, 절차 자체는 위 "복구 절차"를 그대로 쓴다.
+절차는 위 "복구 절차"를 **한 줄도 바꾸지 않고** 그대로 따랐다. 중단 조건에 걸린 항목은 없었다.
 
-### 착수 전 사용자 확인 필요 ⚠️
+### 타임라인 (UTC)
+
+| 시각 | 단계 |
+|---|---|
+| 10:19:45 | 1) 사고 상태 보존 → `INCIDENT_DIR=/data/incident-20260731-101945` |
+| 10:20:0x | 2) 파일 교체 — `app.db` 4096B → 417792B, WAL/SHM 제거 확인(`CLEAN`) |
+| 10:20:06 | 3) `railway redeploy` 트리거 |
+| 10:22:16 | `BUILDING` → `DEPLOYING` |
+| 10:22:38 | `SUCCESS` (트리거로부터 **2분 32초**) |
+| 10:22:55 | 4) 검증 개시 — 4항목 전부 통과 |
+| 10:24 | 5) 정리 (`.old` 삭제, `incident-*` 보존) |
+
+> **서비스 중단 시간은 직접 측정하지 않았다.** 배포 단계만 관측했고(`DEPLOYING` 구간 ~22초),
+> 검증 시점의 `/api/v1/health`는 200이었다. 다음 리허설에서 중단 폭을 재려면
+> 재배포 트리거 직후부터 health를 1초 간격으로 폴링할 것.
+
+### 대상 백업과 검증 결과
+
+- 대상: `/data/backups/app-20260730-154416.db` (417792B)
+- 사전 검증: `integrity ok` / FK 0 / 12테이블
+
+| 판정 항목 | 결과 |
+|---|---|
+| `/api/v1/health` | **200** |
+| `integrity_check` | **ok** |
+| `foreign_key_check` | **0행** |
+| 행 수 대조 (12테이블) | **전부 일치** — `api_catalog=61`, `users=2`, `projects=1`, `generated_codes=1`, `platform_events=26`, `project_apis=3`, `auth_tokens=1`, `user_daily_limits=1`, `feature_flags=7`, `__drizzle_migrations=4`, `generation_locks=0`, `user_api_keys=0` |
+| 앱 경유 읽기 end-to-end | 랜딩 200 / `/login` 200 / `/api/v1/projects` **401**(인증 경계 정상) / `/api/v1/catalog` `total=36`(활성 API 수 일치) |
+
+복구 후 부팅 백업 `app-20260731-102217.db`가 새로 생성됐고, 보존 정책(7개)이
+가장 오래된 `app-20260729-165713.db`를 정리했다 — 백업 스케줄러도 함께 검증됐다.
+
+### 사전 재배포는 불필요할 수 있다 (기존 지침 수정)
+
+이전 체크리스트는 "리허설 직전에 배포를 한 번 트리거해 최신 백업을 만든다"였다.
+**백업 이후 쓰기가 없었다면 이 단계는 재시작을 한 번 더 하는 손해일 뿐이다.** 판단 방법:
+
+```bash
+railway ssh --service CustomWebService "ls -la /data /data/backups"
+```
+
+- `app.db-wal`의 mtime이 **대상 백업 시각보다 앞서면** 그 백업 이후 쓰기가 0건이다
+  (WAL 모드에서 모든 쓰기는 `-wal`로 가므로 mtime이 곧 마지막 쓰기 시각).
+- 이번 실측: WAL mtime `07-30 14:31` < 백업 `07-30 15:44` → **롤백 데이터 0건**, 사전 재배포 생략.
+- 라이브 DB와 백업의 행 수를 대조해 교차 확인했다(12테이블 전부 일치).
+
+쓰기가 활발한 시점에 복구해야 한다면 기존 지침대로 **먼저 재배포해 최신 백업을 만든 뒤** 그것을 쓴다.
+
+### 여전히 유효한 착수 전 확인 사항
 
 | 항목 | 내용 |
 |---|---|
-| **시간대** | 재시작 다운타임 ~30–60초. 한국 사용자 기준 저트래픽 시간대를 정할 것 |
-| **데이터 롤백 범위** | 복구 시점 = 사용할 백업의 시각. **그 이후 쓰기는 되돌아간다.** 백업은 배포마다 + 24h 주기로 생성되므로, 최근 배포 직후라면 손실 폭이 거의 없다 |
+| **시간대** | 저트래픽 시간대를 고를 것. `railway redeploy`는 빌드부터 다시 하므로 트리거~복귀에 **2분 30초 안팎**이 든다(대시보드 Restart는 더 짧다) |
+| **데이터 롤백 범위** | 복구 시점 = 사용할 백업의 시각. 그 이후 쓰기는 되돌아간다. 위 WAL mtime 비교로 폭을 미리 잴 것 |
 | **인플라이트 쓰기** | `mv`와 재시작 사이의 쓰기는 unlink된 옛 inode로 흘러가 유실된다 |
 
-### 손실을 최소화하는 순서
-
-1. **리허설 직전에 배포를 한 번 트리거**한다(예: 무해한 재배포).
-   부팅 시 `scheduleBackups`가 즉시 백업을 뜨므로 **가장 최신 시점의 백업**이 생긴다.
-2. 그 백업 파일명을 복구 대상으로 쓴다 → 롤백되는 데이터가 사실상 없다.
-
-### 실행
-
-1. [ ] 사전 준비 — `railway ssh "ls -la /data /data/backups"`로 대상 백업 확정
-2. [ ] **복구 대상 백업 검증** (`integrity_check` + 행 수 기록) — 이 수치가 4단계 판정 기준이 된다
-3. [ ] 1) 사고 상태 보존 → `INCIDENT_DIR` 기록
-4. [ ] 2) 파일 교체 — **WAL/SHM이 남아 있으면 재시작 금지**
-5. [ ] 3) `railway redeploy`
-6. [ ] 4) 검증 4항목 (health 200 / `integrity ok` / FK 0 / **행 수 대조** / 로그인 end-to-end)
-7. [ ] 5) 정리 (`.old` 삭제, `/data/incident-*`는 보존)
-8. [ ] 실제 소요 시간·걸린 지점을 위 "리허설 기록" 표와 본문에 반영
-9. [ ] [#222](https://github.com/xzawed/CustomWebService/issues/222) 종료
-
-### 중단 조건
+### 중단 조건 (다음 리허설·실제 복구에도 그대로 적용)
 
 아래 중 하나라도 나오면 **즉시 6) 롤백**으로 간다.
 
