@@ -155,6 +155,9 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 
 | 질문 | 참조 문서 |
 |------|-----------|
+| **불변조건·계약 (깨면 조용히 사고 나는 것들)** | [docs/architecture/system-spec.md](docs/architecture/system-spec.md) |
+| **테스트가 어디까지 커버하나 · 공백은 어디인가** | [docs/reference/test-coverage-map.md](docs/reference/test-coverage-map.md) |
+| **잔여작업 전체 지도 (열린 이슈로는 안 보이는 것)** | [docs/superpowers/plans/2026-07-31-project-wbs.md](docs/superpowers/plans/2026-07-31-project-wbs.md) |
 | 시스템 전체 구조 | [docs/architecture/overview.md](docs/architecture/overview.md) |
 | AI 코드 생성 흐름 | [docs/architecture/ai-pipeline.md](docs/architecture/ai-pipeline.md) |
 | 코드 생성/재생성 작업 **(필수)** | [docs/guides/qc-process.md](docs/guides/qc-process.md) |
