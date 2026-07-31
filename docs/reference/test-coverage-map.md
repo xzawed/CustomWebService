@@ -74,17 +74,23 @@ picomatch가 `(auth)`를 extglob 그룹으로 해석해 리터럴 디렉터리�
 grep "^SF:" coverage/lcov.info | tr '\\' '/' | grep '패턴'   # lcov는 백슬래시 경로를 쓴다
 ```
 
-### 3.3 미해결 비대칭 (의도적으로 남김)
+### 3.3 codecov ↔ sonar 비대칭 — 해소됨 (2026-07-31, 실패를 겪고 나서)
 
-`sonar.coverage.exclusions`의 `src/app/**/page.tsx`·`src/app/**/layout.tsx`에 대응하는 항목을
-`codecov.yml`에 넣지 않았다.
+처음에는 `sonar.coverage.exclusions`의 `src/app/**/page.tsx`·`src/app/**/layout.tsx`에 대응하는
+항목을 `codecov.yml`에 **넣지 않고 보류**했다. 이유는 두 가지였다:
+① `src/app/layout.tsx`는 lcov 데이터가 있어 ignore하면 데이터를 버린다
+② 괄호 디렉터리 글롭이 codecov에서 어떻게 동작하는지 로컬 검증이 불가능하다(3.2의 전례 때문에 추측을 피했다).
 
-- `src/app/layout.tsx`는 `coverage.include`에 있어 **실제 lcov 데이터가 존재**한다 → ignore하면 데이터를 버린다
-- `(main)` 같은 괄호 디렉터리 글롭은 **codecov의 경로 매처를 로컬에서 검증할 수 없다**
-  (바로 위 3.2에서 괄호 글롭이 조용히 죽는 실제 버그를 겪었으므로 추측으로 넣지 않는다)
+**그리고 곧바로 실패했다.** `src/app/(main)/builder/page.tsx`를 리팩토링한 PR에서
+`codecov/patch`가 떨어졌다 — 그 파일은 `coverage.include`에 없어 lcov 데이터가 없으므로
+변경 라인이 0%로 계산되고, Sonar는 제외하니 통과한다. 정확히 그 비대칭이다.
 
-→ 결과적으로 `src/app/(main)/**/page.tsx`를 수정하면 **codecov/patch가 0%로 계산될 수 있다.**
-그 파일들에 테스트를 붙이는 것(4절 T1)이 근본 해결이다.
+두 줄을 추가해 대칭을 맞췄다. **트레이드오프를 알고 넣었다**: `(auth)` 5개 페이지는 테스트가
+있고 lcov 데이터도 있는데 함께 걸린다. 그래도 Sonar가 이미 전체 페이지를 제외하고 있어
+그쪽 지표에는 애초에 반영되지 않으며, **두 게이트가 어긋나 있는 상태 자체가 더 해롭다.**
+
+> **교훈**: 게이트 설정의 비대칭은 "언젠가 문제가 될 것"이 아니라 **다음 PR에서 터진다.**
+> 발견했을 때 미루지 말 것. 페이지를 측정하고 싶어지면 sonar·codecov·vitest **세 곳을 함께** 바꾼다.
 
 ### 3.4 `src/templates/**`는 아직 include에 없다
 

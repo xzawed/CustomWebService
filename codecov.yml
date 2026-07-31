@@ -12,11 +12,16 @@ ignore:
   # vitest coverage.include에서도 exclude돼 lcov 데이터가 아예 없으므로, 이 파일을 수정하면
   # Sonar는 통과하는데 codecov/patch만 0%로 계산해 CI가 빨개진다.
   - "src/components/builder/RePromptPanel.tsx"
-#
-# 미해결 비대칭 (의도적으로 추측 수정하지 않음):
-#   sonar.coverage.exclusions 의 `src/app/**/page.tsx`·`src/app/**/layout.tsx` 에 대응하는
-#   항목을 여기 넣지 않았다. ① `src/app/layout.tsx`는 vitest coverage.include에 있어 실제
-#   lcov 데이터가 존재하므로 ignore하면 데이터를 버린다. ② `(main)` 같은 괄호 디렉터리 글롭은
-#   codecov의 경로 매처 동작을 로컬에서 검증할 수 없다(vitest의 picomatch에서 괄호가 조용히
-#   매칭 0건이 되는 실제 버그가 있었으므로 추측으로 넣지 않는다).
-#   현황과 판단 근거: docs/reference/test-coverage-map.md
+  # 2026-07-31(2차): sonar.coverage.exclusions와 완전 대칭을 맞춘다.
+  #
+  # 앞서 이 두 줄을 "codecov 매처의 괄호 글롭 동작을 검증할 수 없다"는 이유로 보류했는데,
+  # 곧바로 `src/app/(main)/builder/page.tsx`를 리팩토링하는 PR에서 codecov/patch가 실패했다.
+  # 그 파일은 vitest coverage.include에 없어 lcov 데이터가 아예 없으므로 변경 라인이 0%로
+  # 계산된다 — Sonar는 제외하니 통과하고 codecov만 빨개지는, 정확히 그 비대칭이다.
+  #
+  # 트레이드오프를 알고 넣는다: `(auth)` 하위 5개 페이지는 테스트가 있고 lcov 데이터도 있는데
+  # 여기 함께 걸린다. 그래도 Sonar가 이미 `src/app/**/page.tsx`를 통째로 제외하고 있어
+  # 그쪽 지표에는 애초에 반영되지 않으며, **두 게이트가 어긋나 있는 상태 자체가 더 해롭다.**
+  # 페이지에 테스트를 붙여 측정하고 싶어지면 sonar·codecov·vitest 세 곳을 함께 바꿀 것.
+  - "src/app/**/page.tsx"
+  - "src/app/**/layout.tsx"
