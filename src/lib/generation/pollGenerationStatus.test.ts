@@ -34,7 +34,10 @@ describe('pollGenerationStatus', () => {
     expect(deps.onCompleted).toHaveBeenCalledTimes(1);
     expect(deps.failGeneration).not.toHaveBeenCalled();
     expect(fetchFn).toHaveBeenCalledTimes(1);
-    expect(fetchFn).toHaveBeenCalledWith('/api/v1/generate/status/p9');
+    // E3 P3: fetch 에 항상 { signal } RequestInit 전달 (signal 미주입 시 undefined)
+    expect(fetchFn).toHaveBeenCalledWith('/api/v1/generate/status/p9', {
+      signal: undefined,
+    });
     expect(deps.delay).not.toHaveBeenCalled();
   });
 
@@ -192,6 +195,23 @@ describe('pollGenerationStatus', () => {
     );
   });
 
+  it('maxAttempts 소진(미 abort) 시 timeout failGeneration 회귀 가드', async () => {
+    // E3 P3: abort 가드가 정상 timeout 경로를 깨뜨리지 않는지 고정
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValue(makeRes({ data: { status: 'generating', progress: 1 } }));
+    const controller = new AbortController();
+    const deps = makeDeps({ fetchFn, maxAttempts: 2, signal: controller.signal });
+
+    await pollGenerationStatus('p', deps);
+
+    expect(controller.signal.aborted).toBe(false);
+    expect(deps.failGeneration).toHaveBeenCalledTimes(1);
+    expect(deps.failGeneration).toHaveBeenCalledWith(
+      '생성 시간이 초과되었습니다. 대시보드에서 확인해주세요.',
+    );
+  });
+
   it('intervalMs를 주입하면 그 값으로 대기한다', async () => {
     const fetchFn = vi
       .fn()
@@ -235,5 +255,143 @@ describe('pollGenerationStatus', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  describe('AbortSignal (E3 P3 — 단일 terminal owner)', () => {
+    it('첫 시도 전 abort → fetch·콜백 전부 미호출', async () => {
+      const controller = new AbortController();
+      controller.abort();
+      const fetchFn = vi.fn();
+      const deps = makeDeps({ fetchFn, signal: controller.signal });
+
+      await pollGenerationStatus('p', deps);
+
+      expect(fetchFn).not.toHaveBeenCalled();
+      expect(deps.updateProgress).not.toHaveBeenCalled();
+      expect(deps.completeGeneration).not.toHaveBeenCalled();
+      expect(deps.failGeneration).not.toHaveBeenCalled();
+      expect(deps.onCompleted).not.toHaveBeenCalled();
+    });
+
+    it('시도 사이 abort → failGeneration 없이 종료', async () => {
+      const controller = new AbortController();
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValue(makeRes({ data: { status: 'generating', progress: 20 } }));
+      const delay = vi.fn().mockImplementation(async () => {
+        // 첫 delay 중에 abort — 다음 attempt 진입 시 중단
+        controller.abort();
+      });
+      const deps = makeDeps({
+        fetchFn,
+        delay,
+        maxAttempts: 5,
+        signal: controller.signal,
+      });
+
+      await pollGenerationStatus('p', deps);
+
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(deps.updateProgress).toHaveBeenCalledTimes(1);
+      expect(deps.failGeneration).not.toHaveBeenCalled();
+      expect(deps.completeGeneration).not.toHaveBeenCalled();
+    });
+
+    it('fetch 가 AbortError + signal.aborted → failGeneration 미호출', async () => {
+      const controller = new AbortController();
+      const abortErr = new DOMException('The operation was aborted.', 'AbortError');
+      const fetchFn = vi.fn().mockImplementation(async () => {
+        controller.abort();
+        throw abortErr;
+      });
+      const deps = makeDeps({
+        fetchFn,
+        maxAttempts: 3,
+        signal: controller.signal,
+      });
+
+      await pollGenerationStatus('p', deps);
+
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(deps.failGeneration).not.toHaveBeenCalled();
+      expect(deps.completeGeneration).not.toHaveBeenCalled();
+      expect(deps.updateProgress).not.toHaveBeenCalled();
+    });
+
+    it('signal 주입 시 fetch 에 동일 AbortSignal 전달', async () => {
+      const controller = new AbortController();
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValue(
+          makeRes({ data: { status: 'completed', result: { projectId: 'p', version: 1 } } }),
+        );
+      const deps = makeDeps({ fetchFn, signal: controller.signal });
+
+      await pollGenerationStatus('p', deps);
+
+      expect(fetchFn).toHaveBeenCalledWith('/api/v1/generate/status/p', {
+        signal: controller.signal,
+      });
+    });
+
+    it('fetch resolve 직후 abort → handleStatusData 전 종료, 콜백 없음', async () => {
+      const controller = new AbortController();
+      const fetchFn = vi.fn().mockImplementation(async () => {
+        controller.abort();
+        return makeRes({
+          data: { status: 'completed', result: { projectId: 'p', version: 9 } },
+        });
+      });
+      const deps = makeDeps({ fetchFn, signal: controller.signal });
+
+      await pollGenerationStatus('p', deps);
+
+      expect(deps.completeGeneration).not.toHaveBeenCalled();
+      expect(deps.failGeneration).not.toHaveBeenCalled();
+      expect(deps.updateProgress).not.toHaveBeenCalled();
+    });
+
+    it('json 파싱 중 abort → terminal 콜백 없음', async () => {
+      const controller = new AbortController();
+      const fetchFn = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => {
+          controller.abort();
+          return {
+            data: { status: 'completed', result: { projectId: 'p', version: 1 } },
+          };
+        },
+      } as unknown as Response);
+      const deps = makeDeps({ fetchFn, signal: controller.signal });
+
+      await pollGenerationStatus('p', deps);
+
+      expect(deps.completeGeneration).not.toHaveBeenCalled();
+      expect(deps.failGeneration).not.toHaveBeenCalled();
+    });
+
+    it('마지막 delay 중 abort → 루프 종료 후 timeout fail 스킵', async () => {
+      const controller = new AbortController();
+      let delayCount = 0;
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValue(makeRes({ data: { status: 'generating', progress: 1 } }));
+      const delay = vi.fn().mockImplementation(async () => {
+        delayCount += 1;
+        // 마지막 attempt 의 delay 에서 abort → for 종료 후 signal 가드
+        if (delayCount >= 2) controller.abort();
+      });
+      const deps = makeDeps({
+        fetchFn,
+        delay,
+        maxAttempts: 2,
+        signal: controller.signal,
+      });
+
+      await pollGenerationStatus('p', deps);
+
+      expect(deps.updateProgress).toHaveBeenCalledTimes(2);
+      expect(deps.failGeneration).not.toHaveBeenCalled();
+    });
   });
 });

@@ -13,6 +13,18 @@
  *   'unknown'으로 흘러 "연결 복구 안됨"이라는 잘못된 메시지가 나갔다.
  * - 응답이 `!res.ok`이면 루프를 `break`하여 "생성 시간이 초과되었습니다" 경로로 떨어진다.
  * - `status: 'completed'`인데 `result`가 없으면 'unknown'과 동일하게 처리된다.
+ * - `signal`이 abort되면 **어떤 terminal 콜백도 호출하지 않고 반환**한다(E3 P3).
+ *   단, `delay(intervalMs)` 중 abort되면 그 대기가 끝난 뒤에 반환하므로 최대 1틱 늦다.
+ *
+ * ⚠️ **이 abort는 방어적 불변조건이지 "SSE 성공을 폴링이 덮어쓰는 레이스"의 해결이 아니다.**
+ * 그 레이스는 실측상 실제 브라우저에서 도달 불가다 — 폴링을 시작하는 세 지점
+ * (visibility / stream_ended / stream_error)은 전부 리더 루프가 끝난 뒤이고,
+ * `reader.cancel()`은 대기 중인 `read()`를 `{done:true}`로 즉시 종료시켜
+ * 그 뒤에 버퍼된 `complete`를 처리할 수 없다(2026-08-01 런타임 프로브로 확인).
+ * 즉 abort가 취소할 "살아 있는 폴링"은 프로덕션에 존재하지 않는다.
+ *
+ * 사용자가 실제로 겪던 "성공했는데 실패 화면"의 원인은 **폴링 예산 부족**이었고
+ * (`maxAttempts` 주석 참조), 그쪽이 진짜 수정이다.
  */
 
 export interface GenerationStatusData {
@@ -35,10 +47,25 @@ export interface PollGenerationStatusDeps {
   delay?: (ms: number) => Promise<void>;
   /** fetch 주입 (테스트용). 기본은 전역 fetch. */
   fetchFn?: typeof fetch;
-  /** 최대 시도 횟수 (기본 120 = 1초 간격 2분). */
+  /**
+   * 최대 시도 횟수 (기본 300 = 1초 간격 5분).
+   *
+   * ⚠️ **서버 파이프라인 예산보다 짧으면 성공한 생성을 실패로 표시한다.**
+   * 서버는 `PIPELINE_MAX_DURATION_MS`(기본 290초, Railway 300초 한도 대비 마진)까지 돌 수 있는데
+   * 이 값이 120이던 시절 클라이언트는 **120초에 포기하고 `failGeneration('생성 시간이 초과되었습니다')`**를
+   * 불렀다. 그 뒤 서버가 정상 완료해도 사용자는 이미 실패 화면을 본 뒤였다 —
+   * 모바일 백그라운드 전환으로 폴링에 넘어간 긴 생성에서 실제로 재현되는 경로다(2026-08-01 발견).
+   *
+   * 이 값을 줄이려면 반드시 `PIPELINE_MAX_DURATION_MS`와 함께 볼 것.
+   */
   maxAttempts?: number;
   /** 폴링 간격 ms (기본 1000). */
   intervalMs?: number;
+  /**
+   * 생성 세션 AbortSignal. abort 되면 즉시 return 하며
+   * completeGeneration / failGeneration / updateProgress 를 더 이상 호출하지 않는다.
+   */
+  signal?: AbortSignal;
 }
 
 const defaultDelay = (ms: number): Promise<void> =>
@@ -82,17 +109,25 @@ export async function pollGenerationStatus(
     delay = defaultDelay,
     // 언바운드 호출 시 일부 런타임에서 "Illegal invocation"이 나므로 래핑하여 전달한다.
     fetchFn = (input, init) => fetch(input, init),
-    maxAttempts = 120,
+    maxAttempts = 300,
     intervalMs = 1000,
+    signal,
   } = deps;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // abort 후 terminal/progress 콜백 금지 불변조건
+    if (signal?.aborted) return;
+
     try {
-      const res = await fetchFn(`/api/v1/generate/status/${projectId}`);
+      const res = await fetchFn(`/api/v1/generate/status/${projectId}`, { signal });
+      if (signal?.aborted) return;
       if (!res.ok) break;
       const { data } = (await res.json()) as { data: GenerationStatusData };
+      if (signal?.aborted) return;
       if (handleStatusData(data, deps) === 'stop') return;
     } catch (err) {
+      // AbortError 및 abort 직후 거부는 terminal 이 아니다
+      if (signal?.aborted) return;
       if (attempt === maxAttempts - 1) {
         failGeneration(err instanceof Error ? err.message : '폴링 중 오류 발생');
         return;
@@ -100,5 +135,7 @@ export async function pollGenerationStatus(
     }
     await delay(intervalMs);
   }
+
+  if (signal?.aborted) return;
   failGeneration('생성 시간이 초과되었습니다. 대시보드에서 확인해주세요.');
 }

@@ -69,7 +69,7 @@ export default function RePromptPanel({ projectId, onRegenerationComplete }: ReP
       if (!reader) throw new Error('스트림을 읽을 수 없습니다.');
 
       const pollForRegeneration = async (projectId: string) => {
-        const MAX_ATTEMPTS = 120;
+        const MAX_ATTEMPTS = 300; // 서버 PIPELINE_MAX_DURATION_MS(기본 290초)보다 길어야 한다 — 짧으면 성공을 실패로 표시한다
         for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
           if (!mountedRef.current) return;
           try {

@@ -4,7 +4,11 @@
  * `builder/page.tsx` handleGenerate 본문에서 추출. React/router 의존 없음.
  * 스토어 액션·fetch·poll·document·now 를 주입받아 단위 테스트 가능.
  *
- * **characterization 고정**: SSE + 폴링 이중 경로 레이스 포함 현 동작 보존 (P3 별도).
+ * **E3 P3**: 호출마다 AbortController 하나를 소유한다 (generation session).
+ * SSE terminal 시 abortPolling 으로 폴링을 끊고, outer catch 에서도 abort 하여
+ * SSE terminal 도달 시 폴링을 abort 한다(방어적 불변조건).
+ * ⚠️ 이것으로 "성공이 실패로 뒤집히는" 증상이 해결되지는 않는다 — 실제 원인은 폴링 예산
+ * 부족이었고 pollGenerationStatus.maxAttempts 에서 수정했다.
  */
 
 import {
@@ -72,6 +76,9 @@ export async function runClientGeneration(
     consumeStream = consumeGenerationStream,
   } = deps;
 
+  // 생성 세션 단일 소유자 — SSE terminal / outer catch 가 이 컨트롤러로 폴링을 끊는다
+  const controller = new AbortController();
+
   startGeneration();
 
   try {
@@ -119,12 +126,14 @@ export async function runClientGeneration(
 
     // 폴링 로직은 pollGenerationStatus (단위 테스트 대상).
     // 동작 보존: completed 시 completeGeneration → onCompleted.
+    // signal 공유로 SSE complete/error 가 폴링 terminal 을 차단한다.
     const pollForCompletion = (pid: string): Promise<void> =>
       pollGenerationStatusFn(pid, {
         updateProgress,
         completeGeneration,
         failGeneration,
         onCompleted,
+        signal: controller.signal,
       });
 
     await consumeStream(reader, project.id, {
@@ -132,9 +141,15 @@ export async function runClientGeneration(
       completeGeneration,
       onCompleted,
       pollForCompletion,
+      abortPolling: () => {
+        controller.abort();
+      },
       documentRef,
     });
   } catch (err) {
+    // 이미 핸드오프된 폴링이 이후 timeout fail 을 찍지 않도록 먼저 끊는다.
+    // abort 는 멱등; SSE error 경로에서 이미 abortPolling 했어도 안전.
+    controller.abort();
     failGeneration(err instanceof Error ? err.message : '알 수 없는 오류');
   }
 }

@@ -70,6 +70,7 @@ function makeDeps(overrides: Partial<Parameters<typeof consumeGenerationStream>[
     completeGeneration: vi.fn(),
     onCompleted: vi.fn(),
     pollForCompletion: vi.fn().mockResolvedValue(undefined),
+    abortPolling: vi.fn(),
     ...overrides,
   };
 }
@@ -79,7 +80,7 @@ describe('consumeGenerationStream', () => {
     vi.clearAllMocks();
   });
 
-  it('progress 후 complete → completed, poll 미호출', async () => {
+  it('progress 후 complete → completed, poll 미호출, abortPolling 1회', async () => {
     const body =
       'event: progress\ndata: {"progress":30,"message":"작업 중"}\n\n' +
       'event: complete\ndata: {"projectId":"p1","version":2}\n\n';
@@ -94,11 +95,13 @@ describe('consumeGenerationStream', () => {
     expect(deps.completeGeneration).toHaveBeenCalledWith('p1', 2);
     expect(deps.onCompleted).toHaveBeenCalledTimes(1);
     expect(deps.pollForCompletion).not.toHaveBeenCalled();
+    // E3 P3: SSE complete 는 폴링 terminal 소유권을 회수
+    expect(deps.abortPolling).toHaveBeenCalledTimes(1);
     expect(doc.removeEventListener).toHaveBeenCalled();
     expect(reader.cancel).toHaveBeenCalled();
   });
 
-  it('event: error → 서버 메시지로 throw, poll 미호출', async () => {
+  it('event: error → abortPolling 후 throw, poll 미호출', async () => {
     const body = 'event: error\ndata: {"message":"서버 생성 실패"}\n\n';
     const reader = makeReader([encode(body), null]);
     const deps = makeDeps({ documentRef: makeDocument() });
@@ -108,11 +111,13 @@ describe('consumeGenerationStream', () => {
     );
     expect(deps.pollForCompletion).not.toHaveBeenCalled();
     expect(deps.completeGeneration).not.toHaveBeenCalled();
+    // E3 P3: SSE error 도 진행 중 폴링을 끊는다
+    expect(deps.abortPolling).toHaveBeenCalledTimes(1);
     expect(reader.cancel).toHaveBeenCalled();
   });
 
-  it('complete 없이 스트림 종료 → poll 정확히 1회', async () => {
-    // characterization: 현 동작 고정 (P3에서 변경 예정) — void fire-and-forget poll
+  it('complete 없이 스트림 종료 → poll 정확히 1회, abortPolling 미호출', async () => {
+    // E3 P3: stream_ended 는 폴링 핸드오프 — abort 하지 않음
     const body = 'event: progress\ndata: {"progress":50,"message":"중"}\n\n';
     const reader = makeReader([encode(body), null]);
     const deps = makeDeps({ documentRef: makeDocument() });
@@ -123,10 +128,11 @@ describe('consumeGenerationStream', () => {
     expect(deps.pollForCompletion).toHaveBeenCalledTimes(1);
     expect(deps.pollForCompletion).toHaveBeenCalledWith('p9');
     expect(deps.completeGeneration).not.toHaveBeenCalled();
+    expect(deps.abortPolling).not.toHaveBeenCalled();
   });
 
-  it('reader.read() reject + SSE error 아님 → poll 1회, 이 레이어는 fail 없음', async () => {
-    // characterization: 현 동작 고정 (P3에서 변경 예정)
+  it('reader.read() reject + SSE error 아님 → poll 1회, abortPolling 미호출', async () => {
+    // E3 P3: stream_error 핸드오프 — abort 하지 않음
     const reader = makeReader([], { rejectAt: 0, rejectError: new Error('aborted') });
     const deps = makeDeps({ documentRef: makeDocument() });
 
@@ -135,10 +141,11 @@ describe('consumeGenerationStream', () => {
     expect(result).toEqual({ kind: 'switched_to_polling', reason: 'stream_error' });
     expect(deps.pollForCompletion).toHaveBeenCalledTimes(1);
     expect(deps.completeGeneration).not.toHaveBeenCalled();
+    expect(deps.abortPolling).not.toHaveBeenCalled();
   });
 
-  it('visibilitychange → visible mid-stream → reader cancel + poll 1회', async () => {
-    // characterization: 현 동작 고정 (P3에서 변경 예정) — poll abort 없음
+  it('visibilitychange → visible mid-stream → reader cancel + poll 1회, abortPolling 미호출', async () => {
+    // E3 P3: visibility 핸드오프 — abort 하지 않음 (폴링을 *시작*)
     const doc = makeDocument('hidden');
     let resolveRead: ((v: { value?: Uint8Array; done: boolean }) => void) | undefined;
     const cancel = vi.fn().mockResolvedValue(undefined);
@@ -184,6 +191,7 @@ describe('consumeGenerationStream', () => {
 
     expect(deps.pollForCompletion).toHaveBeenCalledTimes(1);
     expect(deps.pollForCompletion).toHaveBeenCalledWith('p3');
+    expect(deps.abortPolling).not.toHaveBeenCalled();
     expect(cancel).toHaveBeenCalled();
     expect(result.kind).toBe('switched_to_polling');
   });
@@ -199,10 +207,10 @@ describe('consumeGenerationStream', () => {
     // listener already removed in finally — firing visibility should not poll
     doc.setVisibility('visible');
     expect(deps.pollForCompletion).not.toHaveBeenCalled();
+    expect(deps.abortPolling).toHaveBeenCalledTimes(1);
   });
 
   it('이미 switched 후 visibilitychange → poll 두 번째 없음', async () => {
-    // characterization: 현 동작 고정 (P3에서 변경 예정)
     const doc = makeDocument('hidden');
     let secondResolve: ((v: { value?: Uint8Array; done: boolean }) => void) | undefined;
     const cancel = vi.fn().mockResolvedValue(undefined);
@@ -236,6 +244,7 @@ describe('consumeGenerationStream', () => {
 
     doc.setVisibility('visible');
     expect(deps.pollForCompletion).toHaveBeenCalledTimes(1);
+    expect(deps.abortPolling).not.toHaveBeenCalled();
 
     // second visibility while still mid-stream (switched already)
     doc.setVisibility('hidden');
@@ -245,10 +254,11 @@ describe('consumeGenerationStream', () => {
     secondResolve?.({ done: true });
     await pending;
     expect(deps.pollForCompletion).toHaveBeenCalledTimes(1);
+    expect(deps.abortPolling).not.toHaveBeenCalled();
   });
 
   it('visibility 전환 후 스트림 done → poll 추가 없음 (already-switched 종료)', async () => {
-    // characterization: 핸들러가 poll 1회 후, 루프가 done 으로 빠져도 두 번째 poll 없음
+    // 핸들러가 poll 1회 후, 루프가 done 으로 빠져도 두 번째 poll 없음
     const doc = makeDocument('hidden');
     let resolveHang: ((v: { value?: Uint8Array; done: boolean }) => void) | undefined;
     const cancel = vi.fn().mockResolvedValue(undefined);
@@ -285,6 +295,7 @@ describe('consumeGenerationStream', () => {
     doc.setVisibility('visible');
     expect(deps.pollForCompletion).toHaveBeenCalledTimes(1);
     expect(cancel).toHaveBeenCalled();
+    expect(deps.abortPolling).not.toHaveBeenCalled();
 
     // 루프가 정상 종료(done) 하도록 — catch 가 아닌 try 경로의 already-switched return
     resolveHang?.({ done: true });
@@ -293,10 +304,11 @@ describe('consumeGenerationStream', () => {
     expect(result).toEqual({ kind: 'switched_to_polling', reason: 'visibility' });
     expect(deps.pollForCompletion).toHaveBeenCalledTimes(1);
     expect(deps.completeGeneration).not.toHaveBeenCalled();
+    expect(deps.abortPolling).not.toHaveBeenCalled();
   });
 
   it('visibility 전환 후 reader reject → poll 추가 없음 (already-switched catch)', async () => {
-    // characterization: 전환 후 스트림 에러는 재폴링하지 않고 기존 pollReason 유지
+    // 전환 후 스트림 에러는 재폴링하지 않고 기존 pollReason 유지
     const doc = makeDocument('hidden');
     let rejectHang: ((err: Error) => void) | undefined;
     const cancel = vi.fn().mockResolvedValue(undefined);
@@ -340,5 +352,17 @@ describe('consumeGenerationStream', () => {
     // 불변조건: already-switched catch 는 두 번째 poll 을 시작하지 않는다
     expect(deps.pollForCompletion).toHaveBeenCalledTimes(1);
     expect(deps.completeGeneration).not.toHaveBeenCalled();
+    expect(deps.abortPolling).not.toHaveBeenCalled();
+  });
+
+  it('abortPolling 미주입 시 complete/error 가 throw 없이 동작 (optional dep)', async () => {
+    // 기본(no-op) 경로 커버 — 기존 호출자 호환
+    const body = 'event: complete\ndata: {"projectId":"p-opt","version":1}\n\n';
+    const reader = makeReader([encode(body), null]);
+    const deps = makeDeps({ documentRef: makeDocument(), abortPolling: undefined });
+
+    const result = await consumeGenerationStream(reader, 'p-opt', deps);
+    expect(result).toEqual({ kind: 'completed' });
+    expect(deps.completeGeneration).toHaveBeenCalledWith('p-opt', 1);
   });
 });
