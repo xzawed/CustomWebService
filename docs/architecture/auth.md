@@ -35,9 +35,15 @@
     ▼ signIn('credentials', { email, password, redirect: false })   (next-auth/react)
 [/api/auth/[...nextauth]] → local-auth-config.handlers
     │
-    ▼ authorize(): userRepo.findByEmail(email) → verifyPassword(password, user.password_hash)
-    │   - DB 사용자 조회 + scrypt 검증 (사용자별 해시)
-    │   - 일치 시 { id: user.id, email, name } 반환 (실제 users.id)
+    ▼ authorizeWithLoginRateLimit()  (local-auth-config.ts)
+    │   1) 레이트리밋 선검사 (DB·scrypt **이전**)
+    │      - per-IP: LOGIN_IP_FAIL_LIMIT=10회 / LOGIN_IP_WINDOW_MS=15분
+    │      - per-account: 제출 이메일 키, LOGIN_ACCOUNT_FAIL_LIMIT=5회 / LOGIN_ACCOUNT_WINDOW_MS=5분
+    │      - 한도 초과 시 return null (클라이언트는 잘못된 비밀번호와 구분 불가)
+    │   2) authorizeCredentials(): userRepo.findByEmail → verifyPassword (scrypt)
+    │      - 성공: 이메일 키만 clear (IP 키는 유지 — 공유 NAT에서 전체 예산 리셋 방지)
+    │      - 실패: IP·이메일 버킷에 실패 기록 후 null
+    │   3) 일치 시 { id: user.id, email, name } 반환 (실제 users.id)
     ▼ JWT 발급 → 쿠키(JWE) 설정 (무상태, DB 어댑터 없음)
     │   - token.sub = user.id
     │
@@ -45,6 +51,7 @@
 [Middleware] enforceAuthGate() → 보호 경로에서 local-auth-edge auth()로 JWT 검증
 ```
 
+- **로그인 스로틀**: `authorizeWithLoginRateLimit`이 DB 조회 전에 한도를 검사한다. 한도는 `src/lib/config/rateLimit.ts` 환경변수로 조정. 계정 버킷은 **제출된 이메일**(정규화) 기준이라 존재 여부가 새지 않는다.
 - **다중 사용자**: 비밀번호는 `scrypt` 해시(`"salt:hash"` hex 형식)로 `users.password_hash` 컬럼에 저장. 회원가입 시 자동 생성.
 - **무상태 JWT**: Auth.js v5 기본(어댑터 없음). 세션 DB 테이블 없음. 비밀번호 재설정 후 기존 세션 즉시 무효화 불가(알려진 한계).
 - **OAuth 콜백 없음**: `(auth)/callback` 라우트는 제거됨.
@@ -133,7 +140,25 @@ Route Handler / Server Component
 // src/lib/auth/index.ts
 export async function getAuthUser(): Promise<AuthUser | null> {
   const { getLocalAuthUser } = await import('@/lib/auth/local-auth');
-  return getLocalAuthUser();
+  const sessionUser = await getLocalAuthUser();
+  if (!sessionUser) return null;
+
+  try {
+    // JWT만 신뢰하면 삭제된 계정의 토큰이 만료까지 "유령 세션"이 된다
+    // (GET /projects → 200 + [], 쓰기 시 FK 500, assertEmailVerified → 403 오인).
+    // users PK 조회로 행 존재를 확인하고, DB 오류 시 fail-closed(null).
+    // 이 조회를 "최적화"로 제거하지 말 것 — middleware(Edge) 경로에는 두지 않는다.
+    const dbUser = await createUserRepository().findById(sessionUser.id);
+    if (!dbUser) return null;
+    return {
+      id: dbUser.id,
+      email: dbUser.email,
+      name: dbUser.name ?? null,
+      avatarUrl: dbUser.avatarUrl ?? null,
+    };
+  } catch {
+    return null;
+  }
 }
 ```
 
@@ -227,5 +252,8 @@ SQLite에는 Row Level Security가 없다. **앱 레벨 소유권 검증이 격�
 | `/api/v1/auth/resend-verification` | POST | 인증 메일 재발송 (인증 필요) |
 | `/api/v1/auth/forgot-password` | POST | 비밀번호 재설정 이메일 발송 |
 | `/api/v1/auth/reset-password` | POST | 비밀번호 재설정 토큰 소비 |
+| `/api/v1/auth/status` | GET | 이메일 인증 여부 (`verified` boolean, 인증 필요) |
+| `/api/v1/auth/export` | GET | 계정 데이터 JSON 내보내기 (인증 필요, 키 원문 제외) |
+| `/api/v1/auth/account` | DELETE | 계정 삭제 (비밀번호 재인증, 인증 필요) |
 
 Auth.js 기본 경로: `/api/auth/[...nextauth]` (로그인·로그아웃·세션 조회)

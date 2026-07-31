@@ -1,6 +1,6 @@
 # 데이터베이스 설계
 
-> **최종 업데이트:** 2026-06-24 (공개 다중 사용자 인증 도입 — auth_tokens 테이블 추가, users 다중 행)
+> **최종 업데이트:** 2026-07-29 (generation_locks 테이블 + user_daily_limits.suggestion_count — 총 11테이블)
 > **DB:** 임베디드 SQLite (better-sqlite3 + drizzle-orm/better-sqlite3, WAL 모드)
 
 ## 사용 DB: 임베디드 SQLite (단일 인스턴스·다중 사용자)
@@ -31,7 +31,7 @@ SQLite에는 Row Level Security가 없다. 모든 접근 제어는 **애플리�
 ## 1. 스키마 개요
 
 스키마의 단일 진실원천은 [`src/lib/db/sqlite/schema.ts`](../../src/lib/db/sqlite/schema.ts)
-(drizzle 정의)이다. 총 **10개 테이블** (2026-06-24 `auth_tokens` 추가):
+(drizzle 정의)이다. 총 **11개 테이블** (`auth_tokens` + `generation_locks` 포함):
 
 ```
 ┌──────────────┐           ┌────────────────────┐
@@ -91,16 +91,24 @@ SQLite에는 Row Level Security가 없다. 모든 접근 제어는 **애플리�
 └──────────────────┘         │ usage_date    ┘      │
                              │ generation_count     │
 ┌──────────────────────┐     │ deploy_count         │
-│  platform_events     │     └──────────────────────┘
+│  platform_events     │     │ suggestion_count     │
+├──────────────────────┤     └──────────────────────┘
+│ id (PK)              │
+│ type                 │     ┌────────────────────┐
+│ payload (json)       │     │  feature_flags     │
+│ user_id (FK)         │     ├────────────────────┤
+│ project_id (FK)      │     │ id (PK)            │
+│ created_at           │     │ flag_name (UQ)     │
+└──────────────────────┘     │ enabled            │
+                             │ rules (json)       │
+┌──────────────────────┐     └────────────────────┘
+│ generation_locks     │
 ├──────────────────────┤
-│ id (PK)              │     ┌────────────────────┐
-│ type                 │     │  feature_flags     │
-│ payload (json)       │     ├────────────────────┤
-│ user_id (FK)         │     │ id (PK)            │
-│ project_id (FK)      │     │ flag_name (UQ)     │
-│ created_at           │     │ enabled            │
-└──────────────────────┘     │ rules (json)       │
-                             └────────────────────┘
+│ project_id (PK)      │
+│ user_id              │
+│ acquired_at          │
+│ heartbeat_at         │
+└──────────────────────┘
 ```
 
 > **제거된 테이블 (컷오버로 삭제됨):** `organizations` / `memberships` (Organizations 기능 제거),
@@ -109,7 +117,7 @@ SQLite에는 Row Level Security가 없다. 모든 접근 제어는 **애플리�
 > `projects.organization_id`·`api_catalog`의 자기참조 `successor_id` 등 일부 **컬럼**은 레포 매퍼
 > 호환을 위해 nullable로 잔존하나 기능은 없고 항상 `null` 또는 미사용이다.
 >
-> **신규 (2026-06-24):** `auth_tokens` 테이블 추가, `users.password_hash` 컬럼 추가.
+> **신규:** `auth_tokens`(2026-06-24) · `users.password_hash`(2026-06-24) · `generation_locks`(2026-07-29, 중복 생성 차단) · `user_daily_limits.suggestion_count`(2026-07-30, AI 추천 일일 쿼터, `DEFAULT 0` 필수).
 
 ---
 
@@ -293,9 +301,12 @@ CREATE TABLE user_daily_limits (
     usage_date       TEXT NOT NULL,            -- YYYY-MM-DD (로컬 날짜)
     generation_count INTEGER DEFAULT 0,
     deploy_count     INTEGER DEFAULT 0,
+    suggestion_count INTEGER DEFAULT 0,        -- AI 추천 일일 카운터 (migration 0003)
     PRIMARY KEY (user_id, usage_date)
 );
 ```
+
+> **`suggestion_count`의 `DEFAULT 0`은 로드 베어링이다.** ADD COLUMN 시 DEFAULT가 없으면 기존 행이 NULL이 되고 `WHERE count < limit` test-and-set이 0행 갱신 → 사용자에게 거짓 "한도 초과"로 보인다. NULL-1도 NULL이라 자가 복구도 안 된다. 마이그레이션 `0003`이 `DEFAULT 0`을 명시한다.
 
 (원자적 test-and-set 동작은 §5 참조.)
 
@@ -349,6 +360,20 @@ CREATE TABLE auth_tokens (
 > 사용 시 `consumed_at`을 기록해 일회성 보장. `email_verify`: 24시간 TTL, `password_reset`: 1시간 TTL.
 > 재설정 완료 시 동일 user의 미소비 reset 토큰을 일괄 무효화한다.
 
+### 3.11 generation_locks (중복 생성 차단 DB 락)
+
+```sql
+CREATE TABLE generation_locks (
+    project_id   TEXT PRIMARY KEY NOT NULL,
+    user_id      TEXT NOT NULL,
+    acquired_at  TEXT NOT NULL,
+    heartbeat_at TEXT NOT NULL
+);
+```
+
+> 인메모리 `generationTracker`는 진행률 전용. 중복 파이프라인 차단은 이 테이블의 test-and-set 락이 담당한다.
+> 크래시 시 `GENERATION_LOCK_STALE_MS`(기본 5분) 후 heartbeat 기준으로 자동 탈취.
+
 ---
 
 ## 4. 마이그레이션 & 부팅 시드 (bootstrap)
@@ -361,6 +386,8 @@ drizzle-kit으로 생성한 SQLite 마이그레이션이 `drizzle/sqlite/`에 �
 drizzle/sqlite/
 ├── 0000_flaky_roulette.sql   # 초기 스키마 (9개 테이블)
 ├── 0001_*.sql                # auth_tokens 테이블 + users.password_hash 추가 (10개 테이블)
+├── 0002_*.sql                # generation_locks 테이블 추가 (11개 테이블)
+├── 0003_*.sql                # user_daily_limits.suggestion_count INTEGER DEFAULT 0
 └── meta/                      # drizzle 스냅샷·저널
 ```
 
@@ -371,13 +398,14 @@ drizzle/sqlite/
 
 `src/instrumentation.ts`(Next.js instrumentation hook)가 앱 부팅 시
 `bootstrapSqlite(db)`([`src/lib/db/sqlite/bootstrap.ts`](../../src/lib/db/sqlite/bootstrap.ts))를
-호출한다. 순서가 중요하며 **모든 단계는 멱등**(빈 테이블일 때만 삽입)이라
+호출한다. 순서가 중요하며 **4단계** 모두 멱등(시드는 빈 테이블일 때만 삽입, ensure는 id 기준 신규/정정만)이라
 재배포·재시작 시 안전하게 반복된다.
 
-1. **`runSqliteMigrations(db)`** — `drizzle/sqlite`의 마이그레이션을 적용해 테이블 생성 (10개 테이블)
+1. **`runSqliteMigrations(db)`** — `drizzle/sqlite`의 마이그레이션을 적용해 테이블 생성 (**11개 테이블**)
 2. **`seedCatalog(db)`** — `src/data/apiCatalog.json`(프로덕션 카탈로그 미러)을 빈
    `api_catalog`에만 일괄 삽입. id·created_at은 프로덕션 값 그대로 유지(FK 일관성)
 3. **`seedFeatureFlags(db)`** — `src/data/featureFlags.json`을 빈 `feature_flags`에만 삽입
+4. **`ensureCatalogEntries(db)`** — 이미 시드된 DB에 번들 JSON의 **신규 행 삽입** + 잘못 broken/비활성으로 기록된 키리스 API 정정(멱등). `seedCatalog`는 빈 테이블에만 동작하므로 프로덕션 갱신에 필수
 
 > **`seedAdminUser`는 제거됨**: 공개 다중 사용자 전환(2026-06-24)으로 env 단일 관리자 시드가 불필요해졌다. 신규 환경은 `/signup`으로 첫 사용자를 생성한다.
 

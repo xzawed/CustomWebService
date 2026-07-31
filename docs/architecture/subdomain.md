@@ -65,6 +65,18 @@ if (rootDomain) {
 처리: /site/my-weather-app
 ```
 
+### 서브도메인 패스스루 (`SUBDOMAIN_PASSTHROUGH_PREFIXES`)
+
+게시 사이트의 생성 JS는 CORS 때문에 외부 API를 직접 호출하지 않고 **상대경로** `/api/v1/proxy?...`로 프록시를 호출한다. 서브도메인 요청을 무조건 `/site/{slug}…`로 rewrite하면 경로가 `/site/{slug}/api/v1/proxy`가 되고, `/site/[slug]`는 단일 동적 세그먼트라 매칭되지 않아 **404**가 된다 — API를 쓰는 게시 사이트가 전부 데이터 로딩에 실패한다(미리보기는 apex 도메인이라 rewrite가 없어 정상 동작 → 2026-07-28 프로덕션에서 실측).
+
+`src/middleware.ts`는 아래 접두사만 rewrite를 건너뛴다(최소 노출 — `/api/*` 전체 개방 아님):
+
+```typescript
+const SUBDOMAIN_PASSTHROUGH_PREFIXES = ['/api/v1/proxy'];
+```
+
+패스스루 경로는 일반 응답 경로로 흘러 correlation id·보안 헤더가 적용되고, API 경로 판정으로 CSP를 건너뛴다. 새 경로를 추가할 때도 이 최소 노출 원칙을 유지한다.
+
 ### 보안 헤더 (서브도메인 경로)
 
 서브도메인 rewrite 경로에서는 다음 헤더만 적용된다. CSP는 `site/[slug]/route.ts`에서 별도 설정한다.

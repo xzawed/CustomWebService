@@ -2,7 +2,7 @@
 
 > **Base URL (개발):** http://localhost:3000/api/v1  
 > **Base URL (프로덕션):** https://xzawed.xyz/api/v1  
-> **인증:** Supabase 세션 쿠키 필요 (공개 엔드포인트 표시됨)
+> **인증:** Auth.js v5 Credentials + JWT(무상태 세션 쿠키) 필요 (공개 엔드포인트 표시됨)
 
 ---
 
@@ -310,6 +310,10 @@ event: error
 data: {"message": "코드 생성에 실패했습니다."}
 ```
 
+| 상태코드 | 코드 | 설명 |
+|---------|------|------|
+| 409 | `GENERATION_IN_PROGRESS` | 동일 프로젝트에 DB 생성 락이 이미 잡혀 있음 (`acquireGenerationLock` 실패). 일일 한도 차감분은 환불 |
+
 ### GET /api/v1/generate/status/:projectId
 생성 진행 상태 조회 (모바일 백그라운드 폴링용)
 
@@ -386,6 +390,10 @@ data: {"projectId": "uuid", "version": 2, "previewUrl": "/api/v1/preview/uuid"}
 event: error
 data: {"message": "재생성에 실패했습니다."}
 ```
+
+| 상태코드 | 코드 | 설명 |
+|---------|------|------|
+| 409 | `GENERATION_IN_PROGRESS` | 동일 프로젝트에 DB 생성 락이 이미 잡혀 있음 (`acquireGenerationLock` 실패). 일일 한도 차감분은 환불 |
 
 > 프로젝트당 최대 `maxRegenerationsPerProject`(기본 5회) 재생성 가능. 재생성도 일일 생성 횟수에 포함됩니다.
 
@@ -559,21 +567,134 @@ X-Frame-Options: DENY
             "maxApisPerProject": 5,
             "maxProjectsPerUser": 20
         }
-    },
-    "failover": { "enabled": true, "state": "closed" }
+    }
 }
 ```
 
-**status 값:**
+> 상세 응답 필드는 `status` / `timestamp` / `checks` / `usage` 네 가지다. (`failover` 필드는 SQLite 컷오버로 제거됨.)
+
+**status 값 (상세):**
 - `healthy`: 모든 서비스 정상
 - `degraded`: AI 또는 배포 서비스 미설정 (환경변수 누락)
 - `unhealthy`: 데이터베이스 연결 실패
+
+**레이트리밋 응답 (`?detailed=true` + 관리자 키 있으나 per-IP 한도 초과):**
+```json
+{
+    "status": "rate_limited",
+    "timestamp": "2026-03-28T00:00:00Z"
+}
+```
+- HTTP **429**, `Retry-After: 60`
+- 공개 응답(`status: "ok"`)으로 폴백하지 않는다 — 올바른 키를 가진 관리자가 한도 초과를 정상 상태로 오인하지 않도록 함
 
 ---
 
 ## 8. 인증 (Auth)
 
 Auth.js Credentials + JWT. 세션 쿠키 필요(공개 엔드포인트 제외). 가입·인증·재설정 라우트는 `/api/v1/auth/*` 및 `/api/auth/*`(Auth.js 핸들러).
+
+### POST /api/v1/auth/signup
+공개 회원가입. 이메일 인증 링크 발송 후 미인증 상태로 가입 완료.
+
+**Auth:** 불필요 (공개)
+
+**레이트리밋:** IP당 5회/시간 (`signup`)
+
+**Request Body:**
+```json
+{ "email": "user@example.com", "password": "min-8-chars" }
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `email` | string | Y | 이메일 |
+| `password` | string | Y | 8자 이상 |
+
+| 상태 | 코드 | 설명 |
+|------|------|------|
+| 201 | — | `{ "message": "가입이 완료되었습니다. 이메일 인증 링크를 확인해주세요." }` |
+| 400 | `INVALID_INPUT` | Zod 검증 실패 |
+| 409 | `CONFLICT` | 이메일 중복 |
+| 429 | `RATE_LIMITED` | 시간당 한도 초과 |
+
+### POST /api/v1/auth/verify-email
+이메일 인증 토큰 소비.
+
+**Auth:** 불필요 (공개, 토큰 자체로 인가)
+
+**Request Body:**
+```json
+{ "token": "…" }
+```
+
+| 상태 | 코드 | 설명 |
+|------|------|------|
+| 200 | — | `{ "message": "이메일 인증이 완료되었습니다." }` |
+| 400 | `INVALID_INPUT` | 토큰 누락·형식 오류 / 무효·만료 토큰 |
+
+### POST /api/v1/auth/resend-verification
+인증 메일 재발송.
+
+**Auth:** 필요 (`getAuthUser`)
+
+**레이트리밋:** 사용자당 3회/시간 (`resend:{userId}` + IP)
+
+**Body:** 없음
+
+| 상태 | 코드 | 설명 |
+|------|------|------|
+| 200 | — | `{ "message": "인증 메일을 다시 보냈습니다." }` |
+| 401 | `AUTH_REQUIRED` | 미인증 |
+| 429 | `RATE_LIMITED` | 시간당 한도 초과 |
+
+### POST /api/v1/auth/forgot-password
+비밀번호 재설정 메일 발송. **계정 존재 여부와 무관하게 동일 응답** (enumeration 방지).
+
+**Auth:** 불필요 (공개)
+
+**레이트리밋:** IP당 5회/시간 (`forgot`)
+
+**Request Body:**
+```json
+{ "email": "user@example.com" }
+```
+
+| 상태 | 코드 | 설명 |
+|------|------|------|
+| 200 | — | `{ "message": "재설정 링크를 이메일로 보냈습니다(가입된 경우)." }` |
+| 400 | `INVALID_INPUT` | 이메일 형식 오류 |
+| 429 | `RATE_LIMITED` | 시간당 한도 초과 |
+
+### POST /api/v1/auth/reset-password
+비밀번호 재설정 토큰 소비.
+
+**Auth:** 불필요 (공개, 토큰 자체로 인가)
+
+**Request Body:**
+```json
+{ "token": "…", "password": "min-8-chars" }
+```
+
+| 상태 | 코드 | 설명 |
+|------|------|------|
+| 200 | — | `{ "message": "비밀번호가 변경되었습니다. 다시 로그인해주세요." }` |
+| 400 | `INVALID_INPUT` | 토큰/비밀번호 검증 실패 |
+
+### GET /api/v1/auth/status
+현재 세션 사용자의 이메일 인증 여부.
+
+**Auth:** 필요
+
+**Response:**
+```json
+{ "success": true, "data": { "verified": true } }
+```
+
+| 상태 | 코드 | 설명 |
+|------|------|------|
+| 200 | — | `verified` boolean |
+| 401 | `AUTH_REQUIRED` | 미인증 |
 
 ### GET /api/v1/auth/export
 현재 로그인 사용자의 계정 데이터를 JSON으로 내보낸다 (`#221`).
@@ -666,6 +787,35 @@ Auth.js Credentials + JWT. 세션 쿠키 필요(공개 엔드포인트 제외). 
 
 ---
 
+## 8-1. 국가 데이터 (Countries, 공개·키리스)
+
+자체 호스팅 mledoze 기반 국가 데이터. 생성 사이트가 프록시 없이 직접 호출할 수 있도록 CORS `*` + `Cache-Control: public, max-age=86400`.
+
+### GET /api/v1/countries
+전체 목록 (+ 선택 필터).
+
+**Auth:** 불필요 (공개)
+
+**Query Parameters:**
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|------|------|
+| `region` | string | N | 지역 필터 |
+| `search` | string | N | 이름 검색 |
+
+**Response:** `Country[]` JSON 배열 (표준 `{success,data}` 래퍼 없음)
+
+### GET /api/v1/countries/[code]
+cca2/cca3 코드(대소문자 무시) 단건 조회.
+
+**Auth:** 불필요 (공개)
+
+| 상태 | 설명 |
+|------|------|
+| 200 | `Country` 객체 |
+| 404 | `{ "error": "Country not found: {code}" }` |
+
+---
 
 ## 9. 에러 코드
 
@@ -673,11 +823,14 @@ Auth.js Credentials + JWT. 세션 쿠키 필요(공개 엔드포인트 제외). 
 |------|-------------|------|
 | AUTH_REQUIRED | 401 | 인증 필요 |
 | FORBIDDEN | 403 | 권한 없음 |
+| EMAIL_NOT_VERIFIED | 403 | 이메일 미인증 (생성·배포 등) |
 | NOT_FOUND | 404 | 리소스 없음 |
 | INVALID_INPUT | 400 | 입력값 오류 (Zod 스키마 검증 실패 포함) |
 | CONTEXT_TOO_SHORT | 400 | 컨텍스트 50자 미만 |
 | CONTEXT_TOO_LONG | 400 | 컨텍스트 2000자 초과 |
 | MAX_APIS_EXCEEDED | 400 | API 최대 선택 수 초과 |
+| CONFLICT | 409 | 리소스 충돌 (예: 이메일 중복) |
+| GENERATION_IN_PROGRESS | 409 | 동일 프로젝트 생성/재생성 진행 중 (DB 락) |
 | GENERATION_FAILED | 500 | 코드 생성 실패 |
 | DEPLOY_FAILED | 500 | 배포 실패 |
 | RATE_LIMITED | 429 | 요청 횟수 초과 |
@@ -1105,9 +1258,8 @@ Authorization: Bearer <ADMIN_API_KEY>
     "modules": {
       "playwright-core": "ok",
       "@anthropic-ai/sdk": "ok",
-      "drizzle-orm": "ok",
-      "drizzle-orm/node-postgres": "ok",
-      "pg": "ok"
+      "better-sqlite3": "ok",
+      "drizzle-orm": "ok"
     }
   }
 }
