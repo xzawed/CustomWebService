@@ -137,7 +137,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
 - `AI_MODEL_SUGGESTION` — 추천용 모델 (기본: `claude-haiku-4-5`)
 - `AI_MODEL_GENERATION` — 코드 생성 모델 (기본: `claude-opus-5`, Sonnet 폴백: `claude-sonnet-5`)
-- `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` / `SLACK_WEBHOOK_URL` — 에러·알림 sink. **Slack만 사용**(`errorRateMonitor` 생성 실패율 + `scheduleBackups` 백업 실패/복구 → `sendSlackAlert`). **Sentry는 의도적으로 미도입**(#220). `SLACK_WEBHOOK_URL`이 Railway에 실제로 설정되기 전까지 경보는 여전히 유실된다(`sendSlackAlert` no-op)
+- `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` / `SLACK_WEBHOOK_URL` — 에러·알림 sink. **Slack만 사용**(`errorRateMonitor` 생성 실패율 + `scheduleBackups` 백업 실패/복구 → `sendSlackAlert`). **Sentry는 의도적으로 미도입**(#220). `SLACK_WEBHOOK_URL`은 **2026-07-31에 등록·실경보 도착까지 검증 완료** — 경보는 xzawed 워크스페이스 `#alerts` 채널로 간다. **빈 문자열은 미설정과 같다**(`if (!webhookUrl)` no-op) — 점검 시 키 존재가 아니라 **값 길이**를 볼 것. 절차·실측: [monitoring-sink-setup.md](docs/guides/monitoring-sink-setup.md)
 - `LOG_LEVEL` — 로그 상세도 (`debug`/`info`/`warn`/`error`, 기본 `info`)
 - `ET_COMPLEXITY_THRESHOLD` — Extended Thinking 활성화 임계값 (기본: 35점, `evaluateComplexityScore()` 결과 비교)
 - `QUALITY_LOOP_ITERATION_TIMEOUT_MS` — Quality Loop 반복당 타임아웃 (기본: 120000ms = 120초)
@@ -410,18 +410,22 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 
 ## 다음 작업 대기열 (2026-07-31 기준)
 
-**열린 이슈 2건. 코드 작업은 전부 끝났고, 남은 하나는 사용자가 손을 대야 진행된다.**
-2026-07-30 세션에서 #219·#221·#223을, 2026-07-31 세션에서 **#222를 종료**했다. #220만 마지막 단계가 남았다.
+**열린 이슈는 #216 하나이고, 그것은 "착수하지 않는다"가 결론이다.**
+2026-07-30 세션에서 #219·#221·#223을, 2026-07-31 세션에서 **#220·#222를 종료**했다.
 
 | Issue | 상태 | 다음 세션이 할 일 |
 |-------|------|------------------|
-| [#220](https://github.com/xzawed/CustomWebService/issues/220) 에러·알림 sink | **코드 완료**(PR #231) · **여전히 블로킹** | **`SLACK_WEBHOOK_URL` 값이 등록되면** 합성 경보를 발생시켜 도착 확인. 2026-07-31 실측: 키는 존재하나 **값이 빈 문자열**이라 `sendSlackAlert`는 no-op. 절차 전부: [monitoring-sink-setup.md](docs/guides/monitoring-sink-setup.md) |
+| ~~[#220](https://github.com/xzawed/CustomWebService/issues/220) 에러·알림 sink~~ | **완료(2026-07-31)** | Slack 앱 `xzawed alerts` + `#alerts` 채널 신설, `SLACK_WEBHOOK_URL` 등록, **실제 백업 실패 경보 도착 확인**. 실측: [monitoring-sink-setup.md](docs/guides/monitoring-sink-setup.md) |
 | ~~[#222](https://github.com/xzawed/CustomWebService/issues/222) SQLite 복구~~ | **완료(2026-07-31)** | 프로덕션 쓰기 리허설 성공(총 5분, 롤백 데이터 0건). 실측·발견 사항은 [복구 런북](docs/guides/sqlite-restore-runbook.md) |
 | [#216](https://github.com/xzawed/CustomWebService/issues/216) 데이터 확보 후 재검토 3건 | 트리거 **전부 미충족**(2026-07-31 재확인) | **착수하지 않는다.** 손대면 근거 없는 변경이다. 재확인만 할 것 |
 
-### 착수 전 사용자에게 물어볼 것 (남은 유일한 블로커)
+### 알림 sink가 살아난 뒤 판단할 것 (ADR이 보류로 남긴 항목)
 
-1. **#220** — Slack webhook URL을 Railway에 등록했는지. **값을 대화로 받지 말 것**(시크릿) — 대시보드에서 직접 설정하도록 안내하고, `railway variables`로 **키 존재와 값 길이만** 확인한다(키만 있고 값이 비어 있는 상태가 실제로 있었다).
+실경보를 받아 본 뒤에 정하기로 미뤄 둔 것들이다. 지금부터는 판단 근거가 쌓인다.
+
+- `ERROR_RATE_ALERT_THRESHOLD`(기본 5회/5분) 조정 — 실제 경보 빈도를 보고
+- 다일 장애 재알림(시간 윈도 리마인더) — 전이 1회로 충분한지
+- 배포 레이트리밋 환불 실패·이벤트 persist 실패 등 best-effort 경로에 경보를 붙일지
 
 ### #216 트리거 재확인 방법 (변경은 하지 말 것)
 

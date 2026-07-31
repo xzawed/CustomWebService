@@ -115,10 +115,14 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 
 ## 모니터링
 
-> ⚠️ **알림 sink는 Slack으로 고정했다. Sentry는 의도적으로 도입하지 않는다** (#220).
+> ✅ **알림 sink는 Slack으로 고정했고 2026-07-31에 실경보 도착까지 검증됐다** (#220).
 > 코드 경로: `errorRateMonitor`(생성 실패율) + `scheduleBackups`(SQLite 백업 실패·복구, 상태 전이 1회 경보) → `sendSlackAlert`.
-> **`SLACK_WEBHOOK_URL`이 Railway에 실제로 설정되기 전까지 sink는 비활성이다** — `sendSlackAlert`는 경고 로그만 남기고 반환하므로 경보는 여전히 유실된다.
+> `SLACK_WEBHOOK_URL`은 Railway에 설정되어 있고 경보는 xzawed 워크스페이스 **`#alerts`** 채널로 간다.
 > Sentry 관련 env(`SENTRY_DSN` 등)는 코드에 남아 있으나 미사용·미도입 결정. 값을 넣지 않는 것이 기본이다.
+>
+> **주의: 빈 문자열은 미설정과 같다.** `sendSlackAlert`는 `if (!webhookUrl)`로 판정하므로 키만 있고 값이 비면
+> 크래시 없이 조용히 no-op이 된다(2026-07-31 이전 프로덕션이 정확히 이 상태였다).
+> 확인할 때 **키 존재가 아니라 값 길이**를 볼 것.
 
 | 변수 | 필수 | Railway | 설명 |
 |------|------|---------|------|
@@ -127,7 +131,7 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 | `SENTRY_ORG` | 선택 | ❌ | (미도입) Sentry 조직 슬러그 (소스맵 업로드용) |
 | `SENTRY_PROJECT` | 선택 | ❌ | (미도입) Sentry 프로젝트 슬러그 |
 | `SENTRY_AUTH_TOKEN` | 선택 | ❌ | (미도입) Sentry 소스맵 업로드 토큰 |
-| `SLACK_WEBHOOK_URL` | 선택 | ❌ | **활성 알림 sink.** Slack Incoming Webhook URL. 미설정 시 알림 스킵(로그 한 줄). `sendSlackAlert` ← `errorRateMonitor` + `scheduleBackups` 백업 실패/복구 |
+| `SLACK_WEBHOOK_URL` | 선택 | ✅ | **활성 알림 sink (2026-07-31 설정·검증 완료).** Slack Incoming Webhook URL → xzawed 워크스페이스 `#alerts`. 미설정·**빈 문자열**이면 알림 스킵(로그 한 줄). `sendSlackAlert` ← `errorRateMonitor` + `scheduleBackups` 백업 실패/복구 |
 | `ERROR_RATE_ALERT_THRESHOLD` | 선택 | ➖ | 코드 생성 실패율 알림 임계값 (기본: `5`). 5분 윈도우 내 `CODE_GENERATION_FAILED` 횟수가 이 값 이상이면 Slack 알림 1회 발송 (윈도우 내 중복 알림 방지). 인메모리·단일 인스턴스 전제. 코드 위치: `src/lib/monitoring/errorRateMonitor.ts` |
 | `LOG_LEVEL` | 선택 | ➖ | 로그 상세도 임계값 (`debug`/`info`/`warn`/`error`, 기본 `info`). 이 값보다 낮은 레벨은 출력하지 않는다. 코드 위치: `src/lib/utils/logger.ts` |
 

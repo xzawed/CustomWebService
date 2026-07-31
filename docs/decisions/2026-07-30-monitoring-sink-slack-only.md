@@ -102,16 +102,44 @@ Sentry 관련 env와 config 파일은 코드에 남겨 둔다 — 지우면 나�
 better-sqlite3 백업 오류는 대체로 EACCES·디스크 풀·경로라 시크릿 유출 위험은 낮지만
 표면을 좁게 유지한다.
 
-## 아직 완료되지 않은 것 (#220은 열려 있다)
+## 완료 확인 (2026-07-31, #220 종료)
 
-**이 PR은 코드 배선까지다.** `SLACK_WEBHOOK_URL`이 Railway에 실제로 설정되기 전까지
-sink는 비활성이고 경보는 여전히 유실된다. 남은 완료 조건:
+코드 배선(PR #231) 이후 남아 있던 두 조건을 모두 충족했다.
 
-- [ ] `SLACK_WEBHOOK_URL`을 Railway에 등록 (webhook URL 값이 필요 — 사용자 제공 대기)
-- [ ] **합성 경보를 한 번 발생시켜 실제 도착 확인** — 설정만 하고 끝내지 않는다
+- [x] `SLACK_WEBHOOK_URL`을 Railway에 등록 — xzawed 워크스페이스에 Slack 앱 `xzawed alerts` 생성,
+      전용 채널 **`#alerts`** 신설 후 Incoming Webhook 발급·등록
+- [x] **합성 경보로 실제 도착 확인** — 관리자 엔드포인트를 새로 만들지 않고
+      `SQLITE_BACKUP_DIR=/etc/cws-probe-backups` 프로브로 **실제 백업 실패 경로**를 유발
 
-값을 넣지 않은 상태로 배포해도 안전하다 — `sendSlackAlert`가 no-op이라 동작 변화가 없고,
-로그에는 `SLACK_WEBHOOK_URL 미설정` 경고가 남아 미설정 사실이 드러난다.
+도착한 경보(원문):
+
+```
+🔴 SQLite 백업 실패
+주기 백업이 실패했습니다. 볼륨·디스크·경로를 확인하세요.
+• dir: /etc/cws-probe-backups
+• error: EACCES: permission denied, mkdir '/etc/cws-probe-backups'
+• consecutiveFailures: 1
+환경: production | 2026-07-31T11:37:58.263Z
+```
+
+### 실측으로 확인된 설계 가정
+
+| 가정 | 실측 |
+|---|---|
+| `null → fail` 전이 시 error 경보 1회 | **확인** — 부팅 백업 실패로 1건 도착 |
+| 연속 실패 억제(매 주기 경보 금지) | **확인** — 실패 상태가 지속됐으나 추가 경보 없음 |
+| env 되돌림·재배포로는 **복구 경보를 검증할 수 없다** | **확인** — 프로브 제거 후 백업이 정상 재개됐지만 복구 경보는 오지 않았다. `healthy`가 클로저 로컬이라 새 프로세스에선 `null → true`(첫 성공)이지 `fail → success`(복구)가 아니다 |
+| 알림 실패가 스케줄러를 죽이지 않음 | 이번 검증 범위 밖(전이 매트릭스 6종은 단위 테스트가 고정) |
+
+프로브는 원복했다(`SQLITE_BACKUP_DIR` 삭제 → **수동 재배포**). `variableDelete`는 재배포를 트리거하지
+않는다는 기존 실측이 GraphQL 경로에서도 그대로 재현됐다. 원복 후 부팅 백업 `app-20260731-114008.db`가
+정상 생성되고 `/etc/cws-probe-backups`는 남지 않았다.
+
+### 빠지기 쉬운 함정 — 빈 문자열은 미설정과 같다
+
+검증 전 프로덕션은 **키는 존재하는데 값이 빈 문자열**이었다. `sendSlackAlert`가 `if (!webhookUrl)`로
+판정하므로 크래시 없이 조용히 no-op이 된다. `railway variables`에서 **키 존재만 보면 설정된 것처럼
+보이므로 값 길이를 확인해야 한다.**
 
 ## 이번 범위에서 의도적으로 제외
 

@@ -1,12 +1,16 @@
 # 알림 sink 설정 및 검증 (#220)
 
-> **상태**: 코드 배선 완료(PR #231). **`SLACK_WEBHOOK_URL` 등록과 도착 확인만 남았다.**
-> 배경·결정: [ADR](../decisions/2026-07-30-monitoring-sink-slack-only.md)
+> **상태**: ✅ **완료(2026-07-31).** 코드 배선(PR #231) → `SLACK_WEBHOOK_URL` 등록 → 합성 경보 도착 확인까지 끝났다.
+> 경보는 xzawed 워크스페이스 **`#alerts`** 채널(Slack 앱 `xzawed alerts`)로 간다.
+> 배경·결정·실측: [ADR](../decisions/2026-07-30-monitoring-sink-slack-only.md)
 
 sink는 **Slack 하나로 고정**했다. Sentry는 의도적으로 도입하지 않는다(env·config는 되돌릴 수 있게 보존).
 
-현재 `SLACK_WEBHOOK_URL`이 비어 있어 `sendSlackAlert`는 `logger.warn` 한 줄만 남기고 반환한다 —
-**경보 경로는 살아 있으나 아무 곳에도 도착하지 않는다.**
+아래 절차는 **webhook을 재발급하거나 채널을 옮길 때** 다시 쓰는 문서다.
+
+> ⚠️ **빈 문자열은 미설정과 같다.** `sendSlackAlert`는 `if (!webhookUrl)`로 판정하므로 키만 있고
+> 값이 비면 크래시 없이 조용히 no-op이 된다 — 2026-07-31 이전 프로덕션이 정확히 이 상태였다.
+> 점검할 때 **키 존재가 아니라 값 길이**를 확인할 것.
 
 ---
 
@@ -134,12 +138,32 @@ railway ssh "rm -rf /data/probe"
 
 ---
 
-## 5. 완료 후 갱신할 것
+## 5. 2026-07-31 실행 기록
 
-- [ ] [#220](https://github.com/xzawed/CustomWebService/issues/220) 종료
-- [ ] [CLAUDE.md](../../CLAUDE.md)의 `SENTRY_DSN`/`SLACK_WEBHOOK_URL` 항목에서 "설정 전까지 유실" 문구 갱신
-- [ ] [env-vars.md](../reference/env-vars.md) 모니터링 절의 ⚠️ 경고 갱신
-- [ ] [ADR](../decisions/2026-07-30-monitoring-sink-slack-only.md)의 "아직 완료되지 않은 것" 절에 도착 확인 결과 기록
+위 절차를 그대로 수행해 **A(실패 경보만)로 완료 조건을 충족**했다.
+
+| 시각(UTC) | 단계 |
+|---|---|
+| 11:07 | Slack 앱 `xzawed alerts` 생성 · Incoming Webhooks On · `#alerts` 채널 신설 후 웹훅 발급 |
+| 11:18 | 웹훅 단독 스모크 테스트 — `HTTP 200 / ok`, 메시지 도착 확인 |
+| 11:29 | `SLACK_WEBHOOK_URL` 등록 → 자동 재배포 → 11:34 `SUCCESS` |
+| 11:35 | 프로브 `SQLITE_BACKUP_DIR=/etc/cws-probe-backups` 설정 → 재배포 → 11:37:59 `SUCCESS` |
+| 11:37:58 | 🔴 **SQLite 백업 실패 경보 `#alerts` 도착** (EACCES, `consecutiveFailures: 1`) |
+| 11:38 | 프로브 삭제 → **수동 재배포**(delete는 트리거 안 함) → 11:40:28 `SUCCESS` |
+| 11:40 | 백업 정상 재개(`app-20260731-114008.db`), `/etc/cws-probe-backups` 잔재 없음 |
+
+B(복구 경보)는 건너뛰었다. 대신 **복구 경보가 오지 않는다는 것 자체를 확인**했다 — 재배포로
+`healthy`가 리셋되어 `null → true`(첫 성공)가 되기 때문이며, 이 문서 4절의 제약 설명과 일치한다.
+
+### 걸린 지점 (다음에 반복하지 말 것)
+
+- **Railway CLI가 약 15분간 전 요청 타임아웃**했다. GraphQL 엔드포인트는 같은 시각 0.18초에 200을 반환했으므로
+  API 장애가 아니라 CLI 문제다. 막히면 `backboard.railway.com/graphql/v2`에 직접 `variableUpsert`/
+  `deploymentRedeploy`를 호출해 우회할 수 있다(토큰은 `~/.railway/config.json`).
+- **Git Bash에서 `/etc/...` 같은 값을 인자로 넘기면 MSYS 경로 변환이 `C:/Program Files/Git/etc/...`로 망가뜨린다.**
+  리눅스에서는 상대경로로 해석돼 mkdir이 **성공**하므로 프로브가 조용히 무효가 된다. `MSYS_NO_PATHCONV=1`을 붙일 것.
+- **브라우저 자동화로 이 작업을 하면 스냅샷 파일에 webhook URL이 평문으로 남는다.**
+  `.playwright-mcp/`를 `.gitignore`에 넣어 둔 이유다(2026-07-31 추가).
 
 ---
 
