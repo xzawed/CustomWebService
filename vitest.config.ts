@@ -34,8 +34,6 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
       include: [
-        'src/app/**/callback/route.ts',
-        'src/app/**/login/page.tsx',
         'src/app/layout.tsx',
         // 2026-07-28: 서브도메인 패스스루(C-1) 수정과 함께 집계 대상에 편입.
         // 미포함 시 변경 라인이 SonarCloud new_coverage·codecov/patch에서 0%로 계산된다.
@@ -55,13 +53,29 @@ export default defineConfig({
         'src/app/api/v1/suggest-modification/route.ts',
         // 2026-07-30: #219(추천 쿼터 분리)로 수정하며 편입. 나머지 suggest 라우트는 이미 포함돼 있었다.
         'src/app/api/v1/suggest-preferences/route.ts',
-        'src/app/(auth)/**/page.tsx',
+        // 2026-07-31: 테스트가 이미 있는데 집계에서 빠져 있던 라우트들을 편입한다.
+        // (src/__tests__/api 의 catalog/preview/projects/publish/rollback/slug-check/
+        //  generate-status/site/nextauth 테스트가 이들을 실행하고 있었다)
+        'src/app/api/v1/catalog/**/route.ts',
+        'src/app/api/v1/preview/**/route.ts',
+        'src/app/api/v1/projects/**/route.ts',
+        'src/app/api/v1/generate/status/**/route.ts',
+        'src/app/api/auth/**/route.ts',
+        'src/app/site/**/route.ts',
+        // 2026-07-31: `'src/app/(auth)/**/page.tsx'`는 **매칭 0건이었다**.
+        // picomatch가 `(auth)`를 extglob 그룹으로 해석해 리터럴 디렉터리명과 맞지 않는다
+        // (picomatch 2.3.2·4.0.5 양쪽에서 실측). 문자 클래스로 이스케이프해야 잡힌다.
+        // ⚠️ `'src/app/**/(auth)/**/page.tsx'`로 고치는 것도 여전히 매칭 0건이니 쓰지 말 것.
+        // 이 패턴이 login/signup/forgot-password/reset-password/verify-email 5개를 전부 잡으며,
+        // `(main)` 하위 페이지는 잡지 않는다(의도된 범위).
+        'src/app/[(]auth[)]/**/page.tsx',
         'src/hooks/**',
         'src/lib/**',
         'src/services/**',
         'src/providers/**',
         'src/repositories/**',
         'src/components/**',
+        'src/stores/**',
         'src/types/**',
       ],
       exclude: ['src/test/**', 'src/components/builder/RePromptPanel.tsx'],

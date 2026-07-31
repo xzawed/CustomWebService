@@ -222,12 +222,15 @@ DB 저장 구조 (generated_codes 테이블):
 - **Claude API (Anthropic)** — 기본 Provider
   - 구현: `src/providers/ai/ClaudeProvider.ts`
   - 팩토리: `AiProviderFactory.create()`, `AiProviderFactory.createForTask()`
-  - 태스크별 모델 (팩토리 기본값):
-    - `generation` (코드 생성): **`claude-opus-4-7`**
+  - 태스크별 모델 (팩토리 기본값 — `TASK_DEFAULTS`, `AiProviderFactory.ts:23-26`):
+    - `generation` (코드 생성): **`claude-opus-5`**
     - `suggestion` (slug/추천): **`claude-haiku-4-5`**
-  - `ClaudeProvider` 클래스 자체 기본값(직접 인스턴스화 시): **`claude-sonnet-4-6`** — 일반적으로는 팩토리를 통해 호출되므로 `generation`/`suggestion` 기본값이 우선 적용됨
-  - 허용 모델: `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`
-  - 환경변수 오버라이드: `AI_MODEL_GENERATION` (코드 생성), `AI_MODEL_SUGGESTION` (slug 제안) — 허용 목록 검증 후 적용
+  - `ClaudeProvider` 클래스 자체 기본값(직접 인스턴스화 시): **`claude-sonnet-5`** (`ClaudeProvider.ts:89`) — 일반적으로는 팩토리를 통해 호출되므로 `generation`/`suggestion` 기본값이 우선 적용된다. **추천 라우트에서 `create()`를 쓰면 Haiku가 아니라 이 Sonnet 기본값이 걸려 단가가 뛰므로 `createForTask('suggestion')`를 쓸 것**
+  - 허용 모델 **7종** (`ALLOWED_CLAUDE_MODELS`, `AiProviderFactory.ts:11-19`): `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-sonnet-5`, `claude-opus-4-6`, `claude-opus-4-7`, `claude-opus-4-8`, `claude-opus-5`
+    - **구세대 ID를 목록에서 지우지 말 것** — 목록에 없는 env 값은 조용히 기본값으로 폴백하므로, 지우면 env를 되돌리는 롤백이 무시된다
+  - 환경변수 오버라이드: `AI_MODEL_GENERATION` (코드 생성), `AI_MODEL_SUGGESTION` (slug 제안)
+    - 허용목록 밖 값은 **`logger.warn` 한 줄만 남기고 조용히 `TASK_DEFAULTS`로 폴백**한다(`AiProviderFactory.ts:40-47`). 즉 Railway env만 바꿔서는 적용되지 않으며 허용목록도 함께 고쳐야 한다
+    - 적용 여부는 `GET /api/v1/admin/debug`의 `models.<task>.fellBack`이 `false`인지로 확인한다(`describeTaskModels`, `:68-75`)
 
 ### Provider 인터페이스 (`src/providers/ai/IAiProvider.ts`)
 - `generateCode(prompt)` — 단일 응답 생성

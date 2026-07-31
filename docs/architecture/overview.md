@@ -79,7 +79,7 @@
 
 > **데이터 계층 (2026-06-23 컷오버):** 임베디드 **SQLite**(`better-sqlite3` + `drizzle-orm/better-sqlite3`, WAL 모드).
 > Railway 영속 볼륨(`/data/app.db`)에 단일 파일로 저장하며 **단일 인스턴스** 전제. Supabase·PostgreSQL·RLS는 제거됨.
-> Repository 구현체는 `src/repositories/sqlite/*` 8종이 유일하며, 인터페이스(`src/repositories/interfaces`) seam만 추상화로 남는다.
+> Repository 구현체는 `src/repositories/sqlite/*` **9종**이 유일하며, 인터페이스(`src/repositories/interfaces`) seam만 추상화로 남는다.
 > 타입 매핑(pg→sqlite): uuid→text, jsonb→text(JSON, drizzle 자동 역직렬화), boolean→integer, timestamptz→ISO text.
 >
 > **부팅 시퀀스:** `src/instrumentation.ts` → `bootstrapSqlite(getSqliteDb())` 가 ① 마이그레이션(`drizzle/sqlite`) ② 카탈로그/플래그 시드(`src/data/{apiCatalog,featureFlags}.json`)를 **멱등**으로 실행한다. `seedAdmin`은 제거됨 — 신규 환경은 `/signup`으로 첫 사용자를 생성한다. 컷오버 배경: [decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md)
@@ -154,7 +154,7 @@ src/
 │   └── page.tsx                  # 랜딩 페이지
 │
 ├── __tests__/                    # 통합 테스트
-│   └── api/                      # API Route 통합 테스트 (19파일)
+│   └── api/                      # API Route 통합 테스트 (31파일)
 │       ├── health.test.ts
 │       ├── catalog.test.ts
 │       ├── projects.test.ts
@@ -230,8 +230,8 @@ src/
 │   # — 둘 다 services/ 의 서비스 클래스가 아님
 │
 ├── repositories/                 # Repository Layer (데이터 접근)
-│   ├── interfaces/               # Repository 인터페이스 (IBase + I{User,Project,Catalog,Code,Event,UserApiKey,RateLimit}Repository)
-│   ├── sqlite/                   # ✅ SQLite 구현체 8종 (유일 구현 — better-sqlite3 동기 API)
+│   ├── interfaces/               # Repository 인터페이스 (IBase + I{User,Project,Catalog,Code,Event,UserApiKey,RateLimit,AuthToken,GenerationLock}Repository)
+│   ├── sqlite/                   # ✅ SQLite 구현체 9종 (유일 구현 — better-sqlite3 동기 API)
 │   │   ├── SqliteUserRepository.ts
 │   │   ├── SqliteProjectRepository.ts
 │   │   ├── SqliteCatalogRepository.ts
@@ -239,7 +239,8 @@ src/
 │   │   ├── SqliteEventRepository.ts
 │   │   ├── SqliteUserApiKeyRepository.ts
 │   │   ├── SqliteRateLimitRepository.ts  # 원자적 레이트리밋 (동기 트랜잭션 + UPDATE…WHERE count<limit RETURNING)
-│   │   └── SqliteAuthTokenRepository.ts  # auth_tokens CRUD (email_verify / password_reset)
+│   │   ├── SqliteAuthTokenRepository.ts  # auth_tokens CRUD (email_verify / password_reset)
+│   │   └── SqliteGenerationLockRepository.ts  # generation_locks (중복 생성 차단 DB 락)
 │   ├── utils/                    # 공통 유틸 (parseEndpoints, CATEGORY 상수 등)
 │   └── factory.ts                # createProjectRepository, createCodeRepository 등 팩토리 함수
 │
@@ -259,7 +260,7 @@ src/
 │   │   ├── errors.ts             # isUniqueViolation 등 (SQLITE_CONSTRAINT_UNIQUE / "UNIQUE constraint failed")
 │   │   └── sqlite/
 │   │       ├── connection.ts     # getSqliteDb() — better-sqlite3 핸들 (WAL, SQLITE_PATH 기본 /data/app.db)
-│   │       ├── schema.ts         # drizzle-orm/better-sqlite3 스키마 (테이블 10개 — auth_tokens 추가)
+│   │       ├── schema.ts         # drizzle-orm/better-sqlite3 스키마 (테이블 11개)
 │   │       ├── bootstrap.ts      # bootstrapSqlite() — 마이그레이션(drizzle/sqlite) + seedCatalog (멱등, seedAdmin 제거됨)
 │   │       └── seedCatalog.ts    # 카탈로그/플래그 시드 (src/data/{apiCatalog,featureFlags}.json)
 │   ├── email/                    # 이메일 발송
@@ -292,18 +293,21 @@ src/
 │   │   └── sseWriter.ts           # SSE 스트림 유틸리티
 │   ├── cache/
 │   │   └── proxyCache.ts         # LRU+TTL 인메모리 캐시 (프록시 응답, 최대 500항목)
-│   ├── catalog/                 # API 카탈로그 동작 검증 (2026-06-21 신규)
+│   ├── catalog/                 # API 카탈로그 동작 검증 (4모듈)
 │   │   ├── healthCheck.ts        # DB 기반 라이브 헬스체크 분류 (+ co-located test)
-│   │   └── keyCheck.ts           # 플랫폼 키 검증 (+ co-located test)
+│   │   ├── keyCheck.ts           # 플랫폼 키 검증 (+ co-located test)
+│   │   ├── verifyRunner.ts       # 라이브 검증 오케스트레이터 (verification_status 갱신, admin 트리거)
+│   │   └── activeApiCount.ts     # 활성 API 개수 동적 카운트 (랜딩/카탈로그 마케팅 카피)
 │   ├── constants/
 │   │   └── cdn.ts                # CDN URL 상수 (Tailwind, Pretendard, Font Awesome)
 │   ├── deploy/
 │   │   ├── githubService.ts       # ✅ GitHub REST API 연동
 │   │   └── railwayService.ts      # ✅ Railway GraphQL API 연동
-│   ├── config/
-│   │   ├── features.ts           # 설정 기반 비즈니스 규칙
+│   ├── config/                  # 환경변수 기반 설정 (4모듈)
+│   │   ├── features.ts           # 설정 기반 비즈니스 규칙 (FeatureLimits)
+│   │   ├── generation.ts         # 생성 락 heartbeat/stale 등 파이프라인 설정
 │   │   ├── qc.ts                 # QC 관련 설정
-│   │   └── rateLimit.ts          # Rate limit 설정
+│   │   └── rateLimit.ts          # Rate limit 설정 (proxy/admin/login/site)
 │   ├── events/
 │   │   ├── eventBus.ts           # pub/sub 이벤트 버스 (on/emit, fire-and-forget 에러 격리)
 │   │   └── eventPersister.ts     # registerEventPersister() — 모든 DomainEvent 자동 DB 기록
@@ -312,7 +316,7 @@ src/
 │   │   └── errorRateMonitor.ts   # registerErrorRateMonitor() — 5분 윈도우 CODE_GENERATION_FAILED 임계값 초과 시 Slack 알림
 │   ├── i18n/
 │   │   ├── index.ts              # t(key, params?) 함수 export
-│   │   ├── ko.ts                 # 한국어 메시지 (26개 — 에러·서비스·배포)
+│   │   ├── ko.ts                 # 한국어 메시지 (29개 — 에러·서비스·배포·추천 한도)
 │   │   └── types.ts              # MessageKey 타입 (자동완성 지원)
 │   ├── qc/
 │   │   ├── index.ts              # QC 진입점
@@ -325,10 +329,10 @@ src/
 │       └── logger.ts             # 구조적 로깅
 │
 ├── types/                        # 타입 정의
-│   ├── schemas.ts                # Zod 공용 스키마 (generateSchema, createProjectSchema 등 15개)
+│   ├── schemas.ts                # Zod 공용 스키마 (generateSchema, createProjectSchema, signupSchema 등 17개)
 │   ├── api.ts
 │   ├── project.ts
-│   ├── events.ts                 # DomainEvent 유니온 타입 (17개 이벤트)
+│   ├── events.ts                 # DomainEvent 유니온 타입 (18개 이벤트)
 │   └── qc.ts
 │
 └── templates/                    # 코드 생성 템플릿 (11개)
@@ -461,7 +465,7 @@ export interface ICodeTemplate {
 ## 5. 이벤트 시스템
 
 ```typescript
-// src/types/events.ts — 17개 DomainEvent 유니온 타입
+// src/types/events.ts — 18개 DomainEvent 유니온 타입
 export type DomainEvent =
   | { type: 'USER_SIGNED_UP'; payload: { userId: string } }
   | { type: 'PROJECT_CREATED'; payload: { projectId: string; userId: string; apiCount: number } }
@@ -471,6 +475,7 @@ export type DomainEvent =
   | { type: 'DEPLOYMENT_COMPLETED'; payload: { projectId: string; url: string; platform: string } }
   | { type: 'DEPLOYMENT_FAILED'; payload: { projectId: string; error: string } }
   | { type: 'PROJECT_DELETED'; payload: { deletedProjectId: string } }  // 삭제된 프로젝트는 FK로 못 가리킨다
+  | { type: 'USER_DELETED'; payload: { deletedUserId: string } }  // persist()가 payload.userId를 user_id FK로 추출하므로 deletedUserId 필수
   | { type: 'PROJECT_PUBLISHED'; payload: { projectId: string; userId: string; slug: string } }
   | { type: 'PROJECT_UNPUBLISHED'; payload: { projectId: string; userId: string } }
   | { type: 'API_QUOTA_WARNING'; payload: { service: string; usage: number; limit: number } }
@@ -506,6 +511,7 @@ export function registerEventPersister(): void { ... }
 | 이벤트 | 발행 위치 |
 |--------|----------|
 | `USER_SIGNED_UP` | `authService.signup()` — 회원가입 완료 시 |
+| `USER_DELETED` | `DELETE /api/v1/auth/account` — 계정 삭제 커밋 **이후** (`payload.deletedUserId`) |
 | `PROJECT_CREATED` / `PROJECT_DELETED` / `PROJECT_UNPUBLISHED` | `projectService.ts` |
 | `CODE_GENERATED` | `generationSaver.ts` |
 | `CODE_GENERATION_FAILED` | `generationPipeline.ts` (handlePipelineFailure) |
@@ -533,6 +539,7 @@ eventBus.on((event) => {
 export interface FeatureLimits {
   maxApisPerProject: number;
   maxDailyGenerations: number;
+  maxDailySuggestions: number;        // AI 추천 일일 쿼터 (생성과 분리, 9필드)
   maxProjectsPerUser: number;
   maxRegenerationsPerProject: number;
   maxCodeVersionsPerProject: number;  // 프로젝트당 최대 코드 버전 수
@@ -551,6 +558,7 @@ function env(key: string, defaultValue: number): number {
 const DEFAULT_LIMITS: FeatureLimits = {
   maxApisPerProject: env('MAX_APIS_PER_PROJECT', 5),
   maxDailyGenerations: env('MAX_DAILY_GENERATIONS', 10),
+  maxDailySuggestions: env('MAX_DAILY_SUGGESTIONS', 30),
   maxProjectsPerUser: env('MAX_PROJECTS_PER_USER', 20),
   maxRegenerationsPerProject: env('MAX_REGENERATIONS', 5),
   maxCodeVersionsPerProject: env('MAX_CODE_VERSIONS', 10),
@@ -564,6 +572,7 @@ const PLAN_OVERRIDES: Record<string, Partial<FeatureLimits>> = {
   pro: {
     maxApisPerProject: 10,
     maxDailyGenerations: 50,
+    maxDailySuggestions: 150,
     maxProjectsPerUser: 100,
     maxCodeVersionsPerProject: 50,
     contextMaxLength: 5000,
