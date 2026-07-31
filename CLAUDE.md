@@ -182,7 +182,8 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | better-sqlite3 v13 N-API 프리빌트 전환·빌드 툴체인 제거 ADR (2026-07-28) | [docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md](docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md) |
 | 환경변수 목록 | [docs/reference/env-vars.md](docs/reference/env-vars.md) |
 | 에러 클래스 참조 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
-| 배포/운영 작업 | [docs/guides/deployment.md](docs/guides/deployment.md) |
+| 배포·CI/CD·도메인 | [docs/guides/deployment.md](docs/guides/deployment.md) |
+| **일상 운영·모니터링·백업·장애 대응** | [docs/guides/operations.md](docs/guides/operations.md) |
 | **SQLite 컷오버 + Supabase/Postgres/OAuth 제거 ADR (P8.2, 2026-06-23)** | [docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md) |
 | SQLite 전환 WBS 계획 (Phase 1~8) | [docs/superpowers/plans/2026-06-22-db-removal-sqlite-migration.md](docs/superpowers/plans/2026-06-22-db-removal-sqlite-migration.md) |
 | SQLite 컷오버 런북 | [docs/guides/sqlite-cutover-runbook.md](docs/guides/sqlite-cutover-runbook.md) |
