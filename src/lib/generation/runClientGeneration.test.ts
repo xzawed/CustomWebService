@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { runClientGeneration } from './runClientGeneration';
+import { pollGenerationStatus } from './pollGenerationStatus';
+import type { PollGenerationStatusDeps } from './pollGenerationStatus';
 
 function makeJsonRes(body: unknown, ok = true): Response {
   return {
@@ -30,6 +32,79 @@ function makeStreamRes(chunks: string[]): Response {
       getReader: () => reader,
     },
   } as unknown as Response;
+}
+
+/** 첫 청크 후 hang, 이후 resolve 로 complete 주입 가능한 stream Response. */
+function makeControllableStreamRes(firstChunk: string): {
+  response: Response;
+  resolveSecond: (chunk: string | null) => void;
+  cancel: ReturnType<typeof vi.fn>;
+} {
+  const encode = (t: string): Uint8Array => new TextEncoder().encode(t);
+  let resolveHang:
+    | ((v: { value?: Uint8Array; done: boolean }) => void)
+    | undefined;
+  let readCount = 0;
+  const cancel = vi.fn().mockResolvedValue(undefined);
+  const reader = {
+    read: vi.fn(
+      () =>
+        new Promise<{ value?: Uint8Array; done: boolean }>((resolve) => {
+          readCount += 1;
+          if (readCount === 1) {
+            resolve({ value: encode(firstChunk), done: false });
+          } else if (readCount === 2) {
+            resolveHang = resolve;
+          } else {
+            resolve({ value: undefined, done: true });
+          }
+        }),
+    ),
+    cancel,
+    releaseLock: vi.fn(),
+    closed: Promise.resolve(undefined),
+  };
+  return {
+    response: {
+      ok: true,
+      json: async () => ({}),
+      body: { getReader: () => reader },
+    } as unknown as Response,
+    resolveSecond: (chunk: string | null) => {
+      if (chunk === null) {
+        resolveHang?.({ done: true });
+      } else {
+        resolveHang?.({ value: encode(chunk), done: false });
+      }
+    },
+    cancel,
+  };
+}
+
+type Listener = () => void;
+
+function makeDocument(initial: DocumentVisibilityState = 'hidden') {
+  let visibilityState: DocumentVisibilityState = initial;
+  const listeners = new Set<Listener>();
+  return {
+    get visibilityState() {
+      return visibilityState;
+    },
+    setVisibility(state: DocumentVisibilityState) {
+      visibilityState = state;
+      for (const l of listeners) l();
+    },
+    addEventListener: vi.fn((type: string, listener: EventListener) => {
+      if (type === 'visibilitychange') {
+        listeners.add(listener as Listener);
+      }
+    }),
+    removeEventListener: vi.fn((type: string, listener: EventListener) => {
+      if (type === 'visibilitychange') {
+        listeners.delete(listener as Listener);
+      }
+    }),
+  };
 }
 
 function makeDeps(overrides: Partial<Parameters<typeof runClientGeneration>[1]> = {}) {
@@ -154,7 +229,7 @@ describe('runClientGeneration', () => {
   });
 
   it('injectable deps 생략 시 기본 fetchFn(now/consumeStream/poll) 배선으로 동작', async () => {
-    // characterization: 언바운드 fetch 대신 (input, init) => fetch(...) 래퍼가 기본값.
+    // 언바운드 fetch 대신 (input, init) => fetch(...) 래퍼가 기본값.
     // 전역 fetch만 stub 하고 fetchFn/now/pollGenerationStatusFn/consumeStream 미주입.
     const streamBody =
       'event: progress\ndata: {"progress":40,"message":"생성 중"}\n\n';
@@ -219,5 +294,133 @@ describe('runClientGeneration', () => {
         (c) => c[0] === '/api/v1/generate/status/proj-def',
       ),
     ).toBe(true);
+  });
+
+  it('pollGenerationStatusFn 에 세션 signal 이 주입된다', async () => {
+    const streamBody =
+      'event: progress\ndata: {"progress":10,"message":"x"}\n\n';
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonRes({ data: { id: 'proj-sig' } }))
+      .mockResolvedValueOnce(makeStreamRes([streamBody]));
+
+    let capturedSignal: AbortSignal | undefined;
+    const pollGenerationStatusFn = vi
+      .fn()
+      .mockImplementation(async (_pid: string, pollDeps: PollGenerationStatusDeps) => {
+        capturedSignal = pollDeps.signal;
+        // 즉시 complete — 핸드오프 경로 검증 목적
+        pollDeps.completeGeneration('proj-sig', 1);
+        pollDeps.onCompleted?.();
+      });
+
+    const deps = makeDeps({ fetchFn, pollGenerationStatusFn });
+    await runClientGeneration(input, deps);
+
+    expect(pollGenerationStatusFn).toHaveBeenCalledTimes(1);
+    expect(capturedSignal).toBeInstanceOf(AbortSignal);
+    expect(capturedSignal?.aborted).toBe(false);
+  });
+
+  /**
+   * 회귀: visibility → poll 시작 → 버퍼된 SSE complete 도착 후
+   * 폴링 timeout 이 failGeneration 을 덮어쓰지 않아야 한다.
+   * (보고된 버그: 성공 직후 에러 화면)
+   */
+  it('회귀: visibility 폴링 중 SSE complete → failGeneration 미호출·complete 1회', async () => {
+    const doc = makeDocument('hidden');
+    const stream = makeControllableStreamRes(
+      'event: progress\ndata: {"progress":20,"message":"생성 중"}\n\n',
+    );
+
+    // ⚠️ 이 순서는 **목(mock)에서만 성립한다.** 실제 ReadableStream은 cancel() 시 대기 중인
+    //    read()를 {done:true}로 끝내므로, visibility가 cancel한 뒤에 버퍼된 complete를
+    //    처리하는 일은 브라우저에서 일어나지 않는다(2026-08-01 런타임 프로브로 확인).
+    //    따라서 이 테스트는 "레이스가 고쳐졌다"의 증거가 아니라,
+    //    **"abort 후에는 terminal 콜백이 절대 나가지 않는다"는 방어적 계약의 고정**이다.
+    // 첫 status fetch 는 abort 될 때까지 hang
+    let pollFetchStarted = 0;
+    const statusFetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      pollFetchStarted += 1;
+      return new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        if (signal?.aborted) {
+          reject(new DOMException('The operation was aborted.', 'AbortError'));
+          return;
+        }
+        signal?.addEventListener(
+          'abort',
+          () => {
+            reject(new DOMException('The operation was aborted.', 'AbortError'));
+          },
+          { once: true },
+        );
+      });
+    });
+
+    let pollFinished: Promise<void> | undefined;
+    const pollGenerationStatusFn = vi
+      .fn()
+      .mockImplementation((projectId: string, pollDeps: PollGenerationStatusDeps) => {
+        // 실제 pollGenerationStatus (signal 가드 포함) — fire-and-forget 관찰용
+        pollFinished = pollGenerationStatus(projectId, {
+          ...pollDeps,
+          fetchFn: statusFetch as typeof fetch,
+          delay: vi.fn().mockResolvedValue(undefined),
+          maxAttempts: 5,
+        });
+        return pollFinished;
+      });
+
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonRes({ data: { id: 'proj-race' } }))
+      .mockResolvedValueOnce(stream.response);
+
+    const completeGeneration = vi.fn();
+    const failGeneration = vi.fn();
+    const onCompleted = vi.fn();
+    const updateProgress = vi.fn();
+
+    const pending = runClientGeneration(input, {
+      startGeneration: vi.fn(),
+      updateProgress,
+      completeGeneration,
+      failGeneration,
+      setGeneratingProjectId: vi.fn(),
+      onCompleted,
+      now: () => 1_700_000_000_000,
+      fetchFn,
+      pollGenerationStatusFn,
+      documentRef: doc,
+    });
+
+    // SSE progress 수신 대기
+    await vi.waitFor(() => {
+      expect(updateProgress).toHaveBeenCalledWith(20, '생성 중');
+    });
+
+    // 탭 복귀 → poll 시작 (fire-and-forget)
+    doc.setVisibility('visible');
+
+    await vi.waitFor(() => {
+      expect(pollGenerationStatusFn).toHaveBeenCalledTimes(1);
+      expect(pollFetchStarted).toBeGreaterThanOrEqual(1);
+    });
+
+    // 폴링이 in-flight 인 상태에서 버퍼된 SSE complete 도착
+    stream.resolveSecond(
+      'event: complete\ndata: {"projectId":"proj-race","version":4}\n\n',
+    );
+
+    await pending;
+    // 폴링이 abort 로 조용히 끝날 때까지 대기 (timeout fail 여부 판정)
+    await pollFinished;
+
+    expect(completeGeneration).toHaveBeenCalledTimes(1);
+    expect(completeGeneration).toHaveBeenCalledWith('proj-race', 4);
+    expect(onCompleted).toHaveBeenCalledTimes(1);
+    // 핵심 회귀: 폴링이 abort 된 뒤 failGeneration 을 호출하면 안 됨
+    expect(failGeneration).not.toHaveBeenCalled();
   });
 });

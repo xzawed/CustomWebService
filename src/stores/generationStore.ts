@@ -35,16 +35,23 @@ export const useGenerationStore = create<GenerationState>((set) => ({
   // ── 터미널 래치 ───────────────────────────────────────────────────────────
   // 아래 셋은 `generating`일 때만 상태를 바꾼다. **먼저 도착한 종료가 이긴다.**
   //
-  // 이유(2026-07-31 발견, 실제 재현 가능한 버그였다): 생성은 SSE + 폴링 이중 경로로 돈다.
-  // 탭 복귀 시 `visibilitychange`가 `void pollForCompletion(...)`으로 폴링을 fire-and-forget
-  // 시작하는데 `pollGenerationStatus`에는 abort가 없다. 페이지의 `generationCompleted`·
-  // `switchedToPolling` 플래그는 **두 번째 폴링 시작만 막을 뿐 이미 도는 폴링을 멈추지 못한다.**
-  // 그래서 SSE가 complete를 준 뒤에도 살아 있는 폴링이 타임아웃·tracker TTL 만료로
-  // `failGeneration`을 부르면, 가드가 없을 때 **성공이 실패로 뒤집혀** 사용자가 성공 직후
-  // 에러 화면을 본다(`pollGenerationStatus`에는 failGeneration 호출부가 5곳이다).
+  // 생성은 SSE + 폴링 이중 경로로 돌고, 두 경로가 서로 다른 종료를 보고할 수 있다.
+  // 가드가 없으면 늦게 도착한 쪽이 먼저 확정된 결과를 덮어써 **성공이 실패로 뒤집힌다.**
   //
-  // 이 래치는 안전벨트이고 근본 해결은 폴링 취소(단일 terminal owner)다.
-  // 근본 해결 전까지 이 가드를 제거하지 말 것.
+  // ⚠️ **아래 두 이유 때문에 이 가드는 계속 필요하다. 지우지 말 것.**
+  // (2026-08-01 적대적 검증 결과 — 당초 적었던 "SSE complete 직후 살아 있는 폴링" 시나리오는
+  //  실제로는 도달 불가로 밝혀졌다. `reader.cancel()`이 대기 중인 read를 `{done:true}`로
+  //  끝내므로 취소 뒤에 버퍼된 complete를 처리할 수 없다. 그 서술은 틀렸으니 근거로 삼지 말 것.)
+  //
+  // 1. **cross-run 오염** — `AbortController`가 `runClientGeneration` 호출 로컬이라,
+  //    핸드오프된 폴러는 함수가 반환한 뒤에도 최대 5분 더 살아 있고 이를 끊을 수단이 없다.
+  //    사용자가 '이전'을 눌러 다시 생성하면 `startGeneration`이 래치를 무조건 재개방하므로,
+  //    **이전 실행의 폴러가 새 실행의 상태에 써 넣을 수 있다.**
+  // 2. **재생성 경로(`RePromptPanel`)는 이 스토어를 쓰지 않는다** — 로컬 `useState`라
+  //    이 안전벨트가 적용되지 않는다. 그쪽은 아직 보호가 없다.
+  //
+  // 근본 해결은 컨트롤러를 호출 단위가 아니라 **생성 세션 단위**로 올려
+  // 새 `startGeneration`이 직전 세션을 끊게 하는 것이다(WBS E3 후속).
   updateProgress: (progress, currentStep) =>
     set((s) => (s.status === 'generating' ? { progress, currentStep } : s)),
 
