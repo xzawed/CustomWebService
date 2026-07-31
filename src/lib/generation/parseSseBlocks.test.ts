@@ -70,4 +70,36 @@ describe('appendAndParseSse', () => {
     const { events } = appendAndParseSse('', 'data: {"x":1}\n\n');
     expect(events).toEqual([{ type: 'message', data: { x: 1 } }]);
   });
+
+  it('공백·빈 블록만 있으면 이벤트 없이 buffer만 갱신', () => {
+    // split 후 쓸 만한 eventBlock 이 없는 입력 (trim 빈 블록 스킵 분기)
+    const { buffer, events } = appendAndParseSse('', '\n\n   \n\n\n\n');
+    expect(events).toEqual([]);
+    // 마지막 incomplete 조각(또는 빈 문자열)만 buffer
+    expect(typeof buffer).toBe('string');
+  });
+
+  it('event: 없고 data: 만 있으면 type message, event: 만 있으면 스킵', () => {
+    const chunk =
+      'data: {"only":"data"}\n\n' +
+      'event: progress\n\n' +
+      'event: progress\ndata: {"progress":9}\n\n';
+    const { events } = appendAndParseSse('', chunk);
+    expect(events).toEqual([
+      { type: 'message', data: { only: 'data' } },
+      { type: 'progress', data: { progress: 9 } },
+    ]);
+  });
+
+  it('event:/data: 가 아닌 줄은 무시하고 data 파싱은 유지', () => {
+    // line.startsWith('event: ') 와 'data: ' 양쪽 false 분기
+    const chunk =
+      'id: 42\n' +
+      ':comment\n' +
+      'event: progress\n' +
+      'retry: 1000\n' +
+      'data: {"progress":3}\n\n';
+    const { events } = appendAndParseSse('', chunk);
+    expect(events).toEqual([{ type: 'progress', data: { progress: 3 } }]);
+  });
 });

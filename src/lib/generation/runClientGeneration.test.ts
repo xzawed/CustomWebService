@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { runClientGeneration } from './runClientGeneration';
 
 function makeJsonRes(body: unknown, ok = true): Response {
@@ -60,6 +60,10 @@ const input = {
 describe('runClientGeneration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('create 실패 → failGeneration, generate 미호출', async () => {
@@ -147,5 +151,73 @@ describe('runClientGeneration', () => {
 
     expect(deps.failGeneration).toHaveBeenCalledWith('QC 실패');
     expect(deps.onCompleted).not.toHaveBeenCalled();
+  });
+
+  it('injectable deps 생략 시 기본 fetchFn(now/consumeStream/poll) 배선으로 동작', async () => {
+    // characterization: 언바운드 fetch 대신 (input, init) => fetch(...) 래퍼가 기본값.
+    // 전역 fetch만 stub 하고 fetchFn/now/pollGenerationStatusFn/consumeStream 미주입.
+    const streamBody =
+      'event: progress\ndata: {"progress":40,"message":"생성 중"}\n\n';
+    const fetchMock = vi
+      .fn()
+      // 1) 프로젝트 생성
+      .mockResolvedValueOnce(makeJsonRes({ data: { id: 'proj-def' } }))
+      // 2) generate SSE — complete 없이 종료 → 기본 pollForCompletion 경로
+      .mockResolvedValueOnce(makeStreamRes([streamBody]))
+      // 3) 기본 pollGenerationStatus → 전역 fetch 로 status 조회
+      .mockResolvedValueOnce(
+        makeJsonRes({
+          data: {
+            status: 'completed',
+            result: { projectId: 'proj-def', version: 7 },
+          },
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    // makeDeps 의 now/fetchFn 을 쓰지 않는다 — 기본 파라미터 경로 검증
+    const startGeneration = vi.fn();
+    const updateProgress = vi.fn();
+    const completeGeneration = vi.fn();
+    const failGeneration = vi.fn();
+    const setGeneratingProjectId = vi.fn();
+    const onCompleted = vi.fn();
+
+    await runClientGeneration(input, {
+      startGeneration,
+      updateProgress,
+      completeGeneration,
+      failGeneration,
+      setGeneratingProjectId,
+      onCompleted,
+      documentRef: {
+        visibilityState: 'visible' as DocumentVisibilityState,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
+    });
+
+    // 기본 fetchFn 이 global.fetch 를 (input, init) 형태로 호출
+    expect(fetchMock).toHaveBeenCalled();
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/projects');
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/v1/generate');
+
+    const createBody = JSON.parse(
+      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+    ) as { name: string };
+    // 기본 now = () => Date.now()
+    expect(createBody.name).toMatch(/^프로젝트-\d+$/);
+
+    // stream_ended → 기본 pollForCompletion → pollGenerationStatus(fn 기본값)
+    await vi.waitFor(() => {
+      expect(completeGeneration).toHaveBeenCalledWith('proj-def', 7);
+    });
+    expect(onCompleted).toHaveBeenCalledTimes(1);
+    expect(failGeneration).not.toHaveBeenCalled();
+    expect(
+      fetchMock.mock.calls.some(
+        (c) => c[0] === '/api/v1/generate/status/proj-def',
+      ),
+    ).toBe(true);
   });
 });

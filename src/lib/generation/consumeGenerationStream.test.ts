@@ -246,4 +246,99 @@ describe('consumeGenerationStream', () => {
     await pending;
     expect(deps.pollForCompletion).toHaveBeenCalledTimes(1);
   });
+
+  it('visibility 전환 후 스트림 done → poll 추가 없음 (already-switched 종료)', async () => {
+    // characterization: 핸들러가 poll 1회 후, 루프가 done 으로 빠져도 두 번째 poll 없음
+    const doc = makeDocument('hidden');
+    let resolveHang: ((v: { value?: Uint8Array; done: boolean }) => void) | undefined;
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    let n = 0;
+    const reader = {
+      read: vi.fn(
+        () =>
+          new Promise<{ value?: Uint8Array; done: boolean }>((resolve) => {
+            n += 1;
+            if (n === 1) {
+              resolve({
+                value: encode('event: progress\ndata: {"progress":15,"message":"mid"}\n\n'),
+                done: false,
+              });
+            } else {
+              resolveHang = resolve;
+            }
+          }),
+      ),
+      cancel,
+      releaseLock: vi.fn(),
+      closed: Promise.resolve(undefined),
+    } as unknown as ReadableStreamDefaultReader<Uint8Array> & {
+      cancel: ReturnType<typeof vi.fn>;
+    };
+
+    const deps = makeDeps({ documentRef: doc });
+    const pending = consumeGenerationStream(reader, 'p-done-after', deps);
+
+    await vi.waitFor(() => {
+      expect(deps.updateProgress).toHaveBeenCalledWith(15, 'mid');
+    });
+
+    doc.setVisibility('visible');
+    expect(deps.pollForCompletion).toHaveBeenCalledTimes(1);
+    expect(cancel).toHaveBeenCalled();
+
+    // 루프가 정상 종료(done) 하도록 — catch 가 아닌 try 경로의 already-switched return
+    resolveHang?.({ done: true });
+    const result = await pending;
+
+    expect(result).toEqual({ kind: 'switched_to_polling', reason: 'visibility' });
+    expect(deps.pollForCompletion).toHaveBeenCalledTimes(1);
+    expect(deps.completeGeneration).not.toHaveBeenCalled();
+  });
+
+  it('visibility 전환 후 reader reject → poll 추가 없음 (already-switched catch)', async () => {
+    // characterization: 전환 후 스트림 에러는 재폴링하지 않고 기존 pollReason 유지
+    const doc = makeDocument('hidden');
+    let rejectHang: ((err: Error) => void) | undefined;
+    const cancel = vi.fn().mockResolvedValue(undefined);
+    let n = 0;
+    const reader = {
+      read: vi.fn(
+        () =>
+          new Promise<{ value?: Uint8Array; done: boolean }>((resolve, reject) => {
+            n += 1;
+            if (n === 1) {
+              resolve({
+                value: encode('event: progress\ndata: {"progress":5,"message":"go"}\n\n'),
+                done: false,
+              });
+            } else {
+              rejectHang = reject;
+            }
+          }),
+      ),
+      cancel,
+      releaseLock: vi.fn(),
+      closed: Promise.resolve(undefined),
+    } as unknown as ReadableStreamDefaultReader<Uint8Array> & {
+      cancel: ReturnType<typeof vi.fn>;
+    };
+
+    const deps = makeDeps({ documentRef: doc });
+    const pending = consumeGenerationStream(reader, 'p-reject-after', deps);
+
+    await vi.waitFor(() => {
+      expect(deps.updateProgress).toHaveBeenCalledWith(5, 'go');
+    });
+
+    doc.setVisibility('visible');
+    expect(deps.pollForCompletion).toHaveBeenCalledTimes(1);
+
+    rejectHang?.(new Error('stream aborted after visibility'));
+    const result = await pending;
+
+    expect(result).toEqual({ kind: 'switched_to_polling', reason: 'visibility' });
+    // 불변조건: already-switched catch 는 두 번째 poll 을 시작하지 않는다
+    expect(deps.pollForCompletion).toHaveBeenCalledTimes(1);
+    expect(deps.completeGeneration).not.toHaveBeenCalled();
+  });
 });
