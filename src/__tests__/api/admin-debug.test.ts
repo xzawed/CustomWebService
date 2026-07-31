@@ -110,6 +110,62 @@ describe('GET /api/v1/admin/debug', () => {
     });
   });
 
+  // RESEND_API_KEY가 없으면 emailService가 조용히 no-op이 되고, 이메일 인증이 영원히
+  // 완료되지 않아 assertEmailVerified()가 생성·배포를 403으로 막는다 = 신규 사용자가 제품을
+  // 못 쓴다. 그런데 그 상태를 밖에서 볼 방법이 없었다.
+  describe('이메일 발송 설정 진단', () => {
+    it('설정돼 있으면 configured=true와 발신 도메인을 반환한다', async () => {
+      process.env.RESEND_API_KEY = 're_test_key_value';
+      process.env.EMAIL_FROM = 'noreply@xzawed.xyz';
+
+      const { GET } = await import('@/app/api/v1/admin/debug/route');
+      const body = (await (await GET(makeRequest())).json()) as {
+        data: { email: { configured: boolean; fromSet: boolean; fromDomain: string | null } };
+      };
+
+      expect(body.data.email.configured).toBe(true);
+      expect(body.data.email.fromSet).toBe(true);
+      expect(body.data.email.fromDomain).toBe('xzawed.xyz');
+    });
+
+    it('API 키 값 자체는 절대 응답에 담기지 않는다', async () => {
+      process.env.RESEND_API_KEY = 're_super_secret_do_not_leak';
+      process.env.EMAIL_FROM = 'noreply@xzawed.xyz';
+
+      const { GET } = await import('@/app/api/v1/admin/debug/route');
+      const raw = await (await GET(makeRequest())).text();
+
+      expect(raw).not.toContain('re_super_secret_do_not_leak');
+    });
+
+    it('미설정이면 configured=false로 드러난다 — 이메일이 조용히 죽은 상태를 보이게 한다', async () => {
+      delete process.env.RESEND_API_KEY;
+      delete process.env.EMAIL_FROM;
+
+      const { GET } = await import('@/app/api/v1/admin/debug/route');
+      const body = (await (await GET(makeRequest())).json()) as {
+        data: { email: { configured: boolean; fromSet: boolean; fromDomain: string | null } };
+      };
+
+      expect(body.data.email.configured).toBe(false);
+      expect(body.data.email.fromSet).toBe(false);
+      expect(body.data.email.fromDomain).toBeNull();
+    });
+
+    it('EMAIL_FROM이 빈 문자열이면 fromSet=false — Resend가 발송을 거부하므로 미설정과 같다', async () => {
+      process.env.RESEND_API_KEY = 're_test_key_value';
+      process.env.EMAIL_FROM = '';
+
+      const { GET } = await import('@/app/api/v1/admin/debug/route');
+      const body = (await (await GET(makeRequest())).json()) as {
+        data: { email: { configured: boolean; fromSet: boolean } };
+      };
+
+      expect(body.data.email.configured).toBe(true);
+      expect(body.data.email.fromSet).toBe(false);
+    });
+  });
+
   it('모듈 로드 실패 시 FAIL: 접두사 문자열을 반환한다', async () => {
     requireMock.mockImplementation((id: string) => {
       if (id === 'playwright-core') throw new Error('Cannot find module');
