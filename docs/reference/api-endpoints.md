@@ -864,9 +864,28 @@ API 키 삭제
 
 > **보안:** SSRF 방지를 위해 등록된 `baseUrl` 범위 내에서만 요청 허용. 사설 IP 및 루프백 주소 차단.
 
-**Auth required**: Yes (`getAuthUser()` — 미인증 시 401 반환)
+**Auth required**: **모드에 따라 다르다.** 인가 판정은 `resolveProxyContext()`(`src/lib/proxy/resolveProxyContext.ts`) 단일 진입점에 있다.
 
-**Rate Limit**: 사용자당 분당 60회 (인메모리, 초과 시 429)
+| 모드 | 판정 조건 | 인증 | 키 주입 |
+|------|----------|------|---------|
+| **site** (게시 사이트) | 요청 Host가 게시된 서브도메인(`slug.xzawed.xyz`)으로 해석됨 | **익명 허용** — 방문자는 로그인하지 않는다 | **프로젝트 오너의 개인 키**를 서버가 주입해 업스트림 호출 |
+| **app** (대시보드·미리보기) | 그 외 (apex 도메인) | 세션 필수(`getAuthUser()`, 미인증 401) + **소유권 강제**(`assertOwner`) | 요청자 본인 키 |
+
+> **site 모드에서 Host가 프로젝트를 확정하면 클라이언트가 보낸 `projectId`는 무시된다.**
+> 조회 실패는 404로 fail-closed. 익명 요청이 오너의 키로 업스트림을 호출하므로,
+> 캐시 키에 키 신원이 반드시 들어가야 한다(아래 참조).
+> 배경: [게시 사이트 프록시 인가 ADR](../decisions/2026-07-28-published-site-proxy-authz.md)
+
+**Rate Limit**: 모드별로 다르다 (`src/lib/config/rateLimit.ts`, 분기는 `proxy/route.ts`).
+
+| 모드 | 한도 | 비고 |
+|------|------|------|
+| app | 사용자당 분당 60회 | 인메모리, 초과 시 429 |
+| site | **방문자 IP당 분당 20회** + **프로젝트 전역 분당 120회** | 프로젝트 한도가 분산 IP로도 우회되지 않는 실질 상한. 도달 시 버킷당 윈도 1회 `logger.warn`. 사용량은 `GET /api/v1/admin/site-proxy-stats`로 확인 |
+
+> 인메모리라 재시작 시 초기화되며 단일 인스턴스를 전제한다.
+> 기본값 20/120은 실사용 데이터 없이 정한 값이며, 조정 기준표는
+> [오남용 모니터링 ADR](../decisions/2026-07-29-site-proxy-abuse-monitoring.md)에 고정돼 있다.
 
 **응답 캐시 (서버사이드)**:
 특정 API에 `cache_ttl_seconds`가 설정된 경우 GET 응답이 서버 메모리에 캐시됩니다.
@@ -879,7 +898,18 @@ API 키 삭제
 | `Cache-Control` | `no-store` | 캐시 미사용 |
 
 > POST 요청, 4xx/5xx 응답, `cache_ttl_seconds=null` API는 캐시하지 않습니다.
-> 캐시 키: `apiId:proxyPath:sortedParams` (서버 주입 인증 파라미터 제외)
+>
+> **캐시 키: `apiId:proxyPath:sortedParams:keyIdentity`** — 네 번째 인자는 `buildCacheKey()`에서
+> **선택이 아니라 필수**다(`src/lib/cache/proxyCache.ts`). 서버 주입 인증 파라미터는 키에서 제외한다.
+>
+> `keyIdentity`는 실제로 주입된 키의 `keyFingerprint()`(sha256 앞 16자)이고, 주입이 없으면
+> `NO_KEY_IDENTITY`(`'none'`)다. **원문 키를 넣지 않는다** — 캐시 키는 로그·디버깅에 노출될 수 있다.
+>
+> ⚠️ **이 인자를 빼면 교차 테넌트 유출이 돌아온다.** site 모드가 익명 방문자 요청을 오너의
+> 개인 키로 호출하므로, 키가 다르면 캐시 항목도 달라야 한다. 플랫폼 키에도 지문을 쓰며
+> (동작 동일 + 키 교체 시 자동 무효화), 응답 본문은 여전히 메모리에 평문이므로 민감 데이터 API에
+> `cache_ttl_seconds`를 부여할 때는 별도 검토가 필요하다.
+> 배경: [프록시 캐시 키 신원 ADR](../decisions/2026-07-29-proxy-cache-key-identity.md)
 
 **Query Parameters:**
 | 파라미터 | 타입 | 필수 | 설명 |

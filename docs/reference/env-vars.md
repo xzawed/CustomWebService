@@ -82,11 +82,40 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 
 플랫폼 개발자가 직접 발급·등록하는 API 키. 사용자는 별도 등록 없이 사용 가능.
 
-| 변수 | 필수 | Railway | 설명 |
-|------|------|---------|------|
-| `DATA_GO_KR_API_KEY` | 선택 | ❌ | 한국 공공데이터 포털(data.go.kr) API 키. 공휴일 정보·기상청 단기/중기예보·아파트 실거래가 공유 사용. [data.go.kr](https://data.go.kr) 가입 후 각 API 활용신청(공휴일은 자동승인, 나머지 1~3일). 개발계정 10,000건/일. |
-| `KAKAO_REST_API_KEY` | 선택 | ❌ | 카카오 REST API 키. 카카오 로컬(지도·장소검색)·카카오 검색 공유 사용. [developers.kakao.com](https://developers.kakao.com) 앱 생성 후 REST API 키 발급. 서버사이드 단일키 패턴 공식 지원. 로컬 100,000건/일, 검색 50,000건/일. |
-| `UNSPLASH_ACCESS_KEY` | 선택 | ❌ | Unsplash 사진 API 접근 키. [unsplash.com/developers](https://unsplash.com/developers) 앱 등록 후 발급. **Demo: 50건/시간 → Production 심사 후 1,000건/시간.** Unsplash 공식 단일키 프록시 패턴 권장. **사진가 Attribution(이름+링크) 자동 삽입 구현 필수.** |
+> ⚠️ **변수명은 이 문서가 아니라 카탈로그가 정한다.** 코드에는 개별 키 이름이 하드코딩돼 있지 않다.
+> 프록시(`src/app/api/v1/proxy/route.ts`)와 `admin/keys-verify`는 `api_catalog` 행의
+> **`auth_config.env_var` 값을 그대로 `process.env`에서 읽는다.** 따라서 **다른 이름으로 등록하면
+> 조용히 키 없이 호출되어 401**이 난다.
+>
+> 2026-07-31 이전 이 표는 `DATA_GO_KR_API_KEY`·`KAKAO_REST_API_KEY`·`UNSPLASH_ACCESS_KEY`를
+> 안내했으나 **이 세 이름은 코드·카탈로그 어디에서도 쓰이지 않는다**(전체 grep 0건).
+> 그대로 Railway에 넣으면 동작하지 않는다.
+
+**현재 등록해야 할 실제 이름을 확인하는 법** (하드코딩된 목록을 믿지 말 것):
+
+```bash
+node -e "const c=require('./src/data/apiCatalog.json');
+for (const r of c) if (r.auth_config?.env_var)
+  console.log(r.auth_config.env_var, '->', r.name, r.is_active ? '(활성)' : '(비활성)')"
+```
+
+배포 런타임에서는 `GET /api/v1/admin/keys-verify`(ADMIN_API_KEY)로 **실제 유효성**까지 확인한다.
+
+2026-07-31 기준 `env_var`는 **24종**이며 전부 `API_KEY_*` 형식이다. 주요 항목:
+
+| 변수 | Railway | 대상 API |
+|------|---------|----------|
+| `API_KEY_NASA` | ✅ (`DEMO_KEY`) | NASA 오늘의 천문 사진 — **활성 API 중 유일한 키 의존 항목** |
+| `API_KEY_15B51435` | ❌ | 공휴일 정보 (한국천문연구원) · data.go.kr |
+| `API_KEY_7CB8F428` / `API_KEY_00412C2B` | ❌ | 기상청 단기예보 / 중기예보 · data.go.kr |
+| `API_KEY_BDA9BE95` / `API_KEY_MOLIT` | ❌ | 아파트 실거래가 / 전월세 · data.go.kr |
+| `API_KEY_F1EC6F97` | ❌ | 카카오 로컬·카카오 검색 (2개 API가 **한 변수를 공유**) |
+| `API_KEY_UNSPLASH` | ❌ | Unsplash — Demo 50건/시간, Production 심사 후 1,000건/시간. **사진가 Attribution 자동 삽입 필수** |
+| 그 외 17종 | ❌ | OpenWeatherMap·TMDB·RAWG·TourAPI·NEIS·ECOS·HIRA·KOPIS·MFDS·TAGO·서울시 3종 등 |
+
+> **prefix가 필요한 API는 raw 값으로 넣는다.** 카카오(`KakaoAK `)·Unsplash(`Client-ID `)의 prefix는
+> 프록시의 `resolveApiKey`가 `auth_config.prefix ?? header_prefix`로 자동 적용하며,
+> 값에 이미 prefix가 있으면 `startsWith` 가드로 이중 적용을 막는다. 수동으로 붙이지 말 것.
 
 > **Open-Meteo** (날씨 API, UUID: `a3f8d2e1-7c4b-4a9f-b6e5-1d2c3f4e5a6b`)는 키 불필요 — 환경변수 등록 없이 즉시 사용 가능. 단, 비상업적 전용(CC BY 4.0): 플랫폼에 광고·구독 없을 때만 사용 가능.
 
