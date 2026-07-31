@@ -41,7 +41,7 @@
 | ID | 작업 | 크기 |
 |----|------|------|
 | **B1** | **`AUTH_URL=https://xzawed.xyz` Railway 등록.** 현재 미설정이라 `callback-url`이 `0.0.0.0:8080`이다. `AUTH_TRUST_HOST=true`라 로그인은 동작해 영향은 낮지만, **`env-vars.md`에 행 자체가 없어** 문서 추가도 함께 필요 | S |
-| **B2** | **`RESEND_API_KEY`·`EMAIL_FROM` 실제 설정 여부 확인.** 미설정이면 인증 메일이 no-op → `assertEmailVerified()`가 generate·regenerate·deploy를 403으로 막아 **신규 사용자가 제품을 아예 못 쓴다.** → **2026-07-31에 관측 수단을 만들었다**: `GET /api/v1/admin/debug`의 `email.configured`/`fromSet`/`fromDomain`(값은 미노출). 배포 후 이 엔드포인트로 확인하면 되고 Railway 콘솔이 더 이상 필요 없다 | S |
+| ~~**B2**~~ | ~~`RESEND_API_KEY`·`EMAIL_FROM` 설정 여부 확인~~ → ✅ **해결(2026-07-31)**. 관측 수단(`GET /api/v1/admin/debug`의 `email.*`)을 만들어 프로덕션에서 확인한 결과 **`configured: true, fromSet: true, fromDomain: "xzawed.xyz"`** — 이메일은 정상 동작 중이고 우려했던 "신규 사용자가 제품을 못 쓰는 상태"는 아니다. 앞으로 이 항목은 Railway 콘솔 없이 엔드포인트로 상시 확인 가능 | — |
 | B3 | 키 의존 API **24개 재활성화** (카탈로그 61행 중 활성 36 / 비활성 25) | M |
 | B4 | 프록시 키 prefix **실키 검증**(`needsPrefixFix`) — 코드는 완료, 실키로 확인된 적 없음 | S |
 | B5 | Unsplash Production 심사 (Demo는 50건/시간) | S |
@@ -202,13 +202,18 @@ generate 경로(`RateLimitService.decrementDailyLimit`)는 `logger.warn`을 남�
 
 ## 권장 착수 순서
 
-지금 바로 할 수 있고 효과가 큰 순. (C1·F7은 재검토로 종결됐다 — 위 참조)
+지금 바로 할 수 있고 효과가 큰 순. (B2는 해결, C1·F7은 재검토로 종결 — 위 참조)
 
-1. **B2** — 이메일 env 확인. 미설정이면 신규 사용자가 제품을 못 쓰는 상태다 (S)
-2. **A1** — 외부 배포 스택 존폐 결정. 미루면 유지보수 비용만 계속 든다 (결정)
+1. **A1** — 외부 배포 스택 존폐 결정. 미루면 유지보수 비용만 계속 든다 (**사용자 결정 필요**)
+2. **E3 P1~P3** — 빌더 추출. P0(스토어 래치)는 완료. 최악의 CRITICAL(복잡도 48)과
+   최대 테스트 공백이 같은 작업이고, P3에서 폴링 취소로 이중 경로를 근본 해결한다 (L)
 3. **C2** — 오프-볼륨 DR. C1 재검토 결과 **이것이 실질 잔여 DR 위험**으로 확인됐다 (M, 비용 결정 필요)
 4. **D-a** — `operations.md` 재작성. 다음 작업자의 오독을 막는다 (M)
-5. **E6 → E3** — E2E 확장 후 builder 추출. 구조적 사각지대를 메운다 (L)
+5. **E6** — E2E 확장. 구조적 사각지대의 유일한 방어선 (L)
+
+> **관측 가능성이 좋아졌다.** `GET /api/v1/admin/debug` 하나로 모델 폴백(`models.*.fellBack`)과
+> 이메일 설정(`email.*`)을 Railway 콘솔 없이 확인할 수 있다. 로컬 `.env.local`의 `ADMIN_API_KEY`가
+> 프로덕션에도 통한다(2026-07-31 확인). 진단할 게 생기면 이 엔드포인트를 먼저 볼 것.
 
 ---
 
