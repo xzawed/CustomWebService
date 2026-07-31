@@ -373,7 +373,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - **temperature deprecated (Claude 4.x)**: Claude 4.x 모델(`claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`)은 `temperature` 파라미터를 지원하지 않음. ClaudeProvider에서 완전히 제거됨 (Extended Thinking 포함). `IAiPrompt.temperature` 필드는 legacy 호환용으로 유지하나 실제 API 호출에 사용하지 않음
 - **인메모리 rate limit 한계**: proxy의 Map 기반 리밋은 서버 재시작 시 초기화됨 (분당 카운터라 보안 영향 낮음). Railway 단일 인스턴스 전제 — 멀티 인스턴스 전환 시 Redis 등 외부 저장소 필요 (generationTracker와 동일 제약)
 - **이 서비스의 WAL은 캐시가 아니라 데이터 본체다 (복구 시 치명)**: 장기 실행 프로세스가 거의 체크포인트하지 않아 **`/data/app.db`는 4096B·테이블 0개**이고 실데이터는 전부 `app.db-wal`(1.3MB)에 있다(2026-07-30 프로덕션 실측). ① **WAL만 지우면 DB 전체가 사라진다.** ② **백업본으로 app.db만 덮어쓰고 WAL을 남기면 그 WAL이 복구본 위로 재생되어 복구가 조용히 무효화되고 `integrity_check`는 여전히 `ok`를 반환한다**(실측). app.db 교체와 WAL/SHM 제거는 **반드시 한 세트**로 한다. 복구 성공 판정은 `integrity_check`가 아니라 **행 수 대조**다. 절차: [복구 런북](docs/guides/sqlite-restore-runbook.md)
-- **SQLite 자동 백업 (P6.3, 인프로세스)**: `src/lib/db/sqlite/backup.ts`의 `scheduleBackups`가 `instrumentation.register()`에서 배선되어 주기적으로 `raw.backup()` 온라인 덤프를 `<SQLITE 디렉터리>/backups/app-YYYYMMDD-HHmmss.db`로 남기고 보관 정책(`SQLITE_BACKUP_RETENTION`, 기본 7)에 따라 오래된 파일을 정리한다. 타이머는 `.unref()`되어 종료를 막지 않고, `':memory:'`/비활성(`SQLITE_BACKUP_ENABLED=false`) 시 건너뛴다. **단일 인스턴스·동일 볼륨 전제** — 논리 손상·잘못된 마이그레이션·실수 삭제 방어용이며, 볼륨 자체 손실 대비(오프-볼륨 DR)는 Railway 볼륨 스냅샷 또는 Litestream→S3(옵션·비용) 담당. `selectBackupsToPrune`은 `app-<timestamp>.db` 패턴만 후보로 삼아 라이브 DB·WAL/SHM은 절대 삭제하지 않음
+- **SQLite 자동 백업 (P6.3, 인프로세스)**: `src/lib/db/sqlite/backup.ts`의 `scheduleBackups`가 `instrumentation.register()`에서 배선되어 주기적으로 `raw.backup()` 온라인 덤프를 `<SQLITE 디렉터리>/backups/app-YYYYMMDD-HHmmss.db`로 남기고 보관 정책(`SQLITE_BACKUP_RETENTION`, 기본 7)에 따라 오래된 파일을 정리한다. 타이머는 `.unref()`되어 종료를 막지 않고, `':memory:'`/비활성(`SQLITE_BACKUP_ENABLED=false`) 시 건너뛴다. **단일 인스턴스·동일 볼륨 전제** — 논리 손상·잘못된 마이그레이션·실수 삭제 방어용이며, 볼륨 자체 손실 대비(오프-볼륨 DR)는 Railway 볼륨 스냅샷 또는 Litestream→S3(옵션·비용) 담당. `selectBackupsToPrune`은 `app-<timestamp>.db` 패턴만 후보로 삼아 라이브 DB·WAL/SHM은 절대 삭제하지 않음. **부작용**: 백업 파일을 `readonly: true`로 열어 검증만 해도 SQLite가 `<백업명>.db-shm`(32KB)·`.db-wal`(0B)을 백업 디렉터리에 만드는데, 위 패턴에 안 걸려 **영원히 회수되지 않는다**(2026-07-31 리허설에서 발견 — 전 세션 검증 잔재가 남아 있었다). 복구 정확성에는 영향이 없으나(2단계는 `.db`만 복사) 인시던트 중 "이 백업엔 왜 WAL이 붙어 있지?" 혼란을 만든다 → **검증 후 `rm -f /data/backups/*.db-wal /data/backups/*.db-shm`**. 지워도 백업은 `integrity ok`로 남는다(실측)
 - **DB 보존 정책 (무한 증가 테이블)**: `src/lib/db/sqlite/retention.ts`의 `scheduleRetention`이 `instrumentation.register()`에서 백업 스케줄러와 나란히 배선된다(주기 기본 24h, `.unref()`, `':memory:'`·`DB_RETENTION_ENABLED=false` 시 스킵). `generated_codes`만 `pruneOldVersions()`로 정리되고 `platform_events`(모든 도메인 이벤트)·`auth_tokens`·`user_daily_limits`는 삭제 경로가 없어 단조 증가하던 것을 해소. **되돌릴 수 없는 삭제이므로 안전장치 필수**: ① `auth_tokens`는 만료(`expires_at`)됐거나 사용된(`consumed_at`) 토큰만 삭제 — **유효한 미사용 토큰은 절대 삭제 금지**(인증·재설정 링크가 조용히 죽음), ② `user_daily_limits.usage_date`는 로컬 `YYYY-MM-DD`라 cutoff도 `localDateCutoff`(로컬 기준)를 써야 함(UTC로 자르면 타임존에 따라 오늘 카운터 삭제), ③ 세 DELETE는 단일 트랜잭션, ④ `0`·음수·비정수 env는 기본값 폴백(전체 삭제 사고 방지)
 - **배포/생성 레이트리밋 환불 (SQLite)**: 배포·생성 실패 시 `SqliteRateLimitRepository`가 일일 카운터를 in-process로 환불한다(`GREATEST(count-1, 0)`, 동기 트랜잭션). 과거 Supabase PG 함수(`decrement_daily_deploy`/`decrement_daily_generation`, migration 007/021)와 동일 보상 의미를 SQLite 레포 메서드로 재현 — `.rpc()` 호출 없음
 - **생성 상태 폴링 `not_found` 처리**: `/api/v1/generate/status`는 프로젝트 미존재·권한 없음 시 `status: 'not_found'`를 반환한다. `pollGenerationStatus`의 `GenerationStatusData.status` union에 `'not_found'`가 포함되어야 하며(누락 시 'unknown'으로 오처리되어 잘못된 사용자 메시지 표시), 전용 핸들러로 "프로젝트를 찾을 수 없습니다" 메시지를 낸다
@@ -410,27 +410,26 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 
 ## 다음 작업 대기열 (2026-07-31 기준)
 
-**열린 이슈 3건. 코드 작업은 전부 끝났고, 남은 둘은 사용자가 손을 대야 진행된다.**
-2026-07-30 세션에서 #219·#221·#223을 종료했고 #220·#222는 코드·문서까지 끝낸 뒤 마지막 단계만 남겼다.
+**열린 이슈 2건. 코드 작업은 전부 끝났고, 남은 하나는 사용자가 손을 대야 진행된다.**
+2026-07-30 세션에서 #219·#221·#223을, 2026-07-31 세션에서 **#222를 종료**했다. #220만 마지막 단계가 남았다.
 
 | Issue | 상태 | 다음 세션이 할 일 |
 |-------|------|------------------|
-| [#220](https://github.com/xzawed/CustomWebService/issues/220) 에러·알림 sink | **코드 완료**(PR #231) | **`SLACK_WEBHOOK_URL` 값이 등록되면** 합성 경보를 발생시켜 도착 확인. 절차 전부: [monitoring-sink-setup.md](docs/guides/monitoring-sink-setup.md) |
-| [#222](https://github.com/xzawed/CustomWebService/issues/222) SQLite 복구 | **런북·로컬 리허설 완료**(PR #234) | **시간대만 정해지면** 프로덕션 쓰기 리허설. 체크리스트: [복구 런북 하단](docs/guides/sqlite-restore-runbook.md) |
-| [#216](https://github.com/xzawed/CustomWebService/issues/216) 데이터 확보 후 재검토 3건 | 트리거 **전부 미충족**(2026-07-30 실측) | **착수하지 않는다.** 손대면 근거 없는 변경이다. 재확인만 할 것 |
+| [#220](https://github.com/xzawed/CustomWebService/issues/220) 에러·알림 sink | **코드 완료**(PR #231) · **여전히 블로킹** | **`SLACK_WEBHOOK_URL` 값이 등록되면** 합성 경보를 발생시켜 도착 확인. 2026-07-31 실측: 키는 존재하나 **값이 빈 문자열**이라 `sendSlackAlert`는 no-op. 절차 전부: [monitoring-sink-setup.md](docs/guides/monitoring-sink-setup.md) |
+| ~~[#222](https://github.com/xzawed/CustomWebService/issues/222) SQLite 복구~~ | **완료(2026-07-31)** | 프로덕션 쓰기 리허설 성공(총 5분, 롤백 데이터 0건). 실측·발견 사항은 [복구 런북](docs/guides/sqlite-restore-runbook.md) |
+| [#216](https://github.com/xzawed/CustomWebService/issues/216) 데이터 확보 후 재검토 3건 | 트리거 **전부 미충족**(2026-07-31 재확인) | **착수하지 않는다.** 손대면 근거 없는 변경이다. 재확인만 할 것 |
 
-### 착수 전 사용자에게 물어볼 것 (이 둘이 유일한 블로커)
+### 착수 전 사용자에게 물어볼 것 (남은 유일한 블로커)
 
-1. **#220** — Slack webhook URL을 Railway에 등록했는지. **값을 대화로 받지 말 것**(시크릿) — 대시보드에서 직접 설정하도록 안내하고, `railway variable list`로 **키 존재만** 확인한다.
-2. **#222** — 프로덕션 쓰기 리허설을 진행할 **시간대**. 재시작 다운타임 ~30–60초 + 백업 시점 이후 쓰기 롤백이 발생한다.
+1. **#220** — Slack webhook URL을 Railway에 등록했는지. **값을 대화로 받지 말 것**(시크릿) — 대시보드에서 직접 설정하도록 안내하고, `railway variables`로 **키 존재와 값 길이만** 확인한다(키만 있고 값이 비어 있는 상태가 실제로 있었다).
 
 ### #216 트리거 재확인 방법 (변경은 하지 말 것)
 
-| 항목 | 확인 |
-|---|---|
-| site 프록시 한도 | `GET /api/v1/admin/site-proxy-stats` → `trackedProjects`가 0이면 미충족 |
-| 캐시 민감도 플래그 | `src/data/apiCatalog.json`에서 `cache_ttl_seconds` + `auth_type=api_key` + `is_active=true`가 동시에 참인 행이 생겼는지. **기상청 단기·중기예보가 비활성으로 잠들어 있다가 활성화되면 즉시 해당** |
-| adaptive thinking 확대 | 제품 결정. 생성 품질을 올려야 할 필요가 생겼을 때만 |
+| 항목 | 확인 | 2026-07-31 실측 |
+|---|---|---|
+| site 프록시 한도 | `GET /api/v1/admin/site-proxy-stats` → `trackedProjects`가 0이면 미충족 | `trackedProjects: 0` — **미충족** |
+| 캐시 민감도 플래그 | `src/data/apiCatalog.json`에서 `cache_ttl_seconds` + `auth_type=api_key` + `is_active=true`가 동시에 참인 행이 생겼는지. **기상청 단기·중기예보가 비활성으로 잠들어 있다가 활성화되면 즉시 해당** | 동시 충족 **0행** (`cache_ttl_seconds` 보유 14행 중 `api_key`는 기상청 2건뿐이고 둘 다 비활성) — **미충족** |
+| adaptive thinking 확대 | 제품 결정. 생성 품질을 올려야 할 필요가 생겼을 때만 | 트리거 없음 |
 
 ## 세션 시작 체크리스트 (필수)
 
