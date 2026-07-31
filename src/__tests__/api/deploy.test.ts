@@ -242,6 +242,40 @@ describe('POST /api/v1/deploy', () => {
     expect(decrementMock).toHaveBeenCalledWith('user-1');
   });
 
+  it('환불(decrement)이 실패해도 요청을 막지 않되 warn 로그를 남긴다', async () => {
+    // 이전에는 `.catch(() => {})`로 에러를 통째로 버려, 환불이 실패해 사용자가 하루치
+    // 배포 슬롯을 잃어도 아무 흔적이 남지 않았다. generate 경로(RateLimitService)와 동일하게
+    // 삼키되 기록은 남기는 것이 규약이다.
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+    const { createRateLimitRepository } = await import('@/repositories/factory');
+    vi.mocked(createRateLimitRepository).mockReturnValue({
+      checkAndIncrementDailyDeployLimit: vi.fn().mockResolvedValue(true),
+      decrementDailyDeployLimit: vi.fn().mockRejectedValue(new Error('DB unavailable')),
+    } as never);
+
+    const { createDeployService } = await import('@/services/factory');
+    vi.mocked(createDeployService).mockReturnValue({
+      deploy: vi.fn().mockRejectedValue(new Error('Railway 연결 실패')),
+    } as never);
+
+    const { logger } = await import('@/lib/utils/logger');
+    const { POST } = await import('@/app/api/v1/deploy/route');
+    const response = await POST(
+      makeRequest({ projectId: '11111111-1111-4111-a111-111111111111', platform: 'railway' })
+    );
+    const text = await readSseText(response);
+
+    // 환불 실패가 응답 경로를 깨뜨리지 않는다
+    expect(text).toContain('event: error');
+    // 그러나 조용히 사라지지도 않는다
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      'Failed to decrement daily deploy count (compensation)',
+      expect.objectContaining({ userId: 'user-1', error: 'DB unavailable' })
+    );
+  });
+
   it('배포 실패 시 내부 에러 메시지(프로바이더 원문)를 클라이언트에 노출하지 않는다', async () => {
     const { getAuthUser } = await import('@/lib/auth/index');
     vi.mocked(getAuthUser).mockResolvedValue(mockUser);

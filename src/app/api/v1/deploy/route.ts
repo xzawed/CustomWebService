@@ -78,8 +78,17 @@ export async function POST(request: Request): Promise<Response> {
           });
 
           // 배포가 실패했으므로 이미 증가시킨 일일 배포 카운터를 환불한다(best-effort).
-          // generate 라우트의 decrementDailyLimit 보상 패턴과 동일. 실패해도 무시.
-          await rateLimitRepo.decrementDailyDeployLimit(user.id).catch(() => {});
+          // 환불 실패가 사용자 요청을 막아서는 안 되므로 삼키되, **반드시 흔적을 남긴다** —
+          // generate 경로의 `RateLimitService.decrementDailyLimit`도 동일하게 warn을 남긴다.
+          // (2026-07-31 이전에는 `.catch(() => {})`로 에러를 통째로 버려, 환불이 실패해도
+          //  사용자가 하루치 배포 슬롯을 잃은 사실이 아무 데도 기록되지 않았다.)
+          await rateLimitRepo.decrementDailyDeployLimit(user.id).catch((err: unknown) => {
+            logger.warn('Failed to decrement daily deploy count (compensation)', {
+              userId: user.id,
+              projectId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
 
           eventBus.emit({
             type: 'DEPLOYMENT_FAILED',
