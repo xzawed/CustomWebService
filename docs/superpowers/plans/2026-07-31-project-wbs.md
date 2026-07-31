@@ -41,7 +41,7 @@
 | ID | 작업 | 크기 |
 |----|------|------|
 | **B1** | **`AUTH_URL=https://xzawed.xyz` Railway 등록.** 현재 미설정이라 `callback-url`이 `0.0.0.0:8080`이다. `AUTH_TRUST_HOST=true`라 로그인은 동작해 영향은 낮지만, **`env-vars.md`에 행 자체가 없어** 문서 추가도 함께 필요 | S |
-| **B2** | **`RESEND_API_KEY`·`EMAIL_FROM` 실제 설정 여부 확인.** 미설정이면 인증 메일이 no-op → `assertEmailVerified()`가 generate·regenerate·deploy를 403으로 막아 **신규 사용자가 제품을 아예 못 쓴다.** 확인 후 문서의 상태 컬럼 갱신 | S |
+| **B2** | **`RESEND_API_KEY`·`EMAIL_FROM` 실제 설정 여부 확인.** 미설정이면 인증 메일이 no-op → `assertEmailVerified()`가 generate·regenerate·deploy를 403으로 막아 **신규 사용자가 제품을 아예 못 쓴다.** → **2026-07-31에 관측 수단을 만들었다**: `GET /api/v1/admin/debug`의 `email.configured`/`fromSet`/`fromDomain`(값은 미노출). 배포 후 이 엔드포인트로 확인하면 되고 Railway 콘솔이 더 이상 필요 없다 | S |
 | B3 | 키 의존 API **24개 재활성화** (카탈로그 61행 중 활성 36 / 비활성 25) | M |
 | B4 | 프록시 키 prefix **실키 검증**(`needsPrefixFix`) — 코드는 완료, 실키로 확인된 적 없음 | S |
 | B5 | Unsplash Production 심사 (Demo는 50건/시간) | S |
@@ -119,7 +119,7 @@
 |----|------|------|
 | E1 | ~~커버리지 집계 설정 정합화~~ | **완료(2026-07-31)** |
 | E2 | ~~클라이언트 상태·훅 테스트~~ | **완료(2026-07-31)** — 스토어 6 + `usePublish` |
-| E3 | builder 생성 핸들러 추출 + 테스트 (T1) | L |
+| E3 | builder 생성 핸들러 추출 + 테스트 (T1) — **아래 P0~P4로 분할**. P0은 완료 | L |
 | E4 | 라우트 테스트 (T2: `projects/[id]`, `popular-services`) | S |
 | E5 | 약한 테스트 보강 (T4 PublishDialog 실패 분기, T5 템플릿 11종 계약) | M |
 | E6 | **E2E 확장 (T3)** — 미리보기↔게시 동등성, Host 헤더 서브도메인, 인증·생성·게시 | L |
@@ -127,6 +127,31 @@
 
 > **E6이 가장 값어치가 크다.** [테스트 지도 5절](../../reference/test-coverage-map.md)의
 > "단위 테스트로 구조적으로 못 잡는 결함" 4종의 유일한 방어선이다.
+
+### E3 분할 계획 — 한 PR로 하지 않는다 (2026-07-31 설계 협의 결과)
+
+`builder/page.tsx`의 `handleGenerate`(:173)는 **인지 복잡도 48**(SonarCloud 최악)이고 테스트가 0건이다.
+단순히 파일을 옮기면 **복잡도가 그대로 따라오고** 안전망 없이 프로덕션 결제 인접 경로를 건드리게 된다.
+
+| 단계 | 내용 | 상태 |
+|---|---|---|
+| **P0** | **스토어 터미널 래치 + 역전 순서 테스트 5종.** 페이지를 건드리지 않고 성공↔실패 역전을 먼저 막는다 | ✅ **완료(2026-07-31)** |
+| P1 | `parseSseBlocks` + `consumeGenerationStream` 추출 + **특성화 테스트**(현 동작을 그대로 고정, 고치지 않는다) | 대기 |
+| P2 | `runClientGeneration` 추출, 페이지 `handleGenerate`를 얇은 래퍼로 | 대기 |
+| P3 | **폴링 취소(단일 terminal owner)** — `pollGenerationStatus`에 abort 도입. 여기서 P1의 특성화 테스트를 새 계약으로 뒤집는다 | 대기 |
+| P4 | `RePromptPanel`이 같은 스트림 헬퍼를 재사용 (지금은 SSE+폴링을 사설로 복제하고 있다) | 선택 |
+
+**설계 원칙 (협의로 확정)**
+
+- 추출 단위는 **커스텀 훅이 아니라 `src/lib/generation/` 아래 순수 DI 함수**다.
+  잡으려는 버그가 렌더가 아니라 **순서·종료 경합**이므로, `pollGenerationStatus` 선례를 따른다
+- **페이지에 남는 것**: `useRouter`·JSX·빌더 스텝 상태가 필요한 모든 것.
+  **나가는 것**: `fetch` + 스트림 + 콜백만 필요한 모든 것
+- **P1에서 동작을 고치지 않는다.** 기계적 이동 버그와 의도적 동작 변경을 같은 커밋에 섞으면
+  안전망 없는 경로에서 원인을 가릴 수 없다
+- **복잡도 48 → 15 미만은 단일 추출로는 안 된다.** 스트림 단위를
+  `appendAndParseSse` / `dispatchSseEvent` / 루프로 더 쪼개야 한다
+- `builder/page.tsx:323`(연관성 게이트, 복잡도 21)은 **별개 작업**이다 — 여기 묶지 말 것
 
 ---
 

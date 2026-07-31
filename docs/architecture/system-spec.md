@@ -198,7 +198,25 @@ Opus 4.8은 생략 = 사고 없음이었지만 **Opus 5는 생략 시 adaptive�
 - 적용 여부는 `GET /api/v1/admin/debug`의 `models.<task>.fellBack`이 `false`인지로 확인한다
 - **구세대 ID를 목록에서 지우지 말 것** — 지우면 env를 되돌리는 **롤백이 무시된다**
 
-### 3.6 Alpine 이중 init은 warnings로만 올린다
+### 3.6 🔇 생성 상태는 터미널 래치를 갖는다 — 먼저 도착한 종료가 이긴다
+
+`generationStore`의 `updateProgress`·`completeGeneration`·`failGeneration`은
+**`status === 'generating'`일 때만** 상태를 바꾼다. `startGeneration`만 무조건적이다(재시도 진입점).
+
+**깨지면**: 생성은 SSE + 폴링 **이중 경로**로 돈다. 탭 복귀 시 `visibilitychange`가
+`void pollForCompletion(...)`으로 폴링을 fire-and-forget 시작하는데 `pollGenerationStatus`에는
+**abort가 없다.** 페이지의 `generationCompleted`·`switchedToPolling` 플래그는 *두 번째 폴링 시작*만
+막을 뿐 **이미 도는 폴링을 멈추지 못한다.**
+
+그래서 SSE가 `complete`를 준 뒤에도 살아 있는 폴링이 타임아웃·tracker TTL 만료로 `failGeneration`을
+부르면, 가드가 없을 때 **성공이 실패로 뒤집혀 사용자가 성공 직후 에러 화면을 본다.**
+`pollGenerationStatus`에는 `failGeneration` 호출부가 5곳이라 이 경로가 그만큼 많다.
+
+> **이 래치는 안전벨트이고 근본 해결이 아니다.** 근본 해결은 폴링 취소(단일 terminal owner)이며
+> [WBS의 E3 순서](../superpowers/plans/2026-07-31-project-wbs.md)에 P3로 잡혀 있다.
+> 그 전까지 이 가드를 제거하지 말 것. `generationStore.test.ts`가 5가지 역전 순서를 고정한다.
+
+### 3.7 Alpine 이중 init은 warnings로만 올린다
 
 `detectAlpineDoubleInit()`이 검출하되 `errors`가 아니라 `warnings`다 — 보안 문제가 아니므로 게시를 막지 않는다.
 검출 규칙은 **JS 본문을 보지 않는다**(`x-init`이 `init`을 부르면 정의돼 있으면 이중 실행, 없으면 ReferenceError라 어느 쪽이든 버그).
