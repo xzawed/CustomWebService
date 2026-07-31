@@ -28,7 +28,7 @@ import { useGenerationStore } from '@/stores/generationStore';
 import { useBuilderModeStore } from '@/stores/builderModeStore';
 import type { BuilderMode } from '@/stores/builderModeStore';
 import { LIMITS } from '@/lib/config/features';
-import { pollGenerationStatus } from '@/lib/generation/pollGenerationStatus';
+import { runClientGeneration } from '@/lib/generation/runClientGeneration';
 import type { ApiCatalogItem, Category } from '@/types/api';
 import type { RelevanceGateResult } from '@/types/project';
 import { ChevronLeft, ChevronRight, Sparkles, Loader2, RefreshCw } from 'lucide-react';
@@ -171,146 +171,38 @@ export default function BuilderPage() {
   }, [clearApis, resetContext, resetGeneration]);
 
   const handleGenerate = useCallback(async () => {
-    startGeneration();
-
-    try {
-      updateProgress(5, '프로젝트 생성 중...');
-      const createRes = await fetch('/api/v1/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: `프로젝트-${Date.now()}`,
-          context,
-          apiIds: selectedIds,
-          designPreferences: getDesignPreferences(),
-        }),
-      });
-
-      if (!createRes.ok) {
-        const errData = await createRes.json().catch(() => ({}));
-        throw new Error(errData.error?.message ?? '프로젝트 생성에 실패했습니다.');
-      }
-
-      const { data: project } = await createRes.json();
-      setGeneratingProjectId(project.id);
-
-      updateProgress(10, 'AI 코드 생성 시작...');
-      const genRes = await fetch('/api/v1/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: project.id, templateId: selectedTemplate ?? undefined }),
-      });
-
-      if (!genRes.ok) {
-        const errData = await genRes.json().catch(() => ({}));
-        throw new Error(errData.error?.message ?? '코드 생성에 실패했습니다.');
-      }
-
-      const reader = genRes.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) throw new Error('스트림을 읽을 수 없습니다.');
-
-      // 폴링 로직은 @/lib/generation/pollGenerationStatus로 추출 (단위 테스트 대상).
-      // 동작 보존: completed 시 completeGeneration → resetContext → clearApis.
-      const pollForCompletion = (pid: string): Promise<void> =>
-        pollGenerationStatus(pid, {
-          updateProgress,
-          completeGeneration,
-          failGeneration,
-          onCompleted: () => {
-            resetContext();
-            clearApis();
-          },
-        });
-
-      let buffer = '';
-      let done = false;
-      let generationCompleted = false;
-      let switchedToPolling = false;
-      let sseErrorEvent = false;
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible' && !generationCompleted && !switchedToPolling) {
-          switchedToPolling = true;
-          reader.cancel().catch(() => {});
-          void pollForCompletion(project.id);
-        }
-      };
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
-      try {
-        while (!done) {
-          const { value, done: streamDone } = await reader.read();
-          done = streamDone;
-          if (value) {
-            buffer += decoder.decode(value, { stream: true });
-
-            const events = buffer.split('\n\n');
-            buffer = events.pop() ?? '';
-
-            for (const eventBlock of events) {
-              if (!eventBlock.trim()) continue;
-
-              let eventType = 'message';
-              let eventData = '';
-
-              for (const line of eventBlock.split('\n')) {
-                if (line.startsWith('event: ')) {
-                  eventType = line.slice(7).trim();
-                } else if (line.startsWith('data: ')) {
-                  eventData = line.slice(6);
-                }
-              }
-
-              if (!eventData) continue;
-
-              let parsed: Record<string, unknown>;
-              try {
-                parsed = JSON.parse(eventData) as Record<string, unknown>;
-              } catch {
-                console.warn('[SSE] Failed to parse event data', { eventType, eventData });
-                continue;
-              }
-
-              if (eventType === 'progress') {
-                updateProgress((parsed.progress as number) ?? 0, (parsed.message as string) ?? '');
-              } else if (eventType === 'complete') {
-                completeGeneration((parsed.projectId as string) ?? project.id, parsed.version as number | undefined);
-                resetContext();
-                clearApis();
-                generationCompleted = true;
-                return;
-              } else if (eventType === 'error') {
-                sseErrorEvent = true;
-                throw new Error((parsed.message as string) ?? '코드 생성에 실패했습니다.');
-              }
-            }
-          }
-        }
-
-        if (!generationCompleted && !switchedToPolling) {
-          // SSE stream ended without 'complete' event and we didn't already switch to polling
-          // This can happen on mobile disconnect. Switch to polling to check actual server status.
-          void pollForCompletion(project.id);
-        }
-      } catch (streamErr) {
-        if (sseErrorEvent) {
-          // 서버가 보낸 SSE error 이벤트 — 외부 catch로 전파
-          throw streamErr;
-        }
-        // 스트림 읽기 에러 (모바일 백그라운드 전환으로 연결 끊김 등) — 폴링으로 전환
-        if (!generationCompleted && !switchedToPolling) {
-          switchedToPolling = true;
-          void pollForCompletion(project.id);
-        }
-      } finally {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        reader.cancel().catch(() => {});
-      }
-    } catch (err) {
-      failGeneration(err instanceof Error ? err.message : '알 수 없는 오류');
-    }
-  }, [selectedIds, context, selectedTemplate, getDesignPreferences, startGeneration, updateProgress, completeGeneration, failGeneration, resetContext, clearApis, setGeneratingProjectId]);
+    await runClientGeneration(
+      {
+        context,
+        apiIds: selectedIds,
+        designPreferences: getDesignPreferences(),
+        templateId: selectedTemplate,
+      },
+      {
+        startGeneration,
+        updateProgress,
+        completeGeneration,
+        failGeneration,
+        setGeneratingProjectId,
+        onCompleted: () => {
+          resetContext();
+          clearApis();
+        },
+      },
+    );
+  }, [
+    selectedIds,
+    context,
+    selectedTemplate,
+    getDesignPreferences,
+    startGeneration,
+    updateProgress,
+    completeGeneration,
+    failGeneration,
+    resetContext,
+    clearApis,
+    setGeneratingProjectId,
+  ]);
 
   // === Relevance Gate: preference recommendation trigger ===
   useEffect(() => {
