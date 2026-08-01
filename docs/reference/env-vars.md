@@ -18,7 +18,7 @@
 
 ### 자동 백업 (P6.3)
 
-부팅 시 `instrumentation.ts → scheduleBackups`가 컨테이너 내에서 주기적으로 SQLite `.backup()` 온라인 덤프를 `<SQLITE 디렉터리>/backups/app-YYYYMMDD-HHmmss.db`로 남기고 보관 정책에 따라 오래된 파일을 정리한다. 외부 의존·비용 없음(단일 인스턴스·Railway 볼륨 전제). 로직: `src/lib/db/sqlite/backup.ts`. **논리 손상·잘못된 마이그레이션·실수 삭제 방어용**. 볼륨 손실 대비 계층(관리자 다운로드·Railway 볼륨 백업·선택적 off-site PUT 시임)은 [operations.md §3.4](../guides/operations.md).
+부팅 시 `instrumentation.ts → scheduleBackups`가 컨테이너 내에서 주기적으로 SQLite `.backup()` 온라인 덤프를 `<SQLITE 디렉터리>/backups/app-YYYYMMDD-HHmmss.db`로 남기고 보관 정책에 따라 오래된 파일을 정리한다. 외부 의존·비용 없음(단일 인스턴스·Railway 볼륨 전제). 로직: `src/lib/db/sqlite/backup.ts`. **논리 손상·잘못된 마이그레이션·실수 삭제 방어용**(동일 볼륨). 유료 오프-볼륨 DR은 **제외(2026-08-01)** — 계층·수용 위험은 [operations.md §3.4](../guides/operations.md).
 
 | 변수 | 기본값 | Railway | 설명 |
 |------|--------|---------|------|
@@ -26,7 +26,7 @@
 | `SQLITE_BACKUP_INTERVAL_MS` | `86400000` (24h) | ➖ | 백업 주기(ms). 잘못된 값은 기본값으로 폴백 |
 | `SQLITE_BACKUP_RETENTION` | `7` | ➖ | 보관할 백업 개수(가장 최근 N개 유지, 나머지 삭제). 1 미만/비정수는 기본값으로 폴백 |
 | `SQLITE_BACKUP_DIR` | `<SQLITE_PATH 디렉터리>/backups` | ➖ | 백업 파일 디렉터리. 미설정 시 DB 파일과 같은 볼륨 하위 `backups/` |
-| `SQLITE_OFFSITE_BACKUP_URL` | _(미설정)_ | ➖ | 선택. 설정 시 로컬 덤프 성공 후 해당 URL로 **HTTPS PUT**(원시 바이트 + `X-Backup-Sha256`·`X-Backup-Taken-At` 헤더). 미설정 = `NoopOffsiteSink`(로그 없음). **시크릿으로 취급**(presigned/토큰 URL 가능). 실패해도 로컬 백업·prune은 성공으로 남음. 상태: `GET /api/v1/admin/debug` → `offsiteBackup`(URL 미노출)<br>⚠️ **반드시 `https://`여야 한다.** 올라가는 것이 전체 사용자 행·scrypt 해시·암호화된 API 키이므로 평문 전송을 허용하지 않는다. `http://`·기타 스킴은 **fail-closed로 거부**(업로드 안 함)하고 `logger.error` + `offsiteBackup.invalidUrl=true`로 드러난다 — "설정했는데 안 올라간다"를 감추지 않는다 |
+| `SQLITE_OFFSITE_BACKUP_URL` | _(미설정)_ | ➖ | **선택·기본 미설정 권장.** 로컬 덤프 성공 후 해당 URL로 **HTTPS PUT**(원시 바이트 + `X-Backup-Sha256`·`X-Backup-Taken-At`). 미설정 = `NoopOffsiteSink`(로그 없음) — 정상 운영 상태다. **프로젝트가 수신기를 제공하거나 권장하지 않는다.** 이미 자체 HTTPS PUT 엔드포인트를 운영 중인 오너만 의미가 있다. “나중에 어딘가에 꽂아라”·무료 티어 오브젝트 스토리지·GitHub 레포를 수신기로 안내하지 말 것(덤프 = 전체 사용자 행·scrypt 해시·암호화 API 키). **시크릿으로 취급**. 실패해도 로컬 백업·prune은 성공으로 남음. 상태: `GET /api/v1/admin/debug` → `offsiteBackup`(URL 미노출)<br>⚠️ **반드시 `https://`.** `http://`·기타 스킴은 **fail-closed 거부** + `logger.error` + `offsiteBackup.invalidUrl=true` |
 
 ### 보존 정책 (무한 증가 테이블 정리)
 

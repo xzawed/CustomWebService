@@ -351,6 +351,24 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 
 잔여 작업·열린 판단은 **[WBS](docs/superpowers/plans/2026-07-31-project-wbs.md)가 진실원**이다. [#216](https://github.com/xzawed/CustomWebService/issues/216)(데이터 확보 후 재검토 3건)은 트리거 미충족이면 **착수하지 않는다**.
 
+### 상시 결정 — 비용이 드는 것은 구현 대상이 아니다 (2026-08-01)
+
+**돈이 드는 신규 완화·기능은 제안하지도, 잔여 작업으로 남기지도 않는다.** "오너 액션 대기"가 아니라
+**하지 않기로 한 것**으로 표기한다. 해당: 유료 DR(Railway 볼륨 백업·관리형 오브젝트 스토리지·Litestream→S3),
+Sentry SaaS 도입.
+
+**세 가지를 혼동하지 말 것** — 뭉뚱그리면 또 다른 거짓말이 된다:
+
+| 구분 | 예 | 취급 |
+|---|---|---|
+| 신규 유료 완화 | Railway 볼륨 백업 · S3 · Sentry | ❌ **제외** |
+| 기존 제품 운영비 | Anthropic API · Railway 호스팅 · Resend | 정상 운영 — 제외 대상 아님 |
+| **무료** 가입·심사 | NASA 등록 키 · data.go.kr · Unsplash Production | 오너 ops로 **살아 있다** |
+
+**수용한 잔여 위험**: 볼륨이 사라지고 오프라인 사본이 없으면 **복구 절차가 없다**.
+유일한 무료 오프-볼륨 경로는 `GET /api/v1/admin/backup/latest`를 사람이 실제로 당기는 것뿐이며,
+자동화·강제 스케줄은 없다. 계층·근거: [operations.md §3.4](docs/guides/operations.md)
+
 ## 세션 시작 체크리스트 (필수)
 
 작업 세션을 시작할 때 아래 두 가지를 반드시 먼저 확인한다.

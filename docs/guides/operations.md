@@ -1,6 +1,6 @@
 # 운영 가이드
 
-> **최종 업데이트:** 2026-07-31  
+> **최종 업데이트:** 2026-08-01  
 > **대상:** 프로덕션(https://xzawed.xyz)을 **오늘** 점검·대응해야 하는 운영자  
 > **스택:** Railway 단일 인스턴스 · 임베디드 SQLite(`/data/app.db`) · Auth.js 로컬 인증 · Slack 경보
 
@@ -120,7 +120,7 @@ env: [env-vars.md — SQLite 백업·DB 보존](../reference/env-vars.md).
 | 주기 | `SQLITE_BACKUP_INTERVAL_MS` = **24h** | 부팅 시 **즉시 1회** + interval. 배포마다 새 백업이 생기는 이유 |
 | 보관 개수 | `SQLITE_BACKUP_RETENTION` = **7** | `app-YYYYMMDD-HHmmss.db` 패턴만 삭제 후보 — 라이브 DB·WAL/SHM 절대 비대상 |
 | 경로 | `SQLITE_BACKUP_DIR` 또는 `<SQLITE 디렉터리>/backups` | 프로덕션 전형: `/data/backups/` · 라이브 DB `/data/app.db` |
-| 방식 | better-sqlite3 `.backup()` | WAL 중에도 자기완결 스냅샷. 단일 인스턴스·**동일 볼륨** 전제(오프-볼륨 DR은 별 과제) |
+| 방식 | better-sqlite3 `.backup()` | WAL 중에도 자기완결 스냅샷. 단일 인스턴스·**동일 볼륨** 전제. 볼륨 손실까지 막는 계층이 아님(§3.4) |
 | 경보 | §2.2 | 실패/복구 전이만 |
 
 ### 3.2 DB 보존(정리)
@@ -143,18 +143,22 @@ env: [env-vars.md — SQLite 백업·DB 보존](../reference/env-vars.md).
 
 ### 3.4 DR 계층
 
-볼륨 손실까지 포함한 복원력은 **한 겹이 아니다**. 현재 계층:
+**결정(2026-08-01): 비용이 드는 신규 완화·기능은 구현 대상에서 제외한다.**  
+Railway 볼륨 백업·관리형 오브젝트 스토리지·Litestream→S3 같은 **유료 DR은 잔여 작업이 아니다.**  
+(기존 제품 운영비 — Anthropic API·Railway 호스팅·Resend — 와는 별개다. 그걸 “제외”로 읽지 말 것.)
 
 | 계층 | 상태 | 무엇을 막는가 | 비고 |
 |------|------|---------------|------|
-| **1. On-volume `.backup()` 덤프** | ✅ 운영 중 | 논리 손상·잘못된 마이그레이션·실수 삭제 | `/data/backups` — **같은 볼륨**. 자동 주기 + 보관 7 |
-| **2. 관리자 로컬 다운로드** | ✅ 코드 있음 | 볼륨 손실(**실제로 당겨 둔 경우만**) | `GET /api/v1/admin/backup/latest` + `ADMIN_API_KEY`. 전체 DB 유출 경로 — 감사 로그 + Slack info. **스케줄 다운로드는 사람 습관**이며 코드가 대신 해 줄 수 없다 |
-| **3. Railway 볼륨 백업** | ⏳ **오너 액션·유료** | 볼륨 자체 손실 | 우리가 켤 수 없음. Railway 대시보드에서 볼륨 스냅샷/백업을 켜는 것은 계정 소유자 결정 |
-| **4. Litestream / S3 등 연속 복제** | ❌ **지금은 안 함** | 볼륨 손실 + RPO 단축 | DB ~418KB·단일 인스턴스에서 프로세스·IAM·별도 복구 런북은 운영 극장. 대신 `SQLITE_OFFSITE_BACKUP_URL` 시임(HTTPS PUT, 기본 no-op)만 두어 나중에 URL만 꽂으면 된다 |
+| **1. On-volume `.backup()` 덤프** | ✅ **자동·운영 중** | 논리 손상·잘못된 마이그레이션·실수 삭제 | `/data/backups` — **같은 볼륨**. 부팅 1회 + 주기, 보관 7. 프로덕션 복구 리허설로 검증됨([restore runbook](sqlite-restore-runbook.md)) |
+| **2. 관리자 로컬 다운로드** | ✅ **유일한 무료 오프-볼륨 경로** | 볼륨 손실 — **사람이 실제로 당겨 둔 경우만** | `GET /api/v1/admin/backup/latest` + `ADMIN_API_KEY`. 자동화·강제 스케줄 **없음**. 전체 DB 유출 경로 — 감사 로그 + Slack info |
+| **3. 유료 DR** (Railway 볼륨 백업 · 관리형 오브젝트 스토리지 · Litestream→S3) | ❌ **제외(2026-08-01)** | (채택하지 않음) | **하지 않기로 결론.** 오너 액션 대기가 아니다. 구현·권장·백로그 잔여 작업으로 취급하지 말 것 |
+| **4. `SQLITE_OFFSITE_BACKUP_URL` 시임** | ✅ 코드 있음 · 기본 no-op | 오너가 **이미** 가진 HTTPS PUT 수신기로 덤프를 보낼 때 | 미설정 = `NoopOffsiteSink`. **프로젝트가 수신기를 제공·권장하지 않는다.** “무료 티어” 오브젝트 스토리지를 제로비용 계획으로 소개하지 말 것. GitHub 레포는 덤프 매체로 **부적합**(전체 사용자 행·scrypt 해시·암호화 API 키) |
+
+**수용한 잔여 위험:** 볼륨이 사라지고 오프라인 사본(계층 2로 사람이 빼 둔 파일 등)이 없으면 **복구 절차는 없다** — 빈 bootstrap만 가능하다. 그 위험을 수용한다.
 
 관측: `GET /api/v1/admin/debug`의 `offsiteBackup: { configured, lastResult, lastAt }` — **URL은 노출하지 않는다**(토큰 가능). 오프사이트 실패는 로컬 백업 실패 경보와 별개이며, 로컬 성공을 실패로 뒤집지 않는다.
 
-로컬 덤프 당기기 예:
+로컬 덤프 당기기 예(선택 습관 — 구현 과제가 아님):
 
 ```bash
 curl -fsS -H "Authorization: Bearer $ADMIN_API_KEY" \
