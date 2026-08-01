@@ -5,12 +5,10 @@
 [![license](https://img.shields.io/badge/license-Proprietary-red?style=flat-square)](./README.md#라이선스)
 [![status](https://img.shields.io/badge/status-v1.0.0%20Live-brightgreen?style=flat-square)](https://xzawed.xyz)
 [![Next.js](https://img.shields.io/badge/Next.js-16+-black?style=flat-square&logo=next.js)](https://nextjs.org)
-[![AI](https://img.shields.io/badge/AI-Claude%20Opus%204.7-blueviolet?style=flat-square)](https://anthropic.com)
-[![Tests](https://img.shields.io/badge/Vitest-1917%20listed-success?style=flat-square)](./docs/guides/testing.md)
-[![Coverage](https://img.shields.io/badge/Coverage-85%25%2B-yellow?style=flat-square)](./docs/guides/testing.md)
+[![AI](https://img.shields.io/badge/AI-Claude%20Opus%205-blueviolet?style=flat-square)](https://anthropic.com)
 [![Deploy](https://img.shields.io/badge/Deploy-Railway-8A2BE2?style=flat-square&logo=railway)](https://railway.app)
 
-**🌐 서비스 URL**: [xzawed.xyz](https://xzawed.xyz) &nbsp;|&nbsp; 🇺🇸 [English](./README.en.md)
+**🌐 서비스 URL**: [xzawed.xyz](https://xzawed.xyz)
 
 ---
 
@@ -64,13 +62,15 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 
 | 패턴 | 구현 | 목적 |
 |------|------|------|
-| 🧠 **모델 분리** | Opus 4.7 (생성) / Haiku 4.5 (추천·제안) | 비용 최적화 |
+| 🧠 **모델 분리** | Opus 5 (생성) / Haiku 4.5 (추천·제안) | 비용 최적화 |
 | 💾 **Prompt Caching** | `cache_control: ephemeral` | 반복 호출 입력 토큰 절감 |
 | 🤔 **조건부 Extended Thinking** | 복잡도 스코어링(API 수·인증 방식·엔드포인트·컨텍스트·결제 등 5종 신호, 35pt 임계값) | 복잡한 요청에만 추론 비용 투입 |
-| 📡 **EventBus** | 17개 도메인 이벤트, pub/sub + 자동 DB 감사 로그 | 관심사 분리 |
-| ⚛️ **원자적 레이트리밋** | `UPDATE WHERE count < limit RETURNING` | 동시 요청 경쟁 조건 방지 |
-| 🔌 **Circuit Breaker** | 3회 실패 → TRIPPED, 60초 후 복구 프로브 | DB 장애 전파 차단 |
+| 📡 **EventBus** | 도메인 이벤트 pub/sub + `eventPersister` 자동 DB 감사 로그 | 관심사 분리 |
+| ⚛️ **원자적 레이트리밋** | SQLite `UPDATE WHERE count < limit RETURNING` (생성·추천 일일 한도) | 동시 요청 경쟁 조건 방지 |
 | 📶 **SSE + 폴링 이중 구조** | `visibilitychange` 감지 → 폴링 전환 | 모바일 백그라운드 탭 대응 |
+| 🔒 **생성 락** | DB `generation_locks` + heartbeat (진행률은 인메모리 tracker) | 중복 생성 차단 |
+
+파이프라인·불변조건 상세: [docs/architecture/ai-pipeline.md](docs/architecture/ai-pipeline.md) · [docs/architecture/system-spec.md](docs/architecture/system-spec.md)
 
 ---
 
@@ -84,10 +84,10 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 - CSS `expression()`, `url(javascript:)`, `url(data:)`, `-moz-binding:`, `-webkit-binding:`, `@import` 등 XSS 벡터 차단
 
 **🏰 인프라 보안**
-- Proxy SSRF 방지: 차단 호스트 7종(loopback `127.0.0.1`/`::1`, `0.0.0.0`/`::`, AWS·클라우드 메타데이터 `169.254.169.254`, Alibaba `100.100.100.200`) + 사설·링크로컬 IP 정규식 8종(RFC1918 10.x/172.16-31.x/192.168.x, 127.x, 169.254.x, 0.x, IPv6 ULA·link-local) 차단 + DNS rebinding 방어
+- Proxy SSRF 방지: 차단 호스트·사설 IP + DNS rebinding 방어
 - `middleware.ts`에서 CSP, HSTS, X-Frame-Options 일괄 적용
 - 사용자 API 키 AES-256-GCM 암호화 저장
-- Auth.js v5 (NextAuth) Credentials 인증 — 단일 관리자 계정, JWT 무상태 세션 (비밀번호는 해시로만 저장)
+- Auth.js v5 Credentials — **공개 셀프서비스 회원가입 + 다중 사용자**, JWT 무상태 세션, 이메일 인증 게이트
 - `X-Correlation-Id` 헤더로 요청 추적
 
 ---
@@ -99,10 +99,10 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 | 🖥️ Framework | Next.js 16+ (App Router, TypeScript strict) |
 | 🎨 UI | React 19, Tailwind CSS 4, Lucide React |
 | 🗄️ State | Zustand (분리 스토어 + persist middleware) |
-| 📝 Form | React Hook Form + Zod |
+| 📝 Form | React 로컬 `useState` + Zod (서버 검증) — React Hook Form 미사용 |
 | 🗃️ Database | 임베디드 SQLite (better-sqlite3 + Drizzle ORM, WAL 모드, 단일 인스턴스) |
-| 🔐 Auth | Auth.js v5 (NextAuth) — Credentials 단일 관리자 + JWT 무상태 세션 |
-| 🤖 AI | Claude API (Anthropic SDK, claude-opus-4-7 기본) |
+| 🔐 Auth | Auth.js v5 — Credentials + JWT, 공개 회원가입·다중 사용자·이메일 인증 |
+| 🤖 AI | Claude API (Anthropic SDK, 생성 기본 `claude-opus-5`) |
 | 🧪 Testing | Vitest, happy-dom, MSW, Playwright |
 | ⚙️ CI/CD | GitHub Actions → lint → type-check → test → build (Railway 자동 배포) |
 | 📦 Package Manager | pnpm |
@@ -114,22 +114,22 @@ CustomWebService는 비개발자도 몇 분 안에 자신만의 웹서비스를 
 ```
 src/
 ├── app/
-│   ├── api/v1/          # 🔌 REST API route.ts 파일 (28개)
-│   ├── (auth)/          # 🔐 인증 페이지
+│   ├── api/             # 🔌 REST API route.ts (40개: auth + /api/v1/*)
+│   ├── (auth)/          # 🔐 인증 페이지 (login/signup/…)
 │   ├── (main)/          # 🏠 메인 페이지 (빌더, 카탈로그, 대시보드)
 │   └── site/[slug]/     # 🌐 서브도메인 서빙
 ├── components/          # 🧩 UI 컴포넌트 (builder, catalog, dashboard, layout, settings, ui)
 ├── lib/
 │   ├── ai/              # 🤖 파이프라인 오케스트레이터, stageRunner, qualityLoop, featureExtractor
-│   ├── catalog/         # 🩺 API 카탈로그 헬스체크·키 검증 (healthCheck, keyCheck)
-│   ├── events/          # 📡 EventBus (pub/sub) + eventPersister (자동 DB 감사 로그)
+│   ├── catalog/         # 🩺 API 카탈로그 헬스·키 검증 (healthCheck, keyCheck, verifyRunner)
+│   ├── events/          # 📡 EventBus + eventPersister
 │   ├── qc/              # 🔬 Playwright 렌더링 QC (Fast/Deep), browserPool
 │   ├── config/          # ⚙️ 환경변수 기반 비즈니스 규칙
 │   └── utils/           # 🔧 에러 클래스, 암호화, 로거
-├── providers/ai/        # 🔀 IAiProvider → ClaudeProvider (교체 가능 인터페이스)
-├── repositories/        # 💾 데이터 접근 계층 (BaseRepository 패턴)
+├── providers/ai/        # 🔀 IAiProvider → ClaudeProvider
+├── repositories/        # 💾 SQLite 구현 9종 + 무인자 factory (`create*Repository()`)
 ├── services/            # ⚡ 비즈니스 로직 계층
-├── templates/           # 📐 11개 코드 생성 템플릿 + TemplateRegistry
+├── templates/           # 📐 코드 생성 템플릿 + TemplateRegistry
 └── types/               # 📋 Zod 공용 스키마, 도메인 타입, 이벤트 타입
 ```
 
@@ -139,16 +139,16 @@ src/
 
 | 항목 | 내용 |
 |------|------|
-| ✅ 테스트 목록 | **Vitest 1,917개 (148파일) + Playwright 33개** (`vitest list`, `playwright test --list` 기준) |
-| 🔬 단위 테스트 | Vitest + happy-dom — AI 파이프라인, 보안 검증, 레이트리밋, Circuit Breaker, 배포 서비스 등 |
-| 🔗 통합 테스트 | Vitest + MSW — API 라우트 인증·입력·권한·비즈니스 로직 전 경로 |
-| 🌐 E2E 테스트 | Playwright — 3종 디바이스 (모바일 · 태블릿 · 데스크톱) |
-| 📊 커버리지 | **85%+ lines** (Codecov main 측정, lib/services/providers/repositories/components 대상) · Codecov + SonarCloud 연동 |
+| 🔬 단위 | `pnpm test:unit` — `src/lib` · `src/providers` · `src/services` · `src/repositories` |
+| 🔗 통합 | `pnpm test:integration` — `src/__tests__/api` · `src/app/api` |
+| 🌐 E2E | `pnpm test:e2e` — Playwright (`e2e/`) |
+| 📊 커버 맵 | 범위·공백은 [docs/reference/test-coverage-map.md](docs/reference/test-coverage-map.md) |
+| 📖 전략 | [docs/guides/testing.md](docs/guides/testing.md) |
 
 ```bash
-pnpm test              # 전체 테스트
+pnpm test              # 전체 Vitest
 pnpm test:coverage     # 커버리지 리포트
-pnpm test:e2e          # Playwright E2E
+pnpm test:e2e          # Playwright E2E (실 백엔드 env 필요)
 ```
 
 ---
@@ -165,48 +165,53 @@ pnpm test              # ✅ 전체 테스트
 pnpm test:coverage     # 📊 커버리지 리포트
 ```
 
+운영 스크립트 예: `pnpm tsx scripts/generateCountries.ts` (국가 데이터 재생성).  
+전체 목록은 `package.json` `scripts`와 [CLAUDE.md](./CLAUDE.md)를 본다.
+
 ---
 
 ## 🚀 설치 및 실행
 
-셀프호스트 단일 인스턴스 구성입니다. 외부 데이터베이스·OAuth 설정이 필요 없습니다.
+공개 회원가입 + 임베디드 SQLite 단일 인스턴스. 외부 DB·OAuth·단일 관리자 시드는 없다.
 
 ```bash
-pnpm install                    # 📦 의존성 설치
-pnpm admin:hash '<평문 비밀번호>'   # 🔑 관리자 비밀번호 해시 생성 → ADMIN_PASSWORD_HASH 값
-pnpm dev                        # 🔥 개발 서버 (Turbopack)
+pnpm install                         # 의존성 설치
+cp .env.example .env.local           # 환경변수 템플릿 복사
+# .env.local 필수 칸 채우기 (아래 표 + DB_PROVIDER=sqlite)
+pnpm dev                             # 개발 서버 (Turbopack)
+# 브라우저: http://localhost:3000/signup 에서 계정 생성
 ```
 
-부팅 시 `instrumentation.ts` → `bootstrapSqlite`가 SQLite 마이그레이션·단일 관리자 시드·카탈로그/플래그 시드를 멱등하게 적용합니다. 별도 DB 초기화 명령은 없습니다.
+부팅 시 `instrumentation.ts` → `bootstrapSqlite`가 마이그레이션(`drizzle/sqlite`)과 카탈로그/플래그 시드를 **멱등** 적용한다. 관리자 시드(`seedAdmin`)·`pnpm admin:hash`는 **없다** — 첫 사용자는 `/signup`.
 
 ### 🔐 환경변수
 
-값은 절대 커밋하지 마세요. 전체 목록은 [docs/reference/env-vars.md](docs/reference/env-vars.md) 참조.
+값은 절대 커밋하지 마세요. 전체 목록은 [docs/reference/env-vars.md](docs/reference/env-vars.md). 스타터 주석은 [.env.example](./.env.example).
 
-**필수**
+**필수 (로컬 기동)**
 
 | 변수 | 설명 |
 |------|------|
-| `AUTH_SECRET` | Auth.js JWT 서명 시크릿 (`openssl rand -base64 32`로 생성) |
-| `AUTH_TRUST_HOST` | 프록시(Railway) 뒤에서 실행 시 `true` |
-| `NEXT_PUBLIC_AUTH_PROVIDER` | `local` (Credentials 단일 관리자) |
-| `ADMIN_EMAIL` | 관리자 로그인 이메일 |
-| `ADMIN_PASSWORD_HASH` | `pnpm admin:hash`로 생성한 `salt:hash` 값 |
+| `DB_PROVIDER` | **`sqlite` 고정.** 미설정·다른 값이면 DB 연결 throw |
+| `AUTH_SECRET` | Auth.js JWT 서명 (`openssl rand -base64 32`) |
+| `AUTH_TRUST_HOST` | 프록시/커스텀 도메인 뒤 `true` |
+| `NEXT_PUBLIC_AUTH_PROVIDER` | `local` (클라이언트 빌드타임 상수) |
 | `ANTHROPIC_API_KEY` | Claude API 키 |
-| `ADMIN_API_KEY` | 관리자 진단 API 인증 (QC 통계, 키 검증) |
-| `ENCRYPTION_KEY` | 사용자 API 키 AES-256-GCM 암호화 키 |
-| `NEXT_PUBLIC_APP_URL` | 서비스 기본 URL |
-| `NEXT_PUBLIC_ROOT_DOMAIN` | 서브도메인 가상 호스팅 루트 도메인 |
+| `ADMIN_API_KEY` | `/api/v1/admin/*` 진단 API |
+| `ENCRYPTION_KEY` | 사용자 API 키 AES-256-GCM (32바이트 권장) |
+| `NEXT_PUBLIC_APP_URL` | 서비스 기본 URL (로컬 예: `http://localhost:3000`) |
+| `NEXT_PUBLIC_ROOT_DOMAIN` | 서브도메인 루트 (로컬 예: `localhost:3000`) |
 
-**선택**
+**권장·선택**
 
-| 변수 | 기본값 | 설명 |
-|------|--------|------|
-| `ADMIN_NAME` | — | 관리자 표시 이름 |
-| `ADMIN_USER_ID` | `00000000-0000-0000-0000-000000000001` | 고정 관리자 UUID |
-| `SQLITE_PATH` | `/data/app.db` | SQLite DB 파일 경로 |
+| 변수 | 설명 |
+|------|------|
+| `SQLITE_PATH` | SQLite 파일 경로 (기본 `/data/app.db` — 로컬은 쓰기 가능한 경로 권장) |
+| `APP_URL` | 이메일 인증·재설정 링크 base (미설정 시 ROOT_DOMAIN→origin 폴백) |
+| `RESEND_API_KEY` / `EMAIL_FROM` | 실제 이메일 발송 (미설정 시 콘솔 no-op) |
+| `SLACK_WEBHOOK_URL` | 운영 알림 |
 
-> Railway 배포 시 SQLite 파일이 영속되도록 `/data`에 볼륨을 마운트해야 합니다 (`SQLITE_PATH` 기본값과 일치).
+> Railway 배포 시 SQLite가 영속되도록 `/data` 볼륨 마운트 필요 (`SQLITE_PATH` 기본값과 일치).
 
 ---
 
@@ -215,14 +220,15 @@ pnpm dev                        # 🔥 개발 서버 (Turbopack)
 | 항목 | 구성 |
 |------|------|
 | 🚂 호스팅 | Railway (서브도메인 가상 호스팅, Docker standalone, 단일 인스턴스) |
-| 🗃️ 데이터베이스 | 임베디드 SQLite (Railway 영속 볼륨 `/data/app.db`, WAL 모드) |
-| 🔐 인증 | Auth.js v5 (NextAuth) — Credentials 단일 관리자, JWT 무상태 세션 |
+| 🗃️ 데이터베이스 | 임베디드 SQLite (Railway 영속 볼륨 `/data/app.db`, WAL) |
+| 🔐 인증 | Auth.js v5 Credentials + JWT, 공개 회원가입·다중 사용자 |
 | 🤖 AI | Claude API (서버사이드 전용) |
-| 🌐 도메인 | Railway 커스텀 도메인 |
+| 🌐 도메인 | Railway 커스텀 도메인 (`xzawed.xyz`) |
 
-> SQLite는 부팅 시 `instrumentation.ts` → `bootstrapSqlite`가 마이그레이션(`drizzle/sqlite`)·관리자 시드·카탈로그/플래그 시드를 멱등하게 적용합니다.
-> SQLite 전환 배경: [docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md)
-> 인증 아키텍처: [docs/architecture/auth.md](docs/architecture/auth.md)
+> 컷오버 배경: [docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md)  
+> 다중 사용자: [docs/decisions/2026-06-24-public-signup-multi-user-auth.md](docs/decisions/2026-06-24-public-signup-multi-user-auth.md)  
+> 인증 아키텍처: [docs/architecture/auth.md](docs/architecture/auth.md)  
+> 문서 인덱스: [docs/README.md](docs/README.md)
 
 ---
 

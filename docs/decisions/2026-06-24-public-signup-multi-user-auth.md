@@ -71,7 +71,7 @@ SQLite 컷오버(P8.2, 2026-06-23)로 인증 방식이 "셀프호스트 단일 �
 
 ### 프로덕션 초기화 절차
 
-기존 단일 관리자 시드 데이터가 있는 프로덕션 DB는 1회성 클린 리셋 필요. 절차: [docs/guides/sqlite-cutover-runbook.md §6](../guides/sqlite-cutover-runbook.md).
+기존 단일 관리자 시드 데이터가 있는 프로덕션 DB는 1회성 클린 리셋 필요. 당시 절차(역사): [docs/archive/guides/sqlite-cutover-runbook.md §6](../archive/guides/sqlite-cutover-runbook.md).
 
 ---
 

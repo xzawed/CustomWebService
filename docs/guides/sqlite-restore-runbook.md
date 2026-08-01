@@ -4,7 +4,7 @@
 > 대상: 논리 손상, 잘못된 마이그레이션, 실수 삭제. **볼륨 자체 손실은 이 런북 범위 밖**(아래 "한계" 참조).
 >
 > 관련: [#222](https://github.com/xzawed/CustomWebService/issues/222) · 백업 구현 [`src/lib/db/sqlite/backup.ts`](../../src/lib/db/sqlite/backup.ts)
-> 컷오버 런북([sqlite-cutover-runbook.md](sqlite-cutover-runbook.md))은 **SQLite로 옮기는** 절차이지 되돌리는 절차가 아니다.
+> 컷오버 런북([sqlite-cutover-runbook.md](../archive/guides/sqlite-cutover-runbook.md))은 **역사 문서**(2026-06-23 완료)이며 **SQLite로 옮기는** 절차이지 되돌리는 절차가 아니다.
 
 ---
 

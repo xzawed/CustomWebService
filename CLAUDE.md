@@ -152,11 +152,13 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 
 ## 문서 참조
 
-에이전트가 매 세션 열 네비게이션 맵. **전체 목록·ADR 카탈로그는 [docs/README.md](docs/README.md).**
+에이전트가 매 세션 열 네비게이션 맵. **전체 목록·ADR 카탈로그·문서 진실 정책은 [docs/README.md](docs/README.md).**  
+(현재 시제 = 이 파일 + `docs/architecture|guides|reference|security`. 역사 = `docs/decisions/` 또는 `docs/archive/`(`DO_NOT_EXECUTE`). **두 번째 규칙서·`.claude/docs` 미러 금지** — 근거는 docs/README 정책 절.)
 
 | 질문 | 참조 문서 |
 |------|-----------|
 | **불변조건·계약 (깨면 조용히 사고 나는 것들)** | [docs/architecture/system-spec.md](docs/architecture/system-spec.md) |
+| **테스트 전략·함정** | [docs/guides/testing.md](docs/guides/testing.md) |
 | **테스트 커버 범위·공백** | [docs/reference/test-coverage-map.md](docs/reference/test-coverage-map.md) |
 | **잔여작업 전체 지도 (백로그 진실원)** | [docs/superpowers/plans/2026-07-31-project-wbs.md](docs/superpowers/plans/2026-07-31-project-wbs.md) |
 | AI 코드 생성 흐름 | [docs/architecture/ai-pipeline.md](docs/architecture/ai-pipeline.md) |
@@ -165,12 +167,16 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | API 엔드포인트 | [docs/reference/api-endpoints.md](docs/reference/api-endpoints.md) |
 | 일상 운영·모니터링·백업 | [docs/guides/operations.md](docs/guides/operations.md) |
 | SQLite 복구 런북 | [docs/guides/sqlite-restore-runbook.md](docs/guides/sqlite-restore-runbook.md) |
+| 시크릿 노출·회전 | [docs/security/incident-response.md](docs/security/incident-response.md) |
 | 에러 코드 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
 | 개발 환경·팩토리 규칙 | [docs/guides/development.md](docs/guides/development.md) |
 | 설계 결정(ADR) 전체 | [docs/decisions/](docs/decisions/) · 목록은 [docs/README.md](docs/README.md) |
-| 문서 인덱스 | [docs/README.md](docs/README.md) |
+| 컷오버 등 **비실행** 역사 | [docs/archive/](docs/archive/) |
+| 문서 인덱스·anti-recurrence | [docs/README.md](docs/README.md) |
+| 슬래시 커맨드 체크리스트 only | [.claude/commands/](.claude/commands/) |
 
-- [README.md](README.md) — 프로젝트 전체 개요
+- [README.md](README.md) — 제품 정문·설치 퀵스타트
+- [Agents.md](Agents.md) — **포인터 only** (규칙 본문 복제 금지)
 - [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) — PR 템플릿
 - [.scamanager/](.scamanager/) — pre-push 자동 코드리뷰 훅 (`install-hook.sh`로 설치)
 

@@ -10,13 +10,14 @@
 > TMDB·RAWG → is_active=false (키 등록 필요). The Cat API(auth_type→none 재분류)·NASA DEMO_KEY 신규 추가.
 > 전체 정리 내역: [docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md](../decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md)
 
-> **2026-06-21 업데이트**: 카탈로그 전체에 대한 **DB 기반 일일 헬스체크**(`pnpm catalog:healthcheck`)가 도입됨. 라이브 검증 + 배포 런타임 키 검증(`/admin/keys-verify`) 결과:
-> - REST Countries(v3.1 deprecated) 폐기
-> - 키 의존 7개(Unsplash·카카오 로컬/검색·공휴일·기상청 단기/중기·아파트 실거래가) — Railway env 키가 **빈 값(미설정)** 으로 확인되어 **비활성화**
-> - **현재 활성 23개**(전부 키 불필요·즉시 사용 가능): broken 0 · degraded 2(NASA·wheretheiss 지연) · 나머지 정상
-> ✅ "verified 우선 추천"은 **B-2(2026-06-22)로 구현 완료** — AI 추천(`POST /api/v1/suggest-apis`)이 `verification_status==='broken'` API를 후보에서 제외하고 `verified`에는 `[검증됨]` 배지로 우선 선택을 유도한다. 상세: [docs/decisions/2026-06-22-verification-status-consumption.md](../decisions/2026-06-22-verification-status-consumption.md)
+> **2026-06-21 스냅샷 (역사)**: REST Countries 폐기, 키 미설정 의존 API 비활성화, 당시 활성·키리스 위주 정리.
+> ✅ "verified 우선 추천"은 B-2(2026-06-22)로 구현 완료 — `POST /api/v1/suggest-apis`가 `broken` 제외·`verified` 우선.  
+> 상세: [docs/decisions/2026-06-22-verification-status-consumption.md](../decisions/2026-06-22-verification-status-consumption.md)
 
-> **2026-06-25 주석**: 위 2026-06-21 메모의 `pnpm catalog:healthcheck` CLI와 Supabase cron은 SQLite 컷오버(P8.2)로 제거됨 — 헬스 모니터링은 배포 런타임 엔드포인트(`/api/v1/admin/qc-stats`·`keys-verify`)와 `ensureCatalog.ts` 멱등 정정으로 대체. 활성 API 수는 무료·키리스 12종 추가(#169) 후 증가했으며 정확한 수치는 `activeApiCount.ts`(동적 카운트)가 단일 출처.
+> **현행 헬스·키 검증 (CLI 없음)**: `pnpm catalog:healthcheck` / Supabase cron은 **제거됨**.  
+> 대신 배포 런타임 관리자 API: `GET /api/v1/admin/keys-verify`, `POST /api/v1/admin/verify-catalog`,  
+> `GET /api/v1/admin/qc-stats` (`ADMIN_API_KEY`). 분류 로직 `src/lib/catalog/healthCheck.ts`, 오케스트레이션 `verifyRunner.ts`.  
+> 활성 개수 마케팅 카피 단일 출처: `src/lib/catalog/activeApiCount.ts` (하드코딩 금지).
 
 ---
 
@@ -198,11 +199,21 @@ const data = await res.json();
 
 ---
 
-## DB 반영 방법
+## DB 반영 방법 (현행)
 
-`scripts/backfillGoldenSet.sql`을 Supabase SQL 에디터에서 실행하면
-위 API들의 `verification_status`, `verified_at`, `last_verification_note` 등이 업데이트됩니다.
+**권장**: 관리자 라이브 검증으로 `verification_status`를 갱신한다.
 
-- SQL은 `jsonb_array_elements` + `CASE WHEN` 패턴으로 기존 endpoint 필드를 보존한 채 새 필드만 병합합니다.
-- 엔드포인트 path가 DB에 저장된 값과 다를 경우 해당 UPDATE는 NOOP으로 처리됩니다 (기존 데이터 손실 없음).
-- 실행 후 스크립트 말미의 `SELECT` 쿼리로 `verification_status`가 `verified`인지 확인하세요.
+```bash
+# ADMIN_API_KEY 필요
+curl -X POST -H "Authorization: Bearer $ADMIN_API_KEY" \
+  "https://xzawed.xyz/api/v1/admin/verify-catalog"
+```
+
+부팅 시 `ensureCatalogEntries`가 시드 JSON 기준 신규 삽입·키리스 오분류 정정을 멱등으로 수행한다  
+([database.md](../architecture/database.md) §부팅).
+
+### 이력 스크립트 (참고만)
+
+`scripts/backfillGoldenSet.sql`은 **Postgres/jsonb 시절** 일회성 백필용이다.  
+현재 임베디드 SQLite 스키마·런타임에서 **그대로 실행하지 말 것** (Supabase SQL 에디터 경로도 없음).  
+골든셋 의미·검증 기준 문서용으로만 보존한다.

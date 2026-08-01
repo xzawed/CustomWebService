@@ -1,145 +1,174 @@
 # 보안 인시던트 대응 절차
 
+> 스택 진실원: 루트 [`CLAUDE.md`](../../CLAUDE.md) · [`docs/architecture/system-spec.md`](../architecture/system-spec.md).
+> 시크릿 목록의 정본은 [`docs/reference/env-vars.md`](../reference/env-vars.md). 이 문서는 **노출 시 회전 순서**만 다룬다.
+>
+> **제거된 스택을 회전하지 말 것**: `GITHUB_TOKEN`(외부 deploy export 제거, 2026-08-01), Supabase `service_role` / `SUPABASE_*`(SQLite 컷오버), `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`(다중 사용자 전환). 관련 절차는 역사 문서에만 남는다.
+
+---
+
 ## 시크릿 노출 의심 시 즉시 조치
 
 ### 1. 노출 확인
+
 ```bash
-# git history에서 패턴 검색
-git log --all --full-history -p -- "*.env*" | grep -E "(ANTHROPIC|SERVICE_ROLE|ADMIN_API|ghp_)"
+# git history에서 패턴 검색 (PowerShell에서는 Select-String 등 사용)
+git log --all --full-history -p -- "*.env*"
 
 # gitleaks 전체 스캔 (설치 후)
 gitleaks detect --source . --config .gitleaks.toml
 ```
 
+Railway 변수·슬랙·이슈 본문·로그 덤프도 동시에 확인한다.
+
 ### 2. 시크릿 회전 체크리스트
 
-노출이 확인되는 즉시 아래 순서로 회전. 각 항목은 독립적으로 진행 가능.
+노출이 확인되면 영향 범위에 해당하는 항목만, 가능한 한 빨리 회전. 항목 간 독립.
 
-#### Anthropic API 키
+#### AUTH_SECRET (세션 서명)
+
+1. 신규 시크릿 생성: `openssl rand -base64 32`
+2. Railway env `AUTH_SECRET` 교체 → 재배포
+3. 로컬 `.env.local` 동기화
+4. **결과**: 기존 JWT 세션이 전부 무효 → 모든 사용자 재로그인 필요 (의도된 동작)
+
+#### ANTHROPIC_API_KEY
+
 1. https://console.anthropic.com/settings/keys → 기존 키 비활성화
 2. 신규 키 생성
-3. Railway env 업데이트: `ANTHROPIC_API_KEY`
+3. Railway `ANTHROPIC_API_KEY` 업데이트 → 재배포
 4. 로컬 `.env.local` 업데이트
-5. 확인: 신규 키로 API 호출 성공 여부
-
-#### GitHub Personal Access Token
-1. https://github.com/settings/tokens → 기존 토큰 폐기
-2. Fine-grained token 재발급 (scope: repo + workflow만)
-3. Railway env 업데이트: `GITHUB_TOKEN`
-4. 로컬 `.env.local` 업데이트
-5. 확인: GitHub API 호출 성공 여부
-
-#### Supabase Service Role Key
-1. Supabase Dashboard → Project Settings → API → Reset service_role
-2. Railway env 업데이트: `SUPABASE_SERVICE_ROLE_KEY`
-3. 로컬 `.env.local` 업데이트
-4. 확인: 관리자 API 정상 동작 여부
+5. 확인: 생성/추천 요청 또는 admin test-generation 경로로 호출 성공
 
 #### ADMIN_API_KEY
+
 ```bash
 openssl rand -hex 32
 ```
-1. 위 명령으로 신규 키 생성
-2. Railway env 업데이트: `ADMIN_API_KEY`
-3. 로컬 `.env.local` 업데이트
-4. 확인: `/api/v1/health?detailed=true` 헤더 인증 성공 여부
 
-### 3. 회전 후 검증
+1. 신규 키 생성 후 Railway·로컬 동기화
+2. 확인:
+
+```bash
+curl -H "Authorization: Bearer $ADMIN_API_KEY" "https://xzawed.xyz/api/v1/health?detailed=true"
+# 기대: checks/usage 포함 상세 JSON (키가 틀리면 공개 ok 폴백 — 상세가 안 오면 실패)
+```
+
+#### RESEND_API_KEY
+
+1. Resend 대시보드에서 키 재발급·기존 폐기
+2. Railway `RESEND_API_KEY` (+ `EMAIL_FROM` 유효성) 갱신
+3. 확인: 회원가입/재발송으로 메일이 실제로 나가는지 (미설정 시 콘솔 no-op이라 “조용히 성공”으로 오인하지 말 것)
+
+#### SLACK_WEBHOOK_URL
+
+1. Slack 앱에서 webhook 재생성 또는 채널 재연결
+2. Railway `SLACK_WEBHOOK_URL` 교체 (**빈 문자열 = 미설정**, 값 길이 확인)
+3. 확인: 의도적 실패 경로 또는 백업 경보 트리거로 `#alerts` 도착
+
+#### SQLITE_OFFSITE_BACKUP_URL
+
+1. 유출된 URL/토큰을 수신 측에서 즉시 폐기·rotate
+2. Railway 변수 교체 또는 제거 (미설정 = `NoopOffsiteSink`, 정상 운영 가능)
+3. **시크릿 취급** — 덤프 본문에 사용자 행·해시·암호화 키가 포함될 수 있음
+4. 반드시 `https://` — `http://` 등은 fail-closed 거부 (`env-vars.md` 참고)
+
+#### 카탈로그 플랫폼 키 (`API_KEY_*`)
+
+카탈로그 `auth_config.env_var` 이름 그대로 환경변수에 둔다 (하드코딩 목록 없음).
+
+1. 해당 업스트림 콘솔에서 키 폐기·재발급
+2. Railway의 해당 `API_KEY_*` 갱신
+3. 확인: `GET /api/v1/admin/keys-verify` (`ADMIN_API_KEY`) — `needsPrefixFix` 등 결과 해석
+4. 프록시 캐시는 키 지문(`keyFingerprint`)을 키에 넣으므로 교체 후 교차 응답은 새 항목으로 갈린다
+
+대표 예: `API_KEY_NASA`, `API_KEY_UNSPLASH`, data.go.kr·카카오 계열 등 — 전체 표는 [env-vars.md](../reference/env-vars.md).
+
+### 3. 회전 후 공통 검증
+
 ```bash
 curl https://xzawed.xyz/api/v1/health
-# 기대값: {"status":"ok","timestamp":"..."}
+# 기대: {"status":"ok","timestamp":"..."}
 
 curl -H "Authorization: Bearer $ADMIN_API_KEY" "https://xzawed.xyz/api/v1/health?detailed=true"
-# 기대값: 상세 통계 JSON
+# 기대: status healthy|degraded, checks.database / checks.ai
 ```
 
----
-
-## ENCRYPTION_KEY 회전 (별도 마이그레이션 필요)
-
-> **경고**: ENCRYPTION_KEY 회전 시 기존 사용자 API 키가 모두 복호화 불가 상태가 됩니다.
-> 아래 절차를 반드시 따를 것.
-
-### 사전 조건
-- 회전 전 현재 키로 모든 암호화된 API 키를 복호화하고 재암호화할 마이그레이션 스크립트 필요
-- 유지보수 창(maintenance window) 동안 실행 권장
-
-### 마이그레이션 절차
-```bash
-# scripts/migrate-encryption-key.ts (구현 완료, 멱등)
-# 1. DB에서 모든 encrypted_api_key 조회
-# 2. OLD_ENCRYPTION_KEY로 복호화
-# 3. NEW_ENCRYPTION_KEY로 재암호화
-# 4. DB 업데이트 (supabase .update({encrypted_key}))
-# 5. Railway env에서 ENCRYPTION_KEY = NEW_ENCRYPTION_KEY로 변경
-
-OLD_ENCRYPTION_KEY=<기존키> NEW_ENCRYPTION_KEY=<신규키> pnpm tsx scripts/migrate-encryption-key.ts
-```
-
-**현재 상태**: 마이그레이션 스크립트(`scripts/migrate-encryption-key.ts`) 구현 완료. 유지보수 창에서 실행.
-
-> **키 길이 주의**: `openssl rand -hex 32`는 64바이트 hex 문자열을 생성합니다 — 서버 시작 시 경고 로그 발생 후 첫 32바이트만 사용됩니다. 정확히 32바이트 키 생성은 `openssl rand -base64 24`(base64 인코딩 32자) 또는 `python3 -c "import secrets; print(secrets.token_bytes(32).hex()[:32])"` 사용을 권장합니다.
+로그인·회원가입·생성 한 건 스모크를 권장한다.
 
 ---
 
-## 정기 시크릿 회전 일정 (분기 1회)
+## ENCRYPTION_KEY — 회전 도구 없음
 
-| 시크릿 | 마지막 회전 | 다음 회전 예정 |
-|--------|------------|----------------|
-| ANTHROPIC_API_KEY | 2026-04-25 | 2026-07-25 |
-| GITHUB_TOKEN | 2026-04-25 | 2026-07-25 |
-| SUPABASE_SERVICE_ROLE_KEY | 2026-04-25 | 2026-07-25 |
-| ADMIN_API_KEY | 2026-04-25 | 2026-07-25 |
-| ENCRYPTION_KEY | (미회전 — 마이그레이션 필요) | — |
+> **경고를 절차로 착각하지 말 것.**
+
+| 사실 | 내용 |
+|------|------|
+| **현 상태** | `scripts/migrate-encryption-key.ts` **존재하지 않는다.** `scripts/`에는 `generateCountries.ts`, `runGenerationLoadTest.ts`, 이력용 `.sql`만 있다. |
+| **키를 바꾸면** | `user_api_keys.encrypted_key`를 기존 키로 복호화할 수 없어 **등록된 사용자 API 키가 전부 사용 불가**가 된다. |
+| **자동 재암호화** | 없음. |
+| **노출 시 선택지** | (1) 키가 **실제로 유출**됐고 즉시 봉쇄가 최우선이면 키를 교체하고, 사용자에게 API 키 **재등록**을 안내한다. (2) 유출이 불확실하면 교체하지 **말고** 접근 경로(로그·백업·이슈)부터 차단한다. |
+| **신규 구현** | 재암호화 마이그레이션을 새로 작성하기 전에는 “스크립트 실행”을 런북에 다시 넣지 말 것. |
+
+키 길이: 정확히 32바이트 권장. `openssl rand -hex 32`는 64자 hex — 초과 시 경고 후 첫 32바이트만 사용 (`env-vars.md`).
 
 ---
 
-## gitleaks 설치 및 pre-commit 훅 활성화
+## 정기 시크릿 회전 (권장 리듬)
+
+고정 날짜표는 금방 썩는다. 아래는 **우선순위** 가이드다.
+
+| 시크릿 | 비고 |
+|--------|------|
+| `ANTHROPIC_API_KEY` | 분기 또는 유출 의심 시 즉시 |
+| `ADMIN_API_KEY` | 분기 또는 담당자 이탈 시 |
+| `AUTH_SECRET` | 유출 시에만 (전원 로그아웃) |
+| `RESEND_API_KEY` · `SLACK_WEBHOOK_URL` | 유출·채널 이전 시 |
+| `API_KEY_*` | 업스트림 정책·유출 시 |
+| `SQLITE_OFFSITE_BACKUP_URL` | 사용 중일 때만, 유출 시 즉시 |
+| `ENCRYPTION_KEY` | **도구 없이 돌리지 말 것** (위 절) |
+
+---
+
+## gitleaks · pre-commit
 
 ```bash
 # macOS
 brew install gitleaks
 
-# Linux (직접 다운로드)
-curl -sSfL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_linux_x64.tar.gz | tar xz -C /usr/local/bin
-
-# 훅 설치 (프로젝트 루트에서)
+# 훅 설치 (프로젝트 루트)
 .scamanager/install-hook.sh
-# 메뉴에서 "Install secrets pre-commit hook" 선택
+# 메뉴에서 secrets pre-commit 선택
 
-# 수동 스캔
 gitleaks detect --source . --config .gitleaks.toml
 ```
 
 ---
 
-## GitHub Push Protection 활성화 (사용자 1회 설정)
+## GitHub Push Protection (저장소 설정, 1회)
 
-1. https://github.com/xzawed/CustomWebService/settings/security_analysis
-2. **Push protection** → Enable
-3. **Secret scanning** → Enable
-4. 이후 민감 패턴이 포함된 push는 GitHub이 자동 차단
-
----
-
-## Cloudflare 봇 방어 설정 (P2.9)
-
-### DNS 전환
-1. Railway 설정에서 현재 커스텀 도메인(`xzawed.xyz`) 확인
-2. Cloudflare에 도메인 추가 (nameserver 변경 필요)
-3. DNS 레코드를 Cloudflare → Railway CNAME으로 설정
-
-### 보안 규칙 활성화
-- **Bot Fight Mode**: Security → Bots → Bot Fight Mode ON
-- **Rate Limiting**: Rules → Rate Limiting
-  - `/api/v1/generate`: IP당 분당 5회
-  - `/api/v1/suggest-*`: IP당 분당 20회
-- **WAF 룰**: Security → WAF → Managed Rules → Cloudflare Managed Ruleset ON
+1. https://github.com/xzawed/CustomWebService/settings/security_analysis  
+2. **Push protection** → Enable  
+3. **Secret scanning** → Enable  
 
 ---
 
-## 참고 문서
+## Cloudflare 봇 방어 (선택 운영)
 
-- [보안 헤더 설정](../../src/middleware.ts) — CSP, HSTS, X-Frame-Options
-- [에러 처리 표준](../../src/lib/utils/errors.ts) — 클라이언트 응답 정보 최소화
-- [gitleaks 룰](../../.gitleaks.toml) — 시크릿 패턴 정의
+DNS·WAF를 Cloudflare 앞에 둘 경우 예시:
+
+- Bot Fight Mode ON  
+- Rate Limiting 예: `/api/v1/generate` IP당 분당 소량, `/api/v1/suggest-*` 상대적 완화  
+- Managed WAF Ruleset ON  
+
+앱 내부 레이트리밋(생성 SQLite 원자적, auth/proxy 인메모리)과 **이중**이므로 임계값은 관측 후 조정.
+
+---
+
+## 참고
+
+- [보안 헤더](../../src/middleware.ts) — CSP, HSTS, X-Frame-Options  
+- [에러 처리](../../src/lib/utils/errors.ts) — 클라이언트 노출 최소화  
+- [gitleaks 룰](../../.gitleaks.toml)  
+- [환경변수](../reference/env-vars.md)  
+- [운영·백업](../guides/operations.md)  

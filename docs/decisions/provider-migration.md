@@ -1,7 +1,7 @@
 # Provider 마이그레이션 결정 기록
 
 > **결정 날짜:** 2026-03-30 ~ 2026-04-11  
-> **상태:** 완료
+> **상태:** Superseded — DB/Auth 다중 Provider 이중화는 제거됐고 임베디드 SQLite + Auth.js Credentials 단일 스택이다. AI는 Claude 단일. · 대체: [2026-06-23 컷오버 ADR](2026-06-23-sqlite-cutover-and-supabase-removal.md), [auth.md](../architecture/auth.md), [ai-pipeline.md](../architecture/ai-pipeline.md)
 
 ---
 

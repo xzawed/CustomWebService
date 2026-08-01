@@ -1,6 +1,8 @@
 # 핵심 기술 선택 배경
 
 > **최종 업데이트:** 2026-04-12
+>
+> **상태:** Superseded — 본문의 Supabase·DB_PROVIDER 이중화 서술은 현행과 다름. 현재는 임베디드 SQLite + Auth.js 다중 사용자. · 대체: [2026-06-23 컷오버 ADR](2026-06-23-sqlite-cutover-and-supabase-removal.md), [2026-06-24 다중 사용자 ADR](2026-06-24-public-signup-multi-user-auth.md), [overview.md](../architecture/overview.md)
 
 ---
 
