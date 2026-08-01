@@ -69,7 +69,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_API_KEY" \
 - **“활성 N개” 고정 문구를 문서/대시보드에 박지 않는다.** 진실원은 DB(`api_catalog.is_active`)이며 랜딩 카피도 `getActiveApiCount()`로 읽는다.
 - 운영 확인: `GET /api/v1/admin/catalog-dump` → `data.summary`.
 - 번들 시드 [`src/data/apiCatalog.json`](../../src/data/apiCatalog.json) 기준(이 문서 작성 시 로컬 검증): **총 61 · 활성 36 · 비활성 25**. 프로덕션은 배포·ensureCatalog·수동 변경으로 달라질 수 있다.
-- `supabase/seed.sql` **삭제됨**. 시드는 부팅 시 빈 테이블일 때만 JSON 삽입 + `ensureCatalogEntries` 멱등 반영. 절차 세부는 컷오버 ADR·[`sqlite-cutover-runbook.md`](sqlite-cutover-runbook.md).
+- `supabase/seed.sql` **삭제됨**. 시드는 부팅 시 빈 테이블일 때만 JSON 삽입 + `ensureCatalogEntries` 멱등 반영. 절차 세부는 컷오버 ADR·[역사 런북](../archive/guides/sqlite-cutover-runbook.md).
 
 ---
 
@@ -274,7 +274,7 @@ railway logs -d <deployment-id>         # 런타임/배포
 | [deployment.md](deployment.md) | CI/CD, Railway 배포, 도메인, Playwright QC 이미지 |
 | [monitoring-sink-setup.md](monitoring-sink-setup.md) | Slack webhook 등록·합성 경보 |
 | [sqlite-restore-runbook.md](sqlite-restore-runbook.md) | DB 손상 시 백업 복구 |
-| [sqlite-cutover-runbook.md](sqlite-cutover-runbook.md) | (역사) PG→SQLite 컷오버 |
+| [sqlite-cutover-runbook.md](../archive/guides/sqlite-cutover-runbook.md) | (역사·비실행) PG→SQLite 컷오버 |
 | [env-vars.md](../reference/env-vars.md) | 환경변수 전체 |
 | [api-endpoints.md](../reference/api-endpoints.md) | 헬스·관리자 API 스키마 |
 | [system-spec.md](../architecture/system-spec.md) | 깨면 사고 나는 불변조건 |

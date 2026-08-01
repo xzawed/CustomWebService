@@ -2,7 +2,7 @@
 
 - 날짜: 2026-06-23
 - 상태: 채택 (구현 완료, `feat/sqlite-migration` 브랜치)
-- 관련: [DB 제거 → SQLite 전환 WBS](../superpowers/plans/2026-06-22-db-removal-sqlite-migration.md) §0 / Phase 8, [컷오버 런북](../guides/sqlite-cutover-runbook.md)
+- 관련: [DB 제거 → SQLite 전환 WBS(역사)](../archive/superpowers/plans/2026-06-22-db-removal-sqlite-migration.md) §0 / Phase 8, [컷오버 런북(역사)](../archive/guides/sqlite-cutover-runbook.md)
 - 선행 ADR: [Provider 전환](provider-migration.md), [Node 22 상향](2026-06-22-node22-supabase-websocket-fix.md)
 
 ## 맥락

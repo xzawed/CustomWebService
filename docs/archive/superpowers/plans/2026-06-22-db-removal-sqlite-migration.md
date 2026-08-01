@@ -1,11 +1,16 @@
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE | completed: 2026-06-23 | superseded_by: docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md, docs/architecture/database.md, docs/superpowers/plans/2026-07-31-project-wbs.md -->
 # DB 제거 → 임베디드 SQLite 전환 (단일 사용자·셀프호스트) — WBS 계획
 
-- 날짜: 2026-06-22 (착수 2026-06-23, 완료 2026-06-23)
-- 상태: **✅ 완료 (2026-06-23 컷오버·배포 완료, 프로덕션 라이브)** — Phase 1~8 반영. **모든 코드성 이연 해소(2026-06-25)**: P6.3(SQLite 백업 자동화) 인프로세스 구현, P5.2(verification_status 라이브 갱신)는 관리자 트리거 엔드포인트 `POST /api/v1/admin/verify-catalog`로 구현(무인 cron 대신 채택 — 플래핑·outbound 회피). 진행 현황은 §0 참조.
-- 근거: 정합성 감사(7차원 persistence surface) + 딥리서치(SQLite/Railway/Auth.js, 출처 포함) + 사용자 범위 결정 3건
-- 관련: [Supabase 사용 요소](../../../CLAUDE.md), provider 추상화(`src/lib/config/providers.ts` — 후속 컷오버·죽은 코드 정리로 **제거됨**, 역사: [database.md](../../architecture/database.md) §6)
+> ⛔ **역사 문서 — 실행하지 말 것.** Phase 1–8 컷오버는 2026-06-23 완료. 현행 스택·잔여 작업은
+> [컷오버 ADR](../../../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md) ·
+> [database.md](../../../architecture/database.md) ·
+> [2026-07-31 project WBS](../../../superpowers/plans/2026-07-31-project-wbs.md) ·
+> [CLAUDE.md](../../../../CLAUDE.md) 를 본다.
+> 당시 런북(역사): [sqlite-cutover-runbook.md](../../guides/sqlite-cutover-runbook.md).
 
 ## 0. 진행 현황 (2026-06-23)
+
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
 
 브랜치 `feat/sqlite-migration` (origin 백업됨). 전체 스위트 2126 통과, type-check·lint clean, `pnpm build` 성공(미들웨어 Edge 번들 위반 0). **프로덕션 무영향**(sqlite·local 모두 `DB_PROVIDER`/`AUTH_PROVIDER` opt-in, 기존 Supabase 기본값 유지).
 
@@ -20,7 +25,7 @@
 | **Phase 7 — 테스트 정리** | 🔵 P7.2·P7.3 완료, P7.1·P7.4는 Phase 8 동반 | `c343ab0` |
 | **Phase 8 — 컷오버 + 정리** | ✅ **완료 (2026-06-23)** — 컷오버 + P8.2(supabase/pg/authjs 코드·의존 제거) + P8.3(문서) | `#162`·`#163`·`#164` → `28acede`+`4c528f3d`, 이후 P8.2/P8.3 |
 
-> **🎉 2026-06-23 컷오버 + Supabase 완전 제거 완료**: xzawed.xyz가 sqlite+local 인증으로 라이브 전환·영속 볼륨 마운트. 컷오버 중 함정 3건 수정(Railway VOLUME 미지원 #163 / NextAuth `AUTH_TRUST_HOST=true` / Railway 볼륨 root-소유 → entrypoint chown+su-exec #164, 약 20분 다운 후 복구). **P8.2 완료**: Supabase/on-prem Postgres/Drizzle-pg/Auth.js-OAuth 경로·의존(`@supabase/*`·`pg`·`@auth/drizzle-adapter`) 전면 제거(레포·base·connection·failover·schema·supabase 클라이언트·authjs/supabase-auth·callback·스크립트·`supabase/` 디렉터리·`scheduled.yml`), 30개 라우트 가드 제거, 단일 스택 seam 단순화, `isUniqueViolation` SQLite-aware 수정, `useAuth`/`SessionProvider` local 단일화. **검증**: type-check·lint clean, **1779 테스트 통과**, `pnpm build` 성공, 소스 잔존 supabase ref 0. **P8.3 완료**: CLAUDE.md·AGENTS.md·README·env-vars·architecture(overview/database/auth)·`.env.example` 갱신 + 컷오버 ADR. 상세: [컷오버 ADR](../../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md). **남은 사용자 작업(코드 외)**: `ENCRYPTION_KEY` 설정·관리자 로그인 E2E 확인.
+> **🎉 2026-06-23 컷오버 + Supabase 완전 제거 완료**: xzawed.xyz가 sqlite+local 인증으로 라이브 전환·영속 볼륨 마운트. 컷오버 중 함정 3건 수정(Railway VOLUME 미지원 #163 / NextAuth `AUTH_TRUST_HOST=true` / Railway 볼륨 root-소유 → entrypoint chown+su-exec #164, 약 20분 다운 후 복구). **P8.2 완료**: Supabase/on-prem Postgres/Drizzle-pg/Auth.js-OAuth 경로·의존(`@supabase/*`·`pg`·`@auth/drizzle-adapter`) 전면 제거(레포·base·connection·failover·schema·supabase 클라이언트·authjs/supabase-auth·callback·스크립트·`supabase/` 디렉터리·`scheduled.yml`), 30개 라우트 가드 제거, 단일 스택 seam 단순화, `isUniqueViolation` SQLite-aware 수정, `useAuth`/`SessionProvider` local 단일화. **검증**: type-check·lint clean, **1779 테스트 통과**, `pnpm build` 성공, 소스 잔존 supabase ref 0. **P8.3 완료**: CLAUDE.md·AGENTS.md·README·env-vars·architecture(overview/database/auth)·`.env.example` 갱신 + 컷오버 ADR. 상세: [컷오버 ADR](../../../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md). **남은 사용자 작업(코드 외)**: `ENCRYPTION_KEY` 설정·관리자 로그인 E2E 확인.
 
 - **완료(Phase 1)**: SQLite 스키마(9테이블)·연결(WAL/FK)·마이그레이션(`drizzle/sqlite/`, 커밋)·`DB_PROVIDER=sqlite` / 7개 SQLite 레포(159테스트)·원자적 레이트리밋(`db.transaction`+`UPDATE…WHERE count<limit RETURNING`)·factory 배선.
 - **완료(Phase 2)**: `AUTH_PROVIDER=local`(Auth.js Credentials 단일 관리자 + JWT 무상태, scrypt 비번, `getAuthUser` 분기) / **P2.2** edge-safe 분할 설정(`local-auth-base`+`local-auth-edge`) + 미들웨어 `local` 세션 게이팅(`enforceAuthGate`) / `/api/auth/[...nextauth]/route.ts` provider 디스패치 핸들러 / **P2.3·P2.4** 로그인 페이지 Credentials 폼 + 관리자 `users` 멱등 시드(`seedAdmin`)·부팅 부트스트랩(`bootstrap`, instrumentation 배선 — P6.1 부팅 마이그레이션 일부 선반영) + `scripts/hashAdminPassword.ts`(`pnpm admin:hash`).
@@ -48,6 +53,8 @@
 
 ## 1. 목표 & 확정 제약
 
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
+
 **목표**: 관리형 DB(Supabase) 및 외부 상태 저장소 의존을 제거하고, **단일 컨테이너 안에서 자체 완결되는 임베디드 SQLite** 영속성으로 전환한다.
 
 **사용자 확정 결정**
@@ -55,11 +62,13 @@
 |---|---|---|
 | 배포 모델 | **단일 사용자 / 셀프호스트** | RLS·멀티유저 격리·organizations·gallery·복잡 OAuth 제거 → 범위 급감 |
 | "오프라인" 의미 | **관리형 DB 비의존만** (외부 API 호출 허용) | Claude 생성·프록시·OAuth는 유지 가능. 제품 핵심 보존 |
-| 백업 주권 | 당시 추천 → **2026-08-01 갱신** | 당시: 자체보관(볼륨 스냅샷 + `.backup`), Litestream 옵션. **현행:** on-volume `.backup()` 자동 + admin download만. 유료 DR(Railway 볼륨 백업·Litestream→S3 등)은 **제외(2026-08-01)** — [operations.md §3.4](../../guides/operations.md) |
+| 백업 주권 | 당시 추천 → **2026-08-01 갱신** | 당시: 자체보관(볼륨 스냅샷 + `.backup`), Litestream 옵션. **현행:** on-volume `.backup()` 자동 + admin download만. 유료 DR(Railway 볼륨 백업·Litestream→S3 등)은 **제외(2026-08-01)** — [operations.md §3.4](../../../guides/operations.md) |
 
 **비목표(YAGNI)**: 멀티유저 RBAC, organizations/memberships, gallery/project_likes, 수평 확장(replica), HA/자동 페일오버(LiteFS sunset).
 
 ## 2. 타깃 아키텍처
+
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
 
 ```
 단일 Railway 컨테이너
@@ -76,6 +85,8 @@
 
 ## 3. 리서치 검증 사실 (출처 기반 — WBS 전제)
 
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
+
 - **단일 인스턴스 천장**: 볼륨 붙은 Railway 서비스는 replica 불가, 동일 볼륨 다중 마운트 금지, 재배포 시 짧은 다운타임. 현 앱이 이미 단일 인스턴스 전제라 **수용**. (railway docs)
 - **볼륨 용량**: Free 0.5GB / Hobby 5GB / Pro 50GB(→1TB). OLTP엔 충분.
 - **데이터 계층**: `drizzle-orm/better-sqlite3` first-party + 마이그레이터. WAL 권장(읽기-쓰기 동시성↑). **SQLite는 단일 writer**(WAL도 동시 쓰기 불가, SQLITE_BUSY) → 원자적 카운터는 `BEGIN IMMEDIATE` 직렬화. `synchronous=NORMAL` 기본(크리티컬 쓰기는 FULL).
@@ -83,6 +94,8 @@
 - **백업**: 당시 리서치 — Litestream = DR(HA 아님), ~1s 손실창, S3 의존 vs 주권. **현행 결정(2026-08-01):** on-volume `.backup()` + 선택적 admin download. 유료 오프-볼륨 DR **제외**.
 
 ## 4. WBS (Work Breakdown Structure)
+
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
 
 > 규모: S(≤0.5d) · M(0.5~2d) · L(2~5d). 선행 = 선행 작업 패키지 ID. AC = 수용기준.
 
@@ -159,6 +172,8 @@
 
 ## 5. 마일스톤(권장 순서)
 
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
+
 1. **M1 기반**: P0 전체 + P1.1~P1.3 (볼륨·백업·SQLite 연결·provider 분기) — *데이터 소실 방지 확보*
 2. **M2 데이터계층**: P1.4~P1.6 + P7.1 (레포 + 레이트리밋 + 레포 테스트)
 3. **M3 인증**: P2 전체 + P7.2 (Supabase Auth 탈피)
@@ -166,6 +181,8 @@
 5. **M5 배포·정리**: P6 + P7.3~P7.4 + P8 (인프라·테스트·컷오버·문서)
 
 ## 6. 리스크 & 완화 (감사+리서치)
+
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
 
 | 리스크 | 심각도 | 완화 |
 |---|---|---|
@@ -177,12 +194,16 @@
 | better-sqlite3 네이티브 빌드(Docker·Node 22) | Med | 멀티스테이지 빌드 검증, 프리빌트 확인 |
 
 ## 7. 미결정(실행 중 확정) — 추천 default 명시
-- **백업 매체**: ✅ **확정(2026-08-01)** — on-volume `.backup` + 선택 admin download. ~~볼륨 스냅샷·Litestream→S3~~ **유료 DR 제외**. 현행: [operations.md §3.4](../../guides/operations.md).
+
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
+- **백업 매체**: ✅ **확정(2026-08-01)** — on-volume `.backup` + 선택 admin download. ~~볼륨 스냅샷·Litestream→S3~~ **유료 DR 제외**. 현행: [operations.md §3.4](../../../guides/operations.md).
 - **인증 방식**: Auth.js Credentials 단일 관리자 *권장*; OAuth 유지 원하면 Auth.js OAuth provider(외부 IdP 호출). *(이후 다중 사용자 공개 가입으로 전환됨 — 역사 문서)*
 - **카탈로그 보관**: SQLite 테이블 유지 *권장*(cron write 단순); 대안은 JSON 번들(countries 방식).
 - **기존 데이터**: 셀프호스트 신규 시작이면 이관 생략; 보존 필요 시 P8.1.
 
 ## 8. 출처(딥리서치)
+
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
 - Railway Volumes/Scaling: docs.railway.com/volumes/reference, /deployments/scaling
 - Litestream: litestream.io (당시 리서치 참고 — **채택하지 않음**, 2026-08-01 유료 DR 제외)
 - Drizzle SQLite: orm.drizzle.team/docs/get-started-sqlite

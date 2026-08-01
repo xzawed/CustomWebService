@@ -1,10 +1,15 @@
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE | completed: 2026-06-23 | superseded_by: docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md, docs/architecture/database.md, docs/guides/operations.md, docs/guides/sqlite-restore-runbook.md -->
 # SQLite 컷오버 런북 (Supabase → 임베디드 SQLite + local 인증)
 
-> 대상: `feat/sqlite-migration` 브랜치. Phase 1~7 완료(프로덕션 무영향, docker 검증 끝).
-> 이 문서는 **실제 컷오버**(비가역) 절차다. Phase 8에 해당한다.
-> 배경·진행현황: [WBS 계획서](../superpowers/plans/2026-06-22-db-removal-sqlite-migration.md).
+> ⛔ **역사 문서 — 실행하지 말 것.** 2026-06-23 컷오버는 완료됐다. 현행 DB·인증·운영은
+> [database.md](../../architecture/database.md) · [컷오버 ADR](../../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md) ·
+> [operations.md](../../guides/operations.md) · [sqlite-restore-runbook.md](../../guides/sqlite-restore-runbook.md) ·
+> [다중 사용자 ADR](../../decisions/2026-06-24-public-signup-multi-user-auth.md) 를 본다.
+> 배경 WBS(역사): [2026-06-22-db-removal-sqlite-migration.md](../superpowers/plans/2026-06-22-db-removal-sqlite-migration.md).
 
 ## 0. 전제 — 무엇이 바뀌나
+
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
 
 - **DB**: Supabase(PostgreSQL) → 컨테이너 내 임베디드 SQLite(`/data/app.db`, Railway Volume 영속).
 - **인증**: Supabase OAuth(멀티유저) → Auth.js Credentials **단일 관리자** + JWT 무상태.
@@ -13,6 +18,8 @@
   env만 되돌리면 Supabase로 복귀 가능(코드가 아직 양쪽 경로 보유).
 
 ## 1. 사용자 선행 작업 (코드 외)
+
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
 
 ### 1.1 Railway 영속 볼륨 — **절대 선행** (없으면 재배포마다 SQLite 소실)
 - Railway 서비스에 **Volume 생성, 마운트 경로 `/data`**.
@@ -43,6 +50,8 @@ pnpm admin:hash '원하는관리자비밀번호'
 
 ## 2. (선택) 기존 데이터 이관 — P8.1
 
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
+
 **셀프호스트 신규 시작이면 건너뛴다** (부팅 시 카탈로그 49개 + 관리자가 자동 시드되어 바로 사용 가능).
 
 기존 프로젝트/생성코드/저장된 API 키를 보존하려면:
@@ -57,6 +66,8 @@ pnpm cutover:migrate --out ./app.db [--user <보존할_Supabase_user_id>]
 - 부팅 시드는 멱등이라 이관 파일과 충돌하지 않는다(빈 테이블일 때만 시드).
 
 ## 3. 컷오버 스위치 (배포)
+
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
 
 1. 1.1~1.4 완료 확인(특히 **볼륨**).
 2. (이관 시) 2단계로 `/data/app.db` 준비.
@@ -77,6 +88,8 @@ pnpm cutover:migrate --out ./app.db [--user <보존할_Supabase_user_id>]
 
 ## 4. 컷오버 안정화 후 — supabase 경로 제거 (P8.2, 비가역)
 
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
+
 3단계가 수 일간 안정적으로 동작한 뒤 진행한다. **이 시점부터 Supabase 롤백 불가.**
 - `@supabase/*`·`pg`·Drizzle-pg 의존 및 경로 제거: `src/lib/supabase/`, Supabase/Drizzle 레포,
   `createServiceClient`/`createClient`, `.rpc()`, `/(auth)/callback`, `assertOwner`(단일 소유자라 자명),
@@ -87,16 +100,20 @@ pnpm cutover:migrate --out ./app.db [--user <보존할_Supabase_user_id>]
 
 ## 5. 운영 — 백업 (P6.3, ✅ 구현됨 2026-06-25)
 
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
+
 - **자동 인프로세스 백업**: 부팅 시 `instrumentation.register() → scheduleBackups`(`src/lib/db/sqlite/backup.ts`)가
   주기적으로 `raw.backup()` 온라인 덤프를 `<SQLITE 디렉터리>/backups/app-YYYYMMDD-HHmmss.db`로 남기고,
   `SQLITE_BACKUP_RETENTION`(기본 7)개만 보관(오래된 파일 자동 정리). 외부 의존·비용 없음.
-  - 환경변수: `SQLITE_BACKUP_ENABLED`(기본 true)·`SQLITE_BACKUP_INTERVAL_MS`(기본 24h)·`SQLITE_BACKUP_RETENTION`(기본 7)·`SQLITE_BACKUP_DIR`(기본 `/data/backups`). 상세: [env-vars.md](../reference/env-vars.md).
+  - 환경변수: `SQLITE_BACKUP_ENABLED`(기본 true)·`SQLITE_BACKUP_INTERVAL_MS`(기본 24h)·`SQLITE_BACKUP_RETENTION`(기본 7)·`SQLITE_BACKUP_DIR`(기본 `/data/backups`). 상세: [env-vars.md](../../reference/env-vars.md).
   - **방어 범위**: 논리 손상·잘못된 마이그레이션·실수 삭제. 덤프는 **동일 볼륨**(`/data/backups`)에 있다.
-  - **유료 오프-볼륨 DR**(Railway 볼륨 백업·관리형 스토리지·Litestream→S3)은 **제외(2026-08-01)** — 잔여 작업·향후 옵션으로 취급하지 말 것. 유일한 무료 오프-볼륨 경로는 `GET /api/v1/admin/backup/latest`(사람이 실제로 당긴 경우만). 계층·수용 위험: [operations.md §3.4](operations.md).
-  - 복구: [sqlite-restore-runbook.md](sqlite-restore-runbook.md). **볼륨이 사라지고 오프라인 사본이 없으면 복구 절차는 없다.**
+  - **유료 오프-볼륨 DR**(Railway 볼륨 백업·관리형 스토리지·Litestream→S3)은 **제외(2026-08-01)** — 잔여 작업·향후 옵션으로 취급하지 말 것. 유일한 무료 오프-볼륨 경로는 `GET /api/v1/admin/backup/latest`(사람이 실제로 당긴 경우만). 계층·수용 위험: [operations.md §3.4](../../guides/operations.md).
+  - 복구: [sqlite-restore-runbook.md](../../guides/sqlite-restore-runbook.md). **볼륨이 사라지고 오프라인 사본이 없으면 복구 절차는 없다.**
 - 크리티컬 쓰기 내구성은 이미 `synchronous=NORMAL` + 원자적 카운터(`BEGIN IMMEDIATE` 직렬화)로 확보.
 
 ## 6. 프로덕션 클린 리셋 (다중 사용자 전환 초기화)
+
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
 
 > **목적**: 다중 사용자 전환(2026-06-24) 후 기존 단일 관리자 시드 데이터를 포함한 프로덕션 DB를 깨끗하게 초기화하여 새 회원가입 흐름으로 첫 사용자를 등록한다.
 >
@@ -148,6 +165,8 @@ DELETE FROM users;
 ---
 
 ## 7. 알려진 잔여 / 주의 (원 §6)
+
+<!-- DOC_STATUS: HISTORICAL | DO_NOT_EXECUTE -->
 
 - **P4.3**: 배포 레이트리밋/환불·상태머신은 레포 단위 검증됨. 외부 배포(GitHub/Railway) 통합은 실배포에서 확인.
 - **P5.2 (✅ 완료 2026-06-25)**: `verification_status` 라이브 갱신은 관리자 트리거 엔드포인트 `POST /api/v1/admin/verify-catalog`(ADMIN_API_KEY 보호, `src/lib/catalog/verifyRunner.ts`)로 구현. 배포 런타임에서 호출 시 활성 API GET 엔드포인트를 실제 검증해 `working/degraded→verified`·`broken→broken`만, 변경분만 DB 갱신(key_gated/unknown 보존). 무인 cron 대신 트리거를 채택해 일시 장애 플래핑·무인 outbound를 회피.

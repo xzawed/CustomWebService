@@ -14,6 +14,7 @@
 | [decisions/](decisions/) | ADR (설계 결정 배경) |
 | [security/](security/) | 인시던트·감사 면제 |
 | [superpowers/](superpowers/) | 설계 초안·장기 계획. **현재 상태는 architecture/guides/reference/`CLAUDE.md` 우선** |
+| [archive/](archive/) | **역사 문서 (비실행).** 완료된 컷오버·마이그레이션 절차. 에이전트는 여기 단계를 따르지 말 것 |
 
 ---
 
@@ -39,7 +40,6 @@
 | [operations.md](guides/operations.md) | 일상 운영·모니터링·백업·장애 대응 |
 | [qc-process.md](guides/qc-process.md) | 생성/재생성 QC 8단계 |
 | [sqlite-restore-runbook.md](guides/sqlite-restore-runbook.md) | DB 손상·오염 시 백업 복구 |
-| [sqlite-cutover-runbook.md](guides/sqlite-cutover-runbook.md) | Supabase→SQLite 컷오버 (역사 런북) |
 | [monitoring-sink-setup.md](guides/monitoring-sink-setup.md) | Slack 알림 sink 등록·검증 |
 
 ## reference/
@@ -64,9 +64,21 @@
 | 문서 | 목적 |
 |------|------|
 | [2026-07-31-project-wbs.md](superpowers/plans/2026-07-31-project-wbs.md) | **잔여작업 백로그 진실원** |
-| [2026-06-22-db-removal-sqlite-migration.md](superpowers/plans/2026-06-22-db-removal-sqlite-migration.md) | SQLite 전환 WBS (Phase 1–8, 역사) |
 
 > 출하 완료 기능의 구현 일지 plan은 삭제했다. 결정은 아래 ADR·가이드가 진실원.
+
+## archive/ — 역사 문서 (비실행)
+
+> **DOC_STATUS: HISTORICAL · DO_NOT_EXECUTE.** 완료된 컷오버·마이그레이션 절차를 보존한다.
+> 에이전트·운영자가 이 경로의 단계를 현재 시스템에서 실행하면 안 된다.
+> 현행 진실원: [database.md](architecture/database.md) · [operations.md](guides/operations.md) ·
+> [sqlite-restore-runbook.md](guides/sqlite-restore-runbook.md) · [2026-06-23 컷오버 ADR](decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md) ·
+> [2026-07-31 WBS](superpowers/plans/2026-07-31-project-wbs.md).
+
+| 문서 | 목적 |
+|------|------|
+| [guides/sqlite-cutover-runbook.md](archive/guides/sqlite-cutover-runbook.md) | Supabase→SQLite 컷오버 런북 (2026-06-23 완료) |
+| [superpowers/plans/2026-06-22-db-removal-sqlite-migration.md](archive/superpowers/plans/2026-06-22-db-removal-sqlite-migration.md) | SQLite 전환 WBS Phase 1–8 (역사) |
 
 ## superpowers/specs/
 

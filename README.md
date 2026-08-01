@@ -10,7 +10,7 @@
 [![Coverage](https://img.shields.io/badge/Coverage-85%25%2B-yellow?style=flat-square)](./docs/guides/testing.md)
 [![Deploy](https://img.shields.io/badge/Deploy-Railway-8A2BE2?style=flat-square&logo=railway)](https://railway.app)
 
-**🌐 서비스 URL**: [xzawed.xyz](https://xzawed.xyz) &nbsp;|&nbsp; 🇺🇸 [English](./README.en.md)
+**🌐 서비스 URL**: [xzawed.xyz](https://xzawed.xyz)
 
 ---
 

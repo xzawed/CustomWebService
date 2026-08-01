@@ -2,6 +2,8 @@
 
 **날짜**: 2026-04-13
 
+> **상태:** Superseded — Organizations 코드·테이블 시드는 제거 경로를 거쳤고 SQLite 스키마에도 orgs/memberships 테이블이 없다(`organization_id` 컬럼만 nullable 잔존). · 대체: [database.md](../architecture/database.md), [2026-06-23 컷오버 ADR](2026-06-23-sqlite-cutover-and-supabase-removal.md)
+
 ## 배경
 
 Phase A-1 (갤러리) 개발 당시 Organization/멤버십 도메인 코드가 작성되었으나, 실제 기능(조직 생성, 멤버 초대 등)은 구현되지 않았다.

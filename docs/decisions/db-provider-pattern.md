@@ -1,7 +1,7 @@
 # Repository 팩토리 패턴 도입 결정
 
 > **결정 날짜:** 2026-03-31  
-> **상태:** 완료 (모든 Service/Repository 적용 완료, 287개 테스트 통과)
+> **상태:** Superseded — 팩토리 패턴은 남았으나 Supabase 클라이언트 주입·다중 DB Provider 분기는 없음. 무인자 SQLite factory. · 대체: [2026-06-23 컷오버 ADR](2026-06-23-sqlite-cutover-and-supabase-removal.md), [database.md](../architecture/database.md)
 
 ---
 
