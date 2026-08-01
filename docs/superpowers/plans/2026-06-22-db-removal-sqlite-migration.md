@@ -55,7 +55,7 @@
 |---|---|---|
 | 배포 모델 | **단일 사용자 / 셀프호스트** | RLS·멀티유저 격리·organizations·gallery·복잡 OAuth 제거 → 범위 급감 |
 | "오프라인" 의미 | **관리형 DB 비의존만** (외부 API 호출 허용) | Claude 생성·프록시·OAuth는 유지 가능. 제품 핵심 보존 |
-| 백업 주권 | 추천 채택 | **자체보관 기본**(Railway 볼륨 스냅샷 + 주기 `.backup` 덤프), Litestream→S3는 옵션 |
+| 백업 주권 | 당시 추천 → **2026-08-01 갱신** | 당시: 자체보관(볼륨 스냅샷 + `.backup`), Litestream 옵션. **현행:** on-volume `.backup()` 자동 + admin download만. 유료 DR(Railway 볼륨 백업·Litestream→S3 등)은 **제외(2026-08-01)** — [operations.md §3.4](../../guides/operations.md) |
 
 **비목표(YAGNI)**: 멀티유저 RBAC, organizations/memberships, gallery/project_likes, 수평 확장(replica), HA/자동 페일오버(LiteFS sunset).
 
@@ -68,7 +68,7 @@
 │     drizzle-orm/better-sqlite3 (first-party) + 마이그레이터
 ├── 인증: Auth.js v5, JWT 세션(무상태, 쿠키 JWE) — DB 어댑터 없음
 │     단일 관리자 계정(Credentials) 권장 / OAuth는 옵션
-├── 백업: 볼륨 스냅샷 + 주기 SQLite .backup 덤프(자체보관)  ← Litestream→S3는 옵션
+├── 백업: 주기 SQLite .backup 덤프(on-volume) + admin download  ← 유료 DR 제외(2026-08-01)
 └── 외부 호출 유지: Claude API(생성), 프록시 대상 API, (옵션)OAuth IdP
 ```
 
@@ -80,7 +80,7 @@
 - **볼륨 용량**: Free 0.5GB / Hobby 5GB / Pro 50GB(→1TB). OLTP엔 충분.
 - **데이터 계층**: `drizzle-orm/better-sqlite3` first-party + 마이그레이터. WAL 권장(읽기-쓰기 동시성↑). **SQLite는 단일 writer**(WAL도 동시 쓰기 불가, SQLITE_BUSY) → 원자적 카운터는 `BEGIN IMMEDIATE` 직렬화. `synchronous=NORMAL` 기본(크리티컬 쓰기는 FULL).
 - **인증**: Auth.js v5 **JWT = 어댑터 없으면 기본**(무상태). **Next 16 Node 미들웨어**로 과거 edge 분리 제약 완화. 즉시 무효화 불가 → 짧은 TTL/재로그인으로 완화(단일 사용자라 위험 낮음).
-- **백업**: Litestream = DR(HA 아님), WAL→S3 연속 복제, **~1s 손실창**. S3 의존이 주권과 충돌 → **자체보관 우선** 결정.
+- **백업**: 당시 리서치 — Litestream = DR(HA 아님), ~1s 손실창, S3 의존 vs 주권. **현행 결정(2026-08-01):** on-volume `.backup()` + 선택적 admin download. 유료 오프-볼륨 DR **제외**.
 
 ## 4. WBS (Work Breakdown Structure)
 
@@ -92,7 +92,7 @@
 | P0.1 | **Railway Volume 생성 + `/data` 마운트** (없으면 데이터 소실 — 최우선) | — | S | 컨테이너 재배포 후에도 `/data` 파일 잔존 확인 |
 | P0.2 | Supabase 프로덕션 **전체 백업**(현행 데이터 export) — 컷오버 안전망 | — | S | api_catalog·projects·generated_codes 등 덤프 보관 |
 | P0.3 | 인증 방식 확정(권장: Auth.js Credentials 단일 관리자 + JWT) | — | S | ADR 한 줄 결정 기록 |
-| P0.4 | 백업 전략 확정(권장: 볼륨 스냅샷 + 주기 `.backup`; Litestream 옵션) | P0.1 | S | 백업·복구 절차 문서화 |
+| P0.4 | 백업 전략 확정 — ✅ on-volume `.backup` 채택. ~~볼륨 스냅샷·Litestream 옵션~~ → **유료 DR 제외(2026-08-01)** | P0.1 | S | 백업·복구 절차 문서화 |
 | P0.5 | 죽은 테이블/기능 확정 제외 목록(organizations·memberships·project_likes·gallery·event_log) 코드 사용처 재확인 | — | S | 제외 대상 0 사용처 확인 |
 
 ### Phase 1 — 데이터 계층: SQLite 어댑터 (규모 L)
@@ -139,7 +139,7 @@
 |---|---|---|---|---|
 | P6.1 | Dockerfile: `better-sqlite3` 네이티브 빌드(빌드 의존), 볼륨 경로, 부팅 시 마이그레이션 실행 | P1.2 | M | 컨테이너 부팅→마이그레이션→서비스 정상 |
 | P6.2 | 환경변수 정리(Supabase 제거), `DB_PROVIDER=sqlite`·`AUTH_PROVIDER` 단일화, supabase-js 의존 제거 | P3.3,P2.2 | S | Supabase env 0건에서 부팅 |
-| P6.3 | ✅ 인프로세스 주기 `.backup` 덤프 + 보관 정책(`src/lib/db/sqlite/backup.ts`, instrumentation 배선, 2026-06-25). Litestream→S3는 향후 옵션 | P0.4 | M | 백업 산출물 생성·정리 단위 검증(22 테스트). 복구 리허설은 운영 시 |
+| P6.3 | ✅ 인프로세스 주기 `.backup` 덤프 + 보관 정책(`src/lib/db/sqlite/backup.ts`, instrumentation 배선, 2026-06-25). ~~Litestream→S3 향후 옵션~~ → **유료 DR 제외(2026-08-01)** | P0.4 | M | 백업 산출물 생성·정리 단위 검증(22 테스트). 복구 리허설은 운영 시 |
 | P6.4 | `pnpm test:prod` standalone 헬스체크 + 배포 검증 | P6.1,P6.2 | S | 헬스 200, 핵심 플로우 동작 |
 
 ### Phase 7 — 테스트 재작성 (규모 L) — 🔵 P7.2·P7.3 완료, P7.1·P7.4는 Phase 8 동반(레포 제거 시)
@@ -173,18 +173,18 @@
 | 원자적 레이트리밋 약화 → Claude 과금 폭증 | High | `BEGIN IMMEDIATE` 직렬화 + 증가/환불 동일 DB. 단일 사용자라 동시성 낮아 위험 추가 감소 |
 | 권한 경계 회귀(노출) | Med→Low | 단일 사용자라 격리 부담 급감. 그래도 `assertOwner` 게이트 + 회귀 테스트 |
 | 단일 인스턴스 천장(확장 불가) | Med | 현 규모 무해. 성장 시 외부 저장소 재이관 경로를 ADR로 사전 문서화. IRepository 유지로 재이관 비용 최소화 |
-| ~1s 백업 손실창(Litestream) / 스냅샷 간격 | Med | 자체보관 기본 + 주기 짧게. 크리티컬 쓰기 `synchronous=FULL` |
+| 볼륨 손실 + 오프라인 사본 없음 | Med | **수용(2026-08-01)**. 유료 DR 제외. on-volume 주기 + 선택 admin download. 크리티컬 쓰기 `synchronous=NORMAL` |
 | better-sqlite3 네이티브 빌드(Docker·Node 22) | Med | 멀티스테이지 빌드 검증, 프리빌트 확인 |
 
 ## 7. 미결정(실행 중 확정) — 추천 default 명시
-- **백업 매체**: 자체보관(볼륨 스냅샷 + `.backup`) *권장 기본*; S3 허용 시 Litestream 추가(옵션).
-- **인증 방식**: Auth.js Credentials 단일 관리자 *권장*; OAuth 유지 원하면 Auth.js OAuth provider(외부 IdP 호출).
+- **백업 매체**: ✅ **확정(2026-08-01)** — on-volume `.backup` + 선택 admin download. ~~볼륨 스냅샷·Litestream→S3~~ **유료 DR 제외**. 현행: [operations.md §3.4](../../guides/operations.md).
+- **인증 방식**: Auth.js Credentials 단일 관리자 *권장*; OAuth 유지 원하면 Auth.js OAuth provider(외부 IdP 호출). *(이후 다중 사용자 공개 가입으로 전환됨 — 역사 문서)*
 - **카탈로그 보관**: SQLite 테이블 유지 *권장*(cron write 단순); 대안은 JSON 번들(countries 방식).
 - **기존 데이터**: 셀프호스트 신규 시작이면 이관 생략; 보존 필요 시 P8.1.
 
 ## 8. 출처(딥리서치)
 - Railway Volumes/Scaling: docs.railway.com/volumes/reference, /deployments/scaling
-- Litestream: litestream.io/how-it-works, /alternatives, /tips; fly.io/blog/litestream-revamped
+- Litestream: litestream.io (당시 리서치 참고 — **채택하지 않음**, 2026-08-01 유료 DR 제외)
 - Drizzle SQLite: orm.drizzle.team/docs/get-started-sqlite
 - better-sqlite3 WAL/synchronous: github.com/WiseLibs/better-sqlite3 (docs/performance.md)
 - Auth.js 세션/edge: authjs.dev/concepts/session-strategies, /guides/edge-compatibility

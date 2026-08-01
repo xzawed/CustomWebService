@@ -91,9 +91,9 @@ pnpm cutover:migrate --out ./app.db [--user <보존할_Supabase_user_id>]
   주기적으로 `raw.backup()` 온라인 덤프를 `<SQLITE 디렉터리>/backups/app-YYYYMMDD-HHmmss.db`로 남기고,
   `SQLITE_BACKUP_RETENTION`(기본 7)개만 보관(오래된 파일 자동 정리). 외부 의존·비용 없음.
   - 환경변수: `SQLITE_BACKUP_ENABLED`(기본 true)·`SQLITE_BACKUP_INTERVAL_MS`(기본 24h)·`SQLITE_BACKUP_RETENTION`(기본 7)·`SQLITE_BACKUP_DIR`(기본 `/data/backups`). 상세: [env-vars.md](../reference/env-vars.md).
-  - **방어 범위**: 논리 손상·잘못된 마이그레이션·실수 삭제. **볼륨 자체 손실**은 Railway 볼륨 스냅샷이 담당.
-  - 복구: `cp /data/backups/app-<ts>.db /data/app.db`(서비스 중지 후) 또는 디버그 컨테이너에서 교체.
-- (옵션·향후) Litestream으로 WAL→S3 연속 복제(~1s 손실창, S3 의존·비용)로 오프-볼륨 DR 강화.
+  - **방어 범위**: 논리 손상·잘못된 마이그레이션·실수 삭제. 덤프는 **동일 볼륨**(`/data/backups`)에 있다.
+  - **유료 오프-볼륨 DR**(Railway 볼륨 백업·관리형 스토리지·Litestream→S3)은 **제외(2026-08-01)** — 잔여 작업·향후 옵션으로 취급하지 말 것. 유일한 무료 오프-볼륨 경로는 `GET /api/v1/admin/backup/latest`(사람이 실제로 당긴 경우만). 계층·수용 위험: [operations.md §3.4](operations.md).
+  - 복구: [sqlite-restore-runbook.md](sqlite-restore-runbook.md). **볼륨이 사라지고 오프라인 사본이 없으면 복구 절차는 없다.**
 - 크리티컬 쓰기 내구성은 이미 `synchronous=NORMAL` + 원자적 카운터(`BEGIN IMMEDIATE` 직렬화)로 확보.
 
 ## 6. 프로덕션 클린 리셋 (다중 사용자 전환 초기화)
