@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { __resetGenerationSessionForTests } from './generationSession';
 import { runClientGeneration } from './runClientGeneration';
 import { pollGenerationStatus } from './pollGenerationStatus';
 import type { PollGenerationStatusDeps } from './pollGenerationStatus';
+
+const TEST_RUN_ID = 'run-test-fixed-id';
 
 function makeJsonRes(body: unknown, ok = true): Response {
   return {
@@ -109,13 +112,15 @@ function makeDocument(initial: DocumentVisibilityState = 'hidden') {
 
 function makeDeps(overrides: Partial<Parameters<typeof runClientGeneration>[1]> = {}) {
   return {
-    startGeneration: vi.fn(),
+    startGeneration: vi.fn(() => TEST_RUN_ID),
     updateProgress: vi.fn(),
     completeGeneration: vi.fn(),
     failGeneration: vi.fn(),
     setGeneratingProjectId: vi.fn(),
     onCompleted: vi.fn(),
     now: () => 1_700_000_000_000,
+    // 테스트 간 세션 싱글톤 간섭 방지 — 독립 AbortSignal
+    beginSession: () => new AbortController().signal,
     documentRef: {
       visibilityState: 'visible' as DocumentVisibilityState,
       addEventListener: vi.fn(),
@@ -139,6 +144,7 @@ describe('runClientGeneration', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    __resetGenerationSessionForTests();
   });
 
   it('create 실패 → failGeneration, generate 미호출', async () => {
@@ -150,8 +156,12 @@ describe('runClientGeneration', () => {
     await runClientGeneration(input, deps);
 
     expect(deps.startGeneration).toHaveBeenCalledTimes(1);
-    expect(deps.updateProgress).toHaveBeenCalledWith(5, '프로젝트 생성 중...');
-    expect(deps.failGeneration).toHaveBeenCalledWith('생성 한도 초과');
+    expect(deps.updateProgress).toHaveBeenCalledWith(
+      5,
+      '프로젝트 생성 중...',
+      TEST_RUN_ID,
+    );
+    expect(deps.failGeneration).toHaveBeenCalledWith('생성 한도 초과', TEST_RUN_ID);
     expect(deps.setGeneratingProjectId).not.toHaveBeenCalled();
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(fetchFn.mock.calls[0][0]).toBe('/api/v1/projects');
@@ -167,8 +177,12 @@ describe('runClientGeneration', () => {
     await runClientGeneration(input, deps);
 
     expect(deps.setGeneratingProjectId).toHaveBeenCalledWith('proj-1');
-    expect(deps.updateProgress).toHaveBeenCalledWith(10, 'AI 코드 생성 시작...');
-    expect(deps.failGeneration).toHaveBeenCalledWith('생성 거부');
+    expect(deps.updateProgress).toHaveBeenCalledWith(
+      10,
+      'AI 코드 생성 시작...',
+      TEST_RUN_ID,
+    );
+    expect(deps.failGeneration).toHaveBeenCalledWith('생성 거부', TEST_RUN_ID);
     expect(fetchFn).toHaveBeenCalledTimes(2);
     expect(fetchFn.mock.calls[1][0]).toBe('/api/v1/generate');
   });
@@ -182,7 +196,10 @@ describe('runClientGeneration', () => {
 
     await runClientGeneration(input, deps);
 
-    expect(deps.failGeneration).toHaveBeenCalledWith('스트림을 읽을 수 없습니다.');
+    expect(deps.failGeneration).toHaveBeenCalledWith(
+      '스트림을 읽을 수 없습니다.',
+      TEST_RUN_ID,
+    );
   });
 
   it('happy path → progress 5 → 10 → SSE progress → complete → onCompleted 1회', async () => {
@@ -202,10 +219,10 @@ describe('runClientGeneration', () => {
     expect(deps.failGeneration).not.toHaveBeenCalled();
     expect(deps.setGeneratingProjectId).toHaveBeenCalledWith('proj-h');
     expect(updateProgress.mock.calls.map((c: unknown[]) => c[0])).toEqual([5, 10, 55]);
-    expect(updateProgress).toHaveBeenNthCalledWith(1, 5, '프로젝트 생성 중...');
-    expect(updateProgress).toHaveBeenNthCalledWith(2, 10, 'AI 코드 생성 시작...');
-    expect(updateProgress).toHaveBeenNthCalledWith(3, 55, '코드 작성');
-    expect(deps.completeGeneration).toHaveBeenCalledWith('proj-h', 3);
+    expect(updateProgress).toHaveBeenNthCalledWith(1, 5, '프로젝트 생성 중...', TEST_RUN_ID);
+    expect(updateProgress).toHaveBeenNthCalledWith(2, 10, 'AI 코드 생성 시작...', TEST_RUN_ID);
+    expect(updateProgress).toHaveBeenNthCalledWith(3, 55, '코드 작성', TEST_RUN_ID);
+    expect(deps.completeGeneration).toHaveBeenCalledWith('proj-h', 3, TEST_RUN_ID);
     expect(deps.onCompleted).toHaveBeenCalledTimes(1);
 
     const createBody = JSON.parse(
@@ -224,8 +241,37 @@ describe('runClientGeneration', () => {
 
     await runClientGeneration(input, deps);
 
-    expect(deps.failGeneration).toHaveBeenCalledWith('QC 실패');
+    expect(deps.failGeneration).toHaveBeenCalledWith('QC 실패', TEST_RUN_ID);
     expect(deps.onCompleted).not.toHaveBeenCalled();
+  });
+
+  it('스토어 writer 에 자신이 민팅한 runId 를 넘긴다', async () => {
+    const runId = 'run-owned-by-this-call';
+    const streamBody =
+      'event: complete\ndata: {"projectId":"proj-rid","version":1}\n\n';
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonRes({ data: { id: 'proj-rid' } }))
+      .mockResolvedValueOnce(makeStreamRes([streamBody]));
+    const startGeneration = vi.fn(() => runId);
+    const updateProgress = vi.fn();
+    const completeGeneration = vi.fn();
+    const failGeneration = vi.fn();
+    const deps = makeDeps({
+      fetchFn,
+      startGeneration,
+      updateProgress,
+      completeGeneration,
+      failGeneration,
+    });
+
+    await runClientGeneration(input, deps);
+
+    for (const call of updateProgress.mock.calls) {
+      expect(call[2]).toBe(runId);
+    }
+    expect(completeGeneration).toHaveBeenCalledWith('proj-rid', 1, runId);
+    expect(failGeneration).not.toHaveBeenCalled();
   });
 
   it('injectable deps 생략 시 기본 fetchFn(now/consumeStream/poll) 배선으로 동작', async () => {
@@ -251,7 +297,8 @@ describe('runClientGeneration', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     // makeDeps 의 now/fetchFn 을 쓰지 않는다 — 기본 파라미터 경로 검증
-    const startGeneration = vi.fn();
+    // beginSession 은 주입해 싱글톤 오염을 막는다
+    const startGeneration = vi.fn(() => TEST_RUN_ID);
     const updateProgress = vi.fn();
     const completeGeneration = vi.fn();
     const failGeneration = vi.fn();
@@ -265,6 +312,7 @@ describe('runClientGeneration', () => {
       failGeneration,
       setGeneratingProjectId,
       onCompleted,
+      beginSession: () => new AbortController().signal,
       documentRef: {
         visibilityState: 'visible' as DocumentVisibilityState,
         addEventListener: vi.fn(),
@@ -285,7 +333,7 @@ describe('runClientGeneration', () => {
 
     // stream_ended → 기본 pollForCompletion → pollGenerationStatus(fn 기본값)
     await vi.waitFor(() => {
-      expect(completeGeneration).toHaveBeenCalledWith('proj-def', 7);
+      expect(completeGeneration).toHaveBeenCalledWith('proj-def', 7, TEST_RUN_ID);
     });
     expect(onCompleted).toHaveBeenCalledTimes(1);
     expect(failGeneration).not.toHaveBeenCalled();
@@ -383,7 +431,7 @@ describe('runClientGeneration', () => {
     const updateProgress = vi.fn();
 
     const pending = runClientGeneration(input, {
-      startGeneration: vi.fn(),
+      startGeneration: vi.fn(() => TEST_RUN_ID),
       updateProgress,
       completeGeneration,
       failGeneration,
@@ -392,12 +440,13 @@ describe('runClientGeneration', () => {
       now: () => 1_700_000_000_000,
       fetchFn,
       pollGenerationStatusFn,
+      beginSession: () => new AbortController().signal,
       documentRef: doc,
     });
 
     // SSE progress 수신 대기
     await vi.waitFor(() => {
-      expect(updateProgress).toHaveBeenCalledWith(20, '생성 중');
+      expect(updateProgress).toHaveBeenCalledWith(20, '생성 중', TEST_RUN_ID);
     });
 
     // 탭 복귀 → poll 시작 (fire-and-forget)
@@ -418,7 +467,7 @@ describe('runClientGeneration', () => {
     await pollFinished;
 
     expect(completeGeneration).toHaveBeenCalledTimes(1);
-    expect(completeGeneration).toHaveBeenCalledWith('proj-race', 4);
+    expect(completeGeneration).toHaveBeenCalledWith('proj-race', 4, TEST_RUN_ID);
     expect(onCompleted).toHaveBeenCalledTimes(1);
     // 핵심 회귀: 폴링이 abort 된 뒤 failGeneration 을 호출하면 안 됨
     expect(failGeneration).not.toHaveBeenCalled();
