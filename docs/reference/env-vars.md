@@ -4,7 +4,7 @@
 >
 > **Railway 설정 상태** 컬럼: ✅ 설정됨 / ❌ 미설정 / ➖ 해당 없음 (선택 변수)
 >
-> **아키텍처(2026-06-23 컷오버 + 2026-06-24 다중 사용자 전환):** DB는 **임베디드 SQLite**(better-sqlite3, WAL, Railway 영속 볼륨 단일 인스턴스), 인증은 **Auth.js v5 Credentials + JWT 무상태**. 공개 셀프서비스 회원가입, DB 사용자별 scrypt 인증, 이메일 인증 게이트(Resend). Supabase·온프레미스 Postgres·OAuth(Google/GitHub)·**`AUTH_PROVIDER` 다중 분기**·env 단일 관리자(`ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`/`ADMIN_USER_ID`)는 제거됨. **단, `DB_PROVIDER` 환경변수 자체는 살아 있다** — `getSqliteDb()`가 `DB_PROVIDER === 'sqlite'`일 때만 연결을 열고, 미설정·다른 값이면 throw한다(`src/lib/db/sqlite/connection.ts:36-39`). 과거 이중 스택 스위치 분기(supabase/postgres/sqlite 선택)는 제거됐고, 지금은 **필수 게이트 문자열**로만 남았다. 컷오버 배경: [docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md). 다중 사용자 전환: [docs/decisions/2026-06-24-public-signup-multi-user-auth.md](../decisions/2026-06-24-public-signup-multi-user-auth.md).
+> **아키텍처(2026-06-23 컷오버 + 2026-06-24 다중 사용자 전환):** DB는 **임베디드 SQLite**(better-sqlite3, WAL, Railway 영속 볼륨 단일 인스턴스), 인증은 **Auth.js v5 Credentials + JWT 무상태**. 공개 셀프서비스 회원가입, DB 사용자별 scrypt 인증, 이메일 인증 게이트(Resend). Supabase·온프레미스 Postgres·OAuth(Google/GitHub)·**`AUTH_PROVIDER` 다중 분기**·env 단일 관리자(`ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`/`ADMIN_USER_ID`)는 제거됨. **`DB_PROVIDER` 환경변수는 남아 있으나 2026-08-01부터 필수가 아니다** — 미설정이면 sqlite로 동작하고(경고 1회), `'sqlite'` 외의 값만 throw한다(`assertSqliteEnv()`). 단일 스택에서 env 문자열 하나를 잃었다고 전면 장애가 나던 것을 없앤 조치다: [ADR](../decisions/2026-08-01-db-provider-boot-gate.md). 컷오버 배경: [docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md). 다중 사용자 전환: [docs/decisions/2026-06-24-public-signup-multi-user-auth.md](../decisions/2026-06-24-public-signup-multi-user-auth.md).
 
 ---
 
@@ -14,7 +14,7 @@
 
 | 변수 | 기본값 | Railway | 설명 |
 |------|--------|---------|------|
-| `DB_PROVIDER` | _(없음 — 필수)_ | ✅ `sqlite` | **필수.** `getSqliteDb()` 게이트. 값이 정확히 `sqlite`가 아니면 연결 생성 시 throw: `getSqliteDb()는 DB_PROVIDER=sqlite 환경에서만 사용할 수 있습니다.` (`src/lib/db/sqlite/connection.ts:36-39`). 미설정·오타·`postgres` 등 과거 값 → **모든 DB 접근 크래시**. 과거 이중 스택 스위치용이었으나 현재는 이 문자열 검사만 남음(분기 제거 ≠ 변수 제거) |
+| `DB_PROVIDER` | `sqlite` (미설정 시 기본) | ✅ `sqlite` | **선택.** 과거 이중 스택 스위치의 잔재. **미설정·빈 문자열이면 sqlite로 동작**하고 부팅 시 경고 1회를 남긴다. `'sqlite'` 외의 값은 **throw**(오설정을 조용히 삼키지 않는다). 로직: `assertSqliteEnv()`(`src/lib/db/sqlite/connection.ts`). 명시 설정을 권장하지만 **이 변수를 잃었다고 서비스가 죽지는 않는다**(2026-08-01 이전엔 죽었다 — [ADR](../decisions/2026-08-01-db-provider-boot-gate.md)) |
 | `SQLITE_PATH` | `/data/app.db` | ➖ | SQLite DB 파일 경로. Railway 영속 볼륨 마운트 경로(`/data`)에 위치. 로컬 개발 시 별도 경로로 오버라이드 가능 |
 
 ### 자동 백업 (P6.3)

@@ -465,8 +465,9 @@ COMMIT
   (IRepository seam — Provider 추상화는 이 seam만 유지)
 - **구현**: [`src/repositories/sqlite/`](../../src/repositories/sqlite/) **9종**이 **유일** 구현
   (User, Project, Code, Catalog, UserApiKey, RateLimit, Event, AuthToken, **GenerationLock**)
-- **팩토리**: 레포 팩토리는 무인자다. DB provider 분기는 없으며, `getSqliteDb()`가
-  `process.env.DB_PROVIDER`를 직접 읽어 `'sqlite'`가 아니면 throw하는 부팅 가드만 남아 있다.
+- **팩토리**: 레포 팩토리는 무인자다. DB provider 분기는 없다. `getSqliteDb()`는 `assertSqliteEnv()`로
+  환경만 검사한다 — `DB_PROVIDER` 미설정은 sqlite로 취급(경고 1회), `'sqlite'` 외의 값만 throw
+  (2026-08-01 이전엔 미설정도 throw여서 env 하나로 전면 장애였다 — [ADR](../decisions/2026-08-01-db-provider-boot-gate.md)).
   (상수만 반환하던 `getDbProvider()`와 `lib/config/providers.ts`는 2026-07-10 죽은 코드 정리로 삭제됨.)
 - **소유권 검증**: RLS가 없으므로 레포/서비스 계층의 앱 레벨 `assertOwner` 검증으로
   `user_id` 일치를 강제한다.
