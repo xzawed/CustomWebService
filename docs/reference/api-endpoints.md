@@ -543,8 +543,8 @@ X-Frame-Options: DENY
 > 상세 응답 필드는 `status` / `timestamp` / `checks` / `usage` 네 가지다. (`failover` 필드는 SQLite 컷오버로 제거됨.)
 
 **status 값 (상세):**
-- `healthy`: 모든 서비스 정상
-- `degraded`: AI 또는 배포 서비스 미설정 (환경변수 누락)
+- `healthy`: 검사 대상 정상 (`checks.database=ok` 이고 `checks.ai=ok`)
+- `degraded`: AI 미설정·불가 (`checks.ai`가 `ok`가 아님). **배포(deploy) 서비스 검사는 없음** — 외부 deploy 스택 제거(2026-08-01)
 - `unhealthy`: 데이터베이스 연결 실패
 
 **레이트리밋 응답 (`?detailed=true` + 관리자 키 있으나 per-IP 한도 초과):**

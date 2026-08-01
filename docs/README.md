@@ -2,19 +2,59 @@
 
 > CustomWebService 문서 전체 지도. 에이전트 세션 요약은 루트 [`CLAUDE.md`](../CLAUDE.md), 불변조건은 [`architecture/system-spec.md`](architecture/system-spec.md).
 >
-> **최종 업데이트:** 2026-08-01
+> **최종 업데이트:** 2026-08-01 (Phase 0–5 agent-truth cleanup)
+
+---
+
+## 문서 진실 정책 (anti-recurrence)
+
+에이전트·운영자가 거짓 절차를 다시 키우지 않기 위한 규칙.
+
+### 어디에 무엇을 쓰는가
+
+| 층 | 위치 | 시제·성격 |
+|----|------|-----------|
+| **현재 시제 진실** | 루트 `CLAUDE.md` + `docs/architecture/` · `docs/guides/` · `docs/reference/` · `docs/security/` | “지금 코드가 하는 일”만. 명령·경로·시그니처는 코드로 검증 후 기록 |
+| **결정 이력 (ADR)** | `docs/decisions/` | **제자리 보존**. 상단에 상태 한 줄(`Status: Accepted` / `Superseded by …` 등). 절차 런북으로 쓰지 말 것 |
+| **절차·마이그레이션 역사** | `docs/archive/` | 파일 머리에 `DOC_STATUS: HISTORICAL \| DO_NOT_EXECUTE`. 에이전트는 **실행하지 않음** |
+
+### 금지
+
+1. **두 번째 아키텍처 트리** — 예: 과거 `.claude/docs/` 식 미러. 갱신 속도가 본문과 어긋나면 **틀린 규칙을 단언하는 문서**가 된다.
+2. **규칙서 복제** — 예: 과거 `AGENTS.md`가 `CLAUDE.md`의 긴 복사본이었던 형태. 본편 112회 갱신 동안 복사본 7회 → **이미 죽은 단일 관리자 인증 모델**을 수개월간 단언했다. 지금은 포인터만 남긴다. **내용을 다시 채우지 말 것.**
+3. **존재하지 않는 명령** — 어떤 문서의 어떤 명령도 `package.json`의 `scripts` 또는 실제 `scripts/` 파일로 **grep 가능**해야 한다. 삭제된 `pnpm admin:hash` · `catalog:healthcheck` · `keys:verify` · `seed:generate` · `cutover:migrate` · `migrate-encryption-key` 를 다시 “실행 절차”로 넣지 말 것.
+
+### 에이전트 체크리스트 슬롯
+
+| 위치 | 역할 |
+|------|------|
+| [`.claude/commands/`](../.claude/commands/) | **체크리스트 only** (5개: `add-event`, `new-api-route`, `validate`, `verify-csp`, `verify-serving`). 각 파일 첫 줄이 `CLAUDE.md` + `system-spec` 포인터. 아키텍처 본문을 여기에 쓰지 말 것 — 여기가 썩으면 배포 전 검증이 거짓 통과한다 |
+
+코드 변경 시 영향 문서는 **같은 커밋**에서 갱신. 문서끼리 어긋나면 **코드를 정본**으로 삼고 문서를 고친다.
+
+---
 
 ## 폴더 용도
 
 | 폴더 | 내용 |
 |------|------|
 | [architecture/](architecture/) | 시스템 구조·불변조건 |
-| [guides/](guides/) | 개발·배포·QC·운영 절차 |
-| [reference/](reference/) | API·환경변수·에러·커버리지 맵 |
-| [decisions/](decisions/) | ADR (설계 결정 배경) |
+| [guides/](guides/) | 개발·배포·QC·운영·테스트 절차 |
+| [reference/](reference/) | API·환경변수·에러·커버리지 맵·골든셋 |
+| [decisions/](decisions/) | ADR (설계 결정 이력, 상태 라인) |
 | [security/](security/) | 인시던트·감사 면제 |
 | [superpowers/](superpowers/) | 설계 초안·장기 계획. **현재 상태는 architecture/guides/reference/`CLAUDE.md` 우선** |
-| [archive/](archive/) | **역사 문서 (비실행).** 완료된 컷오버·마이그레이션 절차. 에이전트는 여기 단계를 따르지 말 것 |
+| [archive/](archive/) | **역사 문서 (비실행).** 완료된 컷오버·마이그레이션 절차 |
+
+루트 보조:
+
+| 경로 | 내용 |
+|------|------|
+| [`CLAUDE.md`](../CLAUDE.md) | 에이전트 필수 규칙·스택 요약 (단일 규칙서) |
+| [`Agents.md`](../Agents.md) | **포인터 only** — 규칙 본문 금지 |
+| [`README.md`](../README.md) | 제품 정문·설치 퀵스타트 |
+| [`.env.example`](../.env.example) | 로컬 스타터 env (코드가 읽는 변수만) |
+| [`.claude/commands/`](../.claude/commands/) | 슬래시 커맨드 체크리스트 5종 |
 
 ---
 
@@ -35,7 +75,7 @@
 | 문서 | 목적 |
 |------|------|
 | [development.md](guides/development.md) | 로컬 환경·코딩 컨벤션·무인자 factory |
-| [testing.md](guides/testing.md) | 테스트 전략·모킹·실행 명령 |
+| [testing.md](guides/testing.md) | 테스트 전략·모킹·실행 명령 (개수/% 스냅샷 없음) |
 | [deployment.md](guides/deployment.md) | CI/CD·Railway·도메인·관리자 검증 API |
 | [operations.md](guides/operations.md) | 일상 운영·모니터링·백업·장애 대응 |
 | [qc-process.md](guides/qc-process.md) | 생성/재생성 QC 8단계 |
@@ -50,13 +90,13 @@
 | [env-vars.md](reference/env-vars.md) | 환경변수 전체 |
 | [error-codes.md](reference/error-codes.md) | 에러 클래스·코드 |
 | [test-coverage-map.md](reference/test-coverage-map.md) | 테스트 커버 범위·공백 |
-| [golden-api-set.md](reference/golden-api-set.md) | 검증된 골든셋 API |
+| [golden-api-set.md](reference/golden-api-set.md) | 검증된 골든셋 API (런타임 admin 검증 경로) |
 
 ## security/
 
 | 문서 | 목적 |
 |------|------|
-| [incident-response.md](security/incident-response.md) | 보안 인시던트 대응 |
+| [incident-response.md](security/incident-response.md) | 시크릿 노출·회전 (현존 시크릿만) |
 | [audit-waivers.md](security/audit-waivers.md) | `pnpm audit` 면제 근거 |
 
 ## superpowers/plans/ (유지)

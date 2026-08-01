@@ -1,277 +1,165 @@
 # 테스트 전략·검증 항목 가이드
 
-> 이 문서는 CustomWebService의 테스트 구조, 각 계층이 무엇을 검증하는지, 모킹 전략, 실행 방법을 설명합니다.
+> 이 문서는 CustomWebService의 테스트 구조, 모킹 전략, 실행 방법, 에이전트 함정을 설명한다.
+> 스택 진실원: 루트 [`CLAUDE.md`](../../CLAUDE.md) · [`docs/architecture/system-spec.md`](../architecture/system-spec.md).
+> 커버 범위·공백 지도: [`docs/reference/test-coverage-map.md`](../reference/test-coverage-map.md).
+>
+> **이 문서는 테스트 개수·커버리지 %를 고정 수치로 적지 않는다.** 수치는 날짜가 지나면 거짓이 된다. 목록·통과 여부는 아래 명령으로 직접 확인한다.
 
 ---
 
 ## 1. 테스트 전략 개요
 
-### 테스트 피라미드
+### 피라미드 (개념)
 
 ```
              ┌─────────┐
-             │   E2E   │  ~11개 × 3디바이스 (Playwright)
+             │   E2E   │  Playwright (`e2e/`)
             ─┼─────────┼─
-           │ 컴포넌트  │  ~250개 (React, happy-dom)
+           │ 컴포넌트  │  React + happy-dom (`*.test.tsx`)
           ──┼──────────┼──
-         │    통합     │  ~130개 (API Routes, Vitest)
+         │    통합     │  API routes (Vitest + MSW)
         ────┼──────────┼────
-       │       단위    │  ~1,330개 (lib, providers, services, repositories)
+       │       단위    │  lib · providers · services · repositories
        ──────────────────
 ```
 
-**현재 테스트 목록:** 145개 Vitest 파일, 1,886개 Vitest 테스트 + 3개 Playwright E2E 파일, 33개 Playwright 프로젝트별 테스트
+확인 명령:
 
-> 확인 명령: `pnpm exec vitest list`, `pnpm exec playwright test --list` (2026-05-08 기준). 실제 통과 여부는 `pnpm test`와 `pnpm test:e2e` 실행 결과를 기준으로 판단합니다.
+```bash
+pnpm exec vitest list
+pnpm exec playwright test --list
+pnpm test                 # 통과 여부 진실원
+pnpm test:e2e             # E2E (실 백엔드 env 필요)
+```
 
 ### 핵심 원칙
 
-1. **외부 서비스는 항상 Mock** — Supabase, Claude API, GitHub API, Railway API는 테스트 환경에서 절대 직접 호출하지 않는다
-2. **모듈 격리** — API route 테스트는 `vi.resetModules()` + dynamic import로 모듈 레벨 사이드이펙트를 격리
-3. **보안 검증 필수** — SSRF, XSS, 코드 인젝션 검증은 단위/통합 양쪽에서 모두 검증
-4. **레이트리밋 경계값** — 429 응답, fail-open 정책, best-effort 보상 등 rate limit 관련 엣지케이스를 명시적으로 검증
+1. **외부 서비스는 항상 Mock** — Claude API 등 외부 HTTP는 MSW 또는 `vi.stubGlobal('fetch')`. 실키·실네트워크에 의존하지 않는다.
+2. **모듈 격리** — API route 테스트는 `vi.resetModules()` + dynamic import로 모듈 레벨 사이드이펙트를 격리한다.
+3. **보안 검증 필수** — SSRF, XSS, 코드 인젝션, 소유권·이메일 게이트는 단위/통합 양쪽에서 검증한다.
+4. **레이트리밋 경계값** — 429, fail-open/fail-closed 정책, 환불(`charged===true`) 등 엣지케이스를 명시한다.
+5. **삭제된 스택을 모킹하지 말 것** — `@/lib/supabase/server`, Drizzle postgres 경로, `BaseRepository`, `failover` 모듈은 **존재하지 않는다**. 잔존 mock은 미존재 모듈 모킹이다.
 
 ### 프레임워크
 
 | 도구 | 용도 |
 |------|------|
-| [Vitest](https://vitest.dev/) | 단위·통합 테스트 러너 |
-| happy-dom | 컴포넌트 테스트용 DOM 환경 |
-| MSW (Mock Service Worker) | 외부 HTTP API 모킹 (Claude API) |
-| Playwright | E2E 브라우저 테스트 |
+| [Vitest](https://vitest.dev/) | 단위·통합 러너 (`vitest.config.ts`) |
+| happy-dom | 컴포넌트 테스트 DOM |
+| MSW | 외부 HTTP 모킹 (기본 Anthropic) |
+| Playwright | E2E (`e2e/`, `@playwright/test`) |
+
+스택: **임베디드 SQLite 단일 백엔드** (better-sqlite3). Repository 테스트는 `Sqlite*` 구현체 + `:memory:` DB를 쓴다.
 
 ---
 
-## 2. 테스트 분류 및 검증 항목
+## 2. 분류와 실행 스코프
 
-### 2.1 lib 유틸리티 단위 테스트 (~42파일, ~600개)
+`package.json` 기준 (이 값이 정본이다):
 
-`pnpm test:unit`으로 실행 (대상: `src/lib/**`)
+| 스크립트 | 대상 | 용도 |
+|----------|------|------|
+| `pnpm test` | `src/**/*.test.ts(x)` (e2e 제외) | 전체 Vitest |
+| `pnpm test:unit` | `src/lib` · `src/providers` · `src/services` · `src/repositories` | 단위 (서비스·레포 **포함**) |
+| `pnpm test:integration` | `src/__tests__/api` · `src/app/api` | API 라우트 통합 |
+| `pnpm test:coverage` | 전체 + v8 커버리지 | CI·로컬 리포트 |
+| `pnpm test:e2e` | `e2e/` | Playwright |
+| `pnpm test:e2e:ui` | `e2e/` | UI 모드 |
+| `pnpm test:prod` | standalone 빌드 + health | 프로덕션 스모크 |
+| `pnpm test:watch` | Vitest watch | 로컬 반복 |
 
-#### 보안 검증
+### 2.1 단위 — lib / providers / services / repositories
 
-| 파일 | 검증 항목 |
-|------|----------|
-| `src/lib/ai/codeValidator.test.ts` | `eval()`, `innerHTML`, `document.write`, API키 하드코딩 감지 (정적 분석). **인라인 `<script>` 차단** (CDN `src=` 태그는 허용). HTML 구조 검증, viewport 존재 여부. 구조 점수·모바일 점수·fetchCallCount·placeholderCount 기반 품질 평가 |
-| `src/lib/utils/sanitizeCss.test.ts` | CSS XSS 차단: `expression()`, `url(javascript:)`, `behavior:`, `-moz-binding:`, 프로토콜 상대 URL(`url(//evil.com)`) — 생성된 CSS가 브라우저에서 임의 스크립트를 실행하지 못하도록 |
-| `src/lib/utils/adminAuth.test.ts` | `verifyAdminKey()` 타이밍 공격 방어 (HMAC 상수시간 비교), CORS 헤더 적용 |
-| `src/lib/db/errors.test.ts` | `isUniqueViolation()` — Supabase `{code:'23505'}` / Drizzle Error 인스턴스 양쪽 감지 |
+**위치**: 소스 옆 co-located `*.test.ts` 또는 `src/__tests__/lib` 등.
 
-#### AI 코드 생성 파이프라인
+대표 영역 (파일명은 예시 — 존재 여부는 디스크 기준):
 
-| 파일 | 검증 항목 |
-|------|----------|
-| `src/lib/ai/generationPipeline.test.ts` | `evaluateComplexityScore()` — API 수·인증 방식·엔드포인트·컨텍스트·결제 키워드 5종 신호 스코어링, 35pt 임계값 경계값 검증 |
-| `src/lib/ai/stageRunner.test.ts` | `runStage1`/`runStage2Function`/`runStage3` 각 stage 실행, Extended Thinking 분기, `isCancelled` 중단 처리 |
-| `src/lib/ai/generationSaver.test.ts` | Supabase/Drizzle 경로별 코드 저장, 트랜잭션 롤백, QC 통합, slugSuggester 연동 |
-| `src/__tests__/lib/ai/promptBuilder.test.ts` | Stage1·Stage2 시스템 프롬프트 내용(보안 규칙·모바일 퍼스트·코드 패턴), placeholder blocklist |
-| `src/lib/ai/codeParser.test.ts` | 마크다운 코드블록에서 HTML/CSS/JS 파싱, `assembleHtml()` — CSS·JS 주입, OG 태그, viewport 자동 주입. **DOMPurify sanitize 검증**: 인라인 `<script>` 제거 확인, Alpine.js CDN 태그 보존 확인 |
-| `src/lib/ai/generationTracker.test.ts` | `start`/`updateProgress`/`complete`/`fail`/`get`/`isGenerating` CRUD. **`vi.useFakeTimers()`로 TTL 검증**: generating 30분, completed/failed 10분 후 cleanup 자동 제거 |
-| `src/lib/ai/qualityLoop.test.ts` | `shouldRetryGeneration()` — 점수 40점 미만·fetchCallCount 0·placeholder 잔존 시 재시도 결정 |
-| `src/lib/ai/slugSuggester.test.ts` | AI 기반 slug 추천: 유효한 형식, 예약어 필터링, AI 에러 시 빈 배열 반환 |
+| 영역 | 검증 초점 |
+|------|-----------|
+| `src/lib/ai/*` | 파이프라인, stageRunner, qualityLoop, codeValidator, codeParser, generationTracker, generationLock |
+| `src/lib/qc/*` | renderingQc, deepQcRunner, browserPool |
+| `src/lib/auth/*` | authorize, verifiedGuard, rateLimit, password, tokens |
+| `src/lib/proxy/*` · `src/lib/cache/*` | 프록시 인가 컨텍스트, site 한도, 캐시 키 신원 |
+| `src/lib/db/*` | SQLite connection/bootstrap/backup/retention, `isUniqueViolation` (SQLite 제약 + 레거시 23505 폴백) |
+| `src/lib/events/*` | EventBus, eventPersister 멱등 등록 |
+| `src/lib/monitoring/*` | slackAlert, errorRateMonitor |
+| `src/providers/ai/*` | ClaudeProvider, AiProviderFactory (모델 허용목록·태스크 기본값) |
+| `src/services/*` | project/catalog/rateLimit 등 비즈니스 규칙 |
+| `src/repositories/sqlite/*` | **유일** 구현 9종: User, Project, Code, Catalog, UserApiKey, RateLimit, Event, AuthToken, **GenerationLock** |
 
-#### QC (Quality Control)
+> 외부 deploy 스택(`src/lib/deploy/**`, deployService 등)은 2026-08-01 제거. 관련 테스트도 없다.
 
-| 파일 | 검증 항목 |
-|------|----------|
-| `src/lib/qc/renderingQc.test.ts` | Playwright 기반 렌더링 QC: 콘솔 에러 없음, 가로 스크롤 없음, 푸터 접근성, 터치 타겟 44px 이상 |
-| `src/lib/qc/deepQcRunner.test.ts` | `runDeepQcAndUpdate` fire-and-forget 로직 8개 시나리오: assembleHtml 오류 조기 반환, QC 성공/실패 이벤트 발행, 메타데이터 업데이트, findById null 처리, update 오류 경고 — Playwright 의존 없음 (runDeepQc mock) |
+### 2.2 API 라우트 통합
 
-#### 인프라 유틸리티
+**위치**: 주로 `src/__tests__/api/` (대상 핸들러는 `src/app/api/**`). 일부 co-located `src/app/api/**/*.test.ts`도 존재할 수 있다.
 
-| 파일 | 검증 항목 |
-|------|----------|
-| `src/__tests__/lib/db/failover.test.ts` + `src/lib/db/failover.test.ts` | Circuit Breaker: 상태 전환(NORMAL→TRIPPED), `isDbConnectionError` 7종 에러 감지, `FAILOVER_ENABLED=false` |
-| `src/lib/db/errors.test.ts` | `isUniqueViolation()` — Supabase/Drizzle 양쪽 23505 감지 |
-| `src/lib/encryption.test.ts` | AES-256-GCM 라운드트립, IV 랜덤성, 32바이트 키 검증, `maskApiKey` |
-| `src/lib/utils/errors.test.ts` | 에러 클래스별 HTTP statusCode, `handleApiError` — AppError/ZodError 분기 |
-| `src/lib/db/sqlite/retention.test.ts` | 보존 정책 — 유효 토큰 미삭제, 오늘 카운터 보존, 트랜잭션 롤백, env 폴백 |
-| `src/lib/events/eventBus.test.ts` | `on`/`emit`/`unsubscribe`, 복수 핸들러, 에러 격리 |
-| `src/lib/events/eventPersister.test.ts` | `registerEventPersister()` 멱등성, 이벤트 → DB 자동 저장, 실패 시 logger.warn |
-| `src/lib/monitoring/slackAlert.test.ts` | `SLACK_WEBHOOK_URL` 미설정 시 no-op, POST 전송, HTTP 실패·fetch 예외 시 에러 미전파, fields/이모지 포맷 검증 |
-| `src/lib/monitoring/errorRateMonitor.test.ts` | `registerErrorRateMonitor()` 멱등성, 임계값 미달·도달 알림, 윈도우 내 중복 알림 방지, `CODE_GENERATION_FAILED` 외 이벤트 무시. **`vi.resetModules()` 패턴** |
-| `src/lib/utils/slugify.test.ts` | `toSlug`/`generateSlug`/`isValidSlug`, 예약어(www/api/admin/dashboard) 필터링 |
-| `src/lib/utils/publishUrl.test.ts` | 환경별 URL 생성 (localhost/127.0.0.1/production) |
-| `src/lib/utils/htmlTitle.test.ts` | `extractTitle()` — `<title>` 파싱, 대소문자 무관, 없으면 null |
-| `src/lib/utils/adminAuth.test.ts` | `withAdminCors` CORS 헤더, `verifyAdminKey` 타이밍 공격 방어 |
-| `src/lib/services/popularServices.test.ts` | `pickTopIds`/`computePopularServices`/`resolveCuratedServices`, `CURATED_SERVICES` 구조 검증 |
-| `src/lib/templates/siteError.test.ts` | `notFoundHtml`/`preparingHtml` HTML 구조, XSS 이스케이프 (`<script>` → `&lt;script&gt;`) |
-| `src/lib/apiKeyGuides.test.ts` | `getApiKeyGuide` — 알려진 API 반환, 미등록 API null, 공공데이터포털 계열 공유 가이드 |
-| `src/lib/ai/categoryDesignMap.test.ts` | 카테고리별 디자인 테마 추론 |
-| `src/lib/auth/authorize.test.ts` | `assertOwner()` — 소유자 일치/불일치 |
-| `src/__tests__/lib/correlationId.test.ts` | UUID 생성, `X-Correlation-Id` 헤더 추출 |
+공통 패턴: 인증 없음(401) → 잘못된 입력(400) → 타인 리소스(403) → 비즈니스 규칙(422/429) → 성공.
 
-> 외부 배포 스택 테스트(`src/lib/deploy/**`, `src/providers/deploy/**`, `deployService.test.ts`)는 2026-08-01 제거.
+| 군 | 엔드포인트 예 | 주요 검증 |
+|----|---------------|-----------|
+| 생성 | `POST /generate`, `POST /generate/regenerate`, `GET /generate/status/:id` | SSE, 레이트리밋, 이메일 게이트, 소유권 |
+| 프록시·보안 | `GET /proxy`, admin 진단 | SSRF, 캐시 키 신원, `ADMIN_API_KEY` |
+| 게시 | `publish` / `rollback` / `slug/check` | slug, QC 경고, 롤백 |
+| 추천 | `suggest-apis` · `suggest-context` · `suggest-preferences` · `suggest-modification` | 입력 한도, AI 파싱, 쿼터, 이메일 게이트 |
+| 헬스 | `GET /health` | 공개 `ok` / 상세 `healthy`·`degraded`(AI)·`unhealthy`(DB) / 관리자 429 |
 
----
+### 2.3 컴포넌트
 
-### 2.2 Provider 단위 테스트
+`src/**/*.test.tsx` — happy-dom. 빌더·대시보드·설정·레이아웃 회귀 방지.
 
-`pnpm test:unit`으로 실행 (대상: `src/providers/**`)
+### 2.4 E2E — Playwright
 
-| 파일 | 검증 항목 |
-|------|----------|
-| `src/providers/ai/ClaudeProvider.test.ts` | `generateCode`/`generateCodeStream`, API 에러, `withRetry` 지수 백오프, `cache_control` Prompt Caching |
-| `src/providers/ai/AiProviderFactory.test.ts` | 태스크별 모델 선택, `AI_MODEL_GENERATION` 환경변수 오버라이드, 싱글톤 캐시 |
+`pnpm test:e2e`. 디렉터리 `e2e/`:
 
----
+| 경로 | 초점 |
+|------|------|
+| `e2e/health.spec.ts` | health·catalog 스모크 |
+| `e2e/pages/*` | 랜딩·카탈로그 반응형 |
+| `e2e/serving/*` | CSP, 서브도메인 패스스루, 서빙 동치, 유령 세션 |
+| `e2e/auth.setup.ts` | 인증 셋업 |
 
-### 2.3 Service 단위 테스트
-
-| 파일 | 검증 항목 |
-|------|----------|
-| `src/services/projectService.test.ts` | `create` 입력 검증, `publish` slug 자동 할당·충돌 재시도(23505), `unpublish`, `getByUserId`, `getProjectApiIds`, `updateStatus` |
-| `src/__tests__/services/rateLimitService.test.ts` | fail-open 정책, `decrementDailyLimit` 에러 스왈로우, `getCurrentUsage` 0 폴백 |
-| `src/services/catalogService.test.ts` | `search`(totalPages 계산), `getById`, `getCategories`, `getByIds` |
-| `src/services/factory.test.ts` | `createProjectService`/`createCatalogService`/`createRateLimitService`/`createAuthService` |
-
----
-
-### 2.4 Repository 단위 테스트 (~20파일, ~270개)
-
-#### Drizzle ORM 구현체 (postgres 경로)
-
-| 파일 | 검증 항목 |
-|------|----------|
-| `src/__tests__/repositories/drizzleCatalogRepository.test.ts` | findById/findMany/create/update/delete/count/search(카테고리·키워드 필터)/getCategories/findByIds/getApiUsageFromProjects/getActiveNameToIdMap/ping/getUsageCounts |
-| `src/__tests__/repositories/drizzleUserRepository.test.ts` | findById/findMany/create/update/delete/count/createWithAuthId/findByEmail |
-| `src/__tests__/repositories/drizzleUserApiKeyRepository.test.ts` | upsert/delete/findByUserAndApi/findAllByUser/updateVerificationStatus |
-| `src/__tests__/repositories/drizzleEventRepository.test.ts` | persist(성공·실패)/persistAsync/findByUser(limit 100 cap) |
-| `src/__tests__/repositories/drizzleRateLimitRepository.test.ts` | (역사 — PG 경로 제거) 과거 deploy 한도 메서드 포함. 현재 권위 구현은 `SqliteRateLimitRepository.test.ts` |
-| `src/__tests__/repositories/drizzleProjectRepository.test.ts` | 8개 메서드 전체, `projectRowToDomain` 매핑 |
-| `src/__tests__/repositories/drizzleCodeRepository.test.ts` | countByProject/pruneOldVersions/getNextVersion/`codeRowToDomain` 매핑 |
-
-#### Supabase 구현체
-
-| 파일 | 검증 항목 |
-|------|----------|
-| `src/repositories/base/BaseRepository.test.ts` | findById(PGRST116 null)/findMany(필터·null count)/create/update(updated_at 자동)/delete/count(필터) |
-| `src/repositories/projectRepository.test.ts` | findByUserId/countTodayGenerations/insertProjectApis/getProjectApiIds/findBySlug/updateSuggestedSlugs/updateSlug |
-| `src/repositories/userRepository.test.ts` | createWithAuthId/findByEmail(PGRST116 null) |
-| `src/repositories/supabaseRateLimitRepository.test.ts` | 4개 RPC 메서드 성공·실패 |
-| `src/repositories/supabaseUserApiKeyRepository.test.ts` | upsert/delete/findByUserAndApi(PGRST116)/findAllByUser/updateVerificationStatus(true→ISO/false→null) |
-| `src/repositories/factory.test.ts` | 7개 팩토리 함수 × postgres(Drizzle)/supabase(SupabaseClient)/supabase(클라이언트 없음→에러) 분기 |
-
-#### 유틸리티
-
-| 파일 | 검증 항목 |
-|------|----------|
-| `src/__tests__/repositories/catalogRepository.test.ts` | `toDomain` JSONB 매퍼, `parseEndpoints` snake_case↔camelCase 이중 처리 |
-| `src/__tests__/repositories/codeRepository.test.ts` | `countByProject`, `pruneOldVersions`, `getNextVersion` |
-| `src/__tests__/repositories/eventRepository.test.ts` | `persist`/`persistAsync`/`findByUser` limit 100 cap |
-| `src/repositories/utils/conditionBuilder.test.ts` | `buildConditions()` — undefined/빈 객체/단일·복수 조건 |
-
----
-
-### 2.5 API Route 통합 테스트 (19파일, ~130개)
-
-`pnpm test:integration`으로 실행 (테스트 대상 라우트: `src/app/api/**`)
-
-> **테스트 파일 위치**: 모든 API 라우트 통합 테스트는 `src/__tests__/api/` 에 위치한다 (테스트가 검증하는 라우트 핸들러는 `src/app/api/v1/**`). 아래 표의 파일명은 `src/__tests__/api/` 기준이다.
-
-> **공통 검증 패턴**: 인증 없음(401) → 잘못된 입력(400) → 타인 리소스(403) → 비즈니스 규칙(422/429) → 성공 응답
-
-#### 코드 생성 관련
-
-| 파일 | 엔드포인트 | 주요 검증 항목 |
-|------|-----------|---------------|
-| `generate.test.ts` | `POST /api/v1/generate` | SSE 스트리밍 포맷, 레이트리밋 429 SSE 에러, AI 실패 시 `decrementDailyLimit` 보상, `templateId` 전달 |
-
-#### 보안 관련
-
-| 파일 | 엔드포인트 | 주요 검증 항목 |
-|------|-----------|---------------|
-| `proxy.test.ts` | `GET /api/v1/proxy` | **SSRF 방지**: loopback/RFC1918/AWS 메타데이터/IPv6(`[::1]`/`[fe80::1]`) 6종 차단, 분당 60회 rate limit, upstream 타임아웃 502, **응답 캐시**: `cache_ttl_seconds` 설정 API에서 MISS→HIT 전환, `X-Cache` 헤더, POST/4xx 미캐시 |
-| `admin.test.ts` | 관리자 API | Bearer 토큰 인증, IP 스푸핑 방지, CORS 헤더, QC rate limit |
-| `admin-keys-verify.test.ts` | `GET /api/v1/admin/keys-verify` | `ADMIN_API_KEY` 인증, 플랫폼 키 검증 결과 반환 (로직 `src/lib/catalog/keyCheck.ts`) |
-
-#### 게시·관리
-
-| 파일 | 엔드포인트 | 주요 검증 항목 |
-|------|-----------|---------------|
-| `preview.test.ts` | `GET /api/v1/preview/[id]` | HTML 응답 + CSP 헤더, `version` 쿼리 파라미터 |
-| `projects-publish.test.ts` | `POST/DELETE /api/v1/projects/[id]/publish` | slug 전달, QC 경고, 게시 취소 |
-| `projects-rollback.test.ts` | `POST /api/v1/projects/[id]/rollback` | version 유효성, 롤백 성공 + 이벤트 |
-| `projects-slug-check.test.ts` | `POST /api/v1/projects/[id]/slug/check` | 예약어(`api`/`admin`/`www`) 차단, 자기 slug 재사용 허용 |
-| `health.test.ts` | `GET /api/v1/health` | `healthy`/`degraded`/`unhealthy`, `usage` 필드 |
-
-#### AI 추천 관련
-
-| 파일 | 엔드포인트 | 주요 검증 항목 |
-|------|-----------|---------------|
-| `suggest-apis.test.ts` | `POST /api/v1/suggest-apis` | context 길이(50~2000자), 파싱 실패 시 빈 배열 |
-| `suggest-context.test.ts` | `POST /api/v1/suggest-context` | apis 배열 최대 5개, AI 응답 JSON 파싱 |
-| `suggest-preferences.test.ts` | `POST /api/v1/suggest-preferences` | 인증·입력·AI 응답 파싱·fallback |
-
----
-
-### 2.6 컴포넌트 테스트 (28파일, ~250개)
-
-`src/**/*.test.tsx` — happy-dom 환경
-
-주요 커버리지 영역:
-
-| 파일 | 검증 항목 |
-|------|----------|
-| `src/components/dashboard/PublishDialog.test.tsx` | AI 추천 slug 라디오, 커스텀 slug 입력, slug 가용성 체크 후 버튼 활성화 |
-| `src/components/dashboard/RePromptSection.test.tsx` | 버전 번호 표시, `router.refresh()` 호출 |
-| `src/components/builder/GenerationProgress.test.tsx` | idle/generating/completed/failed 상태, elapsed 타이머, 단계별 phase 매핑 |
-| `src/components/builder/PreviewFrame.test.tsx` | iframe src 쿼리 파라미터, device 토글, cache-bust t 증가, sandbox 권한 |
-| `src/components/builder/RePromptPanel.test.tsx` | 재생성 제출, in-flight 중복 차단, 서버 오류 표시, 언마운트 abort |
-| `src/lib/generation/runClientRegeneration.test.ts` | regenerate 실패/SSE complete·error/poll 핸드오프/abort/not_found |
-| `src/components/layout/Header.test.tsx` | 비로그인/로그인 분기, 아바타 드롭다운, 로그아웃, 모바일 메뉴 |
-| `src/components/settings/ApiKeyCard.test.tsx` | 키 등록/변경/삭제, 빈 입력 차단, 가이드 모달 |
-| *(21개 추가 파일)* | catalog, builder, settings 영역 UI 회귀 방지 |
-
----
-
-### 2.7 E2E 테스트 — Playwright (3파일, ~11개 × 3디바이스)
-
-`pnpm test:e2e`로 실행
-
-**대상 디바이스:** mobile(iPhone 14), tablet(iPad Mini), desktop(Desktop Chrome)
-
-| 파일 | 검증 항목 |
-|------|----------|
-| `e2e/health.spec.ts` | `GET /api/v1/health` → 200, `GET /api/v1/catalog` → 200 |
-| `e2e/pages/landing.spec.ts` | 페이지 로드, 헤더·푸터, CTA 버튼, 가로 스크롤 없음, 콘솔 에러 없음 |
-| `e2e/pages/catalog.spec.ts` | API 카드 렌더링(최소 1개), 가로 스크롤 없음 |
-
-> E2E는 반응형 레이아웃 회귀 검증에 초점. AI 기능은 단위·통합 계층에서 검증.
+실 백엔드·env가 필요하다. CI 게이트 설정은 `.github/workflows`를 본다.
 
 ---
 
 ## 3. 모킹 전략
 
-### 외부 HTTP API — MSW
+### 외부 HTTP — MSW
 
 ```typescript
 // src/test/mocks/handlers.ts
 http.post('https://api.anthropic.com/v1/messages', () => {
   return HttpResponse.json({
     content: [{ type: 'text', text: '```html\n...\n```' }],
-    model: 'claude-sonnet-4-6',
+    model: 'claude-opus-5',
     usage: { input_tokens: 100, output_tokens: 500 },
   });
 });
 ```
 
-`src/test/setup.ts`에서 `server.listen()` / `server.resetHandlers()` / `server.close()` 라이프사이클 관리.
+`src/test/setup.ts`에서 `server.listen({ onUnhandledRequest: 'error' })` / `resetHandlers` / `close`.
 
-### 내부 모듈 — vi.mock
+### 내부 모듈 — vi.mock (현행)
 
 ```typescript
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(),
-  createServiceClient: vi.fn(),
-}));
-
+// ✅ 존재하는 모듈만
 vi.mock('@/services/factory', () => ({
   createProjectService: vi.fn(),
 }));
+
+vi.mock('@/repositories/factory', () => ({
+  createUserRepository: vi.fn(),
+  createProjectRepository: vi.fn(),
+  // ...
+}));
+
+// ❌ 삭제됨 — 쓰지 말 것
+// vi.mock('@/lib/supabase/server', ...)
+// vi.mock('@/lib/db/failover', ...)
 ```
 
-### API Route 모듈 격리 — vi.resetModules
+### API Route 모듈 격리
 
 ```typescript
 beforeEach(async () => {
@@ -280,7 +168,7 @@ beforeEach(async () => {
 });
 ```
 
-### global fetch 모킹 (proxy 등 외부 HTTP 테스트)
+### global fetch (proxy 등)
 
 ```typescript
 const mockFetch = vi.fn();
@@ -288,144 +176,118 @@ vi.stubGlobal('fetch', mockFetch);
 afterEach(() => { vi.unstubAllGlobals(); });
 ```
 
-### Drizzle ORM mock 패턴
+### SQLite / better-sqlite3
+
+레포 단위 테스트는 인메모리 DB 또는 주입된 mock statement 체인을 사용한다. 과거 Drizzle postgres / Supabase 체인 mock 문서는 **폐기** — 새 테스트에 복사하지 말 것.
+
+### 타이머 — vi.useFakeTimers
 
 ```typescript
-function makeMockDb() {
-  return {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    // ...
-  };
-}
-```
-
-### Supabase 체인 mock 패턴
-
-```typescript
-// single() 로 끝나는 체인
-const chain = {
-  select: vi.fn().mockReturnThis(),
-  eq: vi.fn().mockReturnThis(),
-  single: vi.fn().mockResolvedValue({ data: row, error: null }),
-};
-const supabase = { from: vi.fn().mockReturnValue(chain) } as unknown as SupabaseClient;
-```
-
-### 타이머 제어 — vi.useFakeTimers (TTL, 인터벌 검증)
-
-```typescript
-// TTL 기반 cleanup, setInterval 동작 검증 시 사용
-// vi.resetModules() + 동적 import와 조합 → 싱글톤의 setInterval도 fake timer 하에서 생성됨
-it('30분 TTL 후 자동 제거', async () => {
+it('TTL 후 자동 제거', async () => {
   vi.useFakeTimers();
   const { generationTracker, stopCleanup } = await import('./generationTracker');
-
   generationTracker.start('proj', 'user');
-  vi.advanceTimersByTime(31 * 60 * 1000); // cleanup interval(60s) 여러 번 실행됨
-
+  vi.advanceTimersByTime(31 * 60 * 1000);
   expect(generationTracker.get('proj')).toBeUndefined();
-  stopCleanup(); // clearInterval로 타이머 누수 방지
+  stopCleanup();
 });
 
 afterEach(() => {
-  vi.useRealTimers(); // 다음 테스트에 영향 없도록 반드시 복원
+  vi.useRealTimers();
 });
 ```
 
-> `vi.useFakeTimers()`는 `Date.now()`도 제어하므로 `Date.now() - updatedAt > TTL` 패턴이 정확히 동작함.
-> `stopCleanup()` 호출을 잊으면 fake timer가 남아 다음 테스트에서 오동작 가능.
+`stopCleanup()` 누락 시 다음 테스트 오염.
 
-### 싱글톤 캐시 초기화
+### 싱글톤 캐시
 
 ```typescript
 AiProviderFactory.clearCache();
-_resetProviderCache();
 ```
 
 ---
 
-## 4. 실행 명령어
+## 4. CI 연동
 
-| 명령어 | 대상 | 용도 |
-|--------|------|------|
-| `pnpm test` | 전체 Vitest | 커밋 전 전체 검증 |
-| `pnpm test:unit` | `src/lib`, `src/providers` | 빠른 단위 테스트만 |
-| `pnpm test:integration` | `src/app/api` | API route 통합 테스트만 |
-| `pnpm test:coverage` | 전체 + 커버리지 | 커버리지 리포트 생성 |
-| `pnpm test:e2e` | `e2e/` | Playwright E2E (실행 중인 서버 필요) |
-| `pnpm test:e2e:ui` | `e2e/` | Playwright UI 모드 (디버깅용) |
-| `pnpm test:prod` | standalone 빌드 | 프로덕션 빌드 후 헬스체크 스모크 테스트 |
-
----
-
-## 5. CI 파이프라인 연동
-
-GitHub Actions (`.github/workflows/ci.yml`) 실행 순서:
+GitHub Actions 전형 순서:
 
 ```
 push/PR
-  ↓
-lint (ESLint)
-  ↓
-type-check (tsc --noEmit)
-  ↓
-test (pnpm test:coverage — Vitest 목록 1,886개 기준)
-  ↓
-커버리지 업로드 (Codecov + SonarCloud)
-  ↓
-build (Next.js standalone)
-  ↓
-[PR only] e2e (Playwright, retries=1)
-  ↓
-[main push] deploy → Railway
+  → lint
+  → type-check
+  → test:coverage (Codecov + SonarCloud)
+  → build (standalone)
+  → [PR] e2e
+  → [main] Railway 배포
 ```
 
-테스트 실패 시 빌드·배포 단계로 진행하지 않는다.
+실패 시 이후 단계 진행 안 함. 상세 워크플로는 `.github/workflows/`.
 
 ---
 
-## 6. 커버리지 기준
+## 5. 커버리지
 
-**대상 디렉터리**: `src/app/**/callback/route.ts`, `src/app/**/login/page.tsx`, `src/app/layout.tsx`, `src/app/api/v1/admin/**/route.ts`, `src/hooks/**`, `src/lib/**`, `src/services/**`, `src/providers/**`, `src/repositories/**`, `src/components/**`
+- **화이트리스트**: `vitest.config.ts` → `coverage.include` (여기 없는 파일의 변경 라인은 Codecov patch / Sonar `new_coverage`에서 **0%**로 잡힌다).
+- **CI 임계값** (`coverage.thresholds`): branches 40 · functions 30 · lines 45 · statements 43 — 미달 시 CI 실패.
+- **SonarCloud vs Codecov**: Codecov/Vitest는 `coverage.include`만, SonarCloud는 `sonar.sources=src` 전체 — 숫자 불일치를 설정 오류로 단정하지 말 것.
+- **공백·우선순위**: [test-coverage-map.md](../reference/test-coverage-map.md) (이 문서에 % 스냅샷을 다시 박지 말 것).
 
-**현재 달성값** (최근 문서화 기준):
-
-| 지표 | 달성값 |
-|------|--------|
-| lines | **85%+** (PR #99, Codecov 기준) |
-| statements | **84%+** (PR #99, Codecov 기준) |
-| branches | **70%+** (PR #99, Codecov 기준) |
-| functions | **80%+** (PR #99, Codecov 기준) |
-
-**CI 임계값** (미달 시 CI 실패):
-
-| 지표 | 임계값 |
-|------|--------|
-| branches | 40% |
-| functions | 30% |
-| lines | 45% |
-| statements | 43% |
-
-커버리지 외부 연동: **Codecov** + **SonarCloud** (PR마다 자동 스캔)
-
-커버리지 리포트 생성: `pnpm test:coverage` → `coverage/` 디렉터리
+리포트 생성: `pnpm test:coverage` → `coverage/`.
 
 ---
 
-## 7. 테스트 작성 가이드
+## 6. 파일 위치 규칙
 
-### 파일 위치 규칙
+| 종류 | 위치 |
+|------|------|
+| 단위 | 소스 옆 `foo.test.ts` |
+| API 통합 | `src/__tests__/api/` (권장) |
+| 서비스·레포 보조 | `src/__tests__/services/`, `src/__tests__/repositories/` 등 |
+| 컴포넌트 | `src/components/**/*.test.tsx` |
+| E2E | `e2e/` |
+| 헬퍼·MSW·setup | `src/test/` |
 
-- **단위 테스트**: 소스 파일 옆 co-located (`src/lib/foo/bar.test.ts`)
-- **API route 통합 테스트**: `src/__tests__/api/`
-- **서비스·리포지토리 통합 테스트**: `src/__tests__/services/`, `src/__tests__/repositories/`
-- **컴포넌트 테스트**: 소스 옆 co-located (`src/components/**/*.test.tsx`)
-- **E2E 테스트**: `e2e/`
-- **테스트 헬퍼·설정**: `src/test/`
+`vitest.config.ts` `include`: `src/**/*.test.ts`, `src/**/*.test.tsx` — `e2e/**` 제외.
 
-### 필수 mock 조합 (AiProviderFactory 사용 시)
+---
+
+## 7. 작성 함정 (검증된 것)
+
+### happy-dom iframe
+
+`vitest.config.ts` `environmentOptions.happyDOM.settings.navigation.disableChildFrameNavigation = true`.
+
+- v20 `disableIframePageLoading`은 deprecated.
+- `disableFallbackToSetURL` 기본 false 유지 — `iframe.src` 단언용.
+
+### MSW `onUnhandledRequest: 'error'`
+
+새 fetch 엔드포인트는 `src/test/mocks/handlers.ts`에 핸들러 필수.
+
+**caveat**: MSW `'error'`가 비동기 전파상 테스트를 항상 빨갛게 만들지는 않는다(MSW #946/#943). **전체 통과 ≠ 미처리 요청 부재.**
+
+### `coverage.include` 누락
+
+라우트 테스트만 추가하고 include에 안 넣으면 patch 커버리지 0%. 비테스트 파일 제외는 `sonar.coverage.exclusions`와 `codecov.yml` **양쪽**.
+
+### AiProviderFactory 모델 ID
+
+`AiProviderFactory.ts` 허용목록·기본값 수정 시 **`.test.ts` 동시 갱신**. 날짜 suffix ID는 허용목록 밖 → 기본값 폴백.
+
+### 모듈 레벨 플래그
+
+`let registered = false` 류: `vi.resetModules()` + 매 테스트 `await import(...)`.
+
+### 삭제된 mock 금지
+
+| 금지 | 이유 |
+|------|------|
+| `vi.mock('@/lib/supabase/server')` | 모듈 삭제 (SQLite 컷오버) |
+| `src/repositories/supabase/*` · `drizzle/*` · `base.ts` | 디렉터리/파일 없음 |
+| `src/lib/db/failover.ts` | 없음 |
+| `pnpm keys:verify` · `pnpm catalog:healthcheck` | 스크립트 삭제 — 런타임 admin 엔드포인트로 대체 |
+
+### 필수 mock 조합 (AI 사용 시)
 
 ```typescript
 vi.mock('@/providers/ai/AiProviderFactory', () => ({
@@ -440,33 +302,24 @@ vi.mock('@/providers/ai/AiProviderFactory', () => ({
 ### vi.mock factory 안에서 top-level 변수 참조 금지
 
 ```typescript
-// ❌ hoisting으로 인해 undefined
+// ❌ hoisting → undefined
 const mockFn = vi.fn();
 vi.mock('@/lib/foo', () => ({ fn: mockFn }));
 
-// ✅ 올바른 예
+// ✅
 vi.mock('@/lib/foo', () => ({ fn: vi.fn() }));
 ```
 
-### 모듈 레벨 상태를 가진 파일 테스트 (eventPersister 패턴)
+---
 
-```typescript
-// 모듈 레벨 변수(registered 등)를 테스트 간 초기화하려면:
-beforeEach(async () => {
-  vi.resetModules();
-  vi.clearAllMocks();
-});
-const { registerEventPersister } = await import('./eventPersister');
-```
-
-### 코드 생성 품질 채점 기준
+## 8. 생성물 품질 채점 (수동/에이전트 QC 참고)
 
 | 점수 | 기준 |
 |------|------|
-| 5 | 코드 복사 → 바로 동작, 디자인 우수, 에러 처리 완벽 |
-| 4 | 경미한 수정으로 동작, 디자인 양호 |
-| 3 | 일부 수정 필요하지만 구조는 올바름 |
-| 2 | 상당한 수정 필요, 일부 기능 누락 |
-| 1 | 동작하지 않거나 요청과 무관한 결과 |
+| 5 | 복사 후 즉시 동작, 디자인·에러 처리 우수 |
+| 4 | 경미한 수정, 디자인 양호 |
+| 3 | 일부 수정 필요, 구조 올바름 |
+| 2 | 상당한 수정, 기능 누락 |
+| 1 | 미동작 또는 요청 무관 |
 
-**최소 합격 기준: 평균 3.5점 이상**
+**최소 합격 기준(수동 채점): 평균 3.5 이상.** 자동 파이프라인 QC는 [qc-process.md](./qc-process.md).

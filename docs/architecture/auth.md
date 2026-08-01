@@ -96,20 +96,23 @@
 
 ---
 
-## 5. 이메일 인증 게이트 (생성·재생성·배포 차단)
+## 5. 이메일 인증 게이트 (생성·재생성·suggest-\* 차단)
 
 ```typescript
-// src/lib/auth/verifiedGuard.ts
-export async function assertEmailVerified(user: AuthUser): Promise<void> {
-  const dbUser = await userRepo.findById(user.id);
-  if (!dbUser?.email_verified) throw new ForbiddenError('EMAIL_NOT_VERIFIED');
+// src/lib/auth/verifiedGuard.ts — 실제 시그니처
+export async function assertEmailVerified(userId: string): Promise<void> {
+  const user = await createUserRepository().findById(userId);
+  if (!user) throw new AuthRequiredError();           // 401 AUTH_REQUIRED
+  if (!user.emailVerified) throw new EmailNotVerifiedError(); // 403 EMAIL_NOT_VERIFIED
 }
 ```
 
-- **generate / regenerate / deploy** 라우트에서 세션 인증 후 `assertEmailVerified` 추가 호출
-- 미인증 시 → **403 "이메일 인증이 필요합니다"** (i18n)
-- **신선도**: JWT에 인증 여부를 캐시하지 않고 **생성 시점 DB 조회** — JWT 무상태 한계 우회
-- UI: 대시보드에 인증 배너 + 재발송 버튼 노출
+- **적용 라우트**: `POST /api/v1/generate`, `POST /api/v1/generate/regenerate`, 그리고 네 개의 추천 라우트  
+  `suggest-apis` · `suggest-context` · `suggest-preferences` · `suggest-modification`  
+  (세션 인증 후 `assertEmailVerified(user.id)` 추가 호출)
+- **미적용**: 외부 `deploy` 라우트는 **제거됨**(2026-08-01). 게시(`publish`)는 별도 게이트 정책을 따른다.
+- 필드명은 도메인 `emailVerified`(snake `email_verified` 컬럼 매핑). JWT에 인증 여부를 캐시하지 않고 **호출 시점 DB 조회**.
+- UI: 대시보드 인증 배너 + 재발송
 
 ---
 
@@ -222,7 +225,7 @@ assertOwner(project, user.id);   // 불일치 시 ForbiddenError (403)
 
 ```typescript
 import { assertEmailVerified } from '@/lib/auth/verifiedGuard';
-await assertEmailVerified(user);  // email_verified=null 시 ForbiddenError (403 EMAIL_NOT_VERIFIED)
+await assertEmailVerified(user.id);  // 미존재 401 · 미인증 403 EMAIL_NOT_VERIFIED
 ```
 
 **파일:** `src/lib/auth/authorize.ts`, `src/lib/auth/verifiedGuard.ts`

@@ -341,14 +341,21 @@ base → base-2 → … → base-10 → timestamp 폴백으로 처리하고, UNI
 
 ## 6. 상태 기계
 
-`ProjectStatus`는 **8종**이다 (`src/types/project.ts`):
+`ProjectStatus`는 **8종**이다 (`src/types/project.ts`). 유니온에 남아 있어도 **라이브 전이와 화석을 섞어 그리지 말 것**.
+
+**라이브 경로 (게시 제품 스토리):**
 
 ```
-draft → generating → generated → deploying → deployed
-                  ↘ failed        published ⇄ unpublished
+draft → generating → generated → published ⇄ unpublished
+                  ↘ failed
 ```
 
-> 상태 기계를 그릴 때 `generating`·`failed`를 빠뜨리지 말 것 — 감사 초안이 5종으로 적었다가 기각됐다.
+**레거시 화석 (기존 Railway 배포 이력 호환용 — 신규 전이 없음):**
+
+- `deploying` — 주석: 기존 Railway 배포 이력 호환용 (S6에서 제거 예정으로 표기)
+- `deployed` — 주석: 기존 호환용 (`published`로 통합)
+
+> 상태 기계를 그릴 때 `generating`·`failed`를 빠뜨리지 말 것. `deploying → deployed`를 **현재 배포 경로**로 문서화하지 말 것 — 제품 배포는 **publish → published** (`POST/DELETE /api/v1/projects/:id/publish`).
 
 ---
 

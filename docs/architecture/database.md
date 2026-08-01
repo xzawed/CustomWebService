@@ -266,7 +266,7 @@ CREATE TABLE generated_codes (
     code_js            TEXT,
     framework          TEXT DEFAULT 'vanilla',
     ai_provider        TEXT,                    -- anthropic
-    ai_model           TEXT,                    -- claude-opus-4-7 등
+    ai_model           TEXT,                    -- claude-opus-5 등 (허용목록은 AiProviderFactory)
     ai_prompt_used     TEXT,
     generation_time_ms INTEGER,
     token_usage        TEXT,                    -- json: { input, output }
@@ -431,10 +431,10 @@ drizzle/sqlite/
 
 ## 5. 원자적 레이트리밋 (단일 writer test-and-set)
 
-generate/deploy 일일 한도는 `user_daily_limits`에 대한 **동기 트랜잭션**으로 원자적으로
-강제된다 ([`src/repositories/sqlite/SqliteRateLimitRepository.ts`](../../src/repositories/sqlite/SqliteRateLimitRepository.ts)).
-PG의 원자적 함수(`try_increment_daily_generation`, `decrement_daily_generation`,
-`try_increment_daily_deploy`, `decrement_daily_deploy`)를 SQLite로 재현한 것이다.
+생성(generation)·추천(suggestion) 일일 한도는 `user_daily_limits`에 대한 **동기 트랜잭션**으로
+원자적으로 강제된다 ([`src/repositories/sqlite/SqliteRateLimitRepository.ts`](../../src/repositories/sqlite/SqliteRateLimitRepository.ts)).
+인터페이스 [`IRateLimitRepository`](../../src/repositories/interfaces/IRateLimitRepository.ts)는
+generation·suggestion 쌍만 노출한다. **deploy 일일 한도 메서드는 제거됨**(2026-08-01, 컬럼 `deploy_count`는 스키마에만 잔존·불활성).
 
 better-sqlite3는 동기 API이고 `db.transaction(fn)`은 `BEGIN`(단일 writer)으로 감싼다.
 SQLite는 한 시점에 writer가 1개뿐이므로 다음 시퀀스가 단일 트랜잭션 안에서 원자적으로
@@ -451,7 +451,7 @@ COMMIT
 ```
 
 - **증가**: `RETURNING`이 행을 반환하면 허용(`true`), 0행이면 한도 도달(`false`)
-- **환불**(실패 시): `SET count = MAX(0, count - 1)` (배포·생성 실패 보상)
+- **환불**(실패 시): `SET count = MAX(0, count - 1)` (생성·추천 실패 보상, `charged===true`일 때만)
 - **`usage_date`**: PG `CURRENT_DATE`에 대응하는 로컬 타임존 `YYYY-MM-DD` 문자열
 
 > 단일 인스턴스 임베디드 전제라 외부 카운터/락이 불필요하다. 멀티 인스턴스로 전환 시
@@ -463,8 +463,8 @@ COMMIT
 
 - **인터페이스**: [`src/repositories/interfaces/`](../../src/repositories/interfaces/)
   (IRepository seam — Provider 추상화는 이 seam만 유지)
-- **구현**: [`src/repositories/sqlite/`](../../src/repositories/sqlite/) 8종이 **유일** 구현
-  (User, Project, Code, Catalog, UserApiKey, RateLimit, Event, AuthToken)
+- **구현**: [`src/repositories/sqlite/`](../../src/repositories/sqlite/) **9종**이 **유일** 구현
+  (User, Project, Code, Catalog, UserApiKey, RateLimit, Event, AuthToken, **GenerationLock**)
 - **팩토리**: 레포 팩토리는 무인자다. DB provider 분기는 없으며, `getSqliteDb()`가
   `process.env.DB_PROVIDER`를 직접 읽어 `'sqlite'`가 아니면 throw하는 부팅 가드만 남아 있다.
   (상수만 반환하던 `getDbProvider()`와 `lib/config/providers.ts`는 2026-07-10 죽은 코드 정리로 삭제됨.)

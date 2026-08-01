@@ -1,7 +1,7 @@
 # 시스템 아키텍처
 
-> **최종 업데이트:** 2026-06-24  
-> **구현 상태:** 운영 중 (SQLite + Auth.js local 컷오버 완료 P8.2, 공개 회원가입 다중 사용자 인증 도입). Vitest 목록 수치는 현 코드로 재확인 필요
+> **최종 업데이트:** 2026-08-01  
+> **구현 상태:** 운영 중 (임베디드 SQLite · Auth.js Credentials 다중 사용자 · 게시=`slug` 서브도메인). 테스트 개수/%는 [test-coverage-map](../reference/test-coverage-map.md)·`pnpm test`로 확인 (이 문서에 고정 수치 없음)
 
 ---
 
@@ -597,7 +597,8 @@ export function getLimits(plan: string = 'free'): FeatureLimits {
     │
     ▼ redirect /dashboard
 [보호 경로] getAuthUser() → JWT 디코드 → user.id로 실제 사용자 신원
-[생성·배포] assertEmailVerified() → email_verified IS NULL 시 403
+[생성·재생성·suggest-*] assertEmailVerified(userId) → 미존재 401 / 미인증 403
+  (publish는 이메일 게이트 대상 아님; 외부 deploy 라우트는 2026-08-01 제거)
 ```
 
 > **핵심**: 공개 셀프서비스 회원가입 + **계정별 완전 데이터 격리** 모델이다. OAuth·Supabase Auth·DB 세션 어댑터·env 단일 관리자(`ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`)는 제거됨.
@@ -612,7 +613,7 @@ export function getLimits(plan: string = 'free'): FeatureLimits {
 | 확장 시나리오 | 수정 필요한 레이어 | 수정 범위 |
 |-------------|------------------|----------|
 | 새 AI 제공자 추가 (OpenAI, Ollama) | Provider만 | 새 클래스 1개 + Factory 등록 |
-| 새 배포 플랫폼 추가 (Vercel) | Provider만 | 새 클래스 1개 + Factory 등록 |
+| 제품 “배포” 변경 | 게시·서브도메인 경로 | 외부 export(Vercel/Railway 사용자 앱) 스택은 **제거됨**(2026-08-01). 제품 배포 = `publish` → `slug.xzawed.xyz` |
 | 새 API 카테고리 추가 | 카탈로그 시드 데이터만 | `src/data/apiCatalog.json` 항목 추가 (부팅 시 멱등 시드) |
 | 다국어 지원 | i18n 파일 + UI | 번역 파일 추가 |
 | 새 빌더 스텝 추가 | StepRegistry + 새 컴포넌트 | 스텝 1개 추가 |
