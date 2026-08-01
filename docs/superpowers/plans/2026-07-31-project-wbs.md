@@ -56,7 +56,8 @@
 | ID | 작업 | 크기 | 선행조건 |
 |----|------|------|---------|
 | ~~**C1**~~ | ~~WAL 체크포인트 정책 도입~~ → **오진이었다. 코드 변경 없이 종결(2026-07-31)** — 아래 상세 | — | — |
-| C2 | 오프-볼륨 DR — 현재 백업은 **같은 볼륨**의 `.backup` 덤프뿐이라 볼륨 손실 = 백업 동반 손실 | M | S3 등 비용·계정 결정 |
+| ~~**C2 (코드 시임)**~~ | ~~오프-볼륨 DR 시임~~ → ✅ **부분 완료(제로 계정·무비용)** — `GET /api/v1/admin/backup/latest`(로컬 디스크 pull) + `OffsiteBackupSink`/`SQLITE_OFFSITE_BACKUP_URL`(기본 no-op, HTTPS PUT) + debug `offsiteBackup` 상태. Litestream/S3 **비채택**(작은 DB 운영 극장). | — | — |
+| **C2 (오너 잔여)** | Railway **볼륨 백업 켜기**(유료·계정 액션 — 코드로 불가) + **admin download를 일정에 맞춰 로컬에 받는 사람 습관**(자동화 불가·우리가 대신 못 함) | S | 오너 결정·습관 |
 | C3 | `adminAuth`의 `LRUMap` 안티패턴 정리 — [SDD 4.1](../../architecture/system-spec.md)이 금지한 "활성 윈도 evict" 패턴의 유일한 예외 | S | 없음 |
 | C4 | `@sentry/nextjs` 의존성 + config 3파일 존치/제거 결정 — Sentry는 의도적 미도입인데 번들·감사 표면만 차지 | S | 결정만 |
 | C5 | `DB_PROVIDER` 부팅 가드 — 단일 스택인데 잔존하며 **env를 잃으면 전면 장애인데 문서 근거가 없다** | S | 없음 |
@@ -244,7 +245,7 @@ generate 경로(`RateLimitService.decrementDailyLimit`)는 `logger.warn`을 남�
 1. ~~**A1** — 외부 배포 스택 존폐~~ → ✅ **제거 완료(2026-08-01)** [ADR](../../decisions/2026-08-01-remove-external-deploy-stack.md)
 2. **E3 P1~P3** — 빌더 추출. P0(스토어 래치)는 완료. 최악의 CRITICAL(복잡도 48)과
    최대 테스트 공백이 같은 작업이고, P3에서 폴링 취소로 이중 경로를 근본 해결한다 (L)
-3. **C2** — 오프-볼륨 DR. C1 재검토 결과 **이것이 실질 잔여 DR 위험**으로 확인됐다 (M, 비용 결정 필요)
+3. ~~**C2** — 오프-볼륨 DR 코드 시임~~ → ✅ 제로 계정 완화(admin download + off-site URL 시임) 완료. **남은 것**: Railway 볼륨 백업(오너·유료)과 **다운로드를 실제로 주기적으로 당기는 습관**(코드가 자동화할 수 없음)
 4. **D-a** — `operations.md` 재작성. 다음 작업자의 오독을 막는다 (M)
 5. **E6** — E2E 확장. 구조적 사각지대의 유일한 방어선 (L)
 

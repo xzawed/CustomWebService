@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { getOffsiteBackupStatus } from '@/lib/db/sqlite/backup';
 import { adminCorsHeaders, verifyAdminKey, withAdminCors } from '@/lib/utils/adminAuth';
 import { handleApiError, jsonResponse } from '@/lib/utils/errors';
 import { describeTaskModels } from '@/providers/ai/AiProviderFactory';
@@ -48,6 +49,9 @@ export async function GET(request: Request): Promise<Response> {
             fromSet: Boolean(process.env.EMAIL_FROM),
             fromDomain: process.env.EMAIL_FROM?.split('@')[1] ?? null,
           },
+          // 오프사이트 백업 싱크 상태. URL(토큰 가능)은 절대 노출하지 않는다.
+          // 별도 경보 상태 머신 없이 lastResult만 노출 — 로컬 백업 실패 경보와 혼동하지 말 것.
+          offsiteBackup: getOffsiteBackupStatus(),
           modules: {
             'playwright-core': tryRequire('playwright-core'),
             '@anthropic-ai/sdk': tryRequire('@anthropic-ai/sdk'),

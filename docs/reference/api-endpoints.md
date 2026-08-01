@@ -1200,6 +1200,25 @@ Content-Type: application/json
 
 **연관 스크립트:** [scripts/runGenerationLoadTest.ts](../../scripts/runGenerationLoadTest.ts) — 골든셋 API 무작위 조합으로 N회 반복 호출하여 성공률·평균 응답 시간 집계.
 
+### GET /api/v1/admin/backup/latest
+가장 최근 on-volume SQLite `.backup()` 덤프(`app-YYYYMMDD-HHmmss.db`)를 **octet-stream**으로 내려받습니다. 볼륨 손실 대비의 제로 계정 완화(로컬 디스크에 사본 보관). **전체 DB**(사용자·비밀번호 해시·암호화 API 키·생성 코드)이므로 `ADMIN_API_KEY` 필수이며, 성공 시 감사 `logger.warn` + Slack info 알림이 나갑니다. 클라이언트 파일명 파라미터는 받지 않습니다(서버가 백업 디렉터리에서 패턴 매칭으로만 선택).
+
+**Request:**
+```http
+GET /api/v1/admin/backup/latest
+Authorization: Bearer <ADMIN_API_KEY>
+```
+
+**Response (성공):** `200` · `Content-Type: application/octet-stream` · `Content-Disposition: attachment; filename="app-…db"` · `Content-Length`
+
+| 에러 코드 | HTTP | 설명 |
+|-----------|------|------|
+| `FORBIDDEN` | 403 | `Authorization` 누락 또는 잘못된 `ADMIN_API_KEY` |
+| `NOT_FOUND` | 404 | 아직 백업 파일이 없음 |
+| `SERVICE_UNAVAILABLE` | 503 | 백업 디렉터리 읽기 실패 |
+
+관련: [operations.md §3.4 DR 계층](../guides/operations.md), `SQLITE_OFFSITE_BACKUP_URL` 시임([env-vars.md](env-vars.md)).
+
 ### GET /api/v1/admin/debug
 주요 npm 패키지의 모듈 로드 상태와 **AI 모델 해석 결과**를 진단합니다. standalone 배포 후 500 오류 원인 규명(패키지 누락 여부)과, `AI_MODEL_*` env가 실제로 적용됐는지 확인에 사용합니다.
 
@@ -1224,6 +1243,16 @@ Authorization: Bearer <ADMIN_API_KEY>
       "generation": { "env": "claude-opus-5", "resolved": "claude-opus-5", "fellBack": false },
       "suggestion": { "env": "claude-haiku-4-5", "resolved": "claude-haiku-4-5", "fellBack": false }
     },
+    "email": {
+      "configured": true,
+      "fromSet": true,
+      "fromDomain": "xzawed.xyz"
+    },
+    "offsiteBackup": {
+      "configured": false,
+      "lastResult": null,
+      "lastAt": null
+    },
     "modules": {
       "playwright-core": "ok",
       "@anthropic-ai/sdk": "ok",
@@ -1233,6 +1262,12 @@ Authorization: Bearer <ADMIN_API_KEY>
   }
 }
 ```
+
+| `offsiteBackup` 필드 | 의미 |
+|---|---|
+| `configured` | `SQLITE_OFFSITE_BACKUP_URL` 설정 여부. **URL 원문은 절대 없음** |
+| `lastResult` | 최근 오프사이트 업로드 `ok` / `failed` / `null`(아직 없음 또는 no-op) |
+| `lastAt` | 최근 시도 시각 ISO 또는 `null` |
 
 | `models.<task>` 필드 | 의미 |
 |---|---|
