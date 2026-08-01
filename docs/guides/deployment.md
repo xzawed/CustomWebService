@@ -1,6 +1,6 @@
 # 배포 가이드
 
-> **최종 업데이트:** 2026-05-22  
+> **최종 업데이트:** 2026-08-01  
 > **플랫폼:** Railway (자동 배포, main 브랜치 push 시)
 
 ---
@@ -72,25 +72,29 @@ GitHub Actions 설정: `.github/workflows/ci.yml`
 ※ 테스트 실패 시 → 빌드 차단 → 배포 차단
 ```
 
-### 스케줄 자동화 (`.github/workflows/scheduled.yml`)
+### 카탈로그·키 검증 (배포 런타임 관리자 API)
 
-| 작업 | 주기 | 동작 |
+Supabase 의존 CI cron(`.github/workflows/scheduled.yml`)과 CLI
+`pnpm catalog:healthcheck` / `pnpm keys:verify`는 **SQLite 컷오버로 제거**됐다.
+
+| 목적 | 현행 메커니즘 | 로직 |
+|------|--------------|------|
+| 플랫폼 API 키 설정·형식 검증 | `GET /api/v1/admin/keys-verify` (`ADMIN_API_KEY`) | `src/lib/catalog/keyCheck.ts` |
+| 활성 카탈로그 라이브 검증·`verification_status` 갱신 | `POST /api/v1/admin/verify-catalog` (`ADMIN_API_KEY`) | `src/lib/catalog/verifyRunner.ts` + `healthCheck.ts` |
+| QC·서비스 헬스 관측 | `qc-monitor.yml` → `/api/v1/admin/qc-stats`, `/api/v1/health` | — |
+
+자동 스케줄러 대신 **관리자 트리거**를 택한 이유: 일시 장애로 broken 플래핑·무인 outbound를 피하기 위함.
+배경: [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](../decisions/2026-06-21-api-catalog-health-monitoring.md)
+
+### 사용 도구 및 모니터링
+
+| 도구 | 용도 | 비고 |
 |------|------|------|
-| Scheduled API Health Check | 매일 06:00 KST (cron `0 21 * * *`) | DB(`api_catalog`)의 활성 API 전체를 라이브 검증(`pnpm catalog:healthcheck`). BROKEN 발견 시 GitHub Issue 생성/갱신 |
-
-> 이전의 8개 하드코딩 API 점검·DB 용량 체크·비활성 프로젝트 정리·Dependabot 4잡 구성은 폐기되고, DB 기반 단일 헬스체크 잡으로 전환되었습니다.
-> 검증 로직: `src/lib/catalog/healthCheck.ts`(라이브 검증·분류), 키 검증: `src/lib/catalog/keyCheck.ts` / `scripts/verifyPlatformKeys.ts`(`pnpm keys:verify`).
-> 배경: [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](../decisions/2026-06-21-api-catalog-health-monitoring.md)
-
-### 사용 도구 및 무료 한도
-
-| 도구 | 용도 | 무료 한도 |
-|------|------|-----------|
-| **GitHub Actions** | CI 파이프라인 | 2,000분/월 |
-| **Railway** | 배포 (Preview + Production) | $5 무료 크레딧/월 |
+| **GitHub Actions** | CI 파이프라인 | lint → type-check → test → build → deploy |
+| **Railway** | 배포 (단일 인스턴스 + Volume) | SQLite 경로 `/data/app.db` |
 | **Vitest** | 단위/통합 테스트 | OSS |
-| **Sentry** | 에러 추적 | 5,000 이벤트/월 |
-| **UptimeRobot** | 가동 모니터링 | 50 모니터 |
+| **Slack** (`#alerts`) | 에러·백업 경보 sink | `SLACK_WEBHOOK_URL` — **Sentry는 의도적 미도입** (#220) |
+| **UptimeRobot** 등 | 가동 모니터링 | 선택 |
 
 ---
 
@@ -166,15 +170,11 @@ Railway 대시보드 → 서비스 → Settings → Networking → Custom Domain
 2. `*.xzawed.xyz` 추가 (서브도메인용)
 3. 각 도메인 상태가 **"Active"** (초록색)인지 확인
 
-### Supabase OAuth 리다이렉트 URL 업데이트
+### 인증 콜백 (Auth.js local)
 
-Supabase Dashboard → Authentication → URL Configuration:
-
-- **Site URL**: `https://xzawed.xyz`
-- **Redirect URLs**에 추가:
-  - `https://xzawed.xyz/callback`
-  - `https://r4r002eg.up.railway.app/callback`
-  - `http://localhost:3000/callback` (개발용, 유지)
+OAuth/Supabase Auth 경로는 **2026-06-23 컷오버로 제거**됐다. 현행은 Auth.js v5 Credentials + JWT.
+공개 URL·이메일 링크 base는 `APP_URL` / `NEXT_PUBLIC_ROOT_DOMAIN`으로 설정한다
+(호스트 헤더 미신뢰 — reset poisoning 차단). 상세: [auth.md](../architecture/auth.md), [env-vars.md](../reference/env-vars.md).
 
 ### 서브도메인 라우팅
 
@@ -183,16 +183,17 @@ Supabase Dashboard → Authentication → URL Configuration:
 
 ---
 
-## 7. 무료 티어 한도
+## 7. 비용·한도 참고
 
-| 서비스 | 무료 한도 | 예상 사용량 | 여유도 |
-|--------|-----------|------------|--------|
-| **Railway** | $5 무료 크레딧/월, 500시간 실행 | ~$3/월 | 충분 |
-| **Supabase** | 500MB DB, 5GB 대역폭, 50K MAU | ~50MB DB | 충분 |
-| **GitHub** | 무제한 저장소, Actions 2000분/월 | ~200분/월 | 충분 |
-| **Claude API** | 사용량 기반 과금 | ~50 요청/일 | 보통 |
-| **Sentry** | 5,000 이벤트/월 | ~500/월 | 충분 |
-| **UptimeRobot** | 50 모니터 | ~10 모니터 | 충분 |
-| **Resend** | 100 이메일/일 | ~10/일 | 충분 |
+한도 숫자는 플랜·시점에 따라 바뀌므로 **대시보드 실측이 진실원**이다.
+Trial $5·Supabase 500MB·Sentry 이벤트 같은 **폐기 수치는 적지 않는다** (WBS D-e / [operations.md](operations.md)).
 
-> 상세 한도 관리 전략: `docs/guides/operations.md` 참조
+| 서비스 | 역할 |
+|--------|------|
+| **Railway** | 앱 + Volume (SQLite) |
+| **GitHub Actions** | CI |
+| **Claude API** | 생성·추천 (사용량 과금) |
+| **Resend** | 인증·재설정 이메일 |
+| **Slack** | 운영 경보 (`#alerts`) |
+
+> 일상 운영·모니터링·백업·장애 대응: [operations.md](operations.md)

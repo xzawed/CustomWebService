@@ -3,7 +3,7 @@
 - 날짜: 2026-06-22 (착수 2026-06-23, 완료 2026-06-23)
 - 상태: **✅ 완료 (2026-06-23 컷오버·배포 완료, 프로덕션 라이브)** — Phase 1~8 반영. **모든 코드성 이연 해소(2026-06-25)**: P6.3(SQLite 백업 자동화) 인프로세스 구현, P5.2(verification_status 라이브 갱신)는 관리자 트리거 엔드포인트 `POST /api/v1/admin/verify-catalog`로 구현(무인 cron 대신 채택 — 플래핑·outbound 회피). 진행 현황은 §0 참조.
 - 근거: 정합성 감사(7차원 persistence surface) + 딥리서치(SQLite/Railway/Auth.js, 출처 포함) + 사용자 범위 결정 3건
-- 관련: [Supabase 사용 요소](../../../CLAUDE.md), provider 추상화([src/lib/config/providers.ts](../../../src/lib/config/providers.ts))
+- 관련: [Supabase 사용 요소](../../../CLAUDE.md), provider 추상화(`src/lib/config/providers.ts` — 후속 컷오버·죽은 코드 정리로 **제거됨**, 역사: [database.md](../../architecture/database.md) §6)
 
 ## 0. 진행 현황 (2026-06-23)
 

@@ -108,9 +108,9 @@
 | ID | 작업 | 크기 |
 |----|------|------|
 | ~~D-a~~ | ~~`docs/guides/operations.md` 전면 재작성~~ → ✅ **완료(2026-07-31)**. Sentry·Supabase Dashboard·`seed.sql`·"활성 23개"·"500MB" 등 폐기 내용을 걷어내고 관리자 진단 엔드포인트 중심으로 다시 썼다. **CLAUDE.md 문서 테이블에 `operations.md` 행이 아예 없던 것**도 함께 고쳤다 — 그게 이 문서가 방치된 원인 중 하나였다 | — |
-| **D-e** | **`docs/guides/deployment.md`에도 Supabase·Sentry 잔재가 있다** (D-a 작업 중 발견, 범위 밖으로 남김). operations.md가 "deployment 7절 잔재 가능, 실측 우선"으로 경고하고 있으나 근본 수정이 필요하다 | S |
-| D-b | `docs/guides/development.md`·`testing.md`의 Supabase 시그니처 제거 — `createProjectService(supabase)` 같은 코드가 "✅ 올바른 방식" 블록에 남아 있다(실제 팩토리는 무인자) | S |
-| D-c | `plans/2026-06-09-test-flakiness-followups.md`의 stale quirk 정정 — `pollGenerationStatus`의 `failed` 처리를 "미수정 보존"으로 기술하나 **코드는 이미 즉시 실패**로 개선됐다 | S |
+| ~~**D-e**~~ | ~~`deployment.md` Supabase·Sentry 잔재~~ → ✅ **완료(2026-08-01 문서 정리)**. 카탈로그/키 검증도 관리자 엔드포인트로 교체 | — |
+| ~~D-b~~ | ~~`development.md` Supabase 시그니처~~ → ✅ **완료(2026-08-01)**. 무인자 factory로 정정. `testing.md` 잔재는 별도 | — |
+| ~~D-c~~ | ~~플래키 followups plan의 stale quirk~~ → ✅ **해당 plan 삭제(2026-08-01)**. `failed` 즉시 terminal 실패는 코드·`CLAUDE.md` 폴링 절이 진실원 | — |
 | D-d | `AUTH_URL`·`DB_PROVIDER` env 문서화 (둘 다 `env-vars.md`에 행이 없다) | S |
 
 ---

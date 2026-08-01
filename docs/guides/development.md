@@ -1,13 +1,13 @@
 # 개발 가이드
 
-> **최종 업데이트:** 2026-06-22
+> **최종 업데이트:** 2026-08-01
 
 ---
 
 ## 1. 개발 환경 설정
 
 ### 필수 도구
-- Node.js 20+, pnpm 최신 버전
+- Node.js 22+ (`package.json` `engines.node: ">=22"`), pnpm 9+
 
 ### 설치 및 실행
 ```bash
@@ -15,6 +15,8 @@ pnpm install
 cp .env.example .env.local   # 환경변수 설정 (docs/reference/env-vars.md 참조)
 pnpm dev                      # Turbopack 개발 서버 시작
 ```
+
+> 포맷팅은 ESLint에 통합되어 있다. `prettier`/`pnpm format` 스크립트는 없다 — `pnpm lint` / `pnpm lint:fix`로 처리.
 
 ---
 
@@ -31,7 +33,7 @@ pnpm dev                      # Turbopack 개발 서버 시작
 | 타입 파일 | camelCase | `apiTypes.ts` |
 | 스토어 파일 | camelCase | `builderStore.ts` |
 | 상수 파일 | camelCase | `categories.ts` |
-| API Route | kebab-case 디렉토리 | `api/catalog/route.ts` |
+| API Route | kebab-case 디렉토리 | `api/v1/projects/route.ts` |
 
 ### 코드 스타일
 
@@ -69,7 +71,7 @@ import { useRouter } from 'next/navigation';
 // 2. 외부 라이브러리
 import { Sparkles } from 'lucide-react';
 
-// 3. 내부 모듈 (절대 경로)
+// 3. 내부 모듈 (절대 경로 — `@/*` → `src/*`)
 import { Button } from '@/components/ui/button';
 import { useBuilderStore } from '@/stores/builderStore';
 import type { ApiCatalogItem } from '@/types/api';
@@ -106,21 +108,28 @@ export async function POST(req: Request) {
 ## 3. 아키텍처 레이어 규칙
 
 - **Route Handler** → 인증 확인(`getAuthUser`) + Zod 검증 + Service 호출만
-- **Service** → 비즈니스 로직, Factory 함수로 Repository 주입
+- **Service** → 비즈니스 로직. Factory로 생성 (내부에서 Repository 조립)
 - **Repository** → DB CRUD만, 비즈니스 판단 없음
+- **DB** → 임베디드 SQLite (`better-sqlite3` + drizzle-orm). Supabase/Postgres 경로 없음 (2026-06-23 컷오버)
 
-### Service/Repository 생성 패턴 (Factory 패턴 필수)
+### Service/Repository 생성 패턴 (무인자 Factory)
+
+팩토리는 **인자를 받지 않는다**. 내부에서 `getSqliteDb()`로 연결을 얻는다
+(`src/repositories/factory.ts`, `src/services/factory.ts`).
 
 ```typescript
 // ✅ 올바른 방식
 import { createProjectService, createRateLimitService } from '@/services/factory';
 import { createCodeRepository } from '@/repositories/factory';
 
-const projectService = createProjectService(supabase);
-const codeRepo = createCodeRepository(supabase);
+const projectService = createProjectService();
+const codeRepo = createCodeRepository();
 
-// ❌ 금지 — 테스트 불가, Provider 전환 불가
-const service = new ProjectService(supabase);
+// ❌ 금지 — 팩토리를 건너뛰고 직접 생성
+const service = new ProjectService(/* ... */);
+
+// ❌ 금지 — Supabase 클라이언트 주입 (제거됨)
+// createProjectService(supabase)
 ```
 
 ---
@@ -137,8 +146,20 @@ const service = new ProjectService(supabase);
 pnpm dev              # 개발 서버 (Turbopack)
 pnpm build            # 프로덕션 빌드
 pnpm test             # 전체 테스트
+pnpm test:unit        # 단위 테스트
+pnpm test:integration # 통합 테스트 (API routes)
 pnpm test:coverage    # 커버리지 리포트
+pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요)
 pnpm type-check       # TypeScript 검사
 pnpm lint             # ESLint
 pnpm lint:fix         # ESLint 자동 수정
 ```
+
+```bash
+# 운영/데이터 스크립트
+pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.json) 재생성
+```
+
+> 카탈로그 헬스·플랫폼 키 검증 CLI(`pnpm catalog:healthcheck` / `pnpm keys:verify`)는
+> SQLite 컷오버로 제거됨. 배포 런타임에서는 관리자 엔드포인트를 사용한다:
+> `GET /api/v1/admin/keys-verify`, `POST /api/v1/admin/verify-catalog` (`ADMIN_API_KEY`).
