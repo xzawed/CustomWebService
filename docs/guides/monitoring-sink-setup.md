@@ -4,7 +4,7 @@
 > 경보는 xzawed 워크스페이스 **`#alerts`** 채널(Slack 앱 `xzawed alerts`)로 간다.
 > 배경·결정·실측: [ADR](../decisions/2026-07-30-monitoring-sink-slack-only.md)
 
-sink는 **Slack 하나로 고정**했다. Sentry는 의도적으로 도입하지 않는다(env·config는 되돌릴 수 있게 보존).
+sink는 **Slack 하나로 고정**했다. Sentry SaaS는 의도적으로 도입하지 않으며, 미동작 스캐폴딩은 2026-08-01에 제거했다 ([ADR](../decisions/2026-08-01-remove-unused-sentry-scaffolding.md)).
 
 아래 절차는 **webhook을 재발급하거나 채널을 옮길 때** 다시 쓰는 문서다.
 

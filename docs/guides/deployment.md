@@ -93,7 +93,7 @@ Supabase 의존 CI cron(`.github/workflows/scheduled.yml`)과 CLI
 | **GitHub Actions** | CI 파이프라인 | lint → type-check → test → build → deploy |
 | **Railway** | 배포 (단일 인스턴스 + Volume) | SQLite 경로 `/data/app.db` |
 | **Vitest** | 단위/통합 테스트 | OSS |
-| **Slack** (`#alerts`) | 에러·백업 경보 sink | `SLACK_WEBHOOK_URL` — **Sentry는 의도적 미도입** (#220) |
+| **Slack** (`#alerts`) | 에러·백업 경보 sink | `SLACK_WEBHOOK_URL` — **Sentry SaaS 미도입·스캐폴딩 제거** (#220 · C4) |
 | **UptimeRobot** 등 | 가동 모니터링 | 선택 |
 
 ---

@@ -15,7 +15,7 @@
 | 전제 | 의미 |
 |------|------|
 | **Supabase 없음** | 2026-06-23 SQLite 컷오버로 DB·Auth·Dashboard 전부 제거. Supabase 절차는 무시한다. |
-| **Sentry 미도입** | 알림 sink는 **Slack 하나**(`#alerts`). Sentry 대시보드를 찾지 말 것. |
+| **Sentry 미도입·스캐폴딩 제거** | 알림 sink는 **Slack 하나**(`#alerts`). Sentry 대시보드·DSN을 찾지 말 것. |
 | **단일 인스턴스** | 인메모리 레이트리밋·진행률·site 프록시 집계는 프로세스 재시작 시 초기화된다. |
 | **자격 증명** | `ADMIN_API_KEY`, Railway 로그인, Anthropic/GitHub 콘솔 접근은 **운영자 소관**. 이 문서는 값을 다루하지 않는다. |
 
@@ -81,7 +81,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_API_KEY" \
 |------|------|
 | 채널 | xzawed 워크스페이스 **`#alerts`** (앱 `xzawed alerts`) |
 | env | `SLACK_WEBHOOK_URL` — **키 존재가 아니라 값 길이**. 빈 문자열 = 미설정 = 조용한 no-op |
-| Sentry | **의도적 미도입**. env 잔재가 있어도 sink로 쓰지 않음 |
+| Sentry | **의도적 미도입·코드 제거(2026-08-01)**. 레거시 env가 Railway에 남아 있어도 코드가 읽지 않음 |
 | 설정·재발급·합성 경보 | **[monitoring-sink-setup.md](monitoring-sink-setup.md)** (2026-07-31 실경보 검증 완료) |
 
 ### 2.2 경보 생산자 (코드에 배선된 것만)

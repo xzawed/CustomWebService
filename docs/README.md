@@ -129,6 +129,7 @@
 | [2026-07-30-monitoring-sink-slack-only.md](decisions/2026-07-30-monitoring-sink-slack-only.md) | Slack-only sink·백업 경보 |
 | [2026-07-30-suggestion-daily-quota-separation.md](decisions/2026-07-30-suggestion-daily-quota-separation.md) | AI 추천 일일 쿼터 분리 |
 | [2026-08-01-remove-external-deploy-stack.md](decisions/2026-08-01-remove-external-deploy-stack.md) | 외부 deploy export 스택 제거 |
+| [2026-08-01-remove-unused-sentry-scaffolding.md](decisions/2026-08-01-remove-unused-sentry-scaffolding.md) | 미사용 Sentry 스캐폴딩 제거 (C4(b)) |
 
 ---
 

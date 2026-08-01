@@ -24,7 +24,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
-    "@sentry/nextjs": "^10.68.0",
     "better-sqlite3": "^13.0.1",
     "drizzle-orm": "^0.45.2",
     "isomorphic-dompurify": "^3.19.0",
