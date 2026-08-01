@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { logger } from '@/lib/utils/logger';
 import * as schema from './schema';
 
 export type SqliteDb = ReturnType<typeof drizzle<typeof schema>>;
@@ -31,12 +32,52 @@ export function createSqliteConnection(path: string): { db: SqliteDb; raw: Datab
   return { db, raw };
 }
 
-/** DB_PROVIDER=sqlite 환경의 싱글톤 연결. */
+let _warnedDefaultProvider = false;
+
+/**
+ * 연결을 열기 전 환경을 검사한다.
+ *
+ * `DB_PROVIDER`는 과거 이중 스택(supabase/postgres/sqlite) 스위치의 잔재다. 단일 스택이 된
+ * 지금은 분기할 대상이 없으므로 **미설정을 장애로 취급하지 않는다** — env 문자열 하나를 잃었다고
+ * 모든 DB 접근이 죽는 것이 이 서비스의 가장 위험한 단일 지점이었다(WBS C5).
+ *
+ * - 미설정·빈 문자열 → sqlite (부팅 1회 경고)
+ * - `'sqlite'`       → 정상
+ * - 그 외 값         → throw. 오설정을 조용히 삼키면 의도와 다른 스택으로 뜬 줄 모른다
+ *
+ * 테스트 환경에서 `SQLITE_PATH`가 없으면 throw한다. 예전에는 `DB_PROVIDER`가 테스트에
+ * 설정돼 있지 않다는 **우연** 덕분에 실수로 실제 파일 DB를 여는 사고가 막혀 있었는데,
+ * 위에서 미설정을 허용하면 그 우연이 사라진다. "경로가 없어 어차피 실패한다"에는 기댈 수 없다 —
+ * 러너 이미지가 `mkdir -p /data`로 **항상 쓰기 가능한 디렉터리를 만든다**(Dockerfile).
+ */
+function assertSqliteEnv(): void {
+  const provider = process.env.DB_PROVIDER?.trim();
+
+  if (provider && provider !== 'sqlite') {
+    throw new Error(
+      `DB_PROVIDER="${provider}"는 지원하지 않습니다. 이 서비스는 SQLite 단일 스택입니다 ('sqlite' 또는 미설정).`,
+    );
+  }
+
+  if (process.env.NODE_ENV === 'test' && !process.env.SQLITE_PATH) {
+    throw new Error(
+      '테스트에서는 SQLITE_PATH를 명시해야 합니다(예: ":memory:"). ' +
+        '기본 경로로 실제 파일 DB를 여는 사고를 막습니다.',
+    );
+  }
+
+  if (!provider && !_warnedDefaultProvider) {
+    _warnedDefaultProvider = true;
+    logger.warn('DB_PROVIDER 미설정 — sqlite 기본값으로 연결합니다', {
+      sqlitePath: getSqlitePath(),
+    });
+  }
+}
+
+/** SQLite 싱글톤 연결. 환경 검사는 `assertSqliteEnv()` 참조. */
 export function getSqliteDb(): SqliteDb {
   if (_db) return _db;
-  if (process.env.DB_PROVIDER !== 'sqlite') {
-    throw new Error('getSqliteDb()는 DB_PROVIDER=sqlite 환경에서만 사용할 수 있습니다.');
-  }
+  assertSqliteEnv();
   const { db, raw } = createSqliteConnection(getSqlitePath());
   _db = db;
   _raw = raw;
@@ -71,4 +112,6 @@ export function resetSqliteConnection(): void {
     _raw = null;
   }
   _db = null;
+  // 경고 1회 플래그도 함께 되돌린다. 아니면 테스트 순서에 따라 경고 단언이 흔들린다.
+  _warnedDefaultProvider = false;
 }

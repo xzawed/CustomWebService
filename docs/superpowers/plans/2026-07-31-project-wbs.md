@@ -68,7 +68,7 @@
 | C2 (선택 습관) | admin download를 **가끔** 로컬에 받는 것 — **구현 과제가 아닌 선택적 운영 습관**. 자동화·강제 스케줄 없음. 안 해도 백로그 미완이 아니다 | — | 오너 선택 |
 | C3 | `adminAuth`의 `LRUMap` 안티패턴 정리 — [SDD 4.1](../../architecture/system-spec.md)이 금지한 "활성 윈도 evict" 패턴의 유일한 예외 | S | 없음 |
 | C4 | **쪼개서 볼 것**: (a) Sentry SaaS 도입 → ❌ **제외(2026-08-01)** (유료·Slack-only 결정 유지) (b) ~~미사용 `@sentry/nextjs` 의존성 + config 3파일 **삭제 정리**~~ → ✅ **완료(2026-08-01)** — [ADR](../../decisions/2026-08-01-remove-unused-sentry-scaffolding.md) | S | — |
-| C5 | `DB_PROVIDER` 부팅 가드 — 단일 스택인데 잔존하며 **env를 잃으면 전면 장애인데 문서 근거가 없다** | S | 없음 |
+| ~~C5~~ | ~~`DB_PROVIDER` 부팅 가드~~ → ✅ **완료(2026-08-01)**. 미설정을 sqlite로 취급(경고 1회)·잘못된 값만 throw·테스트에서 `SQLITE_PATH` 강제. 단순 제거가 아닌 이유(이미지가 `/data`를 항상 만들어 테스트 안전망이 사라진다)와 수용한 잔여 위험은 [ADR](../../decisions/2026-08-01-db-provider-boot-gate.md) | — | — |
 | C6 | 인메모리 런타임 상태 8곳(단일 인스턴스 전제) — **스케일 트리거 제품 결정**. 진짜 멀티 인스턴스는 공유 상태용 **유료 인프라**가 필요하므로 “열린 인프라 작업”이 아님. 현 규모에선 무해 | L | 멀티 인스턴스 전환 **결정 시** |
 | C7 | Supabase 시대 1회성 SQL 4개 정리 | S | 없음 |
 | C8 | `countries.json` 갱신이 완전 수동 (자동 갱신·신선도 검사 없음) | S | 없음 |
@@ -121,7 +121,7 @@
 | ~~**D-e**~~ | ~~`deployment.md` Supabase·Sentry 잔재~~ → ✅ **완료(2026-08-01 문서 정리)**. 카탈로그/키 검증도 관리자 엔드포인트로 교체 | — |
 | ~~D-b~~ | ~~`development.md` Supabase 시그니처~~ → ✅ **완료(2026-08-01)**. 무인자 factory로 정정. `testing.md` 잔재는 별도 | — |
 | ~~D-c~~ | ~~플래키 followups plan의 stale quirk~~ → ✅ **해당 plan 삭제(2026-08-01)**. `failed` 즉시 terminal 실패는 코드·`CLAUDE.md` 폴링 절이 진실원 | — |
-| D-d | `AUTH_URL`·`DB_PROVIDER` env 문서화 (둘 다 `env-vars.md`에 행이 없다) | S |
+| D-d | ~~`DB_PROVIDER` env 문서화~~ → ✅ **완료(2026-08-01)** — `env-vars.md`에 행 추가 + 동작 변경([ADR](../../decisions/2026-08-01-db-provider-boot-gate.md)). **`AUTH_URL`은 아직 행 없음** — 그것만 남았다 | S |
 
 ---
 

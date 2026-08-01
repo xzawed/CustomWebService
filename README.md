@@ -177,7 +177,7 @@ pnpm test:coverage     # 📊 커버리지 리포트
 ```bash
 pnpm install                         # 의존성 설치
 cp .env.example .env.local           # 환경변수 템플릿 복사
-# .env.local 필수 칸 채우기 (아래 표 + DB_PROVIDER=sqlite)
+# .env.local 필수 칸 채우기 (아래 표)
 pnpm dev                             # 개발 서버 (Turbopack)
 # 브라우저: http://localhost:3000/signup 에서 계정 생성
 ```
@@ -192,7 +192,6 @@ pnpm dev                             # 개발 서버 (Turbopack)
 
 | 변수 | 설명 |
 |------|------|
-| `DB_PROVIDER` | **`sqlite` 고정.** 미설정·다른 값이면 DB 연결 throw |
 | `AUTH_SECRET` | Auth.js JWT 서명 (`openssl rand -base64 32`) |
 | `AUTH_TRUST_HOST` | 프록시/커스텀 도메인 뒤 `true` |
 | `NEXT_PUBLIC_AUTH_PROVIDER` | `local` (클라이언트 빌드타임 상수) |
