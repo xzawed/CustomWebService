@@ -8,11 +8,8 @@ ignore:
   - "src/instrumentation.ts"
   # Sentry 초기화 설정 (DSN 미설정 시 no-op)
   - "sentry.*.config.ts"
-  # 2026-07-31: sonar.coverage.exclusions에는 있는데 여기엔 없어 비대칭이던 항목.
-  # vitest coverage.include에서도 exclude돼 lcov 데이터가 아예 없으므로, 이 파일을 수정하면
-  # Sonar는 통과하는데 codecov/patch만 0%로 계산해 CI가 빨개진다.
-  - "src/components/builder/RePromptPanel.tsx"
   # 2026-07-31(2차): sonar.coverage.exclusions와 완전 대칭을 맞춘다.
+  # RePromptPanel.tsx 는 E9/P4 테스트 추가 후 제외 목록에서 제거됨.
   #
   # 앞서 이 두 줄을 "codecov 매처의 괄호 글롭 동작을 검증할 수 없다"는 이유로 보류했는데,
   # 곧바로 `src/app/(main)/builder/page.tsx`를 리팩토링하는 PR에서 codecov/patch가 실패했다.

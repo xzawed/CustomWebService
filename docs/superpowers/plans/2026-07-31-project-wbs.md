@@ -127,7 +127,7 @@
 | E6 | **E2E 확장 (T3)** — 미리보기↔게시 동등성, Host 헤더 서브도메인, 인증·생성·게시 | L |
 | E7 | MSW 보강 — `onUnhandledRequest:'error'`가 미처리 요청 부재를 보증하지 못한다(MSW #946/#943) | S |
 | **E8** | **`AbortController`를 생성 세션 단위로 승격.** 현재는 `runClientGeneration` 호출 로컬이라, 핸드오프된 폴러가 함수 반환 후 최대 5분 더 살아 있고 끊을 수단이 없다. 사용자가 '이전' 버튼으로 재생성하면 `startGeneration`이 터미널 래치를 재개방하므로 **이전 실행의 폴러가 새 실행 상태에 써 넣을 수 있다**(cross-run 오염). 스토어/모듈 ref로 올려 새 `startGeneration`이 직전 세션을 abort하게 할 것 | M |
-| **E9** | **`RePromptPanel`은 보호가 전혀 없다.** SSE+폴링을 사설로 복제했는데 로컬 `useState`라 터미널 래치가 적용되지 않고, abort도 없으며, 테스트도 없다(coverage exclude). P4로 스트림 헬퍼를 재사용시키는 것이 근본 해결 | M |
+| **E9** | ~~**`RePromptPanel`은 보호가 전혀 없다.**~~ | **완료** — `runClientRegeneration` + `regenerationSession` + 패널 로컬 terminal 가드 + 테스트. coverage exclude 3곳 제거 |
 
 > **E6이 가장 값어치가 크다.** [테스트 지도 5절](../../reference/test-coverage-map.md)의
 > "단위 테스트로 구조적으로 못 잡는 결함" 4종의 유일한 방어선이다.
@@ -145,7 +145,7 @@
 | P1 | `parseSseBlocks` + `consumeGenerationStream` 추출 + 특성화 테스트 | ✅ **완료(PR #242)** |
 | P2 | `runClientGeneration` 추출, 페이지 얇게(−141/+33) | ✅ **완료(PR #242)** |
 | P3 | 폴링 abort 배선 + **진짜 원인이었던 폴링 예산 수정** | ✅ **완료** — 아래 상세 |
-| P4 | `RePromptPanel`이 같은 스트림 헬퍼를 재사용 (지금은 SSE+폴링을 사설로 복제하고 있다) | 선택 |
+| P4 | `RePromptPanel`이 같은 스트림 헬퍼를 재사용 (`runClientRegeneration` + 전용 세션) | ✅ **완료** |
 
 ### ⚠️ P3에서 드러난 것 — "레이스 수정"이라는 진단 자체가 틀렸다 (2026-08-01)
 

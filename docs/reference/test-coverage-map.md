@@ -12,10 +12,10 @@
 
 | 지표 | 값 | 출처 |
 |------|-----|------|
-| 테스트 파일 / 테스트 | **185 / 2312** (전부 통과) | `pnpm test` |
-| lcov 수록 파일 | **222** | `coverage/lcov.info` |
-| Statements / Branches | **92.94% / 83.33%** | `pnpm test:coverage` |
-| Functions / Lines | **89.89% / 94.33%** | 〃 |
+| 테스트 파일 / 테스트 | **186 / 2291** (전부 통과) | `pnpm test` (E9/P4 후) |
+| lcov 수록 파일 | **222+** | `coverage/lcov.info` |
+| Statements / Branches | **93.03% / 83.39%** | `pnpm test:coverage` |
+| Functions / Lines | **90.18% / 94.41%** | 〃 |
 | 임계값 (`vitest.config.ts`) | branches 40 · functions 30 · lines 45 · statements 43 | 전부 여유 있게 통과 |
 | SonarCloud 전체 커버리지 | **86.9%** (신규 코드 92.1%) | `sonar.sources=src` 전체 기준 |
 
@@ -112,7 +112,7 @@ grep "^SF:" coverage/lcov.info | tr '\\' '/' | grep '패턴'   # lcov는 백슬�
 | **T4** | `PublishDialog` 실패 분기 | 기존 7개 테스트가 전부 정상 경로. slug reason 분기(`invalid`/`reserved`/`taken`), AbortError 무시, publish catch, 에러 렌더가 **전부 미실행** | reason별 메시지 + 게시 버튼 disabled 유지, publish reject 시 에러 렌더 |
 | **T5** | `src/templates/` 개별 11종 | 레지스트리는 "등록됨"만 검증. 소비처가 try/catch로 삼켜서 **깨져도 예외 없이 품질만 떨어진다** | `it.each`로 11종: `generate()`가 비지 않은 promptHint 반환 + `authType!=='none'`이면 프록시 경로 포함 |
 | **T6** | `PopularServiceSuggestions.tsx` (143줄) | useEffect가 자동 fetch하는데 MSW 핸들러가 없고 `onUnhandledRequest:'error'`라 **핸들러부터 추가하지 않으면 테스트 작성 자체가 막힌다** | `handlers.ts`에 엔드포인트 추가 → 로딩 / 빈 목록 / fetch 실패 3케이스 |
-| **T7** | `RePromptPanel.tsx` (409줄) | 재생성 진입 UI 전체. 소비자 테스트가 `vi.mock`으로 우회 중 | 재생성 제출 / 로딩 중 중복 제출 차단 / 서버 오류 표시 + vitest exclude에서 제거 |
+| **T7** | ~~`RePromptPanel.tsx`~~ | ~~재생성 진입 UI 전체~~ | ✅ **완료(E9/P4)** — `RePromptPanel.test.tsx`(제출·중복 차단·서버 오류·언마운트 abort) + `runClientRegeneration.test.ts`(SSE/poll/abort/not_found). vitest·codecov·sonar exclude 3곳 제거 |
 | **T8** | 나머지 페이지 4종·`src/components/auth/` | 페이지 테스트로 간접 커버 중이라 우선순위 낮음 | — |
 
 ### MSW 관련 주의
