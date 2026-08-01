@@ -370,6 +370,69 @@ describe('runClientGeneration', () => {
     expect(capturedSignal?.aborted).toBe(false);
   });
 
+  // E8 2차 방어(네트워크 중단)의 두 진입점.
+  // 1차 방어는 runId 지만, 폴러가 계속 /status 를 두드리는 것은 별개 문제다.
+
+  it('세션이 실행 중 abort되면(=사용자가 이전 클릭) 이 실행의 폴링 signal도 끊긴다', async () => {
+    const streamBody =
+      'event: progress\ndata: {"progress":10,"message":"x"}\n\n';
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonRes({ data: { id: 'proj-mid' } }))
+      .mockResolvedValueOnce(makeStreamRes([streamBody]));
+
+    // 실행 도중 세션을 끊을 수 있도록 컨트롤러를 밖에서 쥔다
+    const session = new AbortController();
+
+    let capturedSignal: AbortSignal | undefined;
+    const pollGenerationStatusFn = vi
+      .fn()
+      .mockImplementation(async (_pid: string, pollDeps: PollGenerationStatusDeps) => {
+        capturedSignal = pollDeps.signal;
+        // 폴링이 도는 도중 사용자가 '이전'을 눌러 abortGenerationSession() 이 호출된 상황
+        session.abort();
+      });
+
+    const deps = makeDeps({
+      fetchFn,
+      pollGenerationStatusFn,
+      beginSession: () => session.signal,
+    });
+    await runClientGeneration(input, deps);
+
+    // 세션 abort 가 이 실행의 local controller 로 전파되어야 한다
+    expect(capturedSignal?.aborted).toBe(true);
+  });
+
+  it('시작 시점에 이미 abort된 세션이면 폴링 signal이 처음부터 aborted 다', async () => {
+    // 직전 실행이 방금 끊긴 직후 새 실행이 시작되는 경계
+    const alreadyAborted = new AbortController();
+    alreadyAborted.abort();
+
+    const streamBody =
+      'event: progress\ndata: {"progress":10,"message":"x"}\n\n';
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(makeJsonRes({ data: { id: 'proj-pre' } }))
+      .mockResolvedValueOnce(makeStreamRes([streamBody]));
+
+    let capturedSignal: AbortSignal | undefined;
+    const pollGenerationStatusFn = vi
+      .fn()
+      .mockImplementation(async (_pid: string, pollDeps: PollGenerationStatusDeps) => {
+        capturedSignal = pollDeps.signal;
+      });
+
+    const deps = makeDeps({
+      fetchFn,
+      pollGenerationStatusFn,
+      beginSession: () => alreadyAborted.signal,
+    });
+    await runClientGeneration(input, deps);
+
+    expect(capturedSignal?.aborted).toBe(true);
+  });
+
   /**
    * 회귀: visibility → poll 시작 → 버퍼된 SSE complete 도착 후
    * 폴링 timeout 이 failGeneration 을 덮어쓰지 않아야 한다.
