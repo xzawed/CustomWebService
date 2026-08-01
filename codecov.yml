@@ -6,8 +6,6 @@
 ignore:
   # Next 부팅 훅 — 동적 import + NEXT_RUNTIME 분기라 단위 테스트 대상이 아니다.
   - "src/instrumentation.ts"
-  # Sentry 초기화 설정 (DSN 미설정 시 no-op)
-  - "sentry.*.config.ts"
   # 2026-07-31(2차): sonar.coverage.exclusions와 완전 대칭을 맞춘다.
   # RePromptPanel.tsx 는 E9/P4 테스트 추가 후 제외 목록에서 제거됨.
   #

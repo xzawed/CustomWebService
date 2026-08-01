@@ -4,6 +4,9 @@
 - 상태: 채택
 - 관련: [#220](https://github.com/xzawed/CustomWebService/issues/220), PR #231
 - **선행 결정을 뒤집음**: 2026-04-27 "SLACK_WEBHOOK_URL·errorRateMonitor 사용 안 함"
+- **부분 대체(2026-08-01)**: Sentry env·config **스캐폴딩 보존** 문장만
+  [2026-08-01-remove-unused-sentry-scaffolding.md](2026-08-01-remove-unused-sentry-scaffolding.md) 가
+  supersede. **Slack-only sink·백업 경보 배선은 이 ADR 그대로 유효.**
 
 ## 배경
 
@@ -50,6 +53,12 @@ Slack을 고른 이유는 **코드 경로가 이미 존재**한다는 것이다.
 
 Sentry 관련 env와 config 파일은 코드에 남겨 둔다 — 지우면 나중에 도입할 때 다시 만들어야 하고,
 미설정 시 `enabled: false`로 조용히 비활성이라 해가 없다. **되돌릴 수 있는 결정으로 남긴다.**
+
+> **2026-08-01 정정.** 위 보존 전제는 실측으로 성립하지 않았다
+> (`onRequestError` 미배선 · Turbopack에서 client config 무력 · SaaS 도입 제외).
+> 스캐폴딩은 삭제됐다 — 본문 문장은 당시 맥락을 위해 남긴다.
+> 상세: [2026-08-01-remove-unused-sentry-scaffolding.md](2026-08-01-remove-unused-sentry-scaffolding.md).
+> **이 절 1의 Slack-only sink 결정과 §2–3 백업 경보 배선은 여전히 유효하다.**
 
 ### 2. 백업 실패를 sink로 배선한다 (이번 PR의 유일한 코드 변경)
 

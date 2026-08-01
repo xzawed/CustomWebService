@@ -137,7 +137,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
 - `AI_MODEL_SUGGESTION` — 추천용 모델 (기본: `claude-haiku-4-5`)
 - `AI_MODEL_GENERATION` — 코드 생성 모델 (기본: `claude-opus-5`, Sonnet 폴백: `claude-sonnet-5`)
-- `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` / `SLACK_WEBHOOK_URL` — 에러·알림 sink. **Slack만 사용**(`errorRateMonitor` 생성 실패율 + `scheduleBackups` 백업 실패/복구 → `sendSlackAlert`). **Sentry는 의도적으로 미도입**(#220). `SLACK_WEBHOOK_URL`은 **2026-07-31에 등록·실경보 도착까지 검증 완료** — 경보는 xzawed 워크스페이스 `#alerts` 채널로 간다. **빈 문자열은 미설정과 같다**(`if (!webhookUrl)` no-op) — 점검 시 키 존재가 아니라 **값 길이**를 볼 것. 절차·실측: [monitoring-sink-setup.md](docs/guides/monitoring-sink-setup.md)
+- `SLACK_WEBHOOK_URL` — 에러·알림 sink. **Slack만 사용**(`errorRateMonitor` 생성 실패율 + `scheduleBackups` 백업 실패/복구 → `sendSlackAlert`). **Sentry SaaS는 의도적으로 미도입·스캐폴딩 제거**(#220 · C4(a)/(b)). `SLACK_WEBHOOK_URL`은 **2026-07-31에 등록·실경보 도착까지 검증 완료** — 경보는 xzawed 워크스페이스 `#alerts` 채널로 간다. **빈 문자열은 미설정과 같다**(`if (!webhookUrl)` no-op) — 점검 시 키 존재가 아니라 **값 길이**를 볼 것. 절차·실측: [monitoring-sink-setup.md](docs/guides/monitoring-sink-setup.md)
 - `LOG_LEVEL` — 로그 상세도 (`debug`/`info`/`warn`/`error`, 기본 `info`)
 - `ET_COMPLEXITY_THRESHOLD` — Extended Thinking 활성화 임계값 (기본: 35점, `evaluateComplexityScore()` 결과 비교)
 - `QUALITY_LOOP_ITERATION_TIMEOUT_MS` — Quality Loop 반복당 타임아웃 (기본: 120000ms = 120초)
