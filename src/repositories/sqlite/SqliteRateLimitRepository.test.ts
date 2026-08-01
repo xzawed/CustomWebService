@@ -129,56 +129,6 @@ describe('SqliteRateLimitRepository', () => {
     });
   });
 
-  describe('checkAndIncrementDailyDeployLimit', () => {
-    it('첫 호출 시 deploy_count를 1로 올리며 true를 반환한다', async () => {
-      const ok = await repo.checkAndIncrementDailyDeployLimit(USER_ID, 5);
-      expect(ok).toBe(true);
-      expect(readRow()?.deploy_count).toBe(1);
-    });
-
-    it('한도 도달 시 false를 반환하고 증가하지 않는다', async () => {
-      await repo.checkAndIncrementDailyDeployLimit(USER_ID, 1);
-      const blocked = await repo.checkAndIncrementDailyDeployLimit(USER_ID, 1);
-      expect(blocked).toBe(false);
-      expect(readRow()?.deploy_count).toBe(1);
-    });
-
-    it('generation_count에는 영향을 주지 않는다', async () => {
-      await repo.checkAndIncrementDailyDeployLimit(USER_ID, 5);
-      expect(readRow()?.generation_count).toBe(0);
-    });
-
-    it('generation과 deploy 카운터는 같은 행에서 독립적으로 증가한다', async () => {
-      await repo.checkAndIncrementDailyLimit(USER_ID, 5);
-      await repo.checkAndIncrementDailyDeployLimit(USER_ID, 5);
-      await repo.checkAndIncrementDailyDeployLimit(USER_ID, 5);
-      const row = readRow();
-      expect(row?.generation_count).toBe(1);
-      expect(row?.deploy_count).toBe(2);
-    });
-  });
-
-  describe('decrementDailyDeployLimit', () => {
-    it('deploy_count를 1 감소시킨다', async () => {
-      await repo.checkAndIncrementDailyDeployLimit(USER_ID, 5);
-      await repo.checkAndIncrementDailyDeployLimit(USER_ID, 5);
-      await repo.decrementDailyDeployLimit(USER_ID);
-      expect(readRow()?.deploy_count).toBe(1);
-    });
-
-    it('0 미만으로 내려가지 않는다', async () => {
-      await repo.checkAndIncrementDailyDeployLimit(USER_ID, 5); // 1
-      await repo.decrementDailyDeployLimit(USER_ID); // 0
-      await repo.decrementDailyDeployLimit(USER_ID); // 0 (floor)
-      expect(readRow()?.deploy_count).toBe(0);
-    });
-
-    it('오늘 행이 없으면 no-op', async () => {
-      await repo.decrementDailyDeployLimit(USER_ID);
-      expect(readRow()).toBeUndefined();
-    });
-  });
-
   describe('checkAndIncrementDailySuggestionLimit', () => {
     it('한도 미만이면 호출마다 증가하고 true를 반환한다', async () => {
       expect(await repo.checkAndIncrementDailySuggestionLimit(USER_ID, 3)).toBe(true);
@@ -204,13 +154,11 @@ describe('SqliteRateLimitRepository', () => {
       expect(row?.deploy_count).toBe(0);
     });
 
-    it('generation/deploy 증가가 suggestion_count에 영향을 주지 않는다', async () => {
+    it('generation 증가가 suggestion_count에 영향을 주지 않는다', async () => {
       await repo.checkAndIncrementDailyLimit(USER_ID, 5);
-      await repo.checkAndIncrementDailyDeployLimit(USER_ID, 5);
       await repo.checkAndIncrementDailySuggestionLimit(USER_ID, 5);
       const row = readRow();
       expect(row?.generation_count).toBe(1);
-      expect(row?.deploy_count).toBe(1);
       expect(row?.suggestion_count).toBe(1);
     });
 

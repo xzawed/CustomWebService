@@ -81,12 +81,6 @@ export async function GET(request: Request): Promise<Response> {
   }
   if (checks.ai !== 'ok') status = status === 'healthy' ? 'degraded' : status;
 
-  // Deploy service check
-  const hasGithub = !!(process.env.GITHUB_TOKEN && process.env.GITHUB_ORG);
-  const hasRailway = !!process.env.RAILWAY_TOKEN;
-  checks.deploy = hasGithub || hasRailway ? 'ok' : 'unconfigured';
-  if (checks.deploy !== 'ok') status = status === 'healthy' ? 'degraded' : status;
-
   return Response.json({
     status,
     timestamp: new Date().toISOString(),

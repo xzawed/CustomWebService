@@ -121,15 +121,25 @@ for (const r of c) if (r.auth_config?.env_var)
 
 ---
 
-## 배포
+## 배포 (플랫폼 자체 호스팅 / 서브도메인)
 
 | 변수 | 필수 | Railway | 설명 |
 |------|------|---------|------|
 | `NEXT_PUBLIC_APP_URL` | ✅ | ✅ | 앱 기준 URL (예: `https://xzawed.xyz`). sitemap·관리자 인증·API 키 가이드에서 사용 |
 | `NEXT_PUBLIC_ROOT_DOMAIN` | ✅ | ✅ | 서브도메인 루트 도메인 (예: `xzawed.xyz`) |
-| `GITHUB_TOKEN` | 배포 시 | ❌ | GitHub API 토큰 (사용자 서비스 자동 배포용) |
-| `GITHUB_ORG` | 배포 시 | ❌ | GitHub 조직명 (생성 서비스 배포용; 미설정 시 `githubService`가 `GITHUB_ORG is not set` 에러). 코드 위치: `src/lib/deploy/githubService.ts` |
-| `RAILWAY_TOKEN` | 배포 시 | ❌ | Railway API 토큰 |
+
+### 제거됨 · 미사용 (외부 사용자 서비스 export 스택, 2026-08-01)
+
+아래 변수는 코드가 **더 이상 읽지 않는다.** Railway에 값이 남아 있으면 **삭제해도 된다.**
+(프록시 비밀 denylist에 이름 문자열만 남아 있을 수 있음 — 동작에는 무관.)
+상세: [ADR](../decisions/2026-08-01-remove-external-deploy-stack.md)
+
+| 변수 | 상태 | 설명 |
+|------|------|------|
+| `GITHUB_TOKEN` | **removed/unused** | 과거 GitHub org 레포 생성·push용. 삭제 권장 |
+| `GITHUB_ORG` | **removed/unused** | 과거 GitHub 조직명. 삭제 권장 |
+| `RAILWAY_TOKEN` | **removed/unused** | 과거 사용자 서비스 Railway 배포용. 삭제 권장 |
+| `MAX_DEPLOY_PER_DAY` | **removed/unused** | 과거 일일 외부 배포 한도. 무시됨 |
 
 ---
 
@@ -175,7 +185,6 @@ for (const r of c) if (r.auth_config?.env_var)
 | `MAX_DAILY_SUGGESTIONS` | `30` | ➖ | 사용자당 일일 AI 추천(suggest-*) 횟수. free 기본 30, pro 오버라이드 150. 코드: `src/lib/config/features.ts` · `RateLimitService.checkAndIncrementDailySuggestionLimit` |
 | `MAX_PROJECTS_PER_USER` | `20` | ➖ | 사용자당 최대 프로젝트 수 |
 | `MAX_REGENERATIONS` | `5` | ➖ | 프로젝트당 재생성 횟수 |
-| `MAX_DEPLOY_PER_DAY` | `5` | ➖ | 사용자당 일일 최대 배포 횟수 |
 | `MAX_CODE_VERSIONS` | `10` | ➖ | 프로젝트당 최대 코드 버전 수. 초과 시 오래된 버전 삭제 |
 | `CONTEXT_MIN_LENGTH` | `50` | ➖ | 컨텍스트 최소 길이 (자) |
 | `CONTEXT_MAX_LENGTH` | `2000` | ➖ | 컨텍스트 최대 길이 (자) |

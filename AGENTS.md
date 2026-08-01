@@ -42,7 +42,6 @@ src/
 │   ├── config/      # 환경변수 기반 설정 (features, providers, rateLimit, qc 등)
 │   ├── constants/   # 공용 상수 — cdn.ts (CSP CDN 화이트리스트, buildSiteCsp)
 │   ├── db/          # 임베디드 SQLite — sqlite/(connection·schema·migrator·bootstrap·seed), errors(UNIQUE 위반 감지)
-│   ├── deploy/      # 배포 관련
 │   ├── events/      # EventBus (pub/sub) + eventPersister (전체 이벤트 자동 DB 기록)
 │   ├── generation/  # pollGenerationStatus — 생성 상태 폴링 (builder/page.tsx에서 추출, 주입형·단위 테스트 대상)
 │   ├── monitoring/  # slackAlert (Webhook 알림), errorRateMonitor (생성 실패율 임계값 감지)
@@ -95,7 +94,7 @@ pnpm keys:verify               # 플랫폼 API 키 설정 검증 (scripts/verify
 - **아키텍처 레이어**: Route Handler → Service → Repository → SQLite (better-sqlite3, 무인자 factory)
 - **AI Provider**: `IAiProvider` 인터페이스 — Provider 전용 로직은 Provider 내부에만
 - **이벤트 시스템**: `EventBus` + `EventRepository` (감사 로그)
-- **레이트리밋**: 혼합 패턴 — generate/regenerate/deploy는 SQLite 원자적 (better-sqlite3 동기 트랜잭션 + `UPDATE WHERE count < limit RETURNING`), proxy는 인메모리 Map (단일 인스턴스 전제)
+- **레이트리밋**: 혼합 패턴 — generate/regenerate/suggestion은 SQLite 원자적 (better-sqlite3 동기 트랜잭션 + `UPDATE WHERE count < limit RETURNING`), proxy는 인메모리 Map (단일 인스턴스 전제). 외부 deploy 일일 한도는 2026-08-01 제거
 - **요청 추적**: `X-Correlation-Id` 헤더
 - **i18n**: `@/lib/i18n`의 `t()` 함수 사용, 한국어 기본
 - **스토어**: 관심사별 분리된 Zustand 스토어 (단일 mega store 금지)
@@ -120,7 +119,7 @@ pnpm keys:verify               # 플랫폼 API 키 설정 검증 (scripts/verify
 - `ADMIN_API_KEY` — 관리자 API 인증 (QC 통계, 수동 QC 트리거)
 - `ENABLE_RENDERING_QC` — Playwright 렌더링 QC 활성화 (true/false)
 - `ENCRYPTION_KEY` — 사용자 API 키 암호화
-- `GITHUB_TOKEN`, `RAILWAY_TOKEN` — 배포용
+- `GITHUB_TOKEN` / `GITHUB_ORG` / `RAILWAY_TOKEN` — **removed/unused** (외부 사용자 서비스 export 스택 제거, 2026-08-01). Railway에 남아 있으면 삭제 가능
 - `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
 - `AI_MODEL_SUGGESTION` — 추천용 모델 (기본: `claude-haiku-4-5`)
 - `AI_MODEL_GENERATION` — 코드 생성 모델 (기본: `claude-opus-4-7`, Sonnet 폴백: `claude-sonnet-4-6`)

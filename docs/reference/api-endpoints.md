@@ -458,41 +458,11 @@ data: {"message": "재생성에 실패했습니다."}
 
 ---
 
-## 5. 배포 (Deploy)
+## 5. 배포 (Deploy) — 제거됨
 
-### POST /api/v1/deploy
-생성된 서비스 배포
-
-**Request Body:**
-```json
-{
-    "projectId": "project-uuid",
-    "platform": "railway",
-    "version": 1
-}
-```
-
-**Response (SSE):**
-```
-event: progress
-data: {"progress": 10, "message": "GitHub 저장소 생성 중..."}
-
-event: progress
-data: {"progress": 50, "message": "코드 업로드 중..."}
-
-event: progress
-data: {"progress": 80, "message": "배포 중..."}
-
-event: complete
-data: {"projectId": "uuid", "deployUrl": "https://svc-abc12345.up.railway.app", "repoUrl": "https://github.com/...", "platform": "railway"}
-
-event: error
-data: {"message": "배포에 실패했습니다."}
-```
-
-> **Rate Limit**: 사용자당 일일 `MAX_DEPLOY_PER_DAY`회 (기본 5회). 초과 시 429 `RATE_LIMITED` 반환.
-
-> **참고**: `GET /api/v1/deploy/:projectId/status`는 미구현 상태입니다. 프로젝트 상태는 `GET /api/v1/projects/:id`로 확인하세요.
+> **2026-08-01**: 외부 배포 스택(`POST /api/v1/deploy`, GitHub org 레포 / Railway·GitHub Pages export)을 **제거**했다.
+> 제품의 배포 스토리는 **게시(publish) → `slug.xzawed.xyz`** 다 (`POST/DELETE /api/v1/projects/:id/publish`, 서브도메인 서빙).
+> 상세: [ADR 2026-08-01-remove-external-deploy-stack](../decisions/2026-08-01-remove-external-deploy-stack.md)
 
 ---
 
@@ -555,8 +525,7 @@ X-Frame-Options: DENY
     "checks": {
         "database": "ok",
         "aiProvider": "claude",
-        "ai": "ok",
-        "deploy": "ok"
+        "ai": "ok"
     },
     "usage": {
         "todayGenerations": 42,
@@ -776,7 +745,7 @@ Auth.js Credentials + JWT. 세션 쿠키 필요(공개 엔드포인트 제외). 
 **부수 효과:**
 - Auth.js 세션 쿠키 `Max-Age=0` 만료
 - `USER_DELETED` 이벤트 payload `{ deletedUserId }` (커밋 **이후**; `userId` 키 금지 — persist FK 함정)
-- 외부 GitHub deploy 산출물은 현재 best-effort 미정리(TODO)
+- 외부 GitHub/Railway 배포 스택은 제거됨(2026-08-01) — 고아 레포 TODO 없음
 
 | 상태 | 코드 | 설명 |
 |------|------|------|

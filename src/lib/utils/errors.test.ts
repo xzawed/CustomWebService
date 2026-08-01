@@ -9,7 +9,6 @@ import {
   ConflictError,
   EmailNotVerifiedError,
   GenerationError,
-  DeployError,
   handleApiError,
 } from './errors';
 
@@ -104,14 +103,6 @@ describe('GenerationError', () => {
     const err = new GenerationError();
     expect(err.statusCode).toBe(500);
     expect(err.code).toBe('GENERATION_FAILED');
-  });
-});
-
-describe('DeployError', () => {
-  it('statusCode가 500이다', () => {
-    const err = new DeployError();
-    expect(err.statusCode).toBe(500);
-    expect(err.code).toBe('DEPLOY_FAILED');
   });
 });
 

@@ -34,44 +34,43 @@
 │   /api/v1/catalog/*  → CatalogController                       │
 │   /api/v1/projects/* → ProjectController                       │
 │   /api/v1/generate/* → GenerationController                    │
-│   /api/v1/deploy/*   → DeployController                        │
 │   /api/v1/health     → HealthController                        │
+│   (외부 deploy/* 제거 — 제품 배포 = publish → slug.xzawed.xyz)   │
 └───────────────────────────┬────────────────────────────────────┘
                             │
                             ▼
 ┌────────────────────────────────────────────────────────────────┐
 │                   Service Layer (비즈니스 로직)                   │
 │                                                                │
-│   CatalogService   ProjectService                              │
-│   DeployService    RateLimitService                            │
+│   CatalogService   ProjectService   RateLimitService           │
 │   (인증 = src/lib/auth/, 생성 오케스트레이션 = generationPipeline.ts │
 │    — 서비스 클래스 아님)                                          │
 │                                                                │
 │   ┌─────────────────────────────────────────────────────────┐  │
 │   │ EventBus (도메인 이벤트 발행/구독)                         │  │
-│   │ PROJECT_CREATED, CODE_GENERATED, DEPLOY_COMPLETED ...   │  │
+│   │ PROJECT_CREATED, CODE_GENERATED, PROJECT_PUBLISHED ...  │  │
 │   └─────────────────────────────────────────────────────────┘  │
 │                                                                │
 │   ┌─────────────────────────────────────────────────────────┐  │
 │   │ FeatureConfig (설정 기반 비즈니스 규칙)                     │  │
 │   │ maxApis, maxGenerations, contextLimits ...               │  │
 │   └─────────────────────────────────────────────────────────┘  │
-└────────┬──────────────────┬──────────────────┬─────────────────┘
-         │                  │                  │
-         ▼                  ▼                  ▼
-┌──────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│  Repository  │  │  Provider 계층    │  │  Provider 계층    │
-│  Layer       │  │  (AI)            │  │  (Deploy)        │
-│              │  │                  │  │                  │
-│ UserRepo     │  │ ┌──────────────┐ │  │ ┌──────────────┐ │
-│ ProjectRepo  │  │ │ IAiProvider  │ │  │ │IDeployProv.  │ │
-│ CatalogRepo  │  │ ├──────────────┤ │  │ ├──────────────┤ │
-│ CodeRepo     │  │ │ClaudeProvider│ │  │ │RailwayDeploy │ │
-│ EventRepo    │  │ │(확장 가능)   │ │  │ │GHPagesDeploy │ │
-│ ApiKeyRepo   │  │ │             │ │  │ │(확장 가능)    │ │
-│ RateLimitRepo│  │ └──────────────┘ │  │ └──────────────┘ │
-│  ↓           │  │                  │  │                  │
-│ SQLite       │  │ + ProviderFactory│  │ + ProviderFactory│
+└────────┬──────────────────┬────────────────────────────────────┘
+         │                  │
+         ▼                  ▼
+┌──────────────┐  ┌──────────────────┐
+│  Repository  │  │  Provider 계층    │
+│  Layer       │  │  (AI)            │
+│              │  │                  │
+│ UserRepo     │  │ ┌──────────────┐ │
+│ ProjectRepo  │  │ │ IAiProvider  │ │
+│ CatalogRepo  │  │ ├──────────────┤ │
+│ CodeRepo     │  │ │ClaudeProvider│ │
+│ EventRepo    │  │ │(확장 가능)   │ │
+│ ApiKeyRepo   │  │ └──────────────┘ │
+│ RateLimitRepo│  │                  │
+│  ↓           │  │ + ProviderFactory│
+│ SQLite       │  │                  │
 │ (better-     │  └──────────────────┘  └──────────────────┘
 │  sqlite3)    │
 └──────────────┘
@@ -131,8 +130,6 @@ src/
 │   │   │   ├── route.ts          # POST (SSE)
 │   │   │   ├── regenerate/route.ts
 │   │   │   └── status/[projectId]/route.ts  # GET (폴링 fallback)
-│   │   ├── deploy/
-│   │   │   └── route.ts          # POST (SSE)
 │   │   ├── preview/
 │   │   │   └── [projectId]/route.ts  # GET (text/html)
 │   │   ├── proxy/route.ts        # GET (SSRF 방지 프록시)
@@ -166,7 +163,6 @@ src/
 │       ├── admin-debug.test.ts
 │       ├── admin-keys-verify.test.ts
 │       ├── admin-test-generation.test.ts
-│       ├── deploy.test.ts
 │       ├── projects-publish.test.ts
 │       ├── projects-rollback.test.ts
 │       ├── projects-slug-check.test.ts
@@ -209,14 +205,12 @@ src/
 │   ├── useAuth.ts
 │   ├── useApiCatalog.ts
 │   ├── useProjects.ts
-│   ├── useGeneration.ts
-│   └── useDeploy.ts
+│   └── useGeneration.ts
 │
 ├── stores/                       # Zustand 스토어 (분리됨)
 │   ├── apiSelectionStore.ts      # API 선택 상태
 │   ├── contextStore.ts           # 컨텍스트 입력 상태
 │   ├── generationStore.ts        # 코드 생성 상태
-│   ├── deployStore.ts            # 배포 상태
 │   └── authStore.ts              # 인증 상태
 │
 ├── services/                     # Service Layer (비즈니스 로직)
@@ -224,10 +218,10 @@ src/
 │   ├── authService.ts            # signup / verifyEmail / resendVerification / forgotPassword / resetPassword
 │   ├── catalogService.ts
 │   ├── projectService.ts
-│   ├── deployService.ts
 │   └── rateLimitService.ts
 │   # 인증 = src/lib/auth/ (getAuthUser 등), 생성 오케스트레이션 = src/lib/ai/generationPipeline.ts
 │   # — 둘 다 services/ 의 서비스 클래스가 아님
+│   # 외부 DeployService 는 2026-08-01 제거 (제품 배포 = publish/subdomain)
 │
 ├── repositories/                 # Repository Layer (데이터 접근)
 │   ├── interfaces/               # Repository 인터페이스 (IBase + I{User,Project,Catalog,Code,Event,UserApiKey,RateLimit,AuthToken,GenerationLock}Repository)
@@ -245,15 +239,11 @@ src/
 │   └── factory.ts                # createProjectRepository, createCodeRepository 등 팩토리 함수
 │
 ├── providers/                    # Provider Layer (외부 서비스)
-│   ├── ai/
-│   │   ├── IAiProvider.ts         # AI Provider 인터페이스
-│   │   ├── ClaudeProvider.ts      # ✅ 구현 완료
-│   │   └── AiProviderFactory.ts   # (OpenAI, Ollama 확장 가능)
-│   └── deploy/
-│       ├── IDeployProvider.ts     # Deploy Provider 인터페이스
-│       ├── RailwayDeployer.ts     # ✅ 구현 완료
-│       ├── GithubPagesDeployer.ts # ✅ 구현 완료
-│       └── DeployProviderFactory.ts
+│   └── ai/
+│       ├── IAiProvider.ts         # AI Provider 인터페이스
+│       ├── ClaudeProvider.ts      # ✅ 구현 완료
+│       └── AiProviderFactory.ts   # (OpenAI, Ollama 확장 가능)
+│   # providers/deploy/** 는 2026-08-01 제거
 │
 ├── lib/                          # 유틸리티 & 인프라
 │   ├── db/                       # SQLite — 유일 DB 경로
@@ -300,9 +290,7 @@ src/
 │   │   └── activeApiCount.ts     # 활성 API 개수 동적 카운트 (랜딩/카탈로그 마케팅 카피)
 │   ├── constants/
 │   │   └── cdn.ts                # CDN URL 상수 (Tailwind, Pretendard, Font Awesome)
-│   ├── deploy/
-│   │   ├── githubService.ts       # ✅ GitHub REST API 연동
-│   │   └── railwayService.ts      # ✅ Railway GraphQL API 연동
+│   # lib/deploy/** 는 2026-08-01 제거 (외부 GitHub/Railway export)
 │   ├── config/                  # 환경변수 기반 설정 (4모듈)
 │   │   ├── features.ts           # 설정 기반 비즈니스 규칙 (FeatureLimits)
 │   │   ├── generation.ts         # 생성 락 heartbeat/stale 등 파이프라인 설정
@@ -316,7 +304,7 @@ src/
 │   │   └── errorRateMonitor.ts   # registerErrorRateMonitor() — 5분 윈도우 CODE_GENERATION_FAILED 임계값 초과 시 Slack 알림
 │   ├── i18n/
 │   │   ├── index.ts              # t(key, params?) 함수 export
-│   │   ├── ko.ts                 # 한국어 메시지 (29개 — 에러·서비스·배포·추천 한도)
+│   │   ├── ko.ts                 # 한국어 메시지 (에러·프로젝트 검증·추천 한도)
 │   │   └── types.ts              # MessageKey 타입 (자동완성 지원)
 │   ├── qc/
 │   │   ├── index.ts              # QC 진입점
@@ -399,36 +387,11 @@ export interface IAiProvider {
 2. `AiProviderFactory`에 등록
 3. 환경변수 또는 DB 설정으로 활성화
 
-### 4.2 Deploy Provider
+### 4.2 Deploy Provider — 제거됨 (2026-08-01)
 
-```typescript
-// src/providers/deploy/IDeployProvider.ts
-
-export interface FileEntry {
-  path: string;
-  content: string;
-}
-
-export interface DeployResult {
-  deploymentId: string;
-  url: string;
-  platform: string;
-  status: 'pending' | 'building' | 'ready' | 'error';
-}
-
-export interface IDeployProvider {
-  readonly name: string;
-  readonly supportedFeatures: ('env_vars' | 'custom_domain' | 'serverless' | 'static_only')[];
-
-  createProject(name: string): Promise<{ projectId: string; repoUrl?: string }>;
-  pushFiles(projectId: string, files: FileEntry[]): Promise<void>;
-  setEnvironment(projectId: string, env: Record<string, string>): Promise<void>;
-  deploy(projectId: string): Promise<DeployResult>;
-  getStatus(deploymentId: string): Promise<DeployResult>;
-  rollback(projectId: string, version: number): Promise<DeployResult>;
-  deleteProject(projectId: string): Promise<void>;
-}
-```
+외부 GitHub/Railway export 스택(`IDeployProvider`, `RailwayDeployer`, `GithubPagesDeployer`)은 제거됐다.
+제품 배포는 **게시 → 서브도메인** (`projectService.publish` / `middleware` rewrite).
+배경: [ADR 2026-08-01-remove-external-deploy-stack](../decisions/2026-08-01-remove-external-deploy-stack.md)
 
 ### 4.3 Code Template
 
@@ -465,15 +428,12 @@ export interface ICodeTemplate {
 ## 5. 이벤트 시스템
 
 ```typescript
-// src/types/events.ts — 18개 DomainEvent 유니온 타입
+// src/types/events.ts — DomainEvent 유니온 (DEPLOYMENT_* 제거, 2026-08-01)
 export type DomainEvent =
   | { type: 'USER_SIGNED_UP'; payload: { userId: string } }
   | { type: 'PROJECT_CREATED'; payload: { projectId: string; userId: string; apiCount: number } }
   | { type: 'CODE_GENERATED'; payload: { projectId: string; version: number; provider: string; durationMs: number } }
   | { type: 'CODE_GENERATION_FAILED'; payload: { projectId: string; error: string; provider: string } }
-  | { type: 'DEPLOYMENT_STARTED'; payload: { projectId: string; platform: string } }
-  | { type: 'DEPLOYMENT_COMPLETED'; payload: { projectId: string; url: string; platform: string } }
-  | { type: 'DEPLOYMENT_FAILED'; payload: { projectId: string; error: string } }
   | { type: 'PROJECT_DELETED'; payload: { deletedProjectId: string } }  // 삭제된 프로젝트는 FK로 못 가리킨다
   | { type: 'USER_DELETED'; payload: { deletedUserId: string } }  // persist()가 payload.userId를 user_id FK로 추출하므로 deletedUserId 필수
   | { type: 'PROJECT_PUBLISHED'; payload: { projectId: string; userId: string; slug: string } }
@@ -515,16 +475,16 @@ export function registerEventPersister(): void { ... }
 | `PROJECT_CREATED` / `PROJECT_DELETED` / `PROJECT_UNPUBLISHED` | `projectService.ts` |
 | `CODE_GENERATED` | `generationSaver.ts` |
 | `CODE_GENERATION_FAILED` | `generationPipeline.ts` (handlePipelineFailure) |
-| `DEPLOYMENT_STARTED` / `DEPLOYMENT_COMPLETED` / `DEPLOYMENT_FAILED` | `deployService.ts` |
+| `PROJECT_PUBLISHED` / `PROJECT_UNPUBLISHED` | `projectService.ts` |
 | `API_QUOTA_WARNING` | `rateLimitService.ts` — 일일 한도 80% 도달 시 (fire-and-forget) |
 | `QC_REPORT_COMPLETED` / `QC_REPORT_FAILED` | `generationPipeline.ts` |
 
 **확장 예시 (핵심 로직 수정 없이 구독자만 추가):**
 ```typescript
-// Slack 알림 구독
+// Slack 알림 구독 (errorRateMonitor 패턴)
 eventBus.on((event) => {
-  if (event.type === 'DEPLOYMENT_FAILED') {
-    slackClient.send(`배포 실패: ${event.payload.projectId}`);
+  if (event.type === 'CODE_GENERATION_FAILED') {
+    // 임계값 집계 후 sendSlackAlert
   }
 });
 ```
@@ -539,11 +499,10 @@ eventBus.on((event) => {
 export interface FeatureLimits {
   maxApisPerProject: number;
   maxDailyGenerations: number;
-  maxDailySuggestions: number;        // AI 추천 일일 쿼터 (생성과 분리, 9필드)
+  maxDailySuggestions: number;        // AI 추천 일일 쿼터 (생성과 분리)
   maxProjectsPerUser: number;
   maxRegenerationsPerProject: number;
   maxCodeVersionsPerProject: number;  // 프로젝트당 최대 코드 버전 수
-  maxDeployPerDay: number;
   contextMinLength: number;
   contextMaxLength: number;
 }
@@ -562,7 +521,6 @@ const DEFAULT_LIMITS: FeatureLimits = {
   maxProjectsPerUser: env('MAX_PROJECTS_PER_USER', 20),
   maxRegenerationsPerProject: env('MAX_REGENERATIONS', 5),
   maxCodeVersionsPerProject: env('MAX_CODE_VERSIONS', 10),
-  maxDeployPerDay: env('MAX_DEPLOY_PER_DAY', 5),
   contextMinLength: env('CONTEXT_MIN_LENGTH', 50),
   contextMaxLength: env('CONTEXT_MAX_LENGTH', 2000),
 };

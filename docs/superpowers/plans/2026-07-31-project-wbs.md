@@ -23,16 +23,16 @@
 
 | ID | 작업 | 크기 | 선행조건 |
 |----|------|------|---------|
-| **A1** | **외부 배포 기능(Railway/GitHub Pages) 존폐 결정.** 백엔드·프로바이더·테스트가 완비인데 **UI 호출부가 0건**이고 env 3종도 미설정이다. 죽은 코드가 아니라 **결정되지 않은 코드**다 | L | **사용자 판단** (살릴지/제거할지) |
-| A2 | `GET /api/v1/deploy/:projectId/status` 미구현 (프로바이더 `getStatus`는 존재) | S | A1 |
-| A3 | `rollback`·`deleteProject` 호출부 0건 (구현은 양쪽 프로바이더에 존재) | S | A1 |
-| A4 | 계정·프로젝트 삭제 시 **외부 GitHub repo가 고아로 남는다** — 소스에 남은 유일한 실질 TODO | M | A1 + A3 |
-| A5 | `RailwayDeployer.projectMap`이 인메모리 → 재시작 시 배포 컨텍스트 소실(미스 시 throw) | M | A1 |
+| ~~**A1**~~ | ~~**외부 배포 기능(Railway/GitHub Pages) 존폐 결정.**~~ → ✅ **제거로 결정·완료(2026-08-01)**. 제품 배포는 서브도메인 게시. 라이브 401 라우트·설정된 토큰·org 레포 생성 경로를 제거. [ADR](../../decisions/2026-08-01-remove-external-deploy-stack.md) | — | — |
+| ~~A2~~ | ~~`GET /api/v1/deploy/:projectId/status` 미구현~~ → **제거로 해소** (외부 배포 스택 삭제) | — | A1 |
+| ~~A3~~ | ~~`rollback`·`deleteProject` 호출부 0건~~ → **제거로 해소** | — | A1 |
+| ~~A4~~ | ~~계정·프로젝트 삭제 시 외부 GitHub repo 고아~~ → **제거로 해소** (스택·TODO·`externalDeployHints` 로깅 삭제). 이미 생성된 고아 레포는 운영에서 수동 정리 | — | A1 |
+| ~~A5~~ | ~~`RailwayDeployer.projectMap` 인메모리~~ → **제거로 해소** | — | A1 |
 | A6 | **`feature_flags` 7행이 시드만 되고 소비 코드가 0건** — 배선할지 테이블째 제거할지 | S | 결정만 |
 | A7 | i18n 다국어 — `ko`만 존재, `enable_multi_language`는 false 선언뿐 | L | 제품 우선순위 |
 | A8 | 라이선스·키 정책 (Open-Meteo 상업 사용 CC BY 4.0, NASA `DEMO_KEY`→등록 키, data.go.kr 운영계정) | M | 수익화 여부 |
 
-> **A1이 이번 감사의 가장 큰 단일 발견이다.** 방치하면 유지보수 비용만 계속 든다.
+> ~~A1이 이번 감사의 가장 큰 단일 발견~~ → **2026-08-01 외부 배포 스택 제거로 A1–A5 종료.** 배경·실측: [ADR](../../decisions/2026-08-01-remove-external-deploy-stack.md)
 
 ---
 
@@ -241,7 +241,7 @@ generate 경로(`RateLimitService.decrementDailyLimit`)는 `logger.warn`을 남�
 
 지금 바로 할 수 있고 효과가 큰 순. (B2는 해결, C1·F7은 재검토로 종결 — 위 참조)
 
-1. **A1** — 외부 배포 스택 존폐 결정. 미루면 유지보수 비용만 계속 든다 (**사용자 결정 필요**)
+1. ~~**A1** — 외부 배포 스택 존폐~~ → ✅ **제거 완료(2026-08-01)** [ADR](../../decisions/2026-08-01-remove-external-deploy-stack.md)
 2. **E3 P1~P3** — 빌더 추출. P0(스토어 래치)는 완료. 최악의 CRITICAL(복잡도 48)과
    최대 테스트 공백이 같은 작업이고, P3에서 폴링 취소로 이중 경로를 근본 해결한다 (L)
 3. **C2** — 오프-볼륨 DR. C1 재검토 결과 **이것이 실질 잔여 DR 위험**으로 확인됐다 (M, 비용 결정 필요)

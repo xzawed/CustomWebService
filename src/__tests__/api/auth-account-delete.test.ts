@@ -5,7 +5,6 @@ import { __resetAuthRateLimit } from '@/lib/auth/rateLimit';
 const cascadeDeleteUser = vi.fn();
 const eventBusEmit = vi.fn();
 const findById = vi.fn();
-const findByUserId = vi.fn();
 
 vi.mock('@/lib/auth/index', () => ({
   getAuthUser: vi.fn(),
@@ -25,7 +24,6 @@ vi.mock('@/lib/db/sqlite/connection', () => ({
 
 vi.mock('@/repositories/factory', () => ({
   createUserRepository: () => ({ findById }),
-  createProjectRepository: () => ({ findByUserId }),
 }));
 
 import { getAuthUser } from '@/lib/auth/index';
@@ -52,7 +50,6 @@ describe('DELETE /api/v1/auth/account', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     __resetAuthRateLimit();
-    findByUserId.mockResolvedValue([]);
   });
 
   it('비로그인 시 401', async () => {
@@ -118,14 +115,6 @@ describe('DELETE /api/v1/auth/account', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     });
-    findByUserId.mockResolvedValue([
-      {
-        id: 'p1',
-        userId: 'user-1',
-        repoUrl: 'https://github.com/org/svc-app',
-        deployPlatform: 'github_pages',
-      },
-    ]);
 
     const { DELETE } = await import('@/app/api/v1/auth/account/route');
     const res = await DELETE(deleteReq({ password }));

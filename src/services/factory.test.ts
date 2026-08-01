@@ -18,11 +18,6 @@ vi.mock('@/services/catalogService', () => ({
     this._type = 'CatalogService';
   }),
 }));
-vi.mock('@/services/deployService', () => ({
-  DeployService: vi.fn(function (this: { _type: string }) {
-    this._type = 'DeployService';
-  }),
-}));
 vi.mock('@/services/rateLimitService', () => ({
   RateLimitService: vi.fn(function (this: { _type: string }) {
     this._type = 'RateLimitService';
@@ -41,14 +36,12 @@ vi.mock('@/lib/email/emailService', () => ({
 import {
   createProjectService,
   createCatalogService,
-  createDeployService,
   createRateLimitService,
   createAuthService,
 } from '@/services/factory';
 import {
   createProjectRepository,
   createCatalogRepository,
-  createCodeRepository,
   createRateLimitRepository,
   createUserRepository,
   createAuthTokenRepository,
@@ -80,19 +73,6 @@ describe('createCatalogService', () => {
   it('createCatalogRepository를 인자 없이 호출한다', () => {
     createCatalogService();
     expect(createCatalogRepository).toHaveBeenCalledWith();
-  });
-});
-
-describe('createDeployService', () => {
-  it('returns a DeployService instance', () => {
-    const svc = createDeployService() as unknown as { _type: string };
-    expect(svc._type).toBe('DeployService');
-  });
-
-  it('repository 팩토리를 인자 없이 호출한다', () => {
-    createDeployService();
-    expect(createProjectRepository).toHaveBeenCalledWith();
-    expect(createCodeRepository).toHaveBeenCalledWith();
   });
 });
 

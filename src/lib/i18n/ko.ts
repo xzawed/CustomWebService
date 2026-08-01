@@ -5,7 +5,6 @@ const ko = {
   'error.forbidden': '접근 권한이 없습니다.',
   'error.rateLimit': '요청 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.',
   'error.generation': '코드 생성에 실패했습니다.',
-  'error.deploy': '배포에 실패했습니다.',
   'error.server': '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
   'error.validation': '입력값이 올바르지 않습니다.',
   'error.database': '데이터베이스 오류가 발생했습니다.',
@@ -21,14 +20,6 @@ const ko = {
   'project.validation.notGenerated': '생성이 완료된 프로젝트만 게시할 수 있습니다.',
   'project.validation.notPublished': '게시된 프로젝트만 게시 취소할 수 있습니다.',
   'project.notFound': '프로젝트',
-  // Deploy service
-  'deploy.validation.noCode': '생성된 코드가 없습니다.',
-  'deploy.progress.preparing': '배포 준비 중...',
-  'deploy.progress.creatingRepo': 'GitHub 저장소 생성 중...',
-  'deploy.progress.uploading': '코드 업로드 중...',
-  'deploy.progress.configuring': '환경 설정 중...',
-  'deploy.progress.deploying': '{platform}에 배포 중...',
-  'deploy.progress.finalizing': '배포 마무리 중...',
   // Rate limit service
   'rateLimit.exceeded': '일일 생성 한도({limit}회)를 초과했습니다. 내일 다시 시도해주세요.',
   'rateLimit.suggestionExceeded': '일일 AI 추천 한도({limit}회)를 초과했습니다. 내일 다시 시도해주세요.',

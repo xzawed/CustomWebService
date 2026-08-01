@@ -45,7 +45,6 @@ src/
 │   ├── db/          # 임베디드 SQLite — sqlite/(connection WAL/FK + runSqliteMigrations, schema 11테이블, bootstrap, seedCatalog, ensureCatalog, backup 주기 .backup 덤프+보관정책, retention 무한증가 테이블 정리), errors(UNIQUE 위반 감지)
 │   ├── proxy/       # 게시/앱 프록시 인가 — resolveProxyContext(site·app 단일 진입점), siteRateLimit(익명 게시 사이트 IP·프로젝트 한도)
 │   ├── email/       # 이메일 발송 — emailService(sendVerificationEmail/sendPasswordResetEmail), Resend provider, no-op console fallback(RESEND_API_KEY 미설정 시)
-│   ├── deploy/      # 배포 관련
 │   ├── events/      # EventBus (pub/sub) + eventPersister (전체 이벤트 자동 DB 기록)
 │   ├── generation/  # pollGenerationStatus — 생성 상태 폴링 (builder/page.tsx에서 추출, 주입형·단위 테스트 대상)
 │   ├── monitoring/  # slackAlert (Webhook 알림), errorRateMonitor (생성 실패율 임계값 감지)
@@ -102,7 +101,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - **아키텍처 레이어**: Route Handler → Service → Repository → SQLite (better-sqlite3, 무인자 factory)
 - **AI Provider**: `IAiProvider` 인터페이스 — Provider 전용 로직은 Provider 내부에만
 - **이벤트 시스템**: `EventBus` + `EventRepository` (감사 로그)
-- **레이트리밋**: 혼합 패턴 — generate/regenerate/deploy는 SQLite 원자적 (better-sqlite3 동기 트랜잭션 `BEGIN` + `UPDATE WHERE count < limit RETURNING`, 단일 writer), proxy는 인메모리 Map (단일 인스턴스 전제)
+- **레이트리밋**: 혼합 패턴 — generate/regenerate/suggestion은 SQLite 원자적 (better-sqlite3 동기 트랜잭션 `BEGIN` + `UPDATE WHERE count < limit RETURNING`, 단일 writer), proxy는 인메모리 Map (단일 인스턴스 전제). 외부 deploy 일일 한도는 2026-08-01 제거
 - **요청 추적**: `X-Correlation-Id` 헤더
 - **i18n**: `@/lib/i18n`의 `t()` 함수 사용, 한국어 기본
 - **스토어**: 관심사별 분리된 Zustand 스토어 (단일 mega store 금지)
@@ -134,7 +133,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - `ADMIN_API_KEY` — 관리자 API 인증 (QC 통계, 수동 QC 트리거)
 - `ENABLE_RENDERING_QC` — Playwright 렌더링 QC 활성화 (true/false)
 - `ENCRYPTION_KEY` — 사용자 API 키 암호화
-- `GITHUB_TOKEN`, `RAILWAY_TOKEN` — 배포용
+- `GITHUB_TOKEN` / `GITHUB_ORG` / `RAILWAY_TOKEN` — **removed/unused** (외부 사용자 서비스 export 스택 제거, 2026-08-01). Railway에 남아 있으면 삭제 가능. [ADR](docs/decisions/2026-08-01-remove-external-deploy-stack.md)
 - `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
 - `AI_MODEL_SUGGESTION` — 추천용 모델 (기본: `claude-haiku-4-5`)
 - `AI_MODEL_GENERATION` — 코드 생성 모델 (기본: `claude-opus-5`, Sonnet 폴백: `claude-sonnet-5`)
@@ -174,6 +173,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 | **로그인 레이트리밋 ADR (#223, IP+계정 잠금 없는 방식, 2026-07-30)** | [docs/decisions/2026-07-30-login-rate-limit.md](docs/decisions/2026-07-30-login-rate-limit.md) |
 | **알림 sink Slack 고정·백업 실패 배선 ADR (#220, 2026-07-30)** | [docs/decisions/2026-07-30-monitoring-sink-slack-only.md](docs/decisions/2026-07-30-monitoring-sink-slack-only.md) |
 | **AI 추천 일일 쿼터 분리 ADR (#219, 2026-07-30)** | [docs/decisions/2026-07-30-suggestion-daily-quota-separation.md](docs/decisions/2026-07-30-suggestion-daily-quota-separation.md) |
+| **외부 배포 스택 제거 ADR (WBS A1–A5, 2026-08-01)** | [docs/decisions/2026-08-01-remove-external-deploy-stack.md](docs/decisions/2026-08-01-remove-external-deploy-stack.md) |
 | 검수 MEDIUM 발견 항목 수정 ADR (M-1·2·3·5·6·7·8, 2026-07-29) | [docs/decisions/2026-07-29-medium-audit-findings.md](docs/decisions/2026-07-29-medium-audit-findings.md) |
 | **생성 락을 인메모리 tracker에서 SQLite로 분리 ADR (M-5 근본 해결, 2026-07-29)** | [docs/decisions/2026-07-29-durable-generation-lock.md](docs/decisions/2026-07-29-durable-generation-lock.md) |
 | **프록시 캐시 키에 키 신원 추가 ADR (M-4 잔여 해소, 2026-07-29)** | [docs/decisions/2026-07-29-proxy-cache-key-identity.md](docs/decisions/2026-07-29-proxy-cache-key-identity.md) |
@@ -380,7 +380,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - **이 서비스의 WAL은 캐시가 아니라 데이터 본체다 (복구 시 치명)**: 장기 실행 프로세스가 거의 체크포인트하지 않아 **`/data/app.db`는 4096B·테이블 0개**이고 실데이터는 전부 `app.db-wal`(1.3MB)에 있다(2026-07-30 프로덕션 실측). ① **WAL만 지우면 DB 전체가 사라진다.** ② **백업본으로 app.db만 덮어쓰고 WAL을 남기면 그 WAL이 복구본 위로 재생되어 복구가 조용히 무효화되고 `integrity_check`는 여전히 `ok`를 반환한다**(실측). app.db 교체와 WAL/SHM 제거는 **반드시 한 세트**로 한다. 복구 성공 판정은 `integrity_check`가 아니라 **행 수 대조**다. 절차: [복구 런북](docs/guides/sqlite-restore-runbook.md)
 - **SQLite 자동 백업 (P6.3, 인프로세스)**: `src/lib/db/sqlite/backup.ts`의 `scheduleBackups`가 `instrumentation.register()`에서 배선되어 주기적으로 `raw.backup()` 온라인 덤프를 `<SQLITE 디렉터리>/backups/app-YYYYMMDD-HHmmss.db`로 남기고 보관 정책(`SQLITE_BACKUP_RETENTION`, 기본 7)에 따라 오래된 파일을 정리한다. 타이머는 `.unref()`되어 종료를 막지 않고, `':memory:'`/비활성(`SQLITE_BACKUP_ENABLED=false`) 시 건너뛴다. **단일 인스턴스·동일 볼륨 전제** — 논리 손상·잘못된 마이그레이션·실수 삭제 방어용이며, 볼륨 자체 손실 대비(오프-볼륨 DR)는 Railway 볼륨 스냅샷 또는 Litestream→S3(옵션·비용) 담당. `selectBackupsToPrune`은 `app-<timestamp>.db` 패턴만 후보로 삼아 라이브 DB·WAL/SHM은 절대 삭제하지 않음. **부작용**: 백업 파일을 `readonly: true`로 열어 검증만 해도 SQLite가 `<백업명>.db-shm`(32KB)·`.db-wal`(0B)을 백업 디렉터리에 만드는데, 위 패턴에 안 걸려 **영원히 회수되지 않는다**(2026-07-31 리허설에서 발견 — 전 세션 검증 잔재가 남아 있었다). 복구 정확성에는 영향이 없으나(2단계는 `.db`만 복사) 인시던트 중 "이 백업엔 왜 WAL이 붙어 있지?" 혼란을 만든다 → **검증 후 `rm -f /data/backups/*.db-wal /data/backups/*.db-shm`**. 지워도 백업은 `integrity ok`로 남는다(실측)
 - **DB 보존 정책 (무한 증가 테이블)**: `src/lib/db/sqlite/retention.ts`의 `scheduleRetention`이 `instrumentation.register()`에서 백업 스케줄러와 나란히 배선된다(주기 기본 24h, `.unref()`, `':memory:'`·`DB_RETENTION_ENABLED=false` 시 스킵). `generated_codes`만 `pruneOldVersions()`로 정리되고 `platform_events`(모든 도메인 이벤트)·`auth_tokens`·`user_daily_limits`는 삭제 경로가 없어 단조 증가하던 것을 해소. **되돌릴 수 없는 삭제이므로 안전장치 필수**: ① `auth_tokens`는 만료(`expires_at`)됐거나 사용된(`consumed_at`) 토큰만 삭제 — **유효한 미사용 토큰은 절대 삭제 금지**(인증·재설정 링크가 조용히 죽음), ② `user_daily_limits.usage_date`는 로컬 `YYYY-MM-DD`라 cutoff도 `localDateCutoff`(로컬 기준)를 써야 함(UTC로 자르면 타임존에 따라 오늘 카운터 삭제), ③ 세 DELETE는 단일 트랜잭션, ④ `0`·음수·비정수 env는 기본값 폴백(전체 삭제 사고 방지)
-- **배포/생성 레이트리밋 환불 (SQLite)**: 배포·생성 실패 시 `SqliteRateLimitRepository`가 일일 카운터를 in-process로 환불한다(`GREATEST(count-1, 0)`, 동기 트랜잭션). 과거 Supabase PG 함수(`decrement_daily_deploy`/`decrement_daily_generation`, migration 007/021)와 동일 보상 의미를 SQLite 레포 메서드로 재현 — `.rpc()` 호출 없음
+- **생성/추천 레이트리밋 환불 (SQLite)**: 생성·추천 실패 시 `SqliteRateLimitRepository`가 일일 카운터를 in-process로 환불한다(`GREATEST(count-1, 0)`, 동기 트랜잭션). 외부 deploy 한도 메서드는 2026-08-01 제거(컬럼 `deploy_count`는 스키마 유지·불활성). 과거 Supabase PG 함수와 동일 보상 의미를 SQLite 레포 메서드로 재현 — `.rpc()` 호출 없음
 - **생성 상태 폴링 `not_found` 처리**: `/api/v1/generate/status`는 프로젝트 미존재·권한 없음 시 `status: 'not_found'`를 반환한다. `pollGenerationStatus`의 `GenerationStatusData.status` union에 `'not_found'`가 포함되어야 하며(누락 시 'unknown'으로 오처리되어 잘못된 사용자 메시지 표시), 전용 핸들러로 "프로젝트를 찾을 수 없습니다" 메시지를 낸다
 - **카운터 컬럼 ADD COLUMN은 `DEFAULT 0` 필수**: `user_daily_limits`처럼 `WHERE count < limit` test-and-set을 쓰는 테이블에 새 카운터를 ALTER로 추가할 때 `DEFAULT`가 없으면 **기존 행이 NULL**이 되고 `NULL < limit`는 참이 아니라 UPDATE가 0행 → `allowed=false`. 사용자에게는 "한도 초과"로 보여 버그로 인지되지 않고, `MAX(0, NULL-1)`도 NULL이라 자가 복구도 안 된다. 기존 `deploy_count`는 CREATE TABLE부터 있던 컬럼이라 이 경로를 겪은 적이 없으니 **"deploy를 그대로 따라 했다"가 안전 근거가 되지 않는다**. 회귀 테스트는 `SqliteRateLimitRepository.test.ts`의 migrated-row 케이스 참조. 배경: [ADR](docs/decisions/2026-07-30-suggestion-daily-quota-separation.md)
 - **AI 추천은 생성과 별도 쿼터**: `suggest-*` 4개 라우트는 `suggestion_count`/`MAX_DAILY_SUGGESTIONS`(기본 30, pro 150)를 **공유**한다(라우트별 30이 아님). 차감은 **검증·소유권 확인 이후**, 환불은 `charged===true`이고 throw된 경우만(soft success는 이미 토큰을 썼으므로 환불 안 함). 추천 라우트는 전부 `createForTask('suggestion')`(Haiku)를 쓸 것 — `AiProviderFactory.create()`는 ClaudeProvider 기본 모델(Sonnet 5)로 조용히 3배 단가를 태운다

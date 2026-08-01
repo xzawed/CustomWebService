@@ -68,13 +68,6 @@ export class GenerationError extends AppError {
   }
 }
 
-export class DeployError extends AppError {
-  constructor(message = t('error.deploy')) {
-    super('DEPLOY_FAILED', message, 500);
-    this.name = 'DeployError';
-  }
-}
-
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' };
 
 /** Wrapper around Response that always includes charset=utf-8 in Content-Type */

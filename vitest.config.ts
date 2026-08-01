@@ -41,7 +41,6 @@ export default defineConfig({
         'src/app/api/v1/admin/**/route.ts',
         'src/app/api/v1/auth/**/route.ts',
         'src/app/api/v1/countries/**/route.ts',
-        'src/app/api/v1/deploy/route.ts',
         'src/app/api/v1/generate/route.ts',
         // 2026-07-10: 라우트 테스트를 신규 추가하며 집계 대상에 편입
         'src/app/api/v1/generate/regenerate/route.ts',

@@ -100,12 +100,12 @@
 | `src/lib/ai/categoryDesignMap.test.ts` | 카테고리별 디자인 테마 추론 |
 | `src/lib/auth/authorize.test.ts` | `assertOwner()` — 소유자 일치/불일치 |
 | `src/__tests__/lib/correlationId.test.ts` | UUID 생성, `X-Correlation-Id` 헤더 추출 |
-| `src/lib/deploy/githubService.test.ts` | `createRepository`(422 중복 처리), `pushCode`(6-step fetch 체인), `setSecrets`(libsodium no-op), `enableGithubPages`(409 충돌 처리) |
-| `src/lib/deploy/railwayService.test.ts` | GraphQL 래퍼(`graphql()`), `createProject`/`createServiceFromRepo`/`setEnvironmentVariables`(환경 없음 분기)/`triggerDeploy`/`getDeploymentStatus`/`getServiceDomain`/`generateServiceDomain`/`deleteProject` |
+
+> 외부 배포 스택 테스트(`src/lib/deploy/**`, `src/providers/deploy/**`, `deployService.test.ts`)는 2026-08-01 제거.
 
 ---
 
-### 2.2 Provider 단위 테스트 (~5파일, ~80개)
+### 2.2 Provider 단위 테스트
 
 `pnpm test:unit`으로 실행 (대상: `src/providers/**`)
 
@@ -113,21 +113,17 @@
 |------|----------|
 | `src/providers/ai/ClaudeProvider.test.ts` | `generateCode`/`generateCodeStream`, API 에러, `withRetry` 지수 백오프, `cache_control` Prompt Caching |
 | `src/providers/ai/AiProviderFactory.test.ts` | 태스크별 모델 선택, `AI_MODEL_GENERATION` 환경변수 오버라이드, 싱글톤 캐시 |
-| `src/providers/deploy/DeployProviderFactory.test.ts` | `create()` 캐싱, `getSupportedPlatforms()`, 미지원 플랫폼 에러 |
-| `src/providers/deploy/GithubPagesDeployer.test.ts` | 배포 전체 플로우, `resolveRepo` GitHub 저장소 조회/생성 분기 |
-| `src/providers/deploy/RailwayDeployer.test.ts` | Railway GraphQL 기반 배포 전체 플로우, 상태 폴링, 롤백 |
 
 ---
 
-### 2.3 Service 단위 테스트 (~5파일, ~75개)
+### 2.3 Service 단위 테스트
 
 | 파일 | 검증 항목 |
 |------|----------|
 | `src/services/projectService.test.ts` | `create` 입력 검증, `publish` slug 자동 할당·충돌 재시도(23505), `unpublish`, `getByUserId`, `getProjectApiIds`, `updateStatus` |
 | `src/__tests__/services/rateLimitService.test.ts` | fail-open 정책, `decrementDailyLimit` 에러 스왈로우, `getCurrentUsage` 0 폴백 |
-| `src/services/deployService.test.ts` | 정상 배포, DEPLOYMENT_STARTED/COMPLETED/FAILED 이벤트, 실패 시 status 복원 |
 | `src/services/catalogService.test.ts` | `search`(totalPages 계산), `getById`, `getCategories`, `getByIds` |
-| `src/services/factory.test.ts` | `createProjectService`/`createCatalogService`/`createDeployService`/`createRateLimitService` — SupabaseClient 전달 |
+| `src/services/factory.test.ts` | `createProjectService`/`createCatalogService`/`createRateLimitService`/`createAuthService` |
 
 ---
 
@@ -141,7 +137,7 @@
 | `src/__tests__/repositories/drizzleUserRepository.test.ts` | findById/findMany/create/update/delete/count/createWithAuthId/findByEmail |
 | `src/__tests__/repositories/drizzleUserApiKeyRepository.test.ts` | upsert/delete/findByUserAndApi/findAllByUser/updateVerificationStatus |
 | `src/__tests__/repositories/drizzleEventRepository.test.ts` | persist(성공·실패)/persistAsync/findByUser(limit 100 cap) |
-| `src/__tests__/repositories/drizzleRateLimitRepository.test.ts` | checkAndIncrementDailyLimit/decrementDailyLimit/getCurrentUsage/checkAndIncrementDailyDeployLimit |
+| `src/__tests__/repositories/drizzleRateLimitRepository.test.ts` | (역사 — PG 경로 제거) 과거 deploy 한도 메서드 포함. 현재 권위 구현은 `SqliteRateLimitRepository.test.ts` |
 | `src/__tests__/repositories/drizzleProjectRepository.test.ts` | 8개 메서드 전체, `projectRowToDomain` 매핑 |
 | `src/__tests__/repositories/drizzleCodeRepository.test.ts` | countByProject/pruneOldVersions/getNextVersion/`codeRowToDomain` 매핑 |
 
@@ -189,11 +185,10 @@
 | `admin.test.ts` | 관리자 API | Bearer 토큰 인증, IP 스푸핑 방지, CORS 헤더, QC rate limit |
 | `admin-keys-verify.test.ts` | `GET /api/v1/admin/keys-verify` | `ADMIN_API_KEY` 인증, 플랫폼 키 검증 결과 반환 (로직 `src/lib/catalog/keyCheck.ts`) |
 
-#### 배포·게시·관리
+#### 게시·관리
 
 | 파일 | 엔드포인트 | 주요 검증 항목 |
 |------|-----------|---------------|
-| `deploy.test.ts` | `POST /api/v1/deploy` | SSE progress 이벤트 순서(10%→100%), 일일 배포 rate limit, 플랫폼 유효성 |
 | `preview.test.ts` | `GET /api/v1/preview/[id]` | HTML 응답 + CSP 헤더, `version` 쿼리 파라미터 |
 | `projects-publish.test.ts` | `POST/DELETE /api/v1/projects/[id]/publish` | slug 전달, QC 경고, 게시 취소 |
 | `projects-rollback.test.ts` | `POST /api/v1/projects/[id]/rollback` | version 유효성, 롤백 성공 + 이벤트 |
@@ -284,7 +279,7 @@ beforeEach(async () => {
 });
 ```
 
-### global fetch 모킹 (proxy, githubService, railwayService 테스트)
+### global fetch 모킹 (proxy 등 외부 HTTP 테스트)
 
 ```typescript
 const mockFetch = vi.fn();
@@ -346,7 +341,6 @@ afterEach(() => {
 ```typescript
 AiProviderFactory.clearCache();
 _resetProviderCache();
-(DeployProviderFactory as unknown as { providers: Map<string, unknown> })['providers'] = new Map();
 ```
 
 ---
