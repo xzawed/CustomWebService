@@ -1,9 +1,47 @@
 # 보안 인시던트 대응 절차
 
 > 스택 진실원: 루트 [`CLAUDE.md`](../../CLAUDE.md) · [`docs/architecture/system-spec.md`](../architecture/system-spec.md).
-> 시크릿 목록의 정본은 [`docs/reference/env-vars.md`](../reference/env-vars.md). 이 문서는 **노출 시 회전 순서**만 다룬다.
+> 시크릿 목록의 정본은 [`docs/reference/env-vars.md`](../reference/env-vars.md). 이 문서는 **노출 시 회전 순서**와 **고아 자격증명 폐기**를 다룬다.
 >
-> **제거된 스택을 회전하지 말 것**: `GITHUB_TOKEN`(외부 deploy export 제거, 2026-08-01), Supabase `service_role` / `SUPABASE_*`(SQLite 컷오버), `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`(다중 사용자 전환). 관련 절차는 역사 문서에만 남는다.
+> **제품 정기 회전 목록에 넣지 말 것**(죽은 스택 — `AUTH_SECRET`/`ANTHROPIC_API_KEY`와 같은 주기의 회전 대상이 아님):
+> `GITHUB_TOKEN`(외부 deploy export 제거, 2026-08-01), Supabase `service_role` / `SUPABASE_*`(SQLite 컷오버),
+> `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`(다중 사용자 전환).
+> **≠ 발견 시 내버려 둬도 된다**는 뜻이 아니다. 죽은 스택 키를 발견하면 아래 [고아 자격증명](#고아-자격증명orphan-credential)을 따른다.
+
+---
+
+## 고아 자격증명(orphan credential)
+
+**정기 회전 대상 ≠ 발견 시 폐기 대상.**
+
+제품 코드가 더 이상 읽지 않는 키라도 **출처에서 먼저 폐기**한 뒤 사본을 지운다.
+**Railway 변수만 지우는 것은 사본 하나를 지우는 것**이다. Supabase 프로젝트가 살아 있으면
+`service_role` JWT는 여전히 유효하고 **RLS를 우회**한다.
+
+### 폐기 순서
+
+1. **출처에서 폐기**
+   - Supabase: 프로젝트 존재 확인 → 키 폐기 또는 프로젝트 삭제
+   - GitHub: 토큰 revoke (Developer settings → tokens)
+2. **그 다음** Railway 등 배포 환경의 사본 삭제 (`railway variable delete`는 재배포를 트리거하지 않을 수 있음 — 다음 배포 때 컨테이너에서 사라짐)
+3. **다른 사본**도 찾을 것: GitHub Actions secrets, 과거 이슈·슬랙 붙여넣기, 로컬 `.env*` / 백업 파일
+
+값 자체는 이 문서에 **절대 적지 않는다.**
+
+### 프로덕션 실측 (2026-08-02)
+
+SQLite 컷오버(2026-06-23) 후 약 6주, 외부 deploy 스택 제거(2026-08-01) 후에도 Railway에 다음이 **잔존**했다
+(길이 클래스만 — 원문 비기록):
+
+| 변수 | 길이/상태 클래스 | 조치 |
+|------|------------------|------|
+| `SUPABASE_SERVICE_ROLE_KEY` | **219자** (JWT형) | **출처 폐기 최우선** → 그 다음 Railway 삭제 |
+| `NEXT_PUBLIC_SUPABASE_URL` | 설정됨 | 죽은 스택 잔재 — 프로젝트 정리 후 Railway 삭제 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 설정됨 | 죽은 스택 잔재 — 출처 폐기 후 Railway 삭제 |
+| `GITHUB_TOKEN` | 설정됨 | **GitHub에서 revoke 후** Railway 삭제 |
+| `GITHUB_ORG` | 설정됨 | 조직명 잔재 — Railway 삭제 |
+
+오너 액션 순위: [WBS B0](../superpowers/plans/2026-07-31-project-wbs.md).
 
 ---
 

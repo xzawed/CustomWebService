@@ -47,14 +47,15 @@
 
 | ID | 작업 | 크기 |
 |----|------|------|
-| **B1** | **`AUTH_URL=https://xzawed.xyz` Railway 등록.** 현재 미설정이라 `callback-url`이 `0.0.0.0:8080`이다. `AUTH_TRUST_HOST=true`라 로그인은 동작해 영향은 낮지만, **`env-vars.md`에 행 자체가 없어** 문서 추가도 함께 필요 | S |
+| **B0** | **Supabase/GitHub 고아 자격증명 폐기** — 2026-08-02 프로덕션 실측: Railway에 `SUPABASE_SERVICE_ROLE_KEY`(219자)·`NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_ANON_KEY`·`GITHUB_TOKEN`·`GITHUB_ORG` 잔존. SQLite 컷오버(2026-06-23) 후 ~6주. **출처에서 먼저 폐기**(Supabase 키/프로젝트·GitHub 토큰 revoke) → 그 다음 Railway 사본 삭제. Railway만 지우면 service_role JWT는 여전히 유효(RLS 우회). 값 비기록. 절차: [incident-response.md](../../security/incident-response.md) | S |
+| ~~**B1**~~ | ~~`AUTH_URL=https://xzawed.xyz` Railway 등록~~ → ✅ **완료(2026-08-02 실측)**. Railway에 길이 18(`https://xzawed.xyz`)로 **이미 설정됨**. 문서 행은 ~~D-d~~에서 추가 | — |
 | ~~**B2**~~ | ~~`RESEND_API_KEY`·`EMAIL_FROM` 설정 여부 확인~~ → ✅ **해결(2026-07-31)**. 관측 수단(`GET /api/v1/admin/debug`의 `email.*`)을 만들어 프로덕션에서 확인한 결과 **`configured: true, fromSet: true, fromDomain: "xzawed.xyz"`** — 이메일은 정상 동작 중이고 우려했던 "신규 사용자가 제품을 못 쓰는 상태"는 아니다. 앞으로 이 항목은 Railway 콘솔 없이 엔드포인트로 상시 확인 가능 | — |
 | B3 | 키 의존 API 재활성화 — **한 줄 “24개”는 가짜 액션**. 정직 분할([developer-key ADR](../../decisions/2026-05-01-developer-key-api-reactivation.md)): **(a) 무료 키 후보(오너 ops)** data.go.kr 계열·NEIS·서울 오픈데이터·TourAPI·ECOS·KOPIS·Kakao·Unsplash Demo 등 가입·env 등록 가능 **(b) ToS 제외** TMDB(AI·ML 앱 금지)·RAWG(재배포 금지) — 플랫폼 키로 살리지 않음 **(c) 공유 플랫폼 키 부적합** OpenWeatherMap 등 free tier가 다중 사용자 프록시에 무너짐 → BYOK 또는 비활성 유지. **비용 제외가 아님** | M |
 | B4 | 프록시 키 prefix **실키 검증**(`needsPrefixFix`) — 코드는 완료, 실키로 확인된 적 없음 | S |
 | B5 | Unsplash Production 심사 (Demo 50건/시간 → Production 1,000건/시간) — **무료 심사**, 비용 제외 아님. 오너 ops | S |
 | ~~B6~~ | ~~`SONAR_TOKEN` 재발급~~ → ✅ **해결(2026-08-01 실측)**. `api/users/current`가 `isLoggedIn:true`(`xzawed-qYEqm@github`, Owners)를 반환한다. 감사 당시 `valid:false`였던 것은 이후 재발급됨.<br>**검증 방법 주의**: 공개 프로젝트라 `api/authentication/validate`는 **익명에도 `valid:true`**를 준다 — 토큰 유효성 판정에 쓰면 안 된다. 인증 필요 엔드포인트(`api/users/current`)로 확인할 것 | — |
 
-> B2는 **제품이 동작하지 않을 수 있는 항목**이라 우선순위가 가장 높다.
+> ~~B2~~는 해결됨. **지금 최우선 오너 액션은 B0**(고아 자격증명 출처 폐기).
 
 ---
 
@@ -84,13 +85,14 @@
 | `wal_autocheckpoint` | **1000 페이지** (SQLite 기본값이 그대로 적용 중) |
 | `page_size` | 4096 |
 | → 체크포인트 임계 크기 | **약 3.91 MB** |
-| 프로덕션 `app.db-wal` | **1.42 MB (~364 페이지)** |
+| 프로덕션 `app.db-wal` (재검토 당시) | **1.42 MB (~364 페이지)** — 시점 관측, 불변조건 아님 |
 
 즉 **정책은 살아 있고, 쓰기량이 적어 아직 발동할 이유가 없었을 뿐**이다.
 "명시적으로 설정하지 않음"과 "정책이 없음"을 혼동한 것이다.
 
-`app.db`가 6월부터 4096B인 2차 요인도 확인됐다: **종료 시 `raw.close()`를 부르는 경로가 없다.**
-정상 종료는 체크포인트 후 WAL을 삭제하지만 Railway 재배포는 SIGKILL이라, WAL이 재시작을 넘어 계속 살아남는다.
+리허설 전(2026-07-30) 관측으로 `app.db`가 오래 4096B였던 2차 요인도 확인됐다: **종료 시 `raw.close()`를 부르는 경로가 없다.**
+정상 종료는 체크포인트 후 WAL을 삭제하지만 Railway 재배포는 SIGKILL이라, WAL이 재시작을 넘어 살아남을 수 있다.
+(2026-07-31 `.backup()` 복구 리허설 이후 프로덕션은 fat-main/empty-WAL 형태 — **크기는 시점 관측**.)
 
 **그래서 코드를 바꾸지 않기로 했다:**
 
@@ -98,8 +100,8 @@
 - 복구 절차(app.db 교체 + WAL/SHM 제거)는 2026-07-31 프로덕션 리허설로 검증됐다
 - 공격적 체크포인트(임계 하향·주기 `TRUNCATE`)는 쓰기 증폭과 새 백그라운드 writer를 만들고,
   동시 리더가 있으면 블로킹된다 — **이미 측정으로 사라진 문제에 대한 해법이다**
-- 오히려 "main 파일만 있으면 된다"는 **잘못된 안심**을 만들 수 있다. 이 서비스의 런북이
-  올바른 이유는 정확히 main이 비어 있을 수 있기 때문이다
+- 오히려 "지금 main이 크니 WAL은 무시해도 된다"는 **잘못된 안심**을 만들 수 있다. 런북이
+  올바른 이유는 체크포인트 전 커밋이 `-wal`에만 있을 수 있기 때문이다
 
 > **남는 실질 위험은 체크포인트가 아니다**: 사람이 `app.db-wal`을 "로그처럼 보여서" 지우는 실수
 > (런북이 다루고 있다). on-volume `.backup()`은 그 논리 손상 축을 막는다.
@@ -121,7 +123,7 @@
 | ~~**D-e**~~ | ~~`deployment.md` Supabase·Sentry 잔재~~ → ✅ **완료(2026-08-01 문서 정리)**. 카탈로그/키 검증도 관리자 엔드포인트로 교체 | — |
 | ~~D-b~~ | ~~`development.md` Supabase 시그니처~~ → ✅ **완료(2026-08-01)**. 무인자 factory로 정정. `testing.md` 잔재는 별도 | — |
 | ~~D-c~~ | ~~플래키 followups plan의 stale quirk~~ → ✅ **해당 plan 삭제(2026-08-01)**. `failed` 즉시 terminal 실패는 코드·`CLAUDE.md` 폴링 절이 진실원 | — |
-| D-d | ~~`DB_PROVIDER` env 문서화~~ → ✅ **완료(2026-08-01)** — `env-vars.md`에 행 추가 + 동작 변경([ADR](../../decisions/2026-08-01-db-provider-boot-gate.md)). **`AUTH_URL`은 아직 행 없음** — 그것만 남았다 | S |
+| ~~D-d~~ | ~~`DB_PROVIDER` env 문서화~~ → ✅ **완료(2026-08-01)** — `env-vars.md`에 행 추가 + 동작 변경([ADR](../../decisions/2026-08-01-db-provider-boot-gate.md)). ~~`AUTH_URL` 문서 행~~ → ✅ **완료(2026-08-02)** — Railway 등록은 B1에서 이미 확인됐고, `env-vars.md`에 Auth.js 프레임워크 변수 행 추가(`APP_URL`과 구분) | — |
 
 ---
 
@@ -286,8 +288,9 @@ generate 경로(`RateLimitService.decrementDailyLimit`)는 `logger.warn`을 남�
 
 | 순 | 항목 | 왜 이 순서인가 |
 |---|---|---|
-| 1 | **B1 · B3(a) · B5** — `AUTH_URL` 등록 · 무료 키 발급 · Unsplash 심사 | 전부 **오너 계정 조치**. 코드가 대신 못 한다. 비용 아님 (~~B6~~은 해결됨). ~~C4(b)~~ ✅ 2026-08-01 |
-| 2 | C3 · C5 · C7 · C8 · C9 | 소형 위생 작업. 급하지 않다 |
+| 1 | **B0** — Supabase/GitHub 고아 자격증명 폐기 | **최고 가치 오너 액션.** 출처 폐기 → Railway 사본 삭제. service_role JWT가 살아 있으면 RLS 우회. [incident-response](../../security/incident-response.md) |
+| 2 | **B3(a) · B5** — 무료 키 발급 · Unsplash 심사 | 전부 **오너 계정 조치**. 코드가 대신 못 한다. 비용 아님. ~~B1~~ ✅ 2026-08-02 · ~~B6~~ 해결 · ~~C4(b)~~ ✅ 2026-08-01 |
+| 3 | C3 · C7 · C8 · C9 | 소형 위생 작업. 급하지 않다 (~~C5~~ ✅) |
 
 > **`qc-stats/route.ts:10`(복잡도 35)이 현재 SonarCloud 최악**인데 WBS에 항목이 없다.
 > 관리자 전용 진단 라우트라 사용자 영향이 없어 **의도적으로 올리지 않는다** — 필요해지면 그때 만들 것.
