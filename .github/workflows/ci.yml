@@ -163,6 +163,11 @@ jobs:
 
       - name: Build application
         run: pnpm build
+        env:
+          # NEXT_PUBLIC_* is inlined at build time — must be present here, not only on the test step.
+          # Without NEXT_PUBLIC_ROOT_DOMAIN, middleware never inspects Host → subdomain rewrite is dead.
+          NEXT_PUBLIC_ROOT_DOMAIN: xzawed.xyz
+          NEXT_PUBLIC_AUTH_PROVIDER: local
 
       - name: Run E2E tests
         run: pnpm test:e2e
@@ -172,8 +177,13 @@ jobs:
           # (테스트 전용 값 — 프로덕션과 무관)
           DB_PROVIDER: sqlite
           SQLITE_PATH: /tmp/e2e-app.db
+          SQLITE_BACKUP_ENABLED: 'false'
           AUTH_SECRET: e2e-ci-secret-not-for-production
           AUTH_TRUST_HOST: 'true'
+          # http:// so Auth.js session cookies are not Secure-only against plain CI HTTP.
+          AUTH_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_ROOT_DOMAIN: xzawed.xyz
+          NEXT_PUBLIC_AUTH_PROVIDER: local
 
       - name: Upload Playwright report
         if: always()

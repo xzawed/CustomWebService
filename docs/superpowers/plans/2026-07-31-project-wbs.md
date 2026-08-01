@@ -124,7 +124,7 @@
 | E3 | builder 생성 핸들러 추출 + 테스트 (T1) — **아래 P0~P4로 분할**. P0은 완료 | L |
 | E4 | 라우트 테스트 (T2: `projects/[id]`, `popular-services`) | S |
 | E5 | 약한 테스트 보강 (T4 PublishDialog 실패 분기, T5 템플릿 11종 계약) | M |
-| E6 | **E2E 확장 (T3)** — 미리보기↔게시 동등성, Host 헤더 서브도메인, 인증·생성·게시 | L |
+| ~~E6~~ | ~~**E2E 확장 (T3)** — 미리보기↔게시 동등성, Host 헤더 서브도메인, 인증·생성·게시~~ | **완료** — `e2e/serving/*` 4계약(A 패스스루·B 마커 동등성·C CSP 1회·D 유령 세션 401) + seed/CI `NEXT_PUBLIC_ROOT_DOMAIN` 빌드타임 인라인. 생성 플로우는 ANTHROPIC 키 부재로 픽스처 시드로 대체 |
 | E7 | MSW 보강 — `onUnhandledRequest:'error'`가 미처리 요청 부재를 보증하지 못한다(MSW #946/#943) | S |
 | **E8** | **`AbortController`를 생성 세션 단위로 승격.** 현재는 `runClientGeneration` 호출 로컬이라, 핸드오프된 폴러가 함수 반환 후 최대 5분 더 살아 있고 끊을 수단이 없다. 사용자가 '이전' 버튼으로 재생성하면 `startGeneration`이 터미널 래치를 재개방하므로 **이전 실행의 폴러가 새 실행 상태에 써 넣을 수 있다**(cross-run 오염). 스토어/모듈 ref로 올려 새 `startGeneration`이 직전 세션을 abort하게 할 것 | M |
 | **E9** | ~~**`RePromptPanel`은 보호가 전혀 없다.**~~ | **완료** — `runClientRegeneration` + `regenerationSession` + 패널 로컬 terminal 가드 + 테스트. coverage exclude 3곳 제거 |
@@ -247,7 +247,7 @@ generate 경로(`RateLimitService.decrementDailyLimit`)는 `logger.warn`을 남�
    최대 테스트 공백이 같은 작업이고, P3에서 폴링 취소로 이중 경로를 근본 해결한다 (L)
 3. ~~**C2** — 오프-볼륨 DR 코드 시임~~ → ✅ 제로 계정 완화(admin download + off-site URL 시임) 완료. **남은 것**: Railway 볼륨 백업(오너·유료)과 **다운로드를 실제로 주기적으로 당기는 습관**(코드가 자동화할 수 없음)
 4. **D-a** — `operations.md` 재작성. 다음 작업자의 오독을 막는다 (M)
-5. **E6** — E2E 확장. 구조적 사각지대의 유일한 방어선 (L)
+5. ~~**E6** — E2E 확장~~ → ✅ **완료**. 구조적 사각지대 4종을 serving 1회 프로젝트로 고정
 
 > **관측 가능성이 좋아졌다.** `GET /api/v1/admin/debug` 하나로 모델 폴백(`models.*.fellBack`)과
 > 이메일 설정(`email.*`)을 Railway 콘솔 없이 확인할 수 있다. 로컬 `.env.local`의 `ADMIN_API_KEY`가
