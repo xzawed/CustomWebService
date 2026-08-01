@@ -10,7 +10,6 @@ vi.mock('@/lib/auth/index', () => ({
 vi.mock('@/services/factory', () => ({
   createProjectService: vi.fn(),
   createCatalogService: vi.fn(),
-  createDeployService: vi.fn(),
   createRateLimitService: vi.fn(),
 }));
 

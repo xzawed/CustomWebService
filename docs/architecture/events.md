@@ -31,18 +31,8 @@ export type DomainEvent =
       type: 'CODE_GENERATION_FAILED';
       payload: { projectId: string; error: string; provider: string };
     }
-  | {
-      type: 'DEPLOYMENT_STARTED';
-      payload: { projectId: string; platform: string };
-    }
-  | {
-      type: 'DEPLOYMENT_COMPLETED';
-      payload: { projectId: string; url: string; platform: string };
-    }
-  | {
-      type: 'DEPLOYMENT_FAILED';
-      payload: { projectId: string; error: string };
-    }
+  // DEPLOYMENT_* 타입은 외부 배포 스택 제거(2026-08-01)로 타입 유니온에서 삭제.
+  // 과거 platform_events 행은 감사 로그로 보존. ADR: docs/decisions/2026-08-01-remove-external-deploy-stack.md
   | { type: 'PROJECT_DELETED'; payload: { deletedProjectId: string } }  // 삭제된 프로젝트는 FK로 못 가리킨다
   // deletedUserId — SqliteEventRepository.persist()가 payload.userId를 user_id FK로 추출하므로
   // 삭제 직후 userId를 쓰면 FK 위반으로 감사 로그가 유실된다(PROJECT_DELETED 동일 함정).
@@ -149,17 +139,13 @@ const unsubscribe = eventBus.on((event) => {
   }
 });
 
-// 알림 구독
-eventBus.on((event) => {
-  if (event.type === 'DEPLOYMENT_FAILED') {
-    notificationService.send(event.payload.projectId, '배포에 실패했습니다.');
-  }
-});
-
 // 모니터링 구독
 eventBus.on((event) => {
   if (event.type === 'API_QUOTA_WARNING') {
     logger.warn('API quota warning', event.payload);
+  }
+  if (event.type === 'CODE_GENERATION_FAILED') {
+    // errorRateMonitor 가 임계값 초과 시 Slack 알림
   }
 });
 

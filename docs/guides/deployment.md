@@ -18,40 +18,21 @@
                           └── 테스트 실행
 ```
 
-### 사용자 생성 서비스 배포
+### 사용자 생성 서비스 “배포” = 서브도메인 게시
+
+외부 GitHub/Railway export 스택은 **2026-08-01 제거**됐다.
+[ADR](../decisions/2026-08-01-remove-external-deploy-stack.md)
 
 ```
 [코드 생성 완료]
     │
-    ├── 1. GitHub 저장소 자동 생성
-    │      (Organization 하위, Template 저장소 기반)
+    ├── 1. POST /api/v1/projects/:id/publish  (slug 확정)
     │
-    ├── 2. 생성된 코드 Push
-    │      (API 키는 환경변수로 분리)
+    ├── 2. middleware Host 감지 → /site/[slug] rewrite
     │
-    ├── 3. 배포 플랫폼 연동
-    │      ├── Railway: Railway CLI → 자동 배포
-    │      └── GitHub Pages: gh-pages 브랜치 → 자동 배포
-    │
-    └── 4. 환경변수 설정
-           (API 키 등을 배포 플랫폼에 주입)
+    └── 3. 공개 URL: https://{slug}.xzawed.xyz
+           (API 키는 플랫폼 프록시 /api/v1/proxy 로 보호)
 ```
-
-### 배포 플랫폼 선택 기준
-
-| 조건 | 추천 플랫폼 | 구현 상태 |
-|------|------------|-----------|
-| 정적 사이트 (HTML/CSS/JS만) | GitHub Pages | ✅ `GithubPagesDeployer.ts` |
-| API 프록시 필요 (API 키 보호) | Railway | ✅ `RailwayDeployer.ts` |
-
-### 배포 Provider 구현 파일
-
-- `src/providers/deploy/IDeployProvider.ts` - 배포 Provider 인터페이스
-- `src/providers/deploy/RailwayDeployer.ts` - Railway 배포
-- `src/providers/deploy/GithubPagesDeployer.ts` - GitHub Pages 정적 배포
-- `src/providers/deploy/DeployProviderFactory.ts` - 플랫폼별 Provider 팩토리
-- `src/lib/deploy/githubService.ts` - GitHub REST API 연동
-- `src/lib/deploy/railwayService.ts` - Railway GraphQL API 연동
 
 ---
 

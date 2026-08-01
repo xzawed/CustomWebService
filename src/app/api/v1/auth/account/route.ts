@@ -6,9 +6,8 @@ import { verifyPassword } from '@/lib/auth/password';
 import { enforceRateLimit, parseJsonBody } from '@/lib/auth/routeHelpers';
 import { getSqliteDb } from '@/lib/db/sqlite/connection';
 import { eventBus } from '@/lib/events/eventBus';
-import { createProjectRepository, createUserRepository } from '@/repositories/factory';
+import { createUserRepository } from '@/repositories/factory';
 import { AuthRequiredError, handleApiError } from '@/lib/utils/errors';
-import { logger } from '@/lib/utils/logger';
 
 const deleteAccountSchema = z.object({
   password: z.string().min(1),
@@ -16,10 +15,7 @@ const deleteAccountSchema = z.object({
 
 /**
  * DELETE /api/v1/auth/account — 계정 삭제(비밀번호 재인증).
- *
- * TODO(#221): GitHub Pages 등 외부 deploy 산출물(repo_url) best-effort 정리는
- * 트랜잭션 밖 비동기 작업으로 추가 가능. 현재 프로젝트 삭제 경로와 동일하게
- * DB 연쇄만 수행하며 외부 레포 고아는 남겨 둔다(응답을 막거나 롤백하지 않음).
+ * DB 연쇄 삭제만 수행한다(외부 GitHub/Railway 배포 스택은 제거됨).
  */
 export async function DELETE(request: Request): Promise<Response> {
   try {
@@ -38,22 +34,6 @@ export async function DELETE(request: Request): Promise<Response> {
     // 잘못된 비밀번호 → 401, 삭제 없음
     if (!verifyPassword(password, dbUser.passwordHash)) {
       throw new AuthRequiredError();
-    }
-
-    // 트랜잭션 전 스냅샷(스크럽·로깅·향후 외부 정리). better-sqlite3 tx 안에서는 await 불가.
-    const projects = await createProjectRepository().findByUserId(sessionUser.id);
-    const externalDeployHints = projects
-      .filter((p) => p.repoUrl || p.deployPlatform)
-      .map((p) => ({
-        projectId: p.id,
-        repoUrl: p.repoUrl,
-        deployPlatform: p.deployPlatform,
-      }));
-    if (externalDeployHints.length > 0) {
-      logger.info('Account delete: external deploy artifacts not cleaned (TODO)', {
-        userId: sessionUser.id,
-        count: externalDeployHints.length,
-      });
     }
 
     const email = dbUser.email;

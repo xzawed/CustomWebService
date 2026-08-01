@@ -17,18 +17,6 @@ export type DomainEvent =
       type: 'CODE_GENERATION_FAILED';
       payload: { projectId: string; error: string; provider: string };
     }
-  | {
-      type: 'DEPLOYMENT_STARTED';
-      payload: { projectId: string; platform: string };
-    }
-  | {
-      type: 'DEPLOYMENT_COMPLETED';
-      payload: { projectId: string; url: string; platform: string };
-    }
-  | {
-      type: 'DEPLOYMENT_FAILED';
-      payload: { projectId: string; error: string };
-    }
   | { type: 'PROJECT_DELETED'; payload: { deletedProjectId: string } }
   // deletedUserId — persist()가 payload.userId를 user_id FK로 추출하므로
   // 삭제 직후 userId를 쓰면 FK 위반으로 감사 로그가 유실된다(PROJECT_DELETED 동일 함정).

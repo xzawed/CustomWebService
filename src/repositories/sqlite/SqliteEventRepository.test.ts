@@ -217,8 +217,8 @@ describe('SqliteEventRepository', () => {
   describe('persistAsync', () => {
     it('writes the event without requiring await (fire-and-forget)', async () => {
       const event: DomainEvent = {
-        type: 'DEPLOYMENT_COMPLETED',
-        payload: { projectId: PROJECT_ID, url: 'https://x.xzawed.xyz', platform: 'railway' },
+        type: 'PROJECT_PUBLISHED',
+        payload: { projectId: PROJECT_ID, userId: USER_ID, slug: 'demo-slug' },
       };
 
       repo.persistAsync(event, { userId: USER_ID, projectId: PROJECT_ID });
@@ -229,7 +229,7 @@ describe('SqliteEventRepository', () => {
 
       const rows = allEvents(db);
       expect(rows).toHaveLength(1);
-      expect(rows[0].type).toBe('DEPLOYMENT_COMPLETED');
+      expect(rows[0].type).toBe('PROJECT_PUBLISHED');
       expect(rows[0].project_id).toBe(PROJECT_ID);
     });
 

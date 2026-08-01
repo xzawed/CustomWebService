@@ -15,9 +15,10 @@
 | `ForbiddenError` | `FORBIDDEN` | 403 | `접근 권한이 없습니다.` | 권한 없는 리소스 접근 시 |
 | `RateLimitError` | `RATE_LIMITED` | 429 | `요청 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.` | 일일 생성 한도 초과 시 |
 | `ConflictError` | `CONFLICT` | 409 | `이미 존재하는 리소스입니다.` | 이메일 중복 가입 등 리소스 충돌 시 |
-| `EmailNotVerifiedError` | `EMAIL_NOT_VERIFIED` | 403 | `이메일 인증이 필요합니다. 받은 편지함을 확인해주세요.` | 미인증 사용자의 생성·배포 등 차단 시 |
+| `EmailNotVerifiedError` | `EMAIL_NOT_VERIFIED` | 403 | `이메일 인증이 필요합니다. 받은 편지함을 확인해주세요.` | 미인증 사용자의 생성·게시 등 차단 시 |
 | `GenerationError` | `GENERATION_FAILED` | 500 | `코드 생성에 실패했습니다.` | AI 코드 생성 파이프라인 실패 시 |
-| `DeployError` | `DEPLOY_FAILED` | 500 | `배포에 실패했습니다.` | 배포 프로세스 실패 시 |
+
+> `DeployError` / `DEPLOY_FAILED` 는 외부 배포 스택 제거(2026-08-01)로 삭제됨. [ADR](../decisions/2026-08-01-remove-external-deploy-stack.md)
 
 ### handleApiError()가 처리하는 추가 케이스
 

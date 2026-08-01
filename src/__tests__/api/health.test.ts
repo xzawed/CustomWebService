@@ -161,12 +161,12 @@ describe('GET /api/v1/health', () => {
     const response = await GET(makeDetailedRequest());
     const body = await response.json();
 
-    // DB ok이면 healthy 또는 degraded (AI/Deploy env vars 설정 여부에 따라 다름)
+    // DB ok이면 healthy 또는 degraded (AI env 설정 여부에 따라 다름)
     expect(['healthy', 'degraded']).toContain(body.status);
     expect(body.checks.database).toBe('ok');
     expect(body.checks.ai).toBeDefined();
     expect(body.checks.aiProvider).toBeDefined();
-    expect(body.checks.deploy).toBeDefined();
+    expect(body.checks.deploy).toBeUndefined();
     expect(body.timestamp).toBeDefined();
     expect(body.usage).toBeDefined();
   });

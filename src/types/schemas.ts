@@ -62,12 +62,6 @@ export const suggestContextSchema = z.object({
     .max(5),
 });
 
-// ── 배포 ──────────────────────────────────────────────────────────────────────
-export const deploySchema = z.object({
-  projectId: z.string().uuid(),
-  platform: z.enum(['railway', 'github_pages']).default('railway'),
-});
-
 // ── 사용자 API 키 ─────────────────────────────────────────────────────────────
 export const saveKeySchema = z.object({
   apiId: z.string().uuid(),

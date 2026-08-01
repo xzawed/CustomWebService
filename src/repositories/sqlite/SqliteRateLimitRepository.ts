@@ -90,47 +90,6 @@ export class SqliteRateLimitRepository implements IRateLimitRepository {
     return row?.count ?? 0;
   }
 
-  async checkAndIncrementDailyDeployLimit(userId: string, limit: number): Promise<boolean> {
-    const usageDate = this.today();
-    return this.db.transaction((tx) => {
-      tx.insert(schema.userDailyLimits)
-        .values({ user_id: userId, usage_date: usageDate, deploy_count: 0 })
-        .onConflictDoNothing()
-        .run();
-
-      const rows = tx
-        .update(schema.userDailyLimits)
-        .set({ deploy_count: sql`${schema.userDailyLimits.deploy_count} + 1` })
-        .where(
-          and(
-            eq(schema.userDailyLimits.user_id, userId),
-            eq(schema.userDailyLimits.usage_date, usageDate),
-            sql`${schema.userDailyLimits.deploy_count} < ${limit}`,
-          ),
-        )
-        .returning({ count: schema.userDailyLimits.deploy_count })
-        .all();
-
-      return rows.length > 0;
-    });
-  }
-
-  async decrementDailyDeployLimit(userId: string): Promise<void> {
-    const usageDate = this.today();
-    this.db
-      .update(schema.userDailyLimits)
-      .set({
-        deploy_count: sql`MAX(0, ${schema.userDailyLimits.deploy_count} - 1)`,
-      })
-      .where(
-        and(
-          eq(schema.userDailyLimits.user_id, userId),
-          eq(schema.userDailyLimits.usage_date, usageDate),
-        ),
-      )
-      .run();
-  }
-
   async checkAndIncrementDailySuggestionLimit(userId: string, limit: number): Promise<boolean> {
     const usageDate = this.today();
     return this.db.transaction((tx) => {
