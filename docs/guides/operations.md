@@ -141,6 +141,27 @@ env: [env-vars.md — SQLite 백업·DB 보존](../reference/env-vars.md).
 2. **WAL은 데이터 본체에 가깝다** — `app.db`만 덮고 WAL을 남기면 복구가 조용히 무효화되고 `integrity_check`는 여전히 `ok`일 수 있다(런북 실측).  
 3. 성공 판정은 integrity만이 아니라 **행 수 대조**.
 
+### 3.4 DR 계층
+
+볼륨 손실까지 포함한 복원력은 **한 겹이 아니다**. 현재 계층:
+
+| 계층 | 상태 | 무엇을 막는가 | 비고 |
+|------|------|---------------|------|
+| **1. On-volume `.backup()` 덤프** | ✅ 운영 중 | 논리 손상·잘못된 마이그레이션·실수 삭제 | `/data/backups` — **같은 볼륨**. 자동 주기 + 보관 7 |
+| **2. 관리자 로컬 다운로드** | ✅ 코드 있음 | 볼륨 손실(**실제로 당겨 둔 경우만**) | `GET /api/v1/admin/backup/latest` + `ADMIN_API_KEY`. 전체 DB 유출 경로 — 감사 로그 + Slack info. **스케줄 다운로드는 사람 습관**이며 코드가 대신 해 줄 수 없다 |
+| **3. Railway 볼륨 백업** | ⏳ **오너 액션·유료** | 볼륨 자체 손실 | 우리가 켤 수 없음. Railway 대시보드에서 볼륨 스냅샷/백업을 켜는 것은 계정 소유자 결정 |
+| **4. Litestream / S3 등 연속 복제** | ❌ **지금은 안 함** | 볼륨 손실 + RPO 단축 | DB ~418KB·단일 인스턴스에서 프로세스·IAM·별도 복구 런북은 운영 극장. 대신 `SQLITE_OFFSITE_BACKUP_URL` 시임(HTTPS PUT, 기본 no-op)만 두어 나중에 URL만 꽂으면 된다 |
+
+관측: `GET /api/v1/admin/debug`의 `offsiteBackup: { configured, lastResult, lastAt }` — **URL은 노출하지 않는다**(토큰 가능). 오프사이트 실패는 로컬 백업 실패 경보와 별개이며, 로컬 성공을 실패로 뒤집지 않는다.
+
+로컬 덤프 당기기 예:
+
+```bash
+curl -fsS -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -o "app-latest.db" \
+  "https://xzawed.xyz/api/v1/admin/backup/latest"
+```
+
 ---
 
 ## 4. 장애 대응
