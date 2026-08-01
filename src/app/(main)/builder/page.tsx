@@ -28,6 +28,7 @@ import { useGenerationStore } from '@/stores/generationStore';
 import { useBuilderModeStore } from '@/stores/builderModeStore';
 import type { BuilderMode } from '@/stores/builderModeStore';
 import { LIMITS } from '@/lib/config/features';
+import { abortGenerationSession } from '@/lib/generation/generationSession';
 import { runClientGeneration } from '@/lib/generation/runClientGeneration';
 import type { ApiCatalogItem, Category } from '@/types/api';
 import type { RelevanceGateResult } from '@/types/project';
@@ -162,6 +163,8 @@ export default function BuilderPage() {
     setStep(1);
     clearApis();
     resetContext();
+    // 고아 폴러 네트워크를 즉시 끊는다. 스토어 오염 1차 방어는 runId(E8).
+    abortGenerationSession();
     resetGeneration();
     setSuggestions([]);
     setApiRecommendations([]);

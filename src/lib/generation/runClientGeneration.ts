@@ -4,17 +4,19 @@
  * `builder/page.tsx` handleGenerate 본문에서 추출. React/router 의존 없음.
  * 스토어 액션·fetch·poll·document·now 를 주입받아 단위 테스트 가능.
  *
- * **E3 P3**: 호출마다 AbortController 하나를 소유한다 (generation session).
- * SSE terminal 시 abortPolling 으로 폴링을 끊고, outer catch 에서도 abort 하여
- * SSE terminal 도달 시 폴링을 abort 한다(방어적 불변조건).
- * ⚠️ 이것으로 "성공이 실패로 뒤집히는" 증상이 해결되지는 않는다 — 실제 원인은 폴링 예산
- * 부족이었고 pollGenerationStatus.maxAttempts 에서 수정했다.
+ * **E8**: 생성 세션은 `beginGenerationSession`(모듈 싱글톤)으로 열고,
+ * `startGeneration()` 이 민팅한 `runId` 를 모든 스토어 write 에 실어 보낸다.
+ * SSE terminal / outer catch 는 **이 실행의** local controller 만 abort 한다
+ * (전역 `abortGenerationSession` 을 catch 에서 부르면 더 새 세션을 죽일 수 있음).
+ *
+ * ⚠️ abort 는 네트워크 2차 방어. cross-run 상태 오염 1차 방어는 `runId` 가드다.
  */
 
 import {
   consumeGenerationStream,
   type ConsumeGenerationStreamDeps,
 } from './consumeGenerationStream';
+import { beginGenerationSession } from './generationSession';
 import {
   pollGenerationStatus,
   type PollGenerationStatusDeps,
@@ -28,10 +30,14 @@ export interface RunClientGenerationInput {
 }
 
 export interface RunClientGenerationDeps {
-  startGeneration: () => void;
-  updateProgress: (progress: number, message: string) => void;
-  completeGeneration: (projectId: string, version?: number) => void;
-  failGeneration: (message: string) => void;
+  startGeneration: () => string;
+  updateProgress: (progress: number, message: string, runId: string) => void;
+  completeGeneration: (
+    projectId: string,
+    version: number | undefined,
+    runId: string,
+  ) => void;
+  failGeneration: (message: string, runId: string) => void;
   setGeneratingProjectId: (id: string) => void;
   /** complete 시 resetContext + clearApis 등 정리. */
   onCompleted?: () => void;
@@ -51,6 +57,11 @@ export interface RunClientGenerationDeps {
   now?: () => number;
   /** SSE 소비 구현 주입 (테스트용). 기본 consumeGenerationStream. */
   consumeStream?: typeof consumeGenerationStream;
+  /**
+   * 세션 시작 주입 (테스트용). 기본 beginGenerationSession.
+   * 재생성 경로와 공유하지 말 것 — generationSession.ts 주석 참조.
+   */
+  beginSession?: () => AbortSignal;
 }
 
 /**
@@ -74,15 +85,40 @@ export async function runClientGeneration(
     documentRef,
     now = () => Date.now(),
     consumeStream = consumeGenerationStream,
+    beginSession = beginGenerationSession,
   } = deps;
 
-  // 생성 세션 단일 소유자 — SSE terminal / outer catch 가 이 컨트롤러로 폴링을 끊는다
-  const controller = new AbortController();
+  // 세션 signal (이전 빌더 생성 세션 abort) + 이 실행 전용 local controller.
+  // 폴링·abortPolling 은 local signal 을 쓴다. 세션 abort → local 도 abort.
+  // 전역 abort 를 outer catch 에서 부르지 않는다 — 더 새 begin 을 죽일 수 있음.
+  const sessionSignal = beginSession();
+  const runController = new AbortController();
+  if (sessionSignal.aborted) {
+    runController.abort();
+  } else {
+    sessionSignal.addEventListener(
+      'abort',
+      () => {
+        runController.abort();
+      },
+      { once: true },
+    );
+  }
 
-  startGeneration();
+  const runId = startGeneration();
+
+  const writeProgress = (progress: number, message: string): void => {
+    updateProgress(progress, message, runId);
+  };
+  const writeComplete = (projectId: string, version?: number): void => {
+    completeGeneration(projectId, version, runId);
+  };
+  const writeFail = (message: string): void => {
+    failGeneration(message, runId);
+  };
 
   try {
-    updateProgress(5, '프로젝트 생성 중...');
+    writeProgress(5, '프로젝트 생성 중...');
     const createRes = await fetchFn('/api/v1/projects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -104,7 +140,7 @@ export async function runClientGeneration(
     const { data: project } = (await createRes.json()) as { data: { id: string } };
     setGeneratingProjectId(project.id);
 
-    updateProgress(10, 'AI 코드 생성 시작...');
+    writeProgress(10, 'AI 코드 생성 시작...');
     const genRes = await fetchFn('/api/v1/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -129,27 +165,28 @@ export async function runClientGeneration(
     // signal 공유로 SSE complete/error 가 폴링 terminal 을 차단한다.
     const pollForCompletion = (pid: string): Promise<void> =>
       pollGenerationStatusFn(pid, {
-        updateProgress,
-        completeGeneration,
-        failGeneration,
+        updateProgress: writeProgress,
+        completeGeneration: writeComplete,
+        failGeneration: writeFail,
         onCompleted,
-        signal: controller.signal,
+        signal: runController.signal,
       });
 
     await consumeStream(reader, project.id, {
-      updateProgress,
-      completeGeneration,
+      updateProgress: writeProgress,
+      completeGeneration: writeComplete,
       onCompleted,
       pollForCompletion,
       abortPolling: () => {
-        controller.abort();
+        runController.abort();
       },
       documentRef,
     });
   } catch (err) {
     // 이미 핸드오프된 폴링이 이후 timeout fail 을 찍지 않도록 먼저 끊는다.
+    // **이 실행의** controller 만 abort — 전역 abortGenerationSession 금지.
     // abort 는 멱등; SSE error 경로에서 이미 abortPolling 했어도 안전.
-    controller.abort();
-    failGeneration(err instanceof Error ? err.message : '알 수 없는 오류');
+    runController.abort();
+    writeFail(err instanceof Error ? err.message : '알 수 없는 오류');
   }
 }
