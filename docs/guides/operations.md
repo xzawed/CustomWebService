@@ -1,6 +1,6 @@
 # 운영 가이드
 
-> **최종 업데이트:** 2026-08-01  
+> **최종 업데이트:** 2026-08-02  
 > **대상:** 프로덕션(https://xzawed.xyz)을 **오늘** 점검·대응해야 하는 운영자  
 > **스택:** Railway 단일 인스턴스 · 임베디드 SQLite(`/data/app.db`) · Auth.js 로컬 인증 · Slack 경보
 
@@ -81,7 +81,7 @@ curl -sS -H "Authorization: Bearer $ADMIN_API_KEY" \
 |------|------|
 | 채널 | xzawed 워크스페이스 **`#alerts`** (앱 `xzawed alerts`) |
 | env | `SLACK_WEBHOOK_URL` — **키 존재가 아니라 값 길이**. 빈 문자열 = 미설정 = 조용한 no-op |
-| Sentry | **의도적 미도입·코드 제거(2026-08-01)**. 레거시 env가 Railway에 남아 있어도 코드가 읽지 않음 |
+| Sentry | **의도적 미도입·코드 제거(2026-08-01)**. `SENTRY_*`를 코드가 읽지 않음. 2026-08-02 점검: 프로덕션 Railway에 `SENTRY_*` 변수는 **애초에 없었음**(삭제 할 일 없음) |
 | 설정·재발급·합성 경보 | **[monitoring-sink-setup.md](monitoring-sink-setup.md)** (2026-07-31 실경보 검증 완료) |
 
 ### 2.2 경보 생산자 (코드에 배선된 것만)
@@ -123,6 +123,25 @@ env: [env-vars.md — SQLite 백업·DB 보존](../reference/env-vars.md).
 | 방식 | better-sqlite3 `.backup()` | WAL 중에도 자기완결 스냅샷. 단일 인스턴스·**동일 볼륨** 전제. 볼륨 손실까지 막는 계층이 아님(§3.4) |
 | 경보 | §2.2 | 실패/복구 전이만 |
 
+#### Railway 볼륨 지표 주의 (2026-08-02 실측)
+
+Railway 대시보드의 볼륨 `currentSizeMB ≈ 1064`는 **할당/과금 회계 값**이지 사용 바이트가 아니다.
+같은 시점 컨테이너 안 `du -sh /data`는 **약 4.7MB**였다. 대시보드 숫자만 보고 디스크 위기로
+오인하지 말 것 — 실제 사용량은 컨테이너에서 `du`/`ls`로 본다.
+
+#### 프로덕션 `/data` 레이아웃 (2026-08-02 점검, 참고)
+
+| 항목 | 상태 |
+|------|------|
+| `app.db` · `app.db-shm` · `app.db-wal` | 라이브 세트. 크기 비율은 시점마다 다름([런북](sqlite-restore-runbook.md) — **크기는 건강 지표 아님**) |
+| `backups/` | **정확히 7개** — 보존 정책(`SQLITE_BACKUP_RETENTION=7`) 정상 동작 확인. 자동 백업 루프 산출물은 깨끗함(`.db-wal`/`.db-shm` 잔재 없음) |
+| `incident-20260731-101945/` | 2026-07-31 리허설 **전** 스냅샷(~1.5MB). **사용자 데이터의 옛 사본** — 보관 방침을 정할 것(오프-볼륨으로 옮긴 뒤 삭제 권장). 긴급은 아님 |
+| `lost+found/` | 파일시스템 잔재. 앱 비사용 |
+
+> **운영자/에이전트가 백업을 `readonly: true`로 열어 검증할 때** `.db-wal`/`.db-shm`이 백업 디렉터리에
+> 생길 수 있다 — prune 패턴에 안 걸려 누수된다. 검증 후 `rm -f /data/backups/*.db-wal /data/backups/*.db-shm`
+> ([런북](sqlite-restore-runbook.md)). 자동 백업 루프 자체는 프로덕션 `backups/`가 깨끗한 것으로 확인됐다.
+
 ### 3.2 DB 보존(정리)
 
 | 테이블 | 기본 보존 | 삭제 조건 |
@@ -138,8 +157,8 @@ env: [env-vars.md — SQLite 백업·DB 보존](../reference/env-vars.md).
 ### 3.3 복구가 필요할 때
 
 1. [sqlite-restore-runbook.md](sqlite-restore-runbook.md)만 따른다.  
-2. **WAL은 데이터 본체에 가깝다** — `app.db`만 덮고 WAL을 남기면 복구가 조용히 무효화되고 `integrity_check`는 여전히 `ok`일 수 있다(런북 실측).  
-3. 성공 판정은 integrity만이 아니라 **행 수 대조**.
+2. **WAL 모드 불변조건** — 커밋 데이터는 체크포인트 전까지 `-wal`에만 있을 수 있다. `app.db`만 덮고 옛 WAL을 남기면 복구가 조용히 무효화되고 `integrity_check`는 여전히 `ok`일 수 있다. **main 교체 + WAL/SHM 제거는 한 세트.** 파일 크기는 건강 지표가 아니다(런북).  
+3. 성공 판정은 integrity·파일 크기가 아니라 **행 수 대조**.
 
 ### 3.4 DR 계층
 

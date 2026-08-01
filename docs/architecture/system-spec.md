@@ -306,17 +306,22 @@ CSP를 만질 때는 `middleware.ts` · `site/[slug]/route.ts` · `preview/[proj
 
 ## 5. 데이터 계약
 
-### 5.1 WAL은 캐시가 아니라 데이터 본체다
+### 5.1 WAL 모드 — 메커니즘 불변조건 (파일 크기 스냅샷이 아님)
 
-프로덕션 실측: `/data/app.db`는 4096B·테이블 0개이고 실데이터는 전부 `app.db-wal`에 있다.
+SQLite WAL 모드에서는 **커밋된 데이터가 체크포인트 전까지 `-wal`에만 존재할 수 있다.**
+main이 크거나 WAL이 비어 있는 시점, 그 반대인 시점 모두 정상일 수 있다.
+**파일 크기는 건강 지표가 아니다** — 깨끗한 종료 없이 오래 뜨면 WAL이 autocheckpoint 임계
+(기본 1000페이지 ≈ 3.9MB)까지 자랄 수 있고, `.backup()` 복구 직후엔 반대로 main이 크고 WAL이 비어 있다.
+어느 한쪽 크기를 “이 서비스의 영원한 사실”로 적지 말 것. 시점 관측은 [복구 런북 리허설 기록](../guides/sqlite-restore-runbook.md)에만 남긴다.
 
 | 실수 | 결과 |
 |------|------|
-| WAL만 지우고 app.db는 둔다 | **DB 전체 소실** |
-| 백업본으로 app.db만 덮어쓰고 WAL을 남긴다 | 🔇 남은 WAL이 재생되어 **복구가 조용히 무효화**되는데 `integrity_check`는 여전히 `ok` |
+| 살아 있는 main을 두고 `-wal`/`-shm`만 지운다 | 체크포인트 전 커밋이 있으면 **데이터 소실** |
+| 백업본으로 app.db만 덮어쓰고 옛 WAL을 남긴다 | 🔇 남은 WAL이 재생되어 **복구가 조용히 무효화**되는데 `integrity_check`는 여전히 `ok` |
 
 **app.db 교체와 WAL/SHM 제거는 반드시 한 세트**로 한다.
-**복구 성공 판정은 `integrity_check`가 아니라 행 수 대조다.**
+`.backup()` 산출물은 **자기완결**이다 — 복구 = 그 파일 설치 + WAL/SHM 잔존 제거.
+**복구 성공 판정은 `integrity_check`·파일 크기가 아니라 행 수 대조다.**
 절차: [복구 런북](../guides/sqlite-restore-runbook.md)
 
 ### 5.2 slug 유일성은 DB가 아니라 앱이 관리한다

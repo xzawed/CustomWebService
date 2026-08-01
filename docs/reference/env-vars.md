@@ -58,10 +58,11 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 |------|------|---------|------|
 | `AUTH_SECRET` | ✅ | ✅ | Auth.js 세션(JWT) 서명 키. 임의 시크릿(`openssl rand -base64 32`) |
 | `AUTH_TRUST_HOST` | ✅ (프록시 뒤) | ✅ `true` | 리버스 프록시(Railway) 뒤에서 호스트 헤더 신뢰. `true` 설정 |
+| `AUTH_URL` | 권장 | ✅ `https://xzawed.xyz` | **Auth.js 프레임워크 레벨** canonical URL(콜백·절대 URL 생성). **`APP_URL`과 별개** — `APP_URL`은 우리 앱 코드(`getBaseUrl`)가 이메일 링크 base로 쓰는 값이다. 미설정 시 프록시 뒤에서 `callback-url`이 내부 주소(`0.0.0.0:8080`)로 잡힐 수 있다. `AUTH_TRUST_HOST=true`면 로그인은 동작하지만 명시 설정을 권장. 2026-08-02 실측: Railway 등록됨(길이 18 = `https://xzawed.xyz`) |
 | `NEXT_PUBLIC_AUTH_PROVIDER` | ✅ | ✅ `local` | 클라이언트 컴포넌트용 빌드 타임 상수. 값은 `local` 고정 |
 | `RESEND_API_KEY` | 선택 | ➖ | Resend 이메일 API 키. 미설정 시 no-op 콘솔 폴백(이메일 인증 링크가 실제로 발송되지 않음 — 로컬/테스트 환경 전용) |
 | `EMAIL_FROM` | 선택 | ➖ | 이메일 발신자 주소 (예: `noreply@xzawed.xyz`). `RESEND_API_KEY` 설정 시 필수. 도메인 SPF/DKIM 설정 필요(Resend 대시보드). ⚠️ 빈 문자열이면 `?? 기본값` 폴백이 안 됨(null/undefined만 폴백) → 발송 실패하므로 반드시 값 지정. 도메인 미인증 시 `onboarding@resend.dev`는 Resend 가입 계정 이메일로만 발송 |
-| `APP_URL` | 권장 | ✅ `https://xzawed.xyz` | 이메일 링크(인증·비밀번호 재설정)의 공개 base URL. 미설정 시 `NEXT_PUBLIC_ROOT_DOMAIN` → 요청 origin 순으로 폴백. 프록시(Railway) 뒤에서 링크가 내부 주소(`0.0.0.0:8080`)로 잡히는 문제 방지 + 요청 호스트 헤더를 신뢰하지 않아 reset-password poisoning 차단 (`getBaseUrl`, `src/lib/auth/routeHelpers.ts`) |
+| `APP_URL` | 권장 | ✅ `https://xzawed.xyz` | 이메일 링크(인증·비밀번호 재설정)의 공개 base URL. 미설정 시 `NEXT_PUBLIC_ROOT_DOMAIN` → 요청 origin 순으로 폴백. 프록시(Railway) 뒤에서 링크가 내부 주소(`0.0.0.0:8080`)로 잡히는 문제 방지 + 요청 호스트 헤더를 신뢰하지 않아 reset-password poisoning 차단 (`getBaseUrl`, `src/lib/auth/routeHelpers.ts`). Auth.js의 `AUTH_URL`과 역할이 다르다 |
 
 > **제거된 변수 (2026-06-24)**: `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH`, `ADMIN_NAME`, `ADMIN_USER_ID` — env 단일 관리자 경로 완전 제거. 계정은 `/signup` 공개 회원가입으로 생성.
 > **유지**: `ADMIN_API_KEY`(진단 엔드포인트 `/api/v1/admin/*` 보호 — 사용자 인증과 무관, 아래 보안 섹션 참조).
@@ -132,15 +133,19 @@ for (const r of c) if (r.auth_config?.env_var)
 
 ### 제거됨 · 미사용 (외부 사용자 서비스 export 스택, 2026-08-01)
 
-아래 변수는 코드가 **더 이상 읽지 않는다.** Railway에 값이 남아 있으면 **삭제해도 된다.**
+아래 변수는 코드가 **더 이상 읽지 않는다.**
 (프록시 비밀 denylist에 이름 문자열만 남아 있을 수 있음 — 동작에는 무관.)
-상세: [ADR](../decisions/2026-08-01-remove-external-deploy-stack.md)
+상세: [ADR](../decisions/2026-08-01-remove-external-deploy-stack.md).
+
+**남아 있으면** Railway 사본 삭제 가능 — 단 `GITHUB_TOKEN` 등 토큰은 **출처에서 먼저 revoke**한 뒤 사본을 지운다
+(Railway만 지우면 토큰은 여전히 유효). 2026-08-02 실측: `GITHUB_TOKEN`·`GITHUB_ORG` 잔존
+→ [incident-response 고아 자격증명](../security/incident-response.md) · WBS B0.
 
 | 변수 | 상태 | 설명 |
 |------|------|------|
-| `GITHUB_TOKEN` | **removed/unused** | 과거 GitHub org 레포 생성·push용. 삭제 권장 |
-| `GITHUB_ORG` | **removed/unused** | 과거 GitHub 조직명. 삭제 권장 |
-| `RAILWAY_TOKEN` | **removed/unused** | 과거 사용자 서비스 Railway 배포용. 삭제 권장 |
+| `GITHUB_TOKEN` | **removed/unused** | 과거 GitHub org 레포 생성·push용. **남아 있으면** 출처 revoke 후 Railway 삭제 |
+| `GITHUB_ORG` | **removed/unused** | 과거 GitHub 조직명. 남아 있으면 Railway 삭제 가능 |
+| `RAILWAY_TOKEN` | **removed/unused** | 과거 사용자 서비스 Railway 배포용. 남아 있으면 출처 폐기 후 삭제 가능 |
 | `MAX_DEPLOY_PER_DAY` | **removed/unused** | 과거 일일 외부 배포 한도. 무시됨 |
 
 ---
@@ -173,16 +178,17 @@ for (const r of c) if (r.auth_config?.env_var)
 
 ### 제거됨 · 미사용 (Sentry 스캐폴딩, 2026-08-01)
 
-아래 변수는 코드가 **더 이상 읽지 않는다.** Railway에 값이 남아 있으면 **삭제해도 된다.**
+아래 변수는 코드가 **더 이상 읽지 않는다.** **남아 있으면** 삭제 가능하다(미해결 할 일이 아님).
+2026-08-02 프로덕션 점검: Railway에 `SENTRY_*` 변수는 **애초에 설정되지 않았음** — 삭제 작업 대상 없음.
 상세: [ADR](../decisions/2026-08-01-remove-unused-sentry-scaffolding.md)
 
 | 변수 | 상태 | 설명 |
 |------|------|------|
-| `SENTRY_DSN` | **removed/unused** | 과거 Sentry 서버·edge DSN. 삭제 권장 |
-| `NEXT_PUBLIC_SENTRY_DSN` | **removed/unused** | 과거 Sentry 브라우저 DSN. 삭제 권장 |
+| `SENTRY_DSN` | **removed/unused** | 과거 Sentry 서버·edge DSN. 남아 있으면 삭제 가능 |
+| `NEXT_PUBLIC_SENTRY_DSN` | **removed/unused** | 과거 Sentry 브라우저 DSN. 남아 있으면 삭제 가능 |
 | `SENTRY_ORG` | **removed/unused** | 과거 소스맵 업로드 조직 슬러그. 무시됨 |
 | `SENTRY_PROJECT` | **removed/unused** | 과거 소스맵 업로드 프로젝트 슬러그. 무시됨 |
-| `SENTRY_AUTH_TOKEN` | **removed/unused** | 과거 소스맵 업로드 토큰. 삭제 권장 |
+| `SENTRY_AUTH_TOKEN` | **removed/unused** | 과거 소스맵 업로드 토큰. 남아 있으면 삭제 가능 |
 
 ---
 

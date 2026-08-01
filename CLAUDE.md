@@ -320,7 +320,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 - **`getAuthUser` DB 행 확인(유령 세션 차단)** — system-spec §1.2 · [ADR](docs/decisions/2026-07-30-account-delete-and-export.md)
 - **`generationTracker`는 진행률 전용 · 중복 차단은 `generationLock`** — system-spec §3.1 · [ADR](docs/decisions/2026-07-29-durable-generation-lock.md)
 - **생성 status `not_found` 통일** — system-spec §1.7 (클라 union 누락 시 잘못된 UX — 아래 폴링 절 참고)
-- **WAL=데이터 본체 · 보존 정책(미사용 토큰 삭제 금지) · 카운터 `DEFAULT 0` · 쿼터 `charged===true` 환불** — system-spec §4.5–4.7·§5.1 · [복구 런북](docs/guides/sqlite-restore-runbook.md)
+- **WAL 모드: 체크포인트 전 커밋은 `-wal`에만 있을 수 있음 · main 교체+WAL/SHM 제거는 한 세트 · 성공=행 수(크기·`integrity_check` 아님) · 보존 정책(미사용 토큰 삭제 금지) · 카운터 `DEFAULT 0` · 쿼터 `charged===true` 환불** — system-spec §4.5–4.7·§5.1 · [복구 런북](docs/guides/sqlite-restore-runbook.md)
 
 ### 에이전트·테스트·CI 함정 (항상 로드)
 
