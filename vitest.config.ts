@@ -77,7 +77,7 @@ export default defineConfig({
         'src/stores/**',
         'src/types/**',
       ],
-      exclude: ['src/test/**', 'src/components/builder/RePromptPanel.tsx'],
+      exclude: ['src/test/**'],
       thresholds: {
         branches: 40,
         functions: 30,

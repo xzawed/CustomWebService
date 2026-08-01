@@ -63,11 +63,10 @@ export const useGenerationStore = create<GenerationState>((set) => ({
   //    `startGeneration`이 래치를 무조건 재개방하므로, **runId 가 없으면** 이전 실행의
   //    폴러가 새 실행 상태에 써 넣는다. 세션 abort 는 네트워크를 끊는 2차 방어이며,
   //    abort 가 누락돼도 runId 가 상태 오염을 막는다.
-  // 2. **재생성 경로(`RePromptPanel`)는 이 스토어를 쓰지 않는다 (E9, 아직 미보호)** —
-  //    로컬 `useState`라 이 안전벨트·runId 가 적용되지 않는다. 그쪽은 별도 PR.
-  //
-  // 같은 실행 안에서 SSE/폴링이 경쟁 종료를 내는 경우(또는 방어적 중복 콜)에
-  // 터미널 래치가 여전히 먼저 도착한 쪽을 확정한다.
+  // 2. **같은 실행 안 SSE/폴링 경쟁 종료 (defence-in-depth)** — 먼저 도착한 쪽을 확정한다.
+  //    (E9 이후) 재생성 경로(`RePromptPanel`)는 이 스토어를 쓰지 않고 패널 로컬
+  //    runId/terminal 가드 + `regenerationSession` abort 로 보호한다. 이 스토어 래치는
+  //    빌더 create→generate 경로 전용이며, "RePromptPanel 미보호"가 존속 이유는 아니다.
   updateProgress: (progress, currentStep, runId) =>
     set((s) =>
       s.status === 'generating' && s.runId === runId

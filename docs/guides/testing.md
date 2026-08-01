@@ -217,7 +217,8 @@
 | `src/components/dashboard/RePromptSection.test.tsx` | 버전 번호 표시, `router.refresh()` 호출 |
 | `src/components/builder/GenerationProgress.test.tsx` | idle/generating/completed/failed 상태, elapsed 타이머, 단계별 phase 매핑 |
 | `src/components/builder/PreviewFrame.test.tsx` | iframe src 쿼리 파라미터, device 토글, cache-bust t 증가, sandbox 권한 |
-| `src/components/builder/RePromptPanel.test.tsx` | 버전 탭, 재생성 제출, 피드백 textarea |
+| `src/components/builder/RePromptPanel.test.tsx` | 재생성 제출, in-flight 중복 차단, 서버 오류 표시, 언마운트 abort |
+| `src/lib/generation/runClientRegeneration.test.ts` | regenerate 실패/SSE complete·error/poll 핸드오프/abort/not_found |
 | `src/components/layout/Header.test.tsx` | 비로그인/로그인 분기, 아바타 드롭다운, 로그아웃, 모바일 메뉴 |
 | `src/components/settings/ApiKeyCard.test.tsx` | 키 등록/변경/삭제, 빈 입력 차단, 가이드 모달 |
 | *(21개 추가 파일)* | catalog, builder, settings 영역 UI 회귀 방지 |

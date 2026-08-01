@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Sparkles, Wand2, Loader2, ChevronDown, ChevronUp, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { runClientRegeneration } from '@/lib/generation/runClientRegeneration';
+import { abortRegenerationSession } from '@/lib/generation/regenerationSession';
 
 type RegenStatus = 'idle' | 'suggesting' | 'generating' | 'done' | 'error';
 
@@ -18,8 +20,31 @@ export default function RePromptPanel({ projectId, onRegenerationComplete }: ReP
   const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const mountedRef = useRef(true);
-  useEffect(() => { return () => { mountedRef.current = false; }; }, []);
+
+  // 로컬 terminal 가드 — generationStore 래치가 적용되지 않으므로
+  // 늦게 도착한 poll terminal 이 끝난 재생성/onRegenerationComplete 를 덮어쓰지 못하게 한다.
+  const runIdRef = useRef(0);
+  const terminalForRunRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      // 언마운트 시 네트워크도 실제로 취소 (이전 mountedRef 만으로는 state write 만 막혔음)
+      abortRegenerationSession();
+    };
+  }, []);
+
+  /**
+   * 현재 실행에만 상태/콜백을 적용.
+   * terminal 확정 후 같은 run 의 late 콜백(이중 complete/fail)은 무시한다.
+   */
+  const guardWrite = useCallback((runId: number, isTerminal: boolean, fn: () => void): void => {
+    if (runId !== runIdRef.current) return;
+    if (terminalForRunRef.current === runId) return;
+    if (isTerminal) {
+      terminalForRunRef.current = runId;
+    }
+    fn();
+  }, []);
 
   const fetchSuggestions = useCallback(async (currentFeedback?: string) => {
     setStatus('suggesting');
@@ -40,6 +65,9 @@ export default function RePromptPanel({ projectId, onRegenerationComplete }: ReP
   }, [projectId, feedback]);
 
   const handleRegenerate = useCallback(async () => {
+    // in-flight 중복 제출 차단 (generating UI 전에 더블클릭 등)
+    if (status === 'generating' || status === 'suggesting') return;
+
     const trimmed = feedback.trim();
 
     // If prompt is too short or vague, show suggestions first
@@ -48,148 +76,53 @@ export default function RePromptPanel({ projectId, onRegenerationComplete }: ReP
       return;
     }
 
+    const runId = runIdRef.current + 1;
+    runIdRef.current = runId;
+    terminalForRunRef.current = null;
+
     setStatus('generating');
     setProgress(0);
+    setProgressMsg('');
     setErrorMsg('');
 
-    try {
-      const res = await fetch('/api/v1/generate/regenerate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, feedback: trimmed || '현재 웹서비스를 개선해주세요.' }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message ?? '재생성에 실패했습니다.');
-      }
-
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      if (!reader) throw new Error('스트림을 읽을 수 없습니다.');
-
-      const pollForRegeneration = async (projectId: string) => {
-        const MAX_ATTEMPTS = 300; // 서버 PIPELINE_MAX_DURATION_MS(기본 290초)보다 길어야 한다 — 짧으면 성공을 실패로 표시한다
-        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-          if (!mountedRef.current) return;
-          try {
-            const res = await fetch(`/api/v1/generate/status/${projectId}`);
-            if (!res.ok) break;
-            const { data } = (await res.json()) as {
-              data: {
-                status: 'generating' | 'completed' | 'failed' | 'unknown';
-                progress?: number;
-                message?: string;
-                result?: { projectId: string; version: number };
-                error?: string;
-              };
-            };
-            if (data.status === 'generating') {
-              setProgress(data.progress ?? 0);
-              setProgressMsg(data.message ?? '재생성 중...');
-            } else if (data.status === 'completed' && data.result) {
-              setProgress(100);
-              setStatus('done');
-              setFeedback('');
-              setSuggestions([]);
-              onRegenerationComplete(data.result.version ?? 1);
-              return;
-            } else if (data.status === 'failed') {
-              throw new Error(data.error ?? '재생성 실패');
-            } else {
-              setStatus('error');
-              setErrorMsg('연결이 복구되지 않았습니다. 대시보드에서 결과를 확인해주세요.');
-              return;
-            }
-          } catch (err) {
-            if (attempt === MAX_ATTEMPTS - 1) {
-              setStatus('error');
-              setErrorMsg(err instanceof Error ? err.message : '폴링 중 오류 발생');
-              return;
-            }
-          }
-          await new Promise<void>((resolve) => setTimeout(resolve, 1000));
-        }
-        setStatus('error');
-        setErrorMsg('재생성 시간이 초과되었습니다. 대시보드에서 확인해주세요.');
-      };
-
-      let switchedToPolling = false;
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible' && !switchedToPolling) {
-          switchedToPolling = true;
-          reader.cancel().catch(() => {});
-          void pollForRegeneration(projectId);
-        }
-      };
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
-      let buffer = '';
-      let done = false;
-      let sseErrorEvent = false;
-
-      try {
-      while (!done) {
-        const { value, done: streamDone } = await reader.read();
-        done = streamDone;
-        if (value) {
-          buffer += decoder.decode(value, { stream: true });
-          const events = buffer.split('\n\n');
-          buffer = events.pop() ?? '';
-
-          for (const block of events) {
-            if (!block.trim()) continue;
-            let eventType = 'message';
-            let eventData = '';
-            for (const line of block.split('\n')) {
-              if (line.startsWith('event: ')) eventType = line.slice(7).trim();
-              else if (line.startsWith('data: ')) eventData = line.slice(6);
-            }
-            if (!eventData) continue;
-
-            let parsed: Record<string, unknown>;
-            try { parsed = JSON.parse(eventData); } catch { continue; }
-
-            if (eventType === 'progress') {
-              setProgress((parsed.progress as number) ?? 0);
-              setProgressMsg((parsed.message as string) ?? '');
-            } else if (eventType === 'complete') {
-              setProgress(100);
-              setStatus('done');
-              setFeedback('');
-              setSuggestions([]);
-              onRegenerationComplete((parsed.version as number) ?? 1);
-              return;
-            } else if (eventType === 'error') {
-              sseErrorEvent = true;
-              throw new Error((parsed.message as string) ?? '재생성 실패');
-            }
-          }
-        }
-      }
-
-      // Stream ended without 'complete' event
-      if (!switchedToPolling) {
-        void pollForRegeneration(projectId);
-      }
-      } catch (streamErr) {
-        if (sseErrorEvent) {
-          // 서버가 보낸 SSE error 이벤트 — 외부 catch로 전파
-          throw streamErr;
-        }
-        // 스트림 읽기 에러 (모바일 백그라운드 전환 등) — 폴링으로 전환
-        if (!switchedToPolling) {
-          switchedToPolling = true;
-          void pollForRegeneration(projectId);
-        }
-      } finally {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-      }
-    } catch (err) {
-      setStatus('error');
-      setErrorMsg(err instanceof Error ? err.message : '알 수 없는 오류');
-    }
-  }, [feedback, suggestions, projectId, fetchSuggestions, onRegenerationComplete]);
+    await runClientRegeneration(
+      {
+        projectId,
+        feedback: trimmed || '현재 웹서비스를 개선해주세요.',
+      },
+      {
+        updateProgress: (p, message) => {
+          guardWrite(runId, false, () => {
+            setProgress(p);
+            setProgressMsg(message);
+          });
+        },
+        completeRegeneration: (version) => {
+          guardWrite(runId, true, () => {
+            setProgress(100);
+            setStatus('done');
+            setFeedback('');
+            setSuggestions([]);
+            onRegenerationComplete(version ?? 1);
+          });
+        },
+        failRegeneration: (message) => {
+          guardWrite(runId, true, () => {
+            setStatus('error');
+            setErrorMsg(message);
+          });
+        },
+      },
+    );
+  }, [
+    status,
+    feedback,
+    suggestions,
+    projectId,
+    fetchSuggestions,
+    onRegenerationComplete,
+    guardWrite,
+  ]);
 
   const handleSelectSuggestion = (suggestion: string) => {
     setFeedback(suggestion);
