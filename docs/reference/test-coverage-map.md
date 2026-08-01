@@ -38,7 +38,7 @@
 | `src/hooks/**` | — | +1 (`usePublish`) | 🟡 나머지 훅 공백 |
 | `src/app/(main)/**` 페이지 | 4 | 0 | 🔴 `builder/page.tsx` 862줄 포함 |
 | `src/templates/**` | 13 | 1 (레지스트리) | 🔴 개별 템플릿 계약 미검증 |
-| `e2e/` | — | 3 spec / 11 테스트 | 🔴 인증·생성·게시·서브도메인 전부 미커버 |
+| `e2e/` | — | pages 3 device × 기존 UI + **serving 1회** (setup·A–D) | 🟢 E6: 유령 세션·서빙 동등성·CSP 단일·서브도메인 패스스루 고정 |
 
 ---
 
@@ -108,7 +108,7 @@ grep "^SF:" coverage/lcov.info | tr '\\' '/' | grep '패턴'   # lcov는 백슬�
 |----|------|------------|------------|
 | **T1** | `src/app/(main)/builder/page.tsx` (862줄, 테스트 0) | 프로젝트 생성 → 생성 트리거 → SSE 리더 → 폴백 폴링 **오케스트레이션 전체가 이 파일에만** 있다. 폴링 함수 자체(`pollGenerationStatus`)는 테스트되지만 **조합**은 미검증 | 핸들러를 훅/순수함수로 추출 후 fetch·SSE·poll 주입형으로: ① SSE 성공 시 폴링 중단 ② SSE error → 폴백 전환 ③ 스트림 중도 종료 시 상태 확정 |
 | **T2** | `src/app/api/v1/projects/[id]/route.ts` | **DELETE가 프로젝트 영구 삭제 진입점**이고 앱 캐스케이드의 입구다. 서비스는 커버되나 라우트 인증 게이트·에러 매핑은 미검증 | GET·DELETE 각각 미인증 401 / 타인 소유 403 / 소유자 200 |
-| **T3** | E2E 전반 (`e2e/` 3 spec / 11 테스트) | 인증·빌더/생성·게시·서브도메인 서빙·프록시가 **전부 0**. [system-spec](../architecture/system-spec.md) 1.2(유령 세션)처럼 **단위 테스트가 구조적으로 못 잡는 결함**의 유일한 방어선 | request 레벨로 `/api/v1/preview/:id`와 `/site/:slug`의 HTML·CSP 동등성 비교. **서브도메인은 Host 헤더 주입으로 검증 가능**(판정은 middleware가 Host로 한다) |
+| **T3** | ~~E2E 전반~~ → ✅ **E6 완료** | 단위 테스트가 구조적으로 못 잡는 4종(§5)을 request-level E2E로 고정. `e2e/seed.mjs`가 SQLite 픽스처를 서버 기동 전 시드. CI는 **Build + E2E 양쪽**에 `NEXT_PUBLIC_ROOT_DOMAIN=xzawed.xyz` (빌드타임 인라인). Host는 `127.0.0.1` + `e2e/helpers/httpHost.ts`로 명시 주입(`slug.localhost` 불가) | `e2e/serving/*` 1회 프로젝트(setup storageState 의존). A 패스스루 · B 마커 동등성 · C CSP `headersArray` 1회 · D 유령 세션 401. pages/* 는 기존 device matrix 유지 |
 | **T4** | `PublishDialog` 실패 분기 | 기존 7개 테스트가 전부 정상 경로. slug reason 분기(`invalid`/`reserved`/`taken`), AbortError 무시, publish catch, 에러 렌더가 **전부 미실행** | reason별 메시지 + 게시 버튼 disabled 유지, publish reject 시 에러 렌더 |
 | **T5** | `src/templates/` 개별 11종 | 레지스트리는 "등록됨"만 검증. 소비처가 try/catch로 삼켜서 **깨져도 예외 없이 품질만 떨어진다** | `it.each`로 11종: `generate()`가 비지 않은 promptHint 반환 + `authType!=='none'`이면 프록시 경로 포함 |
 | **T6** | `PopularServiceSuggestions.tsx` (143줄) | useEffect가 자동 fetch하는데 MSW 핸들러가 없고 `onUnhandledRequest:'error'`라 **핸들러부터 추가하지 않으면 테스트 작성 자체가 막힌다** | `handlers.ts`에 엔드포인트 추가 → 로딩 / 빈 목록 / fetch 실패 3케이스 |
@@ -125,16 +125,16 @@ grep "^SF:" coverage/lcov.info | tr '\\' '/' | grep '패턴'   # lcov는 백슬�
 
 ---
 
-## 5. 구조적 한계 — 테스트로 못 잡는 것
+## 5. 구조적 한계 — 단위 테스트로 못 잡는 것 (E2E로 고정)
 
-아래는 단위 테스트를 아무리 늘려도 잡히지 않는다. **E2E(T3)가 유일한 방어선**이다.
+아래는 단위 테스트를 아무리 늘려도 잡히지 않는다. **E2E(T3/E6)가 유일한 방어선**이다.
 
-| 결함 | 왜 단위 테스트가 못 잡나 |
-|------|------------------------|
-| `getAuthUser`의 DB 행 확인 제거 (유령 세션) | **라우트 테스트가 `getAuthUser`를 통째로 모킹**한다 |
-| 미리보기 / 게시(직접) / 게시(서브도메인) 3경로 불일치 | 경로별 차이는 실제 서빙에서만 드러난다 |
-| CSP 2중 적용으로 인한 백지 | 헤더 병합은 HTTP 레이어에서 일어난다 |
-| 서브도메인 rewrite 예외 누락 | 미리보기는 apex라 정상 동작해 드러나지 않는다 (2026-07-28 실측 장애) |
+| 결함 | 왜 단위 테스트가 못 잡나 | E2E 스펙 |
+|------|------------------------|----------|
+| `getAuthUser`의 DB 행 확인 제거 (유령 세션) | **라우트 테스트가 `getAuthUser`를 통째로 모킹**한다 | `e2e/serving/ghost-session.spec.ts` — 로그인 후 `cascadeDeleteUser` → 동일 쿠키로 `GET /api/v1/projects` **401** (200+`[]`면 회귀) |
+| 미리보기 / 게시(직접) / 게시(서브도메인) 3경로 불일치 | 경로별 차이는 실제 서빙에서만 드러난다 | `e2e/serving/serving-equivalence.spec.ts` — 세 경로 모두 `E2E_FIXTURE_OK` 마커 (바이트 동등 아님) |
+| CSP 2중 적용으로 인한 백지 | 헤더 병합은 HTTP 레이어에서 일어난다 | `e2e/serving/csp.spec.ts` — `headersArray()`/`rawHeaders`로 CSP **정확히 1개**, CDN 호스트 포함. site `frame-ancestors 'none'` vs preview `'self'` |
+| 서브도메인 rewrite 예외 누락 | 미리보기는 apex라 정상 동작해 드러나지 않는다 (2026-07-28 실측 장애) | `e2e/serving/subdomain-passthrough.spec.ts` — `Host: e2e-fixture.xzawed.xyz` + `/api/v1/proxy` → 프록시 JSON 400. **fail-closed**: 서브도메인 `GET /` 바디에 픽스처 마커 필수 |
 
 ---
 
@@ -142,4 +142,5 @@ grep "^SF:" coverage/lcov.info | tr '\\' '/' | grep '패턴'   # lcov는 백슬�
 
 | 일자 | 변경 |
 |------|------|
+| 2026-08-01 | **E6/T3**: E2E serving 프로젝트 추가(유령 세션·서빙 동등성·CSP·서브도메인 패스스루). CI Build/E2E에 `NEXT_PUBLIC_ROOT_DOMAIN`, seed `e2e/seed.mjs`, `httpHost` Host 주입 |
 | 2026-07-31 | 최초 작성. 스토어 6종·`usePublish` 테스트 추가(+39), `(auth)` glob 버그 수정, 테스트가 있던 라우트 12경로·stores 편입, codecov↔sonar 비대칭 1건 해소 |
