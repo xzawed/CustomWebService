@@ -3,7 +3,7 @@
 - 날짜: 2026-06-09
 - 상태: 채택
 - 관련 브랜치: `fix/audit-findings-batch`
-- 선행: [테스트 플래키 후속 작업](../superpowers/plans/2026-06-09-test-flakiness-followups.md)
+- 선행: 테스트 플래키 후속 작업(plan 삭제됨) · [플래키 타임아웃 ADR](2026-06-09-test-flaky-timeout-contention-fix.md)
 
 ## 배경
 

@@ -152,69 +152,23 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 
 ## 문서 참조
 
+에이전트가 매 세션 열 네비게이션 맵. **전체 목록·ADR 카탈로그는 [docs/README.md](docs/README.md).**
+
 | 질문 | 참조 문서 |
 |------|-----------|
 | **불변조건·계약 (깨면 조용히 사고 나는 것들)** | [docs/architecture/system-spec.md](docs/architecture/system-spec.md) |
-| **테스트가 어디까지 커버하나 · 공백은 어디인가** | [docs/reference/test-coverage-map.md](docs/reference/test-coverage-map.md) |
-| **잔여작업 전체 지도 (열린 이슈로는 안 보이는 것)** | [docs/superpowers/plans/2026-07-31-project-wbs.md](docs/superpowers/plans/2026-07-31-project-wbs.md) |
-| 시스템 전체 구조 | [docs/architecture/overview.md](docs/architecture/overview.md) |
+| **테스트 커버 범위·공백** | [docs/reference/test-coverage-map.md](docs/reference/test-coverage-map.md) |
+| **잔여작업 전체 지도 (백로그 진실원)** | [docs/superpowers/plans/2026-07-31-project-wbs.md](docs/superpowers/plans/2026-07-31-project-wbs.md) |
 | AI 코드 생성 흐름 | [docs/architecture/ai-pipeline.md](docs/architecture/ai-pipeline.md) |
-| 코드 생성/재생성 작업 **(필수)** | [docs/guides/qc-process.md](docs/guides/qc-process.md) |
-| 테스트 전략·검증 항목 | [docs/guides/testing.md](docs/guides/testing.md) |
-| API 엔드포인트 목록 | [docs/reference/api-endpoints.md](docs/reference/api-endpoints.md) |
-| 골든셋 API 목록 (검증된 10개, 즉시 사용 가능) | [docs/reference/golden-api-set.md](docs/reference/golden-api-set.md) |
-| 개발자 키 제공 방식 API 재활성화 ADR (31개 활성, 2026-05-01) | [docs/decisions/2026-05-01-developer-key-api-reactivation.md](docs/decisions/2026-05-01-developer-key-api-reactivation.md) |
-| 보안 인시던트 대응 절차 | [docs/security/incident-response.md](docs/security/incident-response.md) |
-| **의존성 감사 면제 목록 (pnpm audit 게이트 waiver)** | [docs/security/audit-waivers.md](docs/security/audit-waivers.md) |
-| 의존성 보안 일괄 상향·감사 게이트 2단계화 ADR (2026-07-28) | [docs/decisions/2026-07-28-dependency-security-updates.md](docs/decisions/2026-07-28-dependency-security-updates.md) |
-| **게시 사이트 프록시 복구·인가 모델 정비 ADR (C-1·C-2·H-1·H-2, 2026-07-28)** | [docs/decisions/2026-07-28-published-site-proxy-authz.md](docs/decisions/2026-07-28-published-site-proxy-authz.md) |
-| 게시 사이트 프록시 설계 spec | [docs/superpowers/specs/2026-07-28-published-site-proxy-authz-design.md](docs/superpowers/specs/2026-07-28-published-site-proxy-authz-design.md) |
-| **계정 삭제·데이터 내보내기 ADR (#221, 유령 세션 차단 포함, 2026-07-30)** | [docs/decisions/2026-07-30-account-delete-and-export.md](docs/decisions/2026-07-30-account-delete-and-export.md) |
-| **로그인 레이트리밋 ADR (#223, IP+계정 잠금 없는 방식, 2026-07-30)** | [docs/decisions/2026-07-30-login-rate-limit.md](docs/decisions/2026-07-30-login-rate-limit.md) |
-| **알림 sink Slack 고정·백업 실패 배선 ADR (#220, 2026-07-30)** | [docs/decisions/2026-07-30-monitoring-sink-slack-only.md](docs/decisions/2026-07-30-monitoring-sink-slack-only.md) |
-| **AI 추천 일일 쿼터 분리 ADR (#219, 2026-07-30)** | [docs/decisions/2026-07-30-suggestion-daily-quota-separation.md](docs/decisions/2026-07-30-suggestion-daily-quota-separation.md) |
-| **외부 배포 스택 제거 ADR (WBS A1–A5, 2026-08-01)** | [docs/decisions/2026-08-01-remove-external-deploy-stack.md](docs/decisions/2026-08-01-remove-external-deploy-stack.md) |
-| 검수 MEDIUM 발견 항목 수정 ADR (M-1·2·3·5·6·7·8, 2026-07-29) | [docs/decisions/2026-07-29-medium-audit-findings.md](docs/decisions/2026-07-29-medium-audit-findings.md) |
-| **생성 락을 인메모리 tracker에서 SQLite로 분리 ADR (M-5 근본 해결, 2026-07-29)** | [docs/decisions/2026-07-29-durable-generation-lock.md](docs/decisions/2026-07-29-durable-generation-lock.md) |
-| **프록시 캐시 키에 키 신원 추가 ADR (M-4 잔여 해소, 2026-07-29)** | [docs/decisions/2026-07-29-proxy-cache-key-identity.md](docs/decisions/2026-07-29-proxy-cache-key-identity.md) |
-| **게시 사이트 프록시 오남용 모니터링 ADR (한도 소진 경고·사용량 지표, 2026-07-29)** | [docs/decisions/2026-07-29-site-proxy-abuse-monitoring.md](docs/decisions/2026-07-29-site-proxy-abuse-monitoring.md) |
-| **생성 모델 Opus 4.8 → Opus 5 상향 ADR (thinking 기본값 변경 대응, 2026-07-29)** | [docs/decisions/2026-07-29-llm-model-upgrade-opus5.md](docs/decisions/2026-07-29-llm-model-upgrade-opus5.md) |
-| better-sqlite3 v13 N-API 프리빌트 전환·빌드 툴체인 제거 ADR (2026-07-28) | [docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md](docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md) |
+| 코드 생성/재생성 QC **(필수)** | [docs/guides/qc-process.md](docs/guides/qc-process.md) |
 | 환경변수 목록 | [docs/reference/env-vars.md](docs/reference/env-vars.md) |
-| 에러 클래스 참조 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
-| 배포·CI/CD·도메인 | [docs/guides/deployment.md](docs/guides/deployment.md) |
-| **일상 운영·모니터링·백업·장애 대응** | [docs/guides/operations.md](docs/guides/operations.md) |
-| **SQLite 컷오버 + Supabase/Postgres/OAuth 제거 ADR (P8.2, 2026-06-23)** | [docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md) |
-| SQLite 전환 WBS 계획 (Phase 1~8) | [docs/superpowers/plans/2026-06-22-db-removal-sqlite-migration.md](docs/superpowers/plans/2026-06-22-db-removal-sqlite-migration.md) |
-| SQLite 컷오버 런북 | [docs/guides/sqlite-cutover-runbook.md](docs/guides/sqlite-cutover-runbook.md) |
-| **SQLite 복구 런북 (손상·오염 시 백업 되돌리기, #222)** | [docs/guides/sqlite-restore-runbook.md](docs/guides/sqlite-restore-runbook.md) |
-| **알림 sink 설정·검증 (Slack webhook 발급 → 등록 → 합성 경보, #220)** | [docs/guides/monitoring-sink-setup.md](docs/guides/monitoring-sink-setup.md) |
-| (역사) DB/Auth Provider 추상화 ADR — 컷오버로 single-stack 됨 | [docs/decisions/provider-migration.md](docs/decisions/provider-migration.md) |
-| 설계 결정 배경 | [docs/decisions/](docs/decisions/) |
-| 2단계 생성 파이프라인 설계 (초기 설계 문서, 현재 3-Stage로 확장됨 — 설계 원칙 참고용) | [docs/superpowers/specs/2026-04-14-two-stage-generation-design.md](docs/superpowers/specs/2026-04-14-two-stage-generation-design.md) |
-| Repository 유틸리티 추출 ADR | [docs/decisions/2026-04-26-repository-utils-extraction.md](docs/decisions/2026-04-26-repository-utils-extraction.md) |
-| CI ESLint 마이그레이션 ADR | [docs/decisions/2026-04-26-ci-eslint-migration.md](docs/decisions/2026-04-26-ci-eslint-migration.md) |
-| 커버리지 개선 회고 (PR #45·#46) | [docs/decisions/2026-04-26-coverage-improvement-retrospective.md](docs/decisions/2026-04-26-coverage-improvement-retrospective.md) |
-| 보안·접근성·커버리지 수정 ADR (PR #49·#50) | [docs/decisions/2026-04-26-sonarcloud-security-a11y-coverage.md](docs/decisions/2026-04-26-sonarcloud-security-a11y-coverage.md) |
-| 생성 성공률 개선 ADR (Phase 2, PR #58) | [docs/decisions/2026-04-29-generation-success-rate-improvement.md](docs/decisions/2026-04-29-generation-success-rate-improvement.md) |
-| 정확도 게이트 회귀 방지·가시화·개선 통합 ADR | [docs/decisions/2026-04-30-accuracy-gate-and-visibility.md](docs/decisions/2026-04-30-accuracy-gate-and-visibility.md) |
-| API 카탈로그 전수 검증 ADR (62개, 2026-05-01) | [docs/decisions/2026-05-01-api-catalog-verification.md](docs/decisions/2026-05-01-api-catalog-verification.md) |
-| API 카탈로그 즉시 사용 가능 기준 정리 ADR (23개 활성, 2026-05-01) | [docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md](docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md) |
-| 프로덕션 인시던트 회고 ADR — ET API 마이그레이션 및 연쇄 장애 (2026-05-03) | [docs/decisions/2026-05-03-production-incident-et-api-migration.md](docs/decisions/2026-05-03-production-incident-et-api-migration.md) |
-| Quality Loop 재활성화 및 ET 타임아웃 분리 ADR (PR #99, 2026-05-03) | [docs/decisions/2026-05-03-quality-loop-restoration-et-timeout.md](docs/decisions/2026-05-03-quality-loop-restoration-et-timeout.md) |
-| 프록시 응답 캐시 구현 ADR (PR #101, 2026-05-04) | [docs/decisions/2026-05-04-proxy-response-cache.md](docs/decisions/2026-05-04-proxy-response-cache.md) |
-| Unsplash Attribution 자동 삽입 ADR (PR #102, 2026-05-04) | [docs/decisions/2026-05-04-unsplash-attribution-auto-injection.md](docs/decisions/2026-05-04-unsplash-attribution-auto-injection.md) |
-| playwright-core browsers.json nft 추적 실패 수정 ADR (PR #125, 2026-05-22) | [docs/decisions/2026-05-22-playwright-core-nft-browsers-json-fix.md](docs/decisions/2026-05-22-playwright-core-nft-browsers-json-fix.md) |
-| 보안 감사 발견 항목 수정 ADR (C-1·H-2~H-11, PR #129·#131, 2026-05-23) | [docs/decisions/2026-05-23-security-audit-findings.md](docs/decisions/2026-05-23-security-audit-findings.md) |
-| Vitest full-suite 플래키 타임아웃 해소 ADR (config/providers mock + testTimeout, 2026-06-09) | [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md) |
-| 테스트 플래키 타임아웃 잔여·후속 작업 핸드오프 (항목 1·2·3·4·6 완료, 5는 상시 모니터링, 2026-06-09) | [docs/superpowers/plans/2026-06-09-test-flakiness-followups.md](docs/superpowers/plans/2026-06-09-test-flakiness-followups.md) |
-| 서비스 종합 건강 감사 및 발견 16건 수정 ADR (2026-06-09) | [docs/decisions/2026-06-09-service-health-audit-fixes.md](docs/decisions/2026-06-09-service-health-audit-fixes.md) |
-| API 카탈로그 동작 검증 & 헬스 모니터링 자동화 ADR (REST Countries 폐기·DB 기반 헬스체크, 2026-06-21) | [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](docs/decisions/2026-06-21-api-catalog-health-monitoring.md) |
-| Node 22 전면 상향 ADR (supabase-js 2.108 eager WebSocket 가드 대응·#154 오탐 근본 원인, 2026-06-22) | [docs/decisions/2026-06-22-node22-supabase-websocket-fix.md](docs/decisions/2026-06-22-node22-supabase-websocket-fix.md) |
-| verification_status 신선도·AI 추천 소비 ADR (B-2, cron --write + broken 제외·verified 우선, 2026-06-22) | [docs/decisions/2026-06-22-verification-status-consumption.md](docs/decisions/2026-06-22-verification-status-consumption.md) |
-| 카탈로그 등록(B-3 완료)·seed.sql 전면 재동기화(B-5) ADR (Countries 등록·프로덕션 미러, 2026-06-22) | [docs/decisions/2026-06-22-catalog-registration-and-seed-resync.md](docs/decisions/2026-06-22-catalog-registration-and-seed-resync.md) |
-| **공개 회원가입 + 다중 사용자 인증 ADR (단일 관리자 → DB 사용자 + 이메일 인증, 2026-06-24)** | [docs/decisions/2026-06-24-public-signup-multi-user-auth.md](docs/decisions/2026-06-24-public-signup-multi-user-auth.md) |
-| 공개 회원가입 다중 사용자 인증 설계 | [docs/superpowers/specs/2026-06-24-public-signup-multi-user-auth-design.md](docs/superpowers/specs/2026-06-24-public-signup-multi-user-auth-design.md) |
+| API 엔드포인트 | [docs/reference/api-endpoints.md](docs/reference/api-endpoints.md) |
+| 일상 운영·모니터링·백업 | [docs/guides/operations.md](docs/guides/operations.md) |
+| SQLite 복구 런북 | [docs/guides/sqlite-restore-runbook.md](docs/guides/sqlite-restore-runbook.md) |
+| 에러 코드 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
+| 개발 환경·팩토리 규칙 | [docs/guides/development.md](docs/guides/development.md) |
+| 설계 결정(ADR) 전체 | [docs/decisions/](docs/decisions/) · 목록은 [docs/README.md](docs/README.md) |
+| 문서 인덱스 | [docs/README.md](docs/README.md) |
 
 - [README.md](README.md) — 프로젝트 전체 개요
 - [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) — PR 템플릿
@@ -348,97 +302,54 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 한국어 커밋 메시지 사용. prefix 패턴: `feat:`, `fix:`, `refactor:`, `ci:`, `docs:`, `test:`, `chore:`
 - 코드 변경과 관련 문서 변경은 동일 커밋에 포함 (코드-문서 동기화 보장)
 
-## 타입 주의사항
+## 타입·에이전트 주의사항
+
+> **불변조건의 본문**은 [system-spec.md](docs/architecture/system-spec.md)에 있다. 아래는 (1) system-spec 한 줄 리마인더 또는 (2) 에이전트/테스트/CI 전용 함정이다. 조용히 깨지는 규칙을 여기서 지우지 말 것 — 없으면 system-spec으로 옮긴 뒤 포인터만 남겨라.
+
+### system-spec 포인터 (전문은 그쪽)
+
+- **Opus 5 `thinking` / 허용목록 폴백 / 구세대 ID 유지** — system-spec §3.4·§3.5 · [ADR](docs/decisions/2026-07-29-llm-model-upgrade-opus5.md)
+- **JSON snake_case·camelCase 이중 처리** — system-spec §5.5 (`parseEndpoints` 등)
+- **slug 유일성(앱 관리)·프로젝트/계정 삭제 캐스케이드·삭제 이벤트 payload 키(`deletedProjectId`/`deletedUserId`)·감사 로그 익명화** — system-spec §2·§5.2
+- **`getAuthUser` DB 행 확인(유령 세션 차단)** — system-spec §1.2 · [ADR](docs/decisions/2026-07-30-account-delete-and-export.md)
+- **`generationTracker`는 진행률 전용 · 중복 차단은 `generationLock`** — system-spec §3.1 · [ADR](docs/decisions/2026-07-29-durable-generation-lock.md)
+- **생성 status `not_found` 통일** — system-spec §1.7 (클라 union 누락 시 잘못된 UX — 아래 폴링 절 참고)
+- **WAL=데이터 본체 · 보존 정책(미사용 토큰 삭제 금지) · 카운터 `DEFAULT 0` · 쿼터 `charged===true` 환불** — system-spec §4.5–4.7·§5.1 · [복구 런북](docs/guides/sqlite-restore-runbook.md)
+
+### 에이전트·테스트·CI 함정 (항상 로드)
 
 - `IAiProvider.tokensUsed` — `{ input: number; output: number }` 구조 (`inputTokens`/`outputTokens` 아님)
-- **Anthropic 모델 ID 주의**: 날짜 suffix 없이 사용 — `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-sonnet-5`, `claude-opus-4-6`, `claude-opus-4-7`, `claude-opus-4-8`, `claude-opus-5`. 날짜 포함 ID(예: `claude-haiku-4-5-20251001`)는 허용목록에 없어 기본값으로 폴백된다
-- **Opus 5에서 `thinking` 생략은 "사고 안 함"이 아니다**: Opus 4.8은 생략 = 사고 없음이었지만 **Opus 5는 생략 시 adaptive가 기본으로 켜진다**(2026-07-29 실측 — 생략 시 응답 블록이 `[thinking,text]`, `disabled`면 `[text]`). 생략하면 `max_tokens`(48000)를 thinking과 생성물이 나눠 써 **코드가 잘리고** 비용·지연이 는다. `ClaudeProvider`는 ET 비활성 경로에서 **`thinking: { type: 'disabled' }`를 명시**한다 — 지우지 말 것
-- **`thinking: disabled`에 `effort`를 함께 보내지 말 것**: Opus 5는 `disabled` + `effort: xhigh|max`를 **400으로 거부**한다(실측). 기본 effort(high)에서만 허용되므로 끌 때는 `output_config`를 아예 보내지 않는다. 테스트가 두 규약을 모두 고정한다
-- **모델 상향 시 구세대 ID를 허용목록에서 지우지 말 것**: 목록에 없는 env 값은 조용히 기본값으로 폴백하므로, 지우면 **env를 되돌리는 롤백이 무시된다**. 배경: [ADR](docs/decisions/2026-07-29-llm-model-upgrade-opus5.md)
-- **모델 허용목록은 조용히 폴백한다**: `AI_MODEL_*` env가 `ALLOWED_CLAUDE_MODELS`(`AiProviderFactory.ts`)에 없으면 `logger.warn` 한 줄만 남기고 `TASK_DEFAULTS`로 폴백한다. 즉 **Railway env에 새 모델을 넣는 것만으로는 적용되지 않으며** 허용목록도 함께 고쳐야 한다. (2026-07-10: env가 `claude-opus-4-8`인데 허용목록에 없어 `opus-4-7`로 폴백 중이던 것을 발견·수정) **모델 변경 후에는 `GET /api/v1/admin/debug`의 `models.<task>.fellBack`이 `false`인지 확인할 것** — env 값만으로는 적용 여부를 알 수 없다.
-- `AiProviderFactory.ts` 모델 ID 수정 시 `.test.ts`도 반드시 동시에 업데이트 (CI 파손 방지)
-- **JSON 필드명 이중성**: `parseEndpoints()`(`@/repositories/utils/endpointParser`, `SqliteCatalogRepository`가 사용) 같은 JSON 매퍼는 snake_case(`example_call`)와 camelCase(`exampleCall`) 둘 다 처리 필요 — 시드 JSON 직접 삽입 vs 코드 경로 차이
-- **Playwright 병렬 체크 주의**: 단일 `page` 인스턴스에서 `Promise.allSettled` 사용 시 viewport를 변경하는 체크는 반드시 다른 체크 완료 후 순차 실행 (`renderingQc.ts` 참고)
-- **playwright-core executablePath 주의**: `playwright-core`는 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 환경변수를 자동으로 읽지 않음. `const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH; chromium.launch({ ...(executablePath && { executablePath }) })` 형태로 명시적 전달 필요 (미설정 시 executablePath를 전달하지 않아 playwright-core 기본 탐색 로직이 유지됨). `playwright`(풀 패키지)와 달리 `playwright-core`는 브라우저 다운로드·자동 경로 탐색을 수행하지 않음 (`browserPool.ts` 참고)
-- **slug 충돌 처리**: `assignUniqueSlug()` in `projectService.ts` — base → base-2 → … → base-10 → timestamp fallback; UNIQUE 위반 시 1회 재시도. SQLite UNIQUE 위반은 `isUniqueViolation()`(`@/lib/db/errors`)가 `SQLITE_CONSTRAINT_UNIQUE`/`SQLITE_CONSTRAINT_PRIMARYKEY`/"UNIQUE constraint failed" 메시지로 감지(레거시 23505도 폴백 인식)
-- **프로젝트 삭제는 앱 레벨 캐스케이드다 (FK는 `ON DELETE no action`)**: `projects`를 참조하는 3개 테이블(`project_apis`·`generated_codes`·`platform_events`)이 전부 `no action`이고 연결은 `foreign_keys = ON`이라, 자식을 정리하지 않고 `DELETE`하면 **FK 위반으로 500**이 난다(2026-07-29까지 모든 프로젝트 삭제가 이 상태였다). `SqliteProjectRepository.delete()`가 단일 트랜잭션으로 처리한다 — **`platform_events`는 지우지 않고 `project_id`만 NULL로 분리**(감사 로그는 프로젝트보다 오래 살아야 한다), `generated_codes`·`project_apis`·`generation_locks`는 삭제, `projects`는 마지막. **`projects`를 참조하는 테이블을 새로 추가하면 이 트랜잭션에도 넣을 것**
-- **`getAuthUser`는 DB 행 존재를 확인한다 — 이 조회를 제거하지 말 것**: JWT가 무상태라 사용자 행이 사라져도 토큰은 만료까지 살아 있다. 조회가 없으면 삭제된 계정의 토큰이 **유령 세션**이 된다(`GET /projects` → 200 + `[]`, 쓰기 → FK 500, `assertEmailVerified`가 401이어야 할 것을 403으로 오인). **라우트 테스트가 `getAuthUser`를 통째로 모킹하므로 단위 테스트로는 절대 안 잡힌다.** DB 오류는 fail-closed(null) — 인증 경계에서는 레이트리밋의 fail-open과 반대다. middleware(Edge)에는 두지 않는다(`local-auth-edge`만 동적 import). 배경: [ADR](docs/decisions/2026-07-30-account-delete-and-export.md)
-- **계정 삭제는 `cascadeDeleteUser`(`src/lib/auth/deleteAccountCascade.ts`) 단일 동기 트랜잭션이다**: `SqliteProjectRepository.delete()`를 루프 호출하면 각 호출이 별도 트랜잭션이라 중간 실패 시 반쯤 지워진 계정이 남는다. `SqliteUserRepository.delete()`는 단독으로 쓰지 말 것. **`users`를 참조하는 테이블을 새로 추가하면 이 캐스케이드에도 넣을 것**
-- **`USER_DELETED` payload는 `deletedUserId`를 쓴다** — `PROJECT_DELETED`와 정확히 같은 함정(바로 아래)
-- **계정 삭제 시 `platform_events`는 보존하되 payload를 익명화한다**: PII 키 denylist + 주체 값(이메일·이름) 동등 스크럽 + `userId → [deleted]`. **`slug`도 denylist에 있다** — 사용자가 지은 서브도메인이라 실명이 들어갈 수 있고 값 동등 비교로는 부분 포함을 못 잡는다. `projectId`·점수·duration은 유지(감사 신호). 순수 denylist는 새 이벤트 타입이 이메일을 담으면 조용히 새고, 순수 allowlist는 감사 가치를 파괴하므로 **셋을 겹친다**
-- **`PROJECT_DELETED` payload만 `deletedProjectId`를 쓴다**: `SqliteEventRepository.persist()`가 `payload.projectId`를 `platform_events.project_id` 컬럼에 자동 대입하는데, 삭제 직후 발행되는 이 이벤트는 그러면 FK 위반으로 **조용히 유실**된다(persist가 best-effort라 경고만 남는다). 키 이름을 달리해 자동 추출을 피하고 id는 payload에 보존한다. **다른 이벤트의 `projectId`와 통일하려고 되돌리지 말 것**
-- **generationTracker는 진행률 전용 — 중복 생성 게이트로 쓰지 말 것**: `src/lib/ai/generationTracker.ts`의 `generationTracker`는 모듈 레벨 싱글톤이고 TTL 차등(`generating` 30분, `completed`/`failed` 10분)이라 **엔트리가 사라지면 락도 사라진다**. 여기에 게이트를 두면 같은 projectId로 두 번째 파이프라인이 시작돼 Opus/ET 토큰이 이중 청구되고 같은 version으로 UNIQUE 위반이 난다. `isGenerating()`은 그래서 제거됐고 `generationTracker.test.ts`가 부재를 단언한다. 중복 차단은 **`@/lib/ai/generationLock`(DB `generation_locks`)** 담당: 라우트가 `acquireGenerationLock`으로 획득(실패 시 409), `runGenerationPipeline`이 heartbeat를 돌리고 `finally`에서 **중지 → 해제 순서로** 정리한다. 크래시 시 `GENERATION_LOCK_STALE_MS`(기본 5분) 후 자동 탈취. 배경: [ADR](docs/decisions/2026-07-29-durable-generation-lock.md)
-- **생성 상태 폴링 추출**: `builder/page.tsx`의 SSE 폴백 폴링은 `src/lib/generation/pollGenerationStatus.ts`로 추출됨(주입형 `fetchFn`·`delay`·콜백, 단위 테스트 대상). `page.tsx`는 thin 래퍼. 상태 처리: `generating`→진행률 갱신, `completed`+result→완료, **`failed`→즉시 terminal 실패**(이전엔 maxAttempts까지 재시도하던 quirk를 교차검증 후 개선), `not_found`→프로젝트 미존재 메시지, 그 외(`unknown`)→연결 복구 실패 메시지. 테스트는 DI-delay(즉시 resolve)로 결정적 검증, 기본 `setTimeout` 경로만 `vi.useFakeTimers()`+`runAllTimersAsync()`로 커버
-- **모듈 레벨 상태가 있는 파일 테스트**: `let registered = false` 같은 모듈 레벨 플래그가 있는 파일은 테스트 간 상태 누출이 발생한다. `vi.resetModules()` + 매 테스트마다 `await import(...)` 동적 임포트로 격리한다 (`eventPersister.ts` 참고)
-- **api 라우트 테스트 — providers/supabase 모킹 더 이상 불필요**: SQLite 컷오버(P8.2) 후 `@/lib/db/failover`·`@/lib/db/connection`(→pg/drizzle-pg native cold-init)이 제거됐고, 상수만 반환하던 `@/lib/config/providers`도 2026-07-10 죽은 코드 정리로 **삭제됨**. 과거 cold-init 차단용 `vi.mock('@/lib/config/providers', ...)`·`vi.mock('@/lib/supabase/server', ...)`는 전부 제거됨(잔존 시 존재하지 않는 모듈 모킹). `vitest.config.ts`의 `testTimeout`/`hookTimeout` 15000ms 상향은 경합 마진으로 유지 — 배경: [docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md)
-- **happy-dom iframe 로드 노이즈 차단**: `vitest.config.ts`의 `environmentOptions.happyDOM.settings.navigation.disableChildFrameNavigation = true`로 iframe `src` 실제 로드를 막아 `DOMException NetworkError` 로그 flood를 차단함. v20에서 `disableIframePageLoading`은 deprecated이므로 사용 금지. `disableFallbackToSetURL`(기본 false) 보존으로 `iframe.src` 속성은 그대로 반영되어 단언에는 무영향
-- **MSW `onUnhandledRequest:'error'`**: `src/test/setup.ts`가 미처리 요청을 즉시 실패시킴(향후 자동 fetch 컴포넌트 테스트의 무성 hang 예방). 새 컴포넌트가 fetch하는 엔드포인트는 `src/test/mocks/handlers.ts`에 핸들러를 반드시 추가할 것 (현재 Anthropic·`*/api/v1/preview/:id`·`*/api/v1/generate/status/:projectId` 커버). **caveat**: MSW `'error'`는 비동기 전파상 테스트를 항상 빨갛게 만들지는 않으므로(MSW #946/#943) 전체 통과가 "미처리 요청 부재"의 충분 증거는 아님
-- **SonarCloud vs Codecov 지표 불일치**: Codecov/Vitest는 `vitest.config.ts`의 `coverage.include` 범위(`src/lib/**`, `src/services/**`, `src/providers/**`, `src/repositories/**`, `src/components/**`, `src/types/**`, `src/hooks/**` + **선별된 app 라우트 화이트리스트**)만 측정. SonarCloud는 `sonar.sources=src` 전체를 측정한다. 두 숫자는 구조적으로 차이가 나며 단순 설정 오류로 단정하지 않는다.
-- **`coverage.include`에 없는 파일을 수정하면 CI가 빨개진다 (2026-07-10 실증)**: lcov에 데이터가 없는 파일의 변경 라인은 SonarCloud `new_coverage`와 `codecov/patch`에서 **0%로 계산**된다(파일이 무시되는 게 아니다). 라우트를 수정하면서 테스트를 붙였다면 `vitest.config.ts`의 `coverage.include`에도 **반드시 추가**할 것. 단위 테스트 대상이 아닌 파일(`src/instrumentation.ts` 등)은 `sonar-project.properties`의 `sonar.coverage.exclusions`와 `codecov.yml`의 `ignore`에 **양쪽 다** 등록해야 한다(한쪽만 하면 다른 쪽이 실패).
-- **temperature deprecated (Claude 4.x)**: Claude 4.x 모델(`claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-opus-4-7`)은 `temperature` 파라미터를 지원하지 않음. ClaudeProvider에서 완전히 제거됨 (Extended Thinking 포함). `IAiPrompt.temperature` 필드는 legacy 호환용으로 유지하나 실제 API 호출에 사용하지 않음
-- **인메모리 rate limit 한계**: proxy의 Map 기반 리밋은 서버 재시작 시 초기화됨 (분당 카운터라 보안 영향 낮음). Railway 단일 인스턴스 전제 — 멀티 인스턴스 전환 시 Redis 등 외부 저장소 필요 (generationTracker와 동일 제약)
-- **이 서비스의 WAL은 캐시가 아니라 데이터 본체다 (복구 시 치명)**: 장기 실행 프로세스가 거의 체크포인트하지 않아 **`/data/app.db`는 4096B·테이블 0개**이고 실데이터는 전부 `app.db-wal`(1.3MB)에 있다(2026-07-30 프로덕션 실측). ① **WAL만 지우면 DB 전체가 사라진다.** ② **백업본으로 app.db만 덮어쓰고 WAL을 남기면 그 WAL이 복구본 위로 재생되어 복구가 조용히 무효화되고 `integrity_check`는 여전히 `ok`를 반환한다**(실측). app.db 교체와 WAL/SHM 제거는 **반드시 한 세트**로 한다. 복구 성공 판정은 `integrity_check`가 아니라 **행 수 대조**다. 절차: [복구 런북](docs/guides/sqlite-restore-runbook.md)
-- **SQLite 자동 백업 (P6.3, 인프로세스)**: `src/lib/db/sqlite/backup.ts`의 `scheduleBackups`가 `instrumentation.register()`에서 배선되어 주기적으로 `raw.backup()` 온라인 덤프를 `<SQLITE 디렉터리>/backups/app-YYYYMMDD-HHmmss.db`로 남기고 보관 정책(`SQLITE_BACKUP_RETENTION`, 기본 7)에 따라 오래된 파일을 정리한다. 타이머는 `.unref()`되어 종료를 막지 않고, `':memory:'`/비활성(`SQLITE_BACKUP_ENABLED=false`) 시 건너뛴다. **단일 인스턴스·동일 볼륨 전제** — 논리 손상 방어용. 오프-볼륨: `GET /api/v1/admin/backup/latest`(ADMIN_API_KEY, 서버가 `BACKUP_FILE_REGEX`로만 최신 선택) + 선택 `SQLITE_OFFSITE_BACKUP_URL`(HTTPS PUT 시임, 기본 no-op; 실패해도 로컬 백업 성공 유지; 상태는 debug `offsiteBackup`, URL 미노출). Litestream/S3는 비채택. 계층 표: [operations.md §3.4](docs/guides/operations.md). `selectBackupsToPrune`/`listBackupFilenames`은 `app-<timestamp>.db` 패턴만 후보. **부작용**: 백업을 `readonly: true`로 열면 `.db-shm`/`.db-wal`이 백업 dir에 생겨 패턴에 안 걸려 회수 안 됨 → 검증 후 `rm -f /data/backups/*.db-wal /data/backups/*.db-shm`
-- **DB 보존 정책 (무한 증가 테이블)**: `src/lib/db/sqlite/retention.ts`의 `scheduleRetention`이 `instrumentation.register()`에서 백업 스케줄러와 나란히 배선된다(주기 기본 24h, `.unref()`, `':memory:'`·`DB_RETENTION_ENABLED=false` 시 스킵). `generated_codes`만 `pruneOldVersions()`로 정리되고 `platform_events`(모든 도메인 이벤트)·`auth_tokens`·`user_daily_limits`는 삭제 경로가 없어 단조 증가하던 것을 해소. **되돌릴 수 없는 삭제이므로 안전장치 필수**: ① `auth_tokens`는 만료(`expires_at`)됐거나 사용된(`consumed_at`) 토큰만 삭제 — **유효한 미사용 토큰은 절대 삭제 금지**(인증·재설정 링크가 조용히 죽음), ② `user_daily_limits.usage_date`는 로컬 `YYYY-MM-DD`라 cutoff도 `localDateCutoff`(로컬 기준)를 써야 함(UTC로 자르면 타임존에 따라 오늘 카운터 삭제), ③ 세 DELETE는 단일 트랜잭션, ④ `0`·음수·비정수 env는 기본값 폴백(전체 삭제 사고 방지)
-- **생성/추천 레이트리밋 환불 (SQLite)**: 생성·추천 실패 시 `SqliteRateLimitRepository`가 일일 카운터를 in-process로 환불한다(`GREATEST(count-1, 0)`, 동기 트랜잭션). 외부 deploy 한도 메서드는 2026-08-01 제거(컬럼 `deploy_count`는 스키마 유지·불활성). 과거 Supabase PG 함수와 동일 보상 의미를 SQLite 레포 메서드로 재현 — `.rpc()` 호출 없음
-- **생성 상태 폴링 `not_found` 처리**: `/api/v1/generate/status`는 프로젝트 미존재·권한 없음 시 `status: 'not_found'`를 반환한다. `pollGenerationStatus`의 `GenerationStatusData.status` union에 `'not_found'`가 포함되어야 하며(누락 시 'unknown'으로 오처리되어 잘못된 사용자 메시지 표시), 전용 핸들러로 "프로젝트를 찾을 수 없습니다" 메시지를 낸다
-- **카운터 컬럼 ADD COLUMN은 `DEFAULT 0` 필수**: `user_daily_limits`처럼 `WHERE count < limit` test-and-set을 쓰는 테이블에 새 카운터를 ALTER로 추가할 때 `DEFAULT`가 없으면 **기존 행이 NULL**이 되고 `NULL < limit`는 참이 아니라 UPDATE가 0행 → `allowed=false`. 사용자에게는 "한도 초과"로 보여 버그로 인지되지 않고, `MAX(0, NULL-1)`도 NULL이라 자가 복구도 안 된다. 기존 `deploy_count`는 CREATE TABLE부터 있던 컬럼이라 이 경로를 겪은 적이 없으니 **"deploy를 그대로 따라 했다"가 안전 근거가 되지 않는다**. 회귀 테스트는 `SqliteRateLimitRepository.test.ts`의 migrated-row 케이스 참조. 배경: [ADR](docs/decisions/2026-07-30-suggestion-daily-quota-separation.md)
-- **AI 추천은 생성과 별도 쿼터**: `suggest-*` 4개 라우트는 `suggestion_count`/`MAX_DAILY_SUGGESTIONS`(기본 30, pro 150)를 **공유**한다(라우트별 30이 아님). 차감은 **검증·소유권 확인 이후**, 환불은 `charged===true`이고 throw된 경우만(soft success는 이미 토큰을 썼으므로 환불 안 함). 추천 라우트는 전부 `createForTask('suggestion')`(Haiku)를 쓸 것 — `AiProviderFactory.create()`는 ClaudeProvider 기본 모델(Sonnet 5)로 조용히 3배 단가를 태운다
-- **레이트리밋 우회 로깅**: `RATE_LIMIT_BYPASS_USER_IDS` 우회 적용 시 `logger.info('Rate limit bypass applied', ...)` 감사 로그를 남긴다(무로깅 우회는 운영 사각지대)
-- **카탈로그 헬스 모니터링 (cron 제거됨)**: Supabase 의존 CI cron(`scheduled.yml`)과 `verifyCatalog.ts`는 SQLite 컷오버로 제거됨. 분류 로직 `src/lib/catalog/healthCheck.ts`는 단위 테스트 대상으로 잔존. 헬스 모니터링은 배포 서비스의 HTTP 엔드포인트(`qc-monitor.yml`, `/api/v1/admin/qc-stats`·`/api/v1/health`)와 관리자 `keys-verify`로 대체. **P5.2 완료(2026-06-25)**: verification_status 라이브 갱신은 관리자 트리거 엔드포인트 **`POST /api/v1/admin/verify-catalog`**(ADMIN_API_KEY 보호, 로직 `src/lib/catalog/verifyRunner.ts`)로 구현 — 활성 API GET 엔드포인트를 실제 호출해 분류 후 `working/degraded→verified`·`broken→broken`만, 현재 값과 다를 때만 DB 갱신(key_gated/unknown은 보존). 자동 스케줄러 대신 관리자 트리거를 택해 일시 장애로 인한 broken 플래핑·무인 outbound를 회피(설계 결정). 배경: [docs/decisions/2026-06-21-api-catalog-health-monitoring.md](docs/decisions/2026-06-21-api-catalog-health-monitoring.md)
-- **verification_status 소비 (B-2)**: 시드된 `verification_status`(`src/data/apiCatalog.json`, 프로덕션 미러)가 baseline. **소비**: AI 추천(`POST /api/v1/suggest-apis`)이 `verificationStatus==='broken'` API를 후보에서 제외하고 `verified`에는 `[검증됨]` 배지로 우선 선택을 유도한다(broken ID는 candidate 기반 validId로 이중 차단). **카탈로그 브라우징(`search()`)은 broken을 숨기지 않는다** — '가용 유지' 정책(예: picsum 일시 장애). `SqliteCatalogRepository`는 `verification_status`를 매핑한다(컷오버로 사라진 Drizzle-pg 누락 버그는 무관)
-- **REST Countries 폐기(2026-06-21) → 자체 호스팅 대체(2026-06-22, B-3)**: v3.1 전 엔드포인트가 deprecated(HTTP 200 + deprecation 본문, legacy.json 301)라 `is_active=false`. 대체로 **mledoze/countries(ODbL) 큐레이티드 서브셋**을 `src/data/countries.json`에 번들하고 `GET /api/v1/countries`(목록, `?region=`/`?search=`)·`/api/v1/countries/[code]`(cca2/cca3 단건)로 자체 서빙(키리스·CORS·`max-age=86400`). 생성 사이트가 프록시 없이 직접 fetch(사이트 CSP `connect-src https:`가 허용). 데이터 갱신은 `pnpm tsx scripts/generateCountries.ts`로 재생성(준-정적). 라우트는 thin, 로직은 `src/lib/countries/`(transform·query, 100% 커버). **카탈로그 등록 완료(2026-06-22)**: 프로덕션 `api_catalog`에 `Countries (Self-hosted)` row(verified·active) 추가 + REST Countries `successor_id` 연결. 코드 조회는 `{code}` 플레이스홀더 대신 **`/api/v1/countries/KR` 구체 예시로 등록**(헬스체크가 `{code}`→`'test'`로 채워 `/countries/test` 404 오탐을 내는 것 회피). 설계: [docs/superpowers/specs/2026-06-22-country-data-api-design.md](docs/superpowers/specs/2026-06-22-country-data-api-design.md), 등록 ADR: [docs/decisions/2026-06-22-catalog-registration-and-seed-resync.md](docs/decisions/2026-06-22-catalog-registration-and-seed-resync.md)
-- **번들 시드 데이터 (`src/data/apiCatalog.json`·`featureFlags.json`)**: 프로덕션 `api_catalog`(61행/36활성, 2026-06-24 무료 API 12종 추가·Dog/Picsum 복원)·`feature_flags`(7)를 미러링한 **번들 산출물**. 부팅 시 `seedCatalog`/`seedFeatureFlags`(`bootstrapSqlite`)가 빈 테이블일 때만 멱등 삽입(id·created_at 보존 → `project_apis` FK 일관성). `supabase/seed.sql`(PG 덤프)은 SQLite 컷오버로 제거됨. 데이터 갱신은 JSON을 직접 편집하거나 신규 추출 스크립트로 재생성
-- **카탈로그 신규/정정 멱등 반영 (`ensureCatalog.ts`)**: `seedCatalog`는 빈 테이블일 때만 동작하므로, 이미 시드된 프로덕션 DB에 JSON 신규 항목을 반영하려면 `ensureCatalogEntries`(`bootstrapSqlite`가 `seedCatalog` 다음 호출)가 필요. ① JSON에 있으나 DB에 없는(id 기준) 항목만 삽입(기존 행 보존), ② 라이브 동작하나 broken/비활성으로 잘못 기록된 키리스 API(Dog API·Lorem Picsum)를 `is_active=true`·`verification_status=verified`로 정정(이미 올바르면 미갱신). 멱등.
-- **플랫폼 키 검증 = 배포 런타임 전용**: 키 의존 API의 env 키(`API_KEY_*`) 유효성은 배포 컨텍스트에서만 검증 가능 — 관리자 진단 엔드포인트 **`GET /api/v1/admin/keys-verify`**(ADMIN_API_KEY 보호, 로직 `src/lib/catalog/keyCheck.ts`)를 배포 환경에서 호출한다(CLI `pnpm keys:verify`는 컷오버로 제거). **키-게이팅 현황(2026-06-25 기준)**: 카탈로그 61행 중 **활성 36 / 비활성 25**(비활성 = 키 의존 `api_key` 24개 + REST Countries broken 1). 키 의존 API의 env 변수들은 이름만 있고 값이 빈 상태라 24개가 `is_active=false`. **활성 36개는 전부 키 불필요**(활성 중 `api_key`는 NASA 1건뿐이며 `default_key=DEMO_KEY`). 재활성화하려면 Railway env에 실제 키 값 입력 후 `is_active=true` 복원 + `keys-verify` 재검증. 카탈로그 `auth_config.env_var` 이름이 실제 Railway 변수명과 일치해야 함(불일치 시 401). (2026-06-21 시점엔 7개 비활성/활성 23이었으나 2026-06-24 무료·키리스 API 12종 추가로 활성 36이 됨.)
-- **프록시 키 prefix 적용(2026-06-25 수정 완료)**: `auth_config`의 `prefix`/`header_prefix`(카카오 `KakaoAK `, Unsplash `Client-ID `)를 프록시 `resolveApiKey`가 키 주입 시 적용한다(`prefix ?? header_prefix`, header·query 양쪽 분기). **env/사용자 API 키는 raw 값으로 저장**하면 되며, 값에 이미 prefix가 포함된 경우 `startsWith` 가드로 이중 적용을 방지한다. 검증은 `keys-verify`의 `needsPrefixFix`. (이전엔 raw 값만 주입해 env에 prefix를 수동 포함해야 동작하던 잠재 버그였음 — 관련 API가 전부 비활성이라 프로덕션 영향은 없었음.)
-- **`pnpm.onlyBuiltDependencies`는 빈 배열을 유지한다 (키 삭제 금지)**: better-sqlite3 v13은 N-API 프리빌트를 패키지에 동봉하므로 빌드 스크립트가 필요 없다. 그런데 `binding.gyp`가 함께 배포되어 **npm/pnpm이 암묵적으로 `node-gyp rebuild`를 실행**한다 — 허용하면 Windows에서 `pnpm install`이 Visual Studio 탐색 실패로 깨지고 Linux에선 불필요한 소스 컴파일이 돈다. **키를 지우면 안 되는 이유**: pnpm 9는 키 부재 시 모든 스크립트를 실행하고(pnpm 10은 기본 차단), CI·Dockerfile이 `pnpm@9`를 쓴다. 빈 배열이 두 버전 모두에서 "아무것도 빌드 안 함"을 보장하는 유일한 표기다. Dockerfile에서 `g++/make/python3`를 제거한 것도 이 전제에 의존한다. 배경: [docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md](docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md)
-- **Node 22 고정 (engines/Dockerfile/워크플로)**: `package.json engines.node: ">=22"`, `node:22-alpine`, CI `node-version: 22`로 고정. 원래 사유였던 `@supabase/supabase-js` eager WebSocket 가드는 supabase-js 제거(P8.2)로 소멸했으나, **Node 22 핀은 유지**한다(다운그레이드 불필요). better-sqlite3는 프리빌트로 설치되며 musl alpine에서 프리빌트 부재 시 `g++/make/python3`로 소스 컴파일(Dockerfile deps 스테이지). 역사: [docs/decisions/2026-06-22-node22-supabase-websocket-fix.md](docs/decisions/2026-06-22-node22-supabase-websocket-fix.md)
+- **Anthropic 모델 ID**: 날짜 suffix 없이 사용 — `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-sonnet-5`, `claude-opus-4-6`, `claude-opus-4-7`, `claude-opus-4-8`, `claude-opus-5`. 날짜 포함 ID는 허용목록에 없어 기본값으로 폴백된다
+- `AiProviderFactory.ts` 모델 ID 수정 시 **`.test.ts`도 반드시 동시 업데이트** (CI 파손 방지)
+- **Playwright 병렬 체크**: 단일 `page`에서 `Promise.allSettled` 사용 시 viewport를 바꾸는 체크는 다른 체크 완료 후 순차 실행 (`renderingQc.ts`)
+- **playwright-core executablePath**: `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`를 자동 읽지 않음 — `chromium.launch({ ...(executablePath && { executablePath }) })`로 명시 전달 (`browserPool.ts`). 풀 패키지 `playwright`와 다름
+- **생성 상태 폴링**: `builder/page.tsx` SSE 폴백은 `src/lib/generation/pollGenerationStatus.ts`(주입형 `fetchFn`·`delay`). 상태: `generating`→진행률, `completed`+result→완료, **`failed`→즉시 terminal 실패**, `not_found`→미존재 메시지, 그 외→연결 복구 실패. 테스트는 DI-delay로 결정적 검증, 기본 `setTimeout`만 `vi.useFakeTimers()`+`runAllTimersAsync()`
+- **모듈 레벨 플래그 테스트**: `let registered = false` 류는 `vi.resetModules()` + 매 테스트 `await import(...)` 격리 (`eventPersister.ts`)
+- **api 라우트 테스트**: `@/lib/config/providers`·`@/lib/supabase/server` 모킹 **불필요**(모듈 삭제됨). 잔존 시 미존재 모듈 모킹. `vitest.config.ts` `testTimeout`/`hookTimeout` 15000ms는 경합 마진으로 유지 — [ADR](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md)
+- **happy-dom iframe**: `environmentOptions.happyDOM.settings.navigation.disableChildFrameNavigation = true`. v20 `disableIframePageLoading` deprecated. `disableFallbackToSetURL` 기본 false 유지(iframe.src 단언용)
+- **MSW `onUnhandledRequest:'error'`**: 새 fetch 엔드포인트는 `src/test/mocks/handlers.ts`에 핸들러 필수. **caveat**: MSW `'error'`가 비동기 전파상 테스트를 항상 빨갛게 만들지는 않음(MSW #946/#943) — 전체 통과 ≠ 미처리 요청 부재
+- **SonarCloud vs Codecov**: Codecov/Vitest는 `coverage.include` 화이트리스트만, SonarCloud는 `sonar.sources=src` 전체 — 숫자 불일치를 설정 오류로 단정하지 말 것
+- **`coverage.include` 누락 시 CI 빨갱 (2026-07-10 실증)**: lcov에 없는 파일의 변경 라인은 `new_coverage`/`codecov/patch`에서 **0%**. 라우트 테스트 추가 시 `vitest.config.ts` `coverage.include`에도 추가. 비테스트 파일은 `sonar.coverage.exclusions`와 `codecov.yml` `ignore` **양쪽**
+- **`temperature`**: Claude 4.x에서 미지원·Provider에서 제거. `IAiPrompt.temperature`는 legacy 필드만 유지(API 미전달)
+- **인메모리 rate limit**: 재시작 시 초기화, Railway 단일 인스턴스 전제. 멀티 인스턴스 시 Redis 등 필요 (generationTracker와 동일)
+- **레이트리밋 환불**: 생성·추천 실패 시 SQLite in-process (`GREATEST(count-1,0)`). 외부 deploy 한도 메서드는 2026-08-01 제거(`deploy_count` 컬럼만 스키마 유지·불활성)
+- **레이트리밋 우회 로깅**: `RATE_LIMIT_BYPASS_USER_IDS` 적용 시 `logger.info('Rate limit bypass applied', ...)` 필수(무로깅 우회 금지)
+- **추천 라우트 모델**: `suggest-*`는 전부 `createForTask('suggestion')`(Haiku). `AiProviderFactory.create()` 기본(Sonnet 5)을 쓰면 조용히 3배 단가
+- **백업 스케줄러 부작용**: 백업을 `readonly: true`로 열면 `.db-shm`/`.db-wal`이 백업 dir에 생기고 prune 패턴에 안 걸림 → 검증 후 `rm -f /data/backups/*.db-wal /data/backups/*.db-shm`. 오프사이트·계층: [operations.md](docs/guides/operations.md)
+- **프록시 키 prefix**: `auth_config.prefix`/`header_prefix`를 `resolveApiKey`가 주입 시 적용(`startsWith` 이중 적용 가드). env/유저 키는 raw 저장. 검증: `keys-verify`의 `needsPrefixFix`
+- **`pnpm.onlyBuiltDependencies`는 빈 배열 유지 (키 삭제 금지)**: better-sqlite3 v13 N-API 프리빌트인데 `binding.gyp` 때문에 암묵 rebuild. 키 부재 시 pnpm 9는 모든 스크립트 실행. CI·Dockerfile이 `pnpm@9`. 배경: [ADR](docs/decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md)
+- **Node 22 고정**: `engines.node: ">=22"`, `node:22-alpine`, CI `node-version: 22`. 다운그레이드 금지. [ADR](docs/decisions/2026-06-22-node22-supabase-websocket-fix.md)
 
-## 검수 후속 작업 (2026-07-28 전체 검수) — **전건 종료(2026-07-29)**
+### 카탈로그·시드 (상세는 아키텍처/ADR)
 
-전체 검수 13건 중 11건은 PR #195·#196으로 해소했고, 남겨 두었던 5건도 2026-07-29에 모두 종료했다.
-아래는 이력이며, 새 후속 작업은 `gh issue list --label audit-followup` 으로 확인한다.
+- **헬스·키 검증**: CLI `catalog:healthcheck`/`keys:verify` 제거. 현행 `GET /api/v1/admin/keys-verify`, `POST /api/v1/admin/verify-catalog`. 분류 로직 `healthCheck.ts` 잔존. [ADR](docs/decisions/2026-06-21-api-catalog-health-monitoring.md)
+- **`verification_status` 소비**: AI 추천은 `broken` 제외·`verified` 우선, 브라우징 `search()`는 broken 숨기지 않음. [ADR](docs/decisions/2026-06-22-verification-status-consumption.md)
+- **국가 데이터**: REST Countries 폐기 → `src/data/countries.json` + `/api/v1/countries`. 재생성 `pnpm tsx scripts/generateCountries.ts`. [설계](docs/superpowers/specs/2026-06-22-country-data-api-design.md) · [등록 ADR](docs/decisions/2026-06-22-catalog-registration-and-seed-resync.md)
+- **시드**: `src/data/apiCatalog.json`·`featureFlags.json` → `seedCatalog`/`seedFeatureFlags`(빈 테이블만) + `ensureCatalogEntries`(신규 삽입·키리스 오분류 정정). 절차: [database.md](docs/architecture/database.md) §부팅
 
-| Issue | 내용 | 성격 |
-|-------|------|------|
-| ~~[#197](https://github.com/xzawed/CustomWebService/issues/197)~~ | C-1·C-2 실환경 검증 | **완료(2026-07-29)** — [ADR 검증 절](docs/decisions/2026-07-28-published-site-proxy-authz.md) |
-| ~~[#198](https://github.com/xzawed/CustomWebService/issues/198)~~ | M-5 generationTracker durable lock | **완료(2026-07-29)** — [ADR](docs/decisions/2026-07-29-durable-generation-lock.md) |
-| ~~[#199](https://github.com/xzawed/CustomWebService/issues/199)~~ | M-4 잔여 — 캐시 키에 키 신원 추가 | **완료(2026-07-29)** — [ADR](docs/decisions/2026-07-29-proxy-cache-key-identity.md) |
-| ~~[#200](https://github.com/xzawed/CustomWebService/issues/200)~~ | site 프록시 오남용 모니터링 | **완료(2026-07-29)** — [ADR](docs/decisions/2026-07-29-site-proxy-abuse-monitoring.md) · 기본값 재조정은 데이터 확보 후 |
-| ~~[#201](https://github.com/xzawed/CustomWebService/issues/201)~~ | Railway env 단독 변경 시 재배포 FAILED | **가설 반증(2026-07-29)** — env 재배포는 정상. 판별 기준은 위 "Railway 배포 상태 판별" |
+## 백로그
 
-검수 중 파생된 신규 이슈: [#204](https://github.com/xzawed/CustomWebService/issues/204) — 생성 사이트가 동일 API 요청을 동시 2회 발사(#197 실환경 검증 중 발견).
-
-배경: [게시 사이트 프록시 ADR](docs/decisions/2026-07-28-published-site-proxy-authz.md) ·
-[MEDIUM 항목 ADR](docs/decisions/2026-07-29-medium-audit-findings.md)
-
-## 다음 작업 대기열 (2026-07-31 기준)
-
-**열린 이슈는 #216 하나이고, 그것은 "착수하지 않는다"가 결론이다.**
-2026-07-30 세션에서 #219·#221·#223을, 2026-07-31 세션에서 **#220·#222를 종료**했다.
-
-| Issue | 상태 | 다음 세션이 할 일 |
-|-------|------|------------------|
-| ~~[#220](https://github.com/xzawed/CustomWebService/issues/220) 에러·알림 sink~~ | **완료(2026-07-31)** | Slack 앱 `xzawed alerts` + `#alerts` 채널 신설, `SLACK_WEBHOOK_URL` 등록, **실제 백업 실패 경보 도착 확인**. 실측: [monitoring-sink-setup.md](docs/guides/monitoring-sink-setup.md) |
-| ~~[#222](https://github.com/xzawed/CustomWebService/issues/222) SQLite 복구~~ | **완료(2026-07-31)** | 프로덕션 쓰기 리허설 성공(총 5분, 롤백 데이터 0건). 실측·발견 사항은 [복구 런북](docs/guides/sqlite-restore-runbook.md) |
-| [#216](https://github.com/xzawed/CustomWebService/issues/216) 데이터 확보 후 재검토 3건 | 트리거 **전부 미충족**(2026-07-31 재확인) | **착수하지 않는다.** 손대면 근거 없는 변경이다. 재확인만 할 것 |
-
-### 알림 sink가 살아난 뒤 판단할 것 (ADR이 보류로 남긴 항목)
-
-실경보를 받아 본 뒤에 정하기로 미뤄 둔 것들이다. 지금부터는 판단 근거가 쌓인다.
-
-- `ERROR_RATE_ALERT_THRESHOLD`(기본 5회/5분) 조정 — 실제 경보 빈도를 보고
-- 다일 장애 재알림(시간 윈도 리마인더) — 전이 1회로 충분한지
-- 배포 레이트리밋 환불 실패·이벤트 persist 실패 등 best-effort 경로에 경보를 붙일지
-
-### #216 트리거 재확인 방법 (변경은 하지 말 것)
-
-| 항목 | 확인 | 2026-07-31 실측 |
-|---|---|---|
-| site 프록시 한도 | `GET /api/v1/admin/site-proxy-stats` → `trackedProjects`가 0이면 미충족 | `trackedProjects: 0` — **미충족** |
-| 캐시 민감도 플래그 | `src/data/apiCatalog.json`에서 `cache_ttl_seconds` + `auth_type=api_key` + `is_active=true`가 동시에 참인 행이 생겼는지. **기상청 단기·중기예보가 비활성으로 잠들어 있다가 활성화되면 즉시 해당** | 동시 충족 **0행** (`cache_ttl_seconds` 보유 14행 중 `api_key`는 기상청 2건뿐이고 둘 다 비활성) — **미충족** |
-| adaptive thinking 확대 | 제품 결정. 생성 품질을 올려야 할 필요가 생겼을 때만 | 트리거 없음 |
+잔여 작업·열린 판단은 **[WBS](docs/superpowers/plans/2026-07-31-project-wbs.md)가 진실원**이다. [#216](https://github.com/xzawed/CustomWebService/issues/216)(데이터 확보 후 재검토 3건)은 트리거 미충족이면 **착수하지 않는다**.
 
 ## 세션 시작 체크리스트 (필수)
 
@@ -502,5 +413,6 @@ Claude는 프로젝트 문서의 파일명·위치·내용을 정확하고 이�
 - `docs/superpowers/plans/` — 구현 계획 (`YYYY-MM-DD-<topic>.md`)
 
 **규칙:**
-- 새 문서 추가·수정·삭제 시 이 파일의 "문서 참조" 테이블도 함께 업데이트
+- 새 문서 추가·수정·삭제 시 [docs/README.md](docs/README.md) 인덱스를 갱신하고, 에이전트 필수 문서면 이 파일의 "문서 참조"에도 반영
 - 코드 변경 시 영향받는 문서도 동일 커밋에서 갱신 (코드-문서 drift 방지)
+- 불변조건 변경은 [system-spec.md](docs/architecture/system-spec.md)를 같은 커밋에서 갱신

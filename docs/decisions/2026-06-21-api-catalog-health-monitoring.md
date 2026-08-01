@@ -40,11 +40,11 @@
   - `classifyResponse`: working / degraded(느림>5s·429) / broken(네트워크·5xx·키리스 401·**2xx+에러/deprecation 본문**) / key_gated(키필요 API 401/403) / unknown(그 외 4xx — 파라미터 불일치 가능성, broken 단정 안 함)
   - `buildTestUrl`: path placeholder 치환, base_url 경로 prefix 보존, **알려진 안전한 샘플만** 쿼리 주입(임의값으로 정상 API를 깨뜨리는 오탐 방지), example_call 쿼리 병합
   - `summarizeApi`, `toVerificationStatus`
-- [scripts/verifyCatalog.ts](../../scripts/verifyCatalog.ts) 재작성: **업스트림 DIRECT 호출**(localhost 프록시 제거), 전 엔드포인트 검증, 공개 default_key(NASA DEMO_KEY) 주입, non-JSON content-type 처리, **일시적 5xx/429/네트워크 1회 재시도**(플래키 오탐 감소), `--write` 시 DB `verification_status` 자동 반영, BROKEN이면 exit 1.
+- `scripts/verifyCatalog.ts`(후속 SQLite 컷오버로 **제거됨**. 현행 대체: `POST /api/v1/admin/verify-catalog` + `src/lib/catalog/verifyRunner.ts`) 재작성: **업스트림 DIRECT 호출**(localhost 프록시 제거), 전 엔드포인트 검증, 공개 default_key(NASA DEMO_KEY) 주입, non-JSON content-type 처리, **일시적 5xx/429/네트워크 1회 재시도**(플래키 오탐 감소), `--write` 시 DB `verification_status` 자동 반영, BROKEN이면 exit 1.
 
 ### 4. 플랫폼 키 유효성 검증 도구
 
-[scripts/verifyPlatformKeys.ts](../../scripts/verifyPlatformKeys.ts) (`pnpm keys:verify`): 키 의존 API에 대해 **프록시와 동일한 방식으로 키를 주입**해 실제 인증 요청 → VALID/INVALID/MISSING/RATE_LIMITED/ERROR. 키 값은 출력하지 않음. Railway env가 있는 환경에서 실행(`railway run pnpm keys:verify`). 프록시와 동일 주입이므로 Kakao `KakaoAK `/Unsplash `Client-ID ` prefix 누락 같은 형식 문제도 INVALID로 드러난다.
+`scripts/verifyPlatformKeys.ts` / `pnpm keys:verify`(후속 SQLite 컷오버로 **제거됨**. 현행 대체: `GET /api/v1/admin/keys-verify` + `src/lib/catalog/keyCheck.ts`): 키 의존 API에 대해 **프록시와 동일한 방식으로 키를 주입**해 실제 인증 요청 → VALID/INVALID/MISSING/RATE_LIMITED/ERROR. 키 값은 출력하지 않음. Railway env가 있는 환경에서 실행하던 도구였다. 프록시와 동일 주입이므로 Kakao `KakaoAK `/Unsplash `Client-ID ` prefix 누락 같은 형식 문제도 INVALID로 드러난다.
 
 ### 5. package.json 스크립트
 

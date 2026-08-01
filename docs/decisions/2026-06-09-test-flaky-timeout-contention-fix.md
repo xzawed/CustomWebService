@@ -101,7 +101,7 @@ hookTimeout: 15_000,
   MSW `onUnhandledRequest:'error'` + `*/api/v1/preview`·`*/api/v1/generate/status` 핸들러 추가,
   `PreviewFrame` iframe `src` happy-dom 로드 노이즈 차단(`navigation.disableChildFrameNavigation`),
   `health.test.ts` cold-import 하드닝(api 라우트 테스트 16/16 일관). 상세:
-  [docs/superpowers/plans/2026-06-09-test-flakiness-followups.md](../superpowers/plans/2026-06-09-test-flakiness-followups.md)
+  후속 핸드오프 plan(`docs/superpowers/plans/2026-06-09-test-flakiness-followups.md`, 출하 후 삭제) — 잔여 항목 1–4·6 완료, 항목 5 상시 모니터링. 현재 테스트 함정은 루트 `CLAUDE.md` 타입·에이전트 주의사항 참고
 - ✅ **완료** (브랜치 `test/builder-poll-extraction`): `builder/page.tsx`의 `pollForCompletion`을
   [src/lib/generation/pollGenerationStatus.ts](../../src/lib/generation/pollGenerationStatus.ts)로
   동작 보존 추출 + fake-timer 포함 단위 테스트 12건. 레포 유일 fetch-poll 루프에 커버리지 확보.

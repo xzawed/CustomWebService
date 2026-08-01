@@ -219,5 +219,5 @@ eviction 리셋 · M-7 IPv4-mapped IPv6 SSRF 우회 · M-8 `x-real-ip` 신뢰.
 ## 관련 문서
 
 - [설계 spec](../superpowers/specs/2026-07-28-published-site-proxy-authz-design.md)
-- [구현 계획 (WBS)](../superpowers/plans/2026-07-28-published-site-proxy-authz.md)
+- 구현 계획서(`docs/superpowers/plans/2026-07-28-published-site-proxy-authz.md`) — 기능 출하 후 삭제됨. 결정은 본 ADR·[설계 spec](../superpowers/specs/2026-07-28-published-site-proxy-authz-design.md)이 진실원
 - [의존성 감사 면제 목록](../security/audit-waivers.md)
