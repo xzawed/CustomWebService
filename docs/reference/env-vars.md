@@ -147,6 +147,10 @@ for (const r of c) if (r.auth_config?.env_var)
 | `GITHUB_ORG` | **removed/unused** | 과거 GitHub 조직명. 남아 있으면 Railway 삭제 가능 |
 | `RAILWAY_TOKEN` | **removed/unused** | 과거 사용자 서비스 Railway 배포용. 남아 있으면 출처 폐기 후 삭제 가능 |
 | `MAX_DEPLOY_PER_DAY` | **removed/unused** | 과거 일일 외부 배포 한도. 무시됨 |
+| `AUTH_PROVIDER` | **removed/unused** | 과거 인증 provider 분기(`local`/`supabase`). 코드는 `NEXT_PUBLIC_AUTH_PROVIDER`만 읽는다 |
+
+> **2026-08-02 실측**: 위 변수와 Supabase 3종은 Railway에서 **전부 삭제 완료**(GitHub PAT는 출처 revoke 후).
+> `SENTRY_*`는 **애초에 설정된 적이 없다.** 재조사 불필요 — 경위: [incident-response.md](../security/incident-response.md)
 
 ---
 

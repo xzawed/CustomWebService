@@ -7,6 +7,8 @@
 > `GITHUB_TOKEN`(외부 deploy export 제거, 2026-08-01), Supabase `service_role` / `SUPABASE_*`(SQLite 컷오버),
 > `ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`(다중 사용자 전환).
 > **≠ 발견 시 내버려 둬도 된다**는 뜻이 아니다. 죽은 스택 키를 발견하면 아래 [고아 자격증명](#고아-자격증명orphan-credential)을 따른다.
+>
+> 위 목록은 **2026-08-02에 전부 폐기·삭제 완료**됐다(아래 사례 기록). 현재 Railway에 잔존하는 죽은 자격증명은 없다.
 
 ---
 
@@ -28,20 +30,33 @@
 
 값 자체는 이 문서에 **절대 적지 않는다.**
 
-### 프로덕션 실측 (2026-08-02)
+### 사례 기록 — 2026-08-02 (✅ 해소)
 
-SQLite 컷오버(2026-06-23) 후 약 6주, 외부 deploy 스택 제거(2026-08-01) 후에도 Railway에 다음이 **잔존**했다
-(길이 클래스만 — 원문 비기록):
+**교훈이 남아야 하므로 지운 게 아니라 상태만 갱신한다.**
 
-| 변수 | 길이/상태 클래스 | 조치 |
-|------|------------------|------|
-| `SUPABASE_SERVICE_ROLE_KEY` | **219자** (JWT형) | **출처 폐기 최우선** → 그 다음 Railway 삭제 |
-| `NEXT_PUBLIC_SUPABASE_URL` | 설정됨 | 죽은 스택 잔재 — 프로젝트 정리 후 Railway 삭제 |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 설정됨 | 죽은 스택 잔재 — 출처 폐기 후 Railway 삭제 |
-| `GITHUB_TOKEN` | 설정됨 | **GitHub에서 revoke 후** Railway 삭제 |
-| `GITHUB_ORG` | 설정됨 | 조직명 잔재 — Railway 삭제 |
+SQLite 컷오버(2026-06-23) 후 **약 6주**, 외부 deploy 스택 제거(2026-08-01) 후에도 Railway에
+죽은 스택의 자격증명이 남아 있었다. 코드 참조는 0건이었지만 **자격증명은 코드가 아니라 사본이 있는 곳에서 산다.**
 
-오너 액션 순위: [WBS B0](../superpowers/plans/2026-07-31-project-wbs.md).
+| 변수 | 클래스 | 폐기 결과 |
+|------|--------|-----------|
+| `SUPABASE_SERVICE_ROLE_KEY` | **219자** (JWT형·RLS 우회) | Supabase **프로젝트가 이미 없음**(=키 무효) 확인 → Railway 삭제 |
+| `NEXT_PUBLIC_SUPABASE_URL` · `..._ANON_KEY` | 설정됨 | 동일 → Railway 삭제 |
+| `GITHUB_TOKEN` | 설정됨 | **GitHub에서 revoke 완료** → Railway 삭제 |
+| `GITHUB_ORG` | 설정됨 | 조직명 잔재 → Railway 삭제 |
+| `AUTH_PROVIDER` | 설정됨 | 분기 제거로 사문화(참조 3건은 전부 주석) → Railway 삭제 |
+
+Railway 변수 **67 → 61개**. 살아 있어야 하는 9개(`NEXT_PUBLIC_AUTH_PROVIDER`·`DB_PROVIDER`·
+`AUTH_URL`·`AUTH_SECRET`·`ANTHROPIC_API_KEY`·`SLACK_WEBHOOK_URL`·`RESEND_API_KEY`·
+`ENCRYPTION_KEY`·`ADMIN_API_KEY`)는 삭제 후 개별 확인했다.
+
+**이 사례에서 배울 것 3가지**
+
+1. **스택을 제거해도 자격증명은 따라 죽지 않는다.** 코드에서 `process.env` 참조가 0건이라는 것은
+   "앱이 안 쓴다"는 뜻이지 "키가 무효다"가 아니다. 스택 제거 PR의 체크리스트에 **자격증명 폐기**를 넣을 것
+2. **Supabase와 GitHub은 결론이 달랐다.** 전자는 프로젝트가 사라져 키가 자동 무효였지만,
+   후자는 **PAT가 GitHub에 그대로 살아 있어 별도 revoke가 필요**했다. "죽은 스택"이라고 뭉뚱그리지 말 것
+3. **삭제는 종료 코드가 아니라 대상 상태로 확인한다.** 첫 시도가 존재하지 않는 `--yes` 플래그로
+   6건 전부 실패했는데 종료 코드는 0이었다. **변수 개수를 다시 세어** 잡았다
 
 ---
 

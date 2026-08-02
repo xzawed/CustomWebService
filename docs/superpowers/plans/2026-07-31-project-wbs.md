@@ -47,7 +47,7 @@
 
 | ID | 작업 | 크기 |
 |----|------|------|
-| **B0** | **Supabase/GitHub 고아 자격증명 폐기** — 2026-08-02 프로덕션 실측: Railway에 `SUPABASE_SERVICE_ROLE_KEY`(219자)·`NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_ANON_KEY`·`GITHUB_TOKEN`·`GITHUB_ORG` 잔존. SQLite 컷오버(2026-06-23) 후 ~6주. **출처에서 먼저 폐기**(Supabase 키/프로젝트·GitHub 토큰 revoke) → 그 다음 Railway 사본 삭제. Railway만 지우면 service_role JWT는 여전히 유효(RLS 우회). 값 비기록. 절차: [incident-response.md](../../security/incident-response.md) | S |
+| ~~**B0**~~ | ~~Supabase/GitHub 고아 자격증명 폐기~~ → ✅ **완료(2026-08-02)**. Supabase는 **프로젝트가 이미 없어** 키가 무효였고, **GitHub PAT는 오너가 revoke**했다. Railway 사본 6개 삭제(67→61). 사례·교훈 3가지: [incident-response.md](../../security/incident-response.md) | — |
 | ~~**B1**~~ | ~~`AUTH_URL=https://xzawed.xyz` Railway 등록~~ → ✅ **완료(2026-08-02 실측)**. Railway에 길이 18(`https://xzawed.xyz`)로 **이미 설정됨**. 문서 행은 ~~D-d~~에서 추가 | — |
 | ~~**B2**~~ | ~~`RESEND_API_KEY`·`EMAIL_FROM` 설정 여부 확인~~ → ✅ **해결(2026-07-31)**. 관측 수단(`GET /api/v1/admin/debug`의 `email.*`)을 만들어 프로덕션에서 확인한 결과 **`configured: true, fromSet: true, fromDomain: "xzawed.xyz"`** — 이메일은 정상 동작 중이고 우려했던 "신규 사용자가 제품을 못 쓰는 상태"는 아니다. 앞으로 이 항목은 Railway 콘솔 없이 엔드포인트로 상시 확인 가능 | — |
 | B3 | 키 의존 API 재활성화 — **한 줄 “24개”는 가짜 액션**. 정직 분할([developer-key ADR](../../decisions/2026-05-01-developer-key-api-reactivation.md)): **(a) 무료 키 후보(오너 ops)** data.go.kr 계열·NEIS·서울 오픈데이터·TourAPI·ECOS·KOPIS·Kakao·Unsplash Demo 등 가입·env 등록 가능 **(b) ToS 제외** TMDB(AI·ML 앱 금지)·RAWG(재배포 금지) — 플랫폼 키로 살리지 않음 **(c) 공유 플랫폼 키 부적합** OpenWeatherMap 등 free tier가 다중 사용자 프록시에 무너짐 → BYOK 또는 비활성 유지. **비용 제외가 아님** | M |
@@ -55,7 +55,7 @@
 | B5 | Unsplash Production 심사 (Demo 50건/시간 → Production 1,000건/시간) — **무료 심사**, 비용 제외 아님. 오너 ops | S |
 | ~~B6~~ | ~~`SONAR_TOKEN` 재발급~~ → ✅ **해결(2026-08-01 실측)**. `api/users/current`가 `isLoggedIn:true`(`xzawed-qYEqm@github`, Owners)를 반환한다. 감사 당시 `valid:false`였던 것은 이후 재발급됨.<br>**검증 방법 주의**: 공개 프로젝트라 `api/authentication/validate`는 **익명에도 `valid:true`**를 준다 — 토큰 유효성 판정에 쓰면 안 된다. 인증 필요 엔드포인트(`api/users/current`)로 확인할 것 | — |
 
-> ~~B2~~는 해결됨. **지금 최우선 오너 액션은 B0**(고아 자격증명 출처 폐기).
+> ~~B0~~·~~B1~~·~~B2~~ 모두 해결됨(2026-08-02). **남은 오너 액션은 B3(a)·B4·B5뿐**이고 전부 무료 키·심사다.
 
 ---
 
