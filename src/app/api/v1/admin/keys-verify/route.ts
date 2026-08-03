@@ -22,19 +22,27 @@ export async function OPTIONS(): Promise<Response> {
 }
 
 /**
- * GET /api/v1/admin/keys-verify
- * 활성 "플랫폼 키 의존" API(api_key + auth_config.env_var, default_key 없음)의 키 유효성을
+ * GET /api/v1/admin/keys-verify[?includeInactive=true]
+ *
+ * "플랫폼 키 의존" API(api_key + auth_config.env_var, default_key 없음)의 키 유효성을
  * 배포 런타임의 env 키로 실제 인증 요청을 보내 검증한다. 키 값은 응답에 노출하지 않는다.
  * 관리자 인증 필요(Authorization: Bearer <ADMIN_API_KEY>).
+ *
+ * **`includeInactive=true`가 필요한 이유**: 기본값은 활성 API만 본다. 그런데 키를 새로
+ * 발급해 등록하려는 대상은 **정의상 비활성**이라, 기본 조회로는 "키가 먹히는지" 확인할
+ * 방법이 아예 없었다. 활성화(`POST /admin/catalog/activate`) 전에 이걸로 먼저 확인한다.
  */
 export async function GET(request: Request): Promise<Response> {
   const res = await (async () => {
     try {
       verifyAdminKey(request);
 
-      // raw .from 대신 카탈로그 레포 경유. 활성 + auth_type=api_key 필터.
+      const includeInactive =
+        new URL(request.url).searchParams.get('includeInactive') === 'true';
+
+      // 빈 필터 = 전체. 활성만 볼 때만 isActive 조건을 건다.
       const { items } = await createCatalogRepository().findMany(
-        { isActive: true },
+        includeInactive ? {} : { isActive: true },
         { limit: 200, orderBy: 'name', orderDirection: 'asc' },
       );
 
@@ -45,7 +53,7 @@ export async function GET(request: Request): Promise<Response> {
           !a.authConfig?.default_key,
       );
 
-      const results: KeyCheckResult[] = [];
+      const results: (KeyCheckResult & { apiId: string; isActive: boolean })[] = [];
       for (const a of keyed) {
         const api: KeyCheckApi = {
           name: a.name,
@@ -55,7 +63,8 @@ export async function GET(request: Request): Promise<Response> {
         };
         const envVar = a.authConfig?.env_var as string | undefined;
         const key = envVar ? process.env[envVar] : undefined;
-        results.push(await verifyApiKey(api, key, realFetch));
+        const result = await verifyApiKey(api, key, realFetch);
+        results.push({ ...result, apiId: a.id, isActive: a.isActive });
       }
 
       const summary = {
@@ -65,11 +74,13 @@ export async function GET(request: Request): Promise<Response> {
         missing: results.filter((r) => r.verdict === 'MISSING').length,
         rateLimited: results.filter((r) => r.verdict === 'RATE_LIMITED').length,
         needsPrefixFix: results.filter((r) => r.needsPrefixFix).map((r) => r.name),
+        // 활성화 후보 — 비활성인데 키가 실제로 먹히는 것들. 그대로 activate에 넘기면 된다.
+        activatable: results.filter((r) => !r.isActive && r.verdict === 'VALID').map((r) => r.apiId),
       };
 
       return jsonResponse({
         success: true,
-        data: { generatedAt: new Date().toISOString(), summary, results },
+        data: { generatedAt: new Date().toISOString(), includeInactive, summary, results },
       });
     } catch (error) {
       return handleApiError(error);
