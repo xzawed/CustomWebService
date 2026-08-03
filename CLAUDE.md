@@ -215,7 +215,7 @@ pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.jso
 
 ### 인메모리 레이트리밋 구현 규칙
 - **LRU eviction으로 활성 윈도를 버리지 말 것**. 용량 초과 시 살아 있는 카운터가 evict되면 다음 요청이 `count:1`로 시작해 한도가 우회된다(동시 사용자가 많을수록 심해짐 — 2026-07-29 수정)
-- 올바른 패턴: 만료 버킷만 정리하고, 정리 후에도 자리가 없으면 **새 키를 거부(차단)**한다. 우회보다 과차단이 안전하다. 구현 참고: `src/lib/proxy/siteRateLimit.ts`, `checkProxyRateLimit`(`proxy/route.ts`), `src/lib/auth/rateLimit.ts`
+- 올바른 패턴: 만료 버킷만 정리하고, 정리 후에도 자리가 없으면 **새 키를 거부(차단)**한다. 우회보다 과차단이 안전하다. 구현 참고: `src/lib/proxy/siteRateLimit.ts`, `checkProxyRateLimit`(`proxy/route.ts`), `src/lib/auth/rateLimit.ts`, `src/lib/utils/adminAuth.ts`(2026-08-03 C3로 합류 — 인메모리 리밋에 예외는 이제 없다)
 - **읽기 전용 검사(`isLimited`)는 없는 키라도 cap이 가득이면 `true`를 반환할 것**(fail-closed). 아니면 키를 회전시켜 "첫 실패는 항상 공짜"를 무한히 얻는다
 - `src/lib/auth/rateLimit.ts`는 signup·forgot·resend·login이 **Map 하나를 공유**한다. `MAX_AUTH_RATE_LIMIT_BUCKETS`(기본 10000) 소진 시 signup·forgot이 과차단될 수 있으며 이는 의도된 fail-closed다
 

@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { getClientIp } from '@/lib/auth/rateLimit';
 import { ForbiddenError } from '@/lib/utils/errors';
-import { LRUMap } from '@/lib/utils/lruMap';
+import { logger } from '@/lib/utils/logger';
 import {
   RATE_LIMIT_PER_MIN,
   RATE_LIMIT_WINDOW_MS,
@@ -11,9 +11,25 @@ import {
 // One-time random key for HMAC-based timing-safe string comparison (never exported)
 const _HMAC_KEY = crypto.randomBytes(32);
 
-// In-memory rate limit per IP — proxy 라우트와 동일 한도/공용 설정 사용
-// LRUMap으로 활성 IP 한도 초과 시 자동 evict (메모리 누적 차단)
-const rateLimitMap = new LRUMap<string, { count: number; resetAt: number }>(MAX_CONCURRENT_RATE_LIMIT_USERS);
+/**
+ * 인메모리 per-IP 레이트리밋 (관리자 키 브루트포스 방어). proxy 라우트와 한도 설정을 공유한다.
+ *
+ * **`LRUMap`을 쓰지 않는다.** 용량이 차면 살아 있는 윈도의 카운터가 통째로 evict되어
+ * 그 IP의 다음 요청이 `count:1`로 다시 시작한다 — IP를 회전시키면 한도가 무력화된다.
+ * 만료된 버킷만 정리하고, 정리 후에도 자리가 없으면 새 키를 거부(=차단)한다.
+ * `proxy/route.ts`·`siteRateLimit.ts`와 동일한 원칙이다 (SDD 4.1).
+ *
+ * **수용한 트레이드오프**: 이 검사는 인증 *이전*에 돌기 때문에, 미인증 트래픽이 서로 다른
+ * IP로 버킷을 모두 채우면 정상 관리자도 차단될 수 있다. `auth/rateLimit.ts`가 signup·forgot에
+ * 대해 내린 결론과 같다 — 우회보다 과차단이 안전하다. 대신 소진 사실을 로그로 드러내
+ * 조용한 잠금이 되지 않게 한다.
+ *
+ * Railway 단일 인스턴스 전제. 멀티 인스턴스 전환 시 Redis 등으로 교체 필요.
+ */
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+/** 용량 소진 경고의 마지막 시각. 버킷을 만들지 못한 상황이라 버킷 단위로 억제할 수 없다. */
+let capacityWarnedAt = 0;
 
 /**
  * 레이트리밋 초과 전용 에러. `ForbiddenError`를 상속하므로 기존 admin 라우트의
@@ -22,19 +38,46 @@ const rateLimitMap = new LRUMap<string, { count: number; resetAt: number }>(MAX_
  */
 class AdminRateLimitError extends ForbiddenError {}
 
+/**
+ * 용량 소진을 남긴다. 이 상태에서는 **정상 관리자도 차단**되므로 반드시 관측 가능해야 한다.
+ * 윈도당 1회로 억제한다 — 봇이 계속 두드리면 매 요청마다 남아 로그가 무의미해진다.
+ */
+function warnCapacityExhausted(now: number): void {
+  if (now - capacityWarnedAt < RATE_LIMIT_WINDOW_MS) return;
+  capacityWarnedAt = now;
+  logger.warn('Admin rate limit capacity exhausted — new client IPs are being blocked', {
+    maxBuckets: MAX_CONCURRENT_RATE_LIMIT_USERS,
+  });
+}
+
 function checkRateLimit(ip: string): void {
   const now = Date.now();
   const entry = rateLimitMap.get(ip);
-  // now >= resetAt: 윈도우 경계(정확히 reset 시각)에 도착한 요청도 새 윈도우로 리셋한다.
-  // proxy/route.ts의 레이트리밋 로직과 동일하게 맞춤(이전엔 `>`라 경계 요청이 만료된 윈도우를 증가시켰음).
-  if (!entry || now >= entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+
+  // now >= resetAt: 윈도 경계(정확히 reset 시각)에 도착한 요청도 새 윈도로 리셋한다.
+  // proxy/route.ts의 레이트리밋 로직과 동일하게 맞춤(이전엔 `>`라 경계 요청이 만료된 윈도를 증가시켰음).
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= RATE_LIMIT_PER_MIN) {
+      throw new AdminRateLimitError('요청 한도 초과 — 잠시 후 다시 시도하세요');
+    }
+    entry.count++;
     return;
   }
-  entry.count++;
-  if (entry.count > RATE_LIMIT_PER_MIN) {
-    throw new AdminRateLimitError('요청 한도 초과 — 잠시 후 다시 시도하세요');
+
+  // 신규 키인데 자리가 없다 — 만료분만 정리하고, 그래도 없으면 차단한다.
+  // 이미 키가 있으면(만료된 버킷) 맵이 커지지 않으므로 용량 검사를 건너뛴다.
+  if (!entry && rateLimitMap.size >= MAX_CONCURRENT_RATE_LIMIT_USERS) {
+    for (const [key, bucket] of rateLimitMap) {
+      if (now >= bucket.resetAt) rateLimitMap.delete(key);
+    }
+    if (rateLimitMap.size >= MAX_CONCURRENT_RATE_LIMIT_USERS) {
+      // 활성 카운터를 버리느니 차단한다(한도 우회 방지).
+      warnCapacityExhausted(now);
+      throw new AdminRateLimitError('요청 한도 초과 — 잠시 후 다시 시도하세요');
+    }
   }
+
+  rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
 }
 
 export const adminCorsHeaders: Record<string, string> = {
