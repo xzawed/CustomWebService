@@ -50,12 +50,41 @@
 | ~~**B0**~~ | ~~Supabase/GitHub 고아 자격증명 폐기~~ → ✅ **완료(2026-08-02)**. Supabase는 **프로젝트가 이미 없어** 키가 무효였고, **GitHub PAT는 오너가 revoke**했다. Railway 사본 6개 삭제(67→61). 사례·교훈 3가지: [incident-response.md](../../security/incident-response.md) | — |
 | ~~**B1**~~ | ~~`AUTH_URL=https://xzawed.xyz` Railway 등록~~ → ✅ **완료(2026-08-02 실측)**. Railway에 길이 18(`https://xzawed.xyz`)로 **이미 설정됨**. 문서 행은 ~~D-d~~에서 추가 | — |
 | ~~**B2**~~ | ~~`RESEND_API_KEY`·`EMAIL_FROM` 설정 여부 확인~~ → ✅ **해결(2026-07-31)**. 관측 수단(`GET /api/v1/admin/debug`의 `email.*`)을 만들어 프로덕션에서 확인한 결과 **`configured: true, fromSet: true, fromDomain: "xzawed.xyz"`** — 이메일은 정상 동작 중이고 우려했던 "신규 사용자가 제품을 못 쓰는 상태"는 아니다. 앞으로 이 항목은 Railway 콘솔 없이 엔드포인트로 상시 확인 가능 | — |
-| B3 | 키 의존 API 재활성화 — **한 줄 “24개”는 가짜 액션**. 정직 분할([developer-key ADR](../../decisions/2026-05-01-developer-key-api-reactivation.md)): **(a) 무료 키 후보(오너 ops)** data.go.kr 계열·NEIS·서울 오픈데이터·TourAPI·ECOS·KOPIS·Kakao·Unsplash Demo 등 가입·env 등록 가능 **(b) ToS 제외** TMDB(AI·ML 앱 금지)·RAWG(재배포 금지) — 플랫폼 키로 살리지 않음 **(c) 공유 플랫폼 키 부적합** OpenWeatherMap 등 free tier가 다중 사용자 프록시에 무너짐 → BYOK 또는 비활성 유지. **비용 제외가 아님** | M |
+| B3 | 키 의존 API 재활성화 — ⚠️ **오너 액션만으로 끝나지 않는다. 아래 "B3 선행조건" 절을 먼저 읽을 것.** **한 줄 “24개”는 가짜 액션**. 정직 분할([developer-key ADR](../../decisions/2026-05-01-developer-key-api-reactivation.md)): **(a) 무료 키 후보(오너 ops)** data.go.kr 계열·NEIS·서울 오픈데이터·TourAPI·ECOS·KOPIS·Kakao·Unsplash Demo 등 가입·env 등록 가능 **(b) ToS 제외** TMDB(AI·ML 앱 금지)·RAWG(재배포 금지) — 플랫폼 키로 살리지 않음 **(c) 공유 플랫폼 키 부적합** OpenWeatherMap 등 free tier가 다중 사용자 프록시에 무너짐 → BYOK 또는 비활성 유지. **비용 제외가 아님** | M |
 | B4 | 프록시 키 prefix **실키 검증**(`needsPrefixFix`) — 코드는 완료, 실키로 확인된 적 없음 | S |
 | B5 | Unsplash Production 심사 (Demo 50건/시간 → Production 1,000건/시간) — **무료 심사**, 비용 제외 아님. 오너 ops | S |
 | ~~B6~~ | ~~`SONAR_TOKEN` 재발급~~ → ✅ **해결(2026-08-01 실측)**. `api/users/current`가 `isLoggedIn:true`(`xzawed-qYEqm@github`, Owners)를 반환한다. 감사 당시 `valid:false`였던 것은 이후 재발급됨.<br>**검증 방법 주의**: 공개 프로젝트라 `api/authentication/validate`는 **익명에도 `valid:true`**를 준다 — 토큰 유효성 판정에 쓰면 안 된다. 인증 필요 엔드포인트(`api/users/current`)로 확인할 것 | — |
 
 > ~~B0~~·~~B1~~·~~B2~~ 모두 해결됨(2026-08-02). **남은 오너 액션은 B3(a)·B4·B5뿐**이고 전부 무료 키·심사다.
+
+### B3 선행조건 — env를 넣어도 API는 켜지지 않는다 (2026-08-04 실측)
+
+B3(a)를 "무료 키 발급 → env 등록"으로만 적어 두었는데, **그것만으로는 사용자에게 아무 변화가 없다.**
+착수 전에 코드를 전수로 확인한 결과:
+
+| 확인한 것 | 결과 |
+|---|---|
+| `is_active`를 `true`로 **쓰는** 코드 | `ensureCatalogEntries`의 **Dog API·Lorem Picsum 하드코딩 정정뿐** |
+| `is_active`를 토글하는 관리자 엔드포인트 | **없다** (admin 라우트 9종 전부 GET/POST 조회·검증용) |
+| `keys-verify` / `verify-catalog` | `findMany({ isActive: true })` — **활성 API만 조회한다.** 비활성 API는 키를 넣어도 검증 대상에 들어오지 않는다 |
+| `verify-catalog`가 쓰는 컬럼 | `verificationStatus`뿐. `is_active`는 건드리지 않는다 |
+
+즉 비활성 25개는 **env를 등록해도 카탈로그·추천·프록시에서 계속 빠진다.**
+`findMany`의 기본 필터가 `is_active=true AND deprecated_at IS NULL`이기 때문이다.
+
+**그러므로 B3(a)는 오너 액션 + 코드 작업이 함께 필요하다:**
+
+1. (오너) 무료 키 발급 → Railway env 등록 — **이름은 카탈로그의 `auth_config.env_var`를 쓸 것.**
+   `resolveApiKey`가 읽는 것이 그 값이다(`proxy/route.ts`). ADR(2026-05-01)에 적힌
+   `DATA_GO_KR_API_KEY`·`KAKAO_REST_API_KEY`·`UNSPLASH_ACCESS_KEY`는 **그 시절 이름이고 지금 코드가 읽지 않는다.**
+   같은 data.go.kr 키를 `API_KEY_15B51435`·`API_KEY_7CB8F428`·`API_KEY_00412C2B`·`API_KEY_BDA9BE95` 등
+   **엔드포인트별 이름에 각각 넣어야 한다**(카카오는 로컬·검색이 `API_KEY_F1EC6F97` 하나를 공유).
+2. (코드) **재활성화 수단이 없다.** 키가 실제로 동작하는 것을 확인한 뒤 `is_active=true`로 올릴 방법이
+   필요하다 — 관리자 엔드포인트를 만들든, 비활성 API도 검증하도록 `keys-verify`를 넓히든,
+   결정이 선행이다. **여기서 임의로 프로덕션 DB를 직접 수정하지 말 것**(감사 기록이 남지 않는다).
+
+> 이 절이 없으면 다음 세션도 "키만 넣으면 된다"고 안내하고, 오너는 키를 발급했는데
+> 아무것도 달라지지 않는 것을 보게 된다.
 
 ---
 
