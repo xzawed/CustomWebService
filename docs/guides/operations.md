@@ -223,12 +223,51 @@ railway logs -d <deployment-id>         # 런타임/배포
 2. 해당 커밋으로 재배포(Railway 대시보드 Rollback 또는 태그 커밋 재배포).  
 3. env/`railway.toml`/`startCommand` 함정: Dockerfile `ENTRYPOINT`를 덮어쓰면 비root·`/data` chown 경로가 깨질 수 있다 — [Claude.md 배포 품질 원칙](../../Claude.md).
 
-### 4.4 증상별 초동 (현재 스택 기준)
+### 4.4 킬스위치 — 재배포 없이 즉시 멈추기 (2026-08-04~)
+
+**롤백보다 먼저 고려할 것.** env를 바꾸면 Railway 재배포 + Wait for CI라 수 분이 걸리고
+그동안 비용은 계속 나간다. 이 스위치는 DB 값이라 **최대 10초 안에** 반영된다.
+
+| 플래그 | 끄면 | 영향 없는 것 |
+|---|---|---|
+| `enable_generation` | AI 생성·재생성 즉시 중단 (503 `GENERATION_DISABLED`) | 기존 게시 사이트·프록시·로그인 |
+| `enable_signup` | 신규 가입만 차단 (503 `SIGNUP_DISABLED`) | 기존 사용자 로그인·이용 |
+
+```bash
+# 현재 상태
+curl -s -H "Authorization: Bearer $ADMIN_API_KEY" \
+  "https://xzawed.xyz/api/v1/admin/feature-flags" | jq .data
+
+# 생성 중단 (비용 폭주·업스트림 장애)
+curl -s -X POST -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"flag":"enable_generation","enabled":false}' \
+  "https://xzawed.xyz/api/v1/admin/feature-flags"
+
+# 복구
+curl -s -X POST -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"flag":"enable_generation","enabled":true}' \
+  "https://xzawed.xyz/api/v1/admin/feature-flags"
+```
+
+**알아 둘 것:**
+
+- **최대 10초 지연**이 있다(인프로세스 캐시 TTL). 끈 직후 진행 중이던 요청은 끝까지 간다 —
+  이미 시작된 파이프라인을 죽이지는 않는다
+- **fail-open이다.** DB 읽기가 실패하면 기능은 **켜진 것으로 동작한다**. 스위치가 안 먹는 것처럼
+  보이면 DB 상태부터 볼 것(`admin/debug`)
+- **재배포해도 꺼진 상태가 유지된다.** 부팅 동기화는 기존 행의 `enabled`를 덮어쓰지 않는다.
+  올리는 것을 잊지 말 것 — 조용히 꺼진 채로 남는다
+- 조작은 `logger.warn`과 `FEATURE_FLAG_CHANGED` 이벤트로 감사 로그에 남는다
+- 알려진 플래그 이름만 받는다. 오타는 400으로 거부된다(껐다고 착각하는 것이 제일 위험하다)
+
+### 4.5 증상별 초동 (현재 스택 기준)
 
 | 증상 | 초동 |
 |------|------|
 | 사이트 전체 다운 | §4.1 배포 상태 → 로그 → 공개 health → 필요 시 롤백 |
-| 생성 실패 급증 / Slack 생성 경보 | `admin/debug`(모델·모듈) → `qc-stats` → Anthropic 상태/크레딧 → Railway 로그. 임계·윈도는 §2.2 |
+| 생성 실패 급증 / Slack 생성 경보 | `admin/debug`(모델·모듈) → `qc-stats` → Anthropic 상태/크레딧 → Railway 로그. 임계·윈도는 §2.2. **비용이 새는 정황이면 §4.4 킬스위치로 먼저 멈출 것** |
 | 신규 가입 후 생성·배포 403 | `admin/debug`의 `email.configured`/`fromSet`. Resend 미설정이면 인증 메일 no-op |
 | 서브도메인 404 | DNS `*` CNAME, Railway `*.xzawed.xyz`, `NEXT_PUBLIC_ROOT_DOMAIN` — [deployment.md](deployment.md) |
 | 게시 사이트 API만 404(미리보기는 정상) | middleware `SUBDOMAIN_PASSTHROUGH_PREFIXES`에 `/api/v1/proxy` 등 예외 여부 — 시스템 명세·Claude 배포 품질 |

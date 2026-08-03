@@ -28,7 +28,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 ```
 src/
 ├── app/             # Next.js App Router (pages, layouts, API routes)
-│   ├── api/         # /api/v1/* REST endpoints (admin/ 하위 진단 라우트: debug, keys-verify, verify-catalog, catalog-dump, qc-stats, site-proxy-stats, test-generation, trigger-qc)
+│   ├── api/         # /api/v1/* REST endpoints (admin/ 하위: debug, keys-verify, verify-catalog, catalog-dump, catalog/activate, feature-flags, backup/latest, qc-stats, site-proxy-stats, test-generation, trigger-qc)
 │   ├── (auth)/      # 인증 관련 페이지
 │   ├── (main)/      # 메인 페이지 그룹
 │   └── site/        # 서브도메인 서빙 ([slug])
@@ -38,7 +38,7 @@ src/
 │   ├── ai/          # AI 파이프라인 — generationPipeline(오케스트레이터), stageRunner, generationSaver, qualityLoop, generationTracker(진행률 전용), generationLock(중복 생성 차단 — DB 락)
 │   ├── auth/        # 인증 — getAuthUser, local-auth*(Credentials+JWT, edge-safe 분할 base/edge), password(scrypt hashPassword/verifyPassword), tokens(auth_tokens 발급/검증), rateLimit(per-IP 스로틀), verifiedGuard(assertEmailVerified), authorize(assertOwner)
 │   ├── cache/       # proxyCache.ts — LRU+TTL 인메모리 캐시 (프록시 응답 서버사이드 캐시)
-│   ├── config/      # 환경변수 기반 설정 (features, generation, rateLimit, qc 등)
+│   ├── config/      # 설정 — env 기반(features, generation, rateLimit, qc) + featureFlags(DB 기반 운영 킬스위치, 재배포 없이 즉시 반영·fail-open)
 │   ├── catalog/     # API 카탈로그 — healthCheck.ts(DB기반 라이브 검증 분류), verifyRunner.ts(라이브 검증 오케스트레이터·verification_status 갱신, admin 트리거), keyCheck.ts(플랫폼 키 검증), activeApiCount.ts(활성 개수 동적 카운트 — 랜딩/카탈로그 마케팅 카피, 하드코딩 금지)
 │   ├── constants/   # 공용 상수 — cdn.ts (CSP CDN 화이트리스트, buildSiteCsp)
 │   ├── countries/   # 자체 호스팅 국가 데이터 API 로직 — transform(mledoze 변환), query(region/search 필터·코드 조회), types
@@ -371,6 +371,15 @@ Sentry SaaS 도입.
 | 신규 유료 완화 | Railway 볼륨 백업 · S3 · Sentry | ❌ **제외** |
 | 기존 제품 운영비 | Anthropic API · Railway 호스팅 · Resend | 정상 운영 — 제외 대상 아님 |
 | **무료** 가입·심사 | NASA 등록 키 · data.go.kr · Unsplash Production | 오너 ops로 **살아 있다** |
+
+**무과금 운영 원칙 (2026-08-04 오너 재확인)**: "현존 서비스는 무과금 원칙이고 운영도 무과금이 되어야 한다."
+→ **Open-Meteo 상업 라이선스는 사용하지 않는다.** CC BY 4.0 비상업 조건 그대로 쓰며,
+수익화 게이트 자체가 사라졌으므로 "수익화 시 재검토" 항목으로도 남기지 말 것.
+→ **다국어(i18n)는 계획 없음**으로 종결됐다. 재검토 트리거 없음.
+
+**비용이 아니라 시간으로 막히는 것에는 킬스위치가 있다**: env 변경은 재배포(+Wait for CI)라
+그 사이 비용이 계속 나간다. `enable_generation`·`enable_signup`은 DB 기반이라 재배포 없이
+즉시 멈춘다 — 절차는 [operations.md §4.4](docs/guides/operations.md).
 
 **수용한 잔여 위험**: 볼륨이 사라지고 오프라인 사본이 없으면 **복구 절차가 없다**.
 유일한 무료 오프-볼륨 경로는 `GET /api/v1/admin/backup/latest`를 사람이 실제로 당기는 것뿐이며,

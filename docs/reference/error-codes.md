@@ -37,6 +37,15 @@
 | `UPSTREAM_ERROR` | 502 | `proxy` | 외부 API 서버 연결 실패 또는 타임아웃 |
 | `FORBIDDEN` | 403 | `proxy` | SSRF 방지 — 허용되지 않은 대상 호스트 |
 
+### 킬스위치 에러 코드 (직접 반환, `handleApiError` 미경유)
+
+| 에러 코드 | HTTP Status | 발생 위치 | 설명 |
+|----------|-------------|----------|------|
+| `GENERATION_DISABLED` | 503 | `generate`, `regenerate` | `enable_generation` 킬스위치가 off일 때. 일일 한도 차감 **이전**에 반환. 메시지: `생성 기능이 일시 중단되었습니다.` |
+| `SIGNUP_DISABLED` | 503 | `signup` | `enable_signup` 킬스위치가 off일 때. **신규 가입만** 차단 — 기존 사용자 로그인·이용은 무영향. 레이트리밋 **이전**에 반환. 메시지: `현재 신규 가입을 받지 않습니다.` |
+
+> 플래그 조회는 `isFeatureEnabled()`(`src/lib/config/featureFlags.ts`). 인프로세스 10초 캐시, **fail-open**(행 없음·DB 오류 시 enabled). 관리자 토글: `GET|POST /api/v1/admin/feature-flags`.
+
 ---
 
 ## Route Handler 에러 처리 패턴

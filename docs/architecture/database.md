@@ -325,7 +325,7 @@ CREATE TABLE platform_events (
 
 > `EventBus` + `eventPersister`가 전체 도메인 이벤트를 이 테이블에 자동 기록한다.
 
-### 3.9 feature_flags (피처 플래그)
+### 3.9 feature_flags (운영 킬스위치)
 
 ```sql
 CREATE TABLE feature_flags (
@@ -338,8 +338,16 @@ CREATE TABLE feature_flags (
 );
 ```
 
-플래그 시드 데이터는 [`src/data/featureFlags.json`](../../src/data/featureFlags.json)에서
-부팅 시 멱등 삽입된다 (§4).
+**운영 킬스위치 2개**를 담는다(재배포 없이 즉시 on/off). 시드 기본값은 둘 다 enabled:
+
+| `flag_name` | 기본 | 효과 |
+|-------------|------|------|
+| `enable_generation` | `true` | false → generate/regenerate `503 GENERATION_DISABLED` |
+| `enable_signup` | `true` | false → signup `503 SIGNUP_DISABLED` (기존 사용자 무영향) |
+
+- **시드·동기화:** 번들 [`src/data/featureFlags.json`](../../src/data/featureFlags.json). 빈 테이블이면 `seedFeatureFlags`가 일괄 삽입. 이미 채워진 DB는 부팅 시 `ensureFeatureFlags`가 (1) 번들에 있는데 없는 행만 삽입 (2) **번들 화이트리스트 밖 행을 삭제**(2026-05 시절 죽은 7플래그 제거). **기존 행의 `enabled`는 덮어쓰지 않는다** — 오퍼레이터가 내린 킬스위치는 재배포 후에도 유지
+- **읽기:** `isFeatureEnabled()` — 인프로세스 10초 캐시, **fail-open**(행 없음·DB 오류 ⇒ enabled). 쓰기(`setFeatureFlag`) 직후 캐시 무효화
+- **관리자 API:** `GET|POST /api/v1/admin/feature-flags` (`flag`는 zod enum — 알려진 이름만)
 
 ### 3.10 auth_tokens (이메일 인증·비밀번호 재설정 토큰)
 
@@ -398,7 +406,7 @@ drizzle/sqlite/
 
 `src/instrumentation.ts`(Next.js instrumentation hook)가 앱 부팅 시
 `bootstrapSqlite(db)`([`src/lib/db/sqlite/bootstrap.ts`](../../src/lib/db/sqlite/bootstrap.ts))를
-호출한다. 순서가 중요하며 **4단계** 모두 멱등(시드는 빈 테이블일 때만 삽입, ensure는 id 기준 신규/정정만)이라
+호출한다. 순서가 중요하며 아래 단계 모두 멱등(시드는 빈 테이블일 때만 삽입, ensure는 신규/정정·화이트리스트 동기화만)이라
 재배포·재시작 시 안전하게 반복된다.
 
 1. **`runSqliteMigrations(db)`** — `drizzle/sqlite`의 마이그레이션을 적용해 테이블 생성 (**11개 테이블**)
@@ -406,12 +414,11 @@ drizzle/sqlite/
    `api_catalog`에만 일괄 삽입. id·created_at은 프로덕션 값 그대로 유지(FK 일관성)
 3. **`seedFeatureFlags(db)`** — `src/data/featureFlags.json`을 빈 `feature_flags`에만 삽입
 4. **`ensureCatalogEntries(db)`** — 이미 시드된 DB에 번들 JSON의 **신규 행 삽입** + 잘못 broken/비활성으로 기록된 키리스 API 정정(멱등). `seedCatalog`는 빈 테이블에만 동작하므로 프로덕션 갱신에 필수
+5. **`ensureFeatureFlags(db)`** — 번들 화이트리스트에 없는 죽은 플래그 행 삭제 + 누락 플래그만 삽입. **기존 `enabled`는 덮어쓰지 않음**(§3.9)
 
 > **`seedAdminUser`는 제거됨**: 공개 다중 사용자 전환(2026-06-24)으로 env 단일 관리자 시드가 불필요해졌다. 신규 환경은 `/signup`으로 첫 사용자를 생성한다.
 
-> 시드 데이터(`src/data/{apiCatalog,featureFlags}.json`)는 프로덕션
-> `api_catalog`/`feature_flags`를 미러링한 생성 산출물이다 — 손편집 금지.
-> 신규(빈) 환경 시드 전용이며, 부팅 시 빈 테이블에만 일괄 삽입된다.
+> `src/data/apiCatalog.json`은 프로덕션 `api_catalog` 미러(손편집 금지). `featureFlags.json`은 살아 있는 킬스위치 화이트리스트 출처(§3.9). 빈 테이블 시드는 `seed*`만, 이미 채워진 DB 동기화는 `ensure*`가 담당한다.
 
 ### 연결 설정 (pragma)
 
