@@ -157,7 +157,7 @@ curl -H "Authorization: Bearer $ADMIN_API_KEY" "https://xzawed.xyz/api/v1/health
 
 | 사실 | 내용 |
 |------|------|
-| **현 상태** | `scripts/migrate-encryption-key.ts` **존재하지 않는다.** `scripts/`에는 `generateCountries.ts`, `runGenerationLoadTest.ts`, 이력용 `.sql`만 있다. |
+| **현 상태** | `scripts/migrate-encryption-key.ts` **존재하지 않는다.** `scripts/`에는 `generateCountries.ts`, `runGenerationLoadTest.ts`만 있다. |
 | **키를 바꾸면** | `user_api_keys.encrypted_key`를 기존 키로 복호화할 수 없어 **등록된 사용자 API 키가 전부 사용 불가**가 된다. |
 | **자동 재암호화** | 없음. |
 | **노출 시 선택지** | (1) 키가 **실제로 유출**됐고 즉시 봉쇄가 최우선이면 키를 교체하고, 사용자에게 API 키 **재등록**을 안내한다. (2) 유출이 불확실하면 교체하지 **말고** 접근 경로(로그·백업·이슈)부터 차단한다. |

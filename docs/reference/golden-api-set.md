@@ -214,6 +214,5 @@ curl -X POST -H "Authorization: Bearer $ADMIN_API_KEY" \
 
 ### 이력 스크립트 (참고만)
 
-`scripts/backfillGoldenSet.sql`은 **Postgres/jsonb 시절** 일회성 백필용이다.  
-현재 임베디드 SQLite 스키마·런타임에서 **그대로 실행하지 말 것** (Supabase SQL 에디터 경로도 없음).  
-골든셋 의미·검증 기준 문서용으로만 보존한다.
+Postgres/jsonb 시절 일회성 백필 스크립트(`scripts/backfillGoldenSet.sql`)는 Supabase 제거와 함께 삭제됐다(2026-08-03, C7).  
+향후 골든셋 백필이 필요하면 임베디드 SQLite `api_catalog`를 대상으로 새로 작성한다.

@@ -1,5 +1,7 @@
 # API 카탈로그 동작 검증 & 헬스 모니터링 자동화 ADR (2026-06-21)
 
+> **참고 (2026-08-03, C7)**: 본 ADR이 가리키던 1회성 SQL 파일들은 Supabase/Postgres 백엔드 대상이었고, 2026-06-23 SQLite 컷오버로 그 백엔드가 제거되어 삭제했다. 적용 결과(비활성·env_var 수정 등)는 본문 기록으로 남는다.
+
 ## 컨텍스트
 
 "제공 중인 API가 정상 동작하는지, 그 과정이 WBS 기준으로 수행되는지"를 다이나믹 워크플로우 + 딥리서치로 전수 검증했다. 활성 31개 API를 라이브로 호출하고 독립 교차검증(15 에이전트)했다.
@@ -25,7 +27,7 @@
 
 프로덕션 DB에서 `is_active=false`, `deprecated_at=NOW()`, `verification_status='broken'`, `last_verification_note` 설정. 검색·추천(`is_active`/`deprecated_at` 필터)과 프록시(`api.isActive`)에서 즉시 제외.
 
-- 적용/재현 SQL: [scripts/2026-06-21-deprecate-rest-countries.sql](../../scripts/2026-06-21-deprecate-rest-countries.sql)
+- 적용/재현 SQL: `scripts/2026-06-21-deprecate-rest-countries.sql`
 - `supabase/seed.sql`의 REST Countries도 `is_active=false`로 동기화(신규 시드 재유입 방지).
 - **권장 대체**: 오픈 데이터셋(`mledoze/countries`)을 번들/셀프호스트 후 자체 캐시 프록시로 서빙. 국가 데이터는 준-정적이라 주기적 갱신으로 충분 — 외부 의존·요청당 비용 제거. → ✅ **구현 완료(2026-06-22, B-3)**: `src/data/countries.json` 번들 + `GET /api/v1/countries`·`/[code]` 자체 서빙(키리스·CORS). 설계 [docs/superpowers/specs/2026-06-22-country-data-api-design.md](../superpowers/specs/2026-06-22-country-data-api-design.md). 카탈로그 등록은 배포 후 단계.
 - **DB 현황**: 활성 31 → **30**, 비활성 17 → 18, broken 1, 총 48.
@@ -80,7 +82,7 @@
 
 ## 조치 (이 PR, 키 거버넌스)
 
-- **카카오 검색 env_var 수정 적용**: `API_KEY_KAKAO`(미존재) → `API_KEY_F1EC6F97`(카카오 로컬과 동일 키). [scripts/2026-06-21-fix-kakao-search-envvar.sql](../../scripts/2026-06-21-fix-kakao-search-envvar.sql)
+- **카카오 검색 env_var 수정 적용**: `API_KEY_KAKAO`(미존재) → `API_KEY_F1EC6F97`(카카오 로컬과 동일 키). `scripts/2026-06-21-fix-kakao-search-envvar.sql`
 - **관리자 진단 엔드포인트 신설**: `GET /api/v1/admin/keys-verify` — 배포 런타임 env 키로 실제 인증 요청을 보내 6개 sealed 키 유효성 검증. raw 실패 시 prefix 적용 재시도해 **프록시 prefix 미적용 여부(`needsPrefixFix`)** 까지 진단. 로직은 [src/lib/catalog/keyCheck.ts](../../src/lib/catalog/keyCheck.ts)(단위 테스트 12), 라우트 테스트 4.
 
 ## 배포 후 키 검증 확정 (2026-06-21, #150 배포 직후)
@@ -91,7 +93,7 @@
 
 - **근본 원인 확정**: 해당 env 변수들은 **sealed가 아니라 "이름만 있고 값이 빈" 변수**였다. Railway 변수 표시상 값이 공란이고(masked 아님), sealed라면 배포 런타임에 주입돼야 하나 `process.env`에서 미설정으로 읽힘. 앱의 다른 키(`ANTHROPIC_API_KEY`·`NEXT_PUBLIC_SUPABASE_URL`)는 정상 주입 → env 주입 자체는 정상. 카탈로그식(`API_KEY_*`)·ADR식(`DATA_GO_KR_API_KEY` 등) 이름 **양쪽 모두 빈 값**.
 - **영향**: 7개 키 의존 API(Unsplash·카카오 로컬/검색·공휴일·기상청 단기/중기·아파트 실거래가)는 키가 없어 사용자 선택 시 401 실패 — 사실상 작동 불가. (NASA=DEMO_KEY, The Cat API=무인증 → 영향 없음)
-- **조치 (사용자 승인)**: 7개 `is_active=false` 비활성화. [scripts/2026-06-21-deactivate-empty-key-apis.sql](../../scripts/2026-06-21-deactivate-empty-key-apis.sql). **활성 30 → 23**(전부 키 불필요·즉시 사용 가능), 비활성 18 → 25.
+- **조치 (사용자 승인)**: 7개 `is_active=false` 비활성화. `scripts/2026-06-21-deactivate-empty-key-apis.sql`. **활성 30 → 23**(전부 키 불필요·즉시 사용 가능), 비활성 18 → 25.
 - **프록시 prefix 검증 보류**: 키가 비어 있어 `needsPrefixFix` 진단 불가. 실제 키 입력 후 재검증 시 확정.
 
 ## 잔여 / 후속 작업
