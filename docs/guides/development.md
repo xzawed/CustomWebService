@@ -157,8 +157,18 @@ pnpm lint:fix         # ESLint 자동 수정
 
 ```bash
 # 운영/데이터 스크립트
-pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.json) 재생성
+pnpm countries:generate  # 국가 데이터(src/data/countries.json) 재생성 (tsx scripts/generateCountries.ts)
+pnpm countries:check     # 쓰기 없이 업스트림 대비 드리프트 검사 (동일 0 / 어긋남 1)
 ```
+
+월 1회 GitHub Actions(`.github/workflows/countries-freshness.yml`)가 `countries:check`를 돌린다.
+**드리프트가 있을 때만 이슈를 1건 열고**, 없으면 조용히 성공한다(이슈·실패·알림 없음).
+이슈가 이미 열려 있으면 중복 생성하지 않는다. 종료 코드는 `0` 동일 · `1` 드리프트 · `2` 업스트림 도달 실패이며,
+`2`는 일시 장애로 보고 이슈를 만들지 않는다.
+
+> 갱신 PR을 자동으로 만들지 않는 이유: 이 레포는 Actions의 PR 생성이 꺼져 있고
+> (`can_approve_pull_request_reviews: false`), 켜더라도 `GITHUB_TOKEN`이 만든 PR에는 **CI가 돌지 않는다**.
+> 사람이 `pnpm countries:generate` 후 평소대로 PR을 올려야 데이터 변경이 CI로 검증된다.
 
 > 카탈로그 헬스·플랫폼 키 검증 CLI(`pnpm catalog:healthcheck` / `pnpm keys:verify`)는
 > SQLite 컷오버로 제거됨. 배포 런타임에서는 관리자 엔드포인트를 사용한다:

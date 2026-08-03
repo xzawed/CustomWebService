@@ -82,7 +82,8 @@ pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요, CI에서 �
 
 ```bash
 # 운영 스크립트
-pnpm tsx scripts/generateCountries.ts  # 국가 데이터(src/data/countries.json) 재생성 (준-정적)
+pnpm countries:generate  # 국가 데이터(src/data/countries.json) 재생성 (준-정적)
+pnpm countries:check     # 쓰기 없이 업스트림 드리프트 검사 — 0 동일 / 1 드리프트 / 2 업스트림 도달 실패
 ```
 
 > `pnpm admin:hash`(단일 관리자 해시 생성)는 다중 사용자 전환(2026-06-24)으로 **제거됨**. 계정 생성은 `/signup` 공개 페이지를 통해 수행한다.
