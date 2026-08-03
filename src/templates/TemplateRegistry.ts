@@ -35,6 +35,11 @@ class TemplateRegistryImpl {
   get(id: string): ICodeTemplate | undefined {
     return this.templates.get(id);
   }
+
+  /** 등록된 템플릿 목록 (읽기 전용 스냅샷). 계약 테스트·자동 열거용. */
+  list(): ICodeTemplate[] {
+    return Array.from(this.templates.values());
+  }
 }
 
 export const templateRegistry = new TemplateRegistryImpl();

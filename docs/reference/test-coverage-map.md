@@ -107,21 +107,25 @@ grep "^SF:" coverage/lcov.info | tr '\\' '/' | grep '패턴'   # lcov는 백슬�
 | ID | 대상 | 왜 위험한가 | 최소 케이스 |
 |----|------|------------|------------|
 | **T1** | `src/app/(main)/builder/page.tsx` (862줄, 테스트 0) | 프로젝트 생성 → 생성 트리거 → SSE 리더 → 폴백 폴링 **오케스트레이션 전체가 이 파일에만** 있다. 폴링 함수 자체(`pollGenerationStatus`)는 테스트되지만 **조합**은 미검증 | 핸들러를 훅/순수함수로 추출 후 fetch·SSE·poll 주입형으로: ① SSE 성공 시 폴링 중단 ② SSE error → 폴백 전환 ③ 스트림 중도 종료 시 상태 확정 |
-| **T2** | `src/app/api/v1/projects/[id]/route.ts` | **DELETE가 프로젝트 영구 삭제 진입점**이고 앱 캐스케이드의 입구다. 서비스는 커버되나 라우트 인증 게이트·에러 매핑은 미검증 | GET·DELETE 각각 미인증 401 / 타인 소유 403 / 소유자 200 |
+| **T2** | ~~`src/app/api/v1/projects/[id]/route.ts`~~ + `popular-services` | ~~DELETE가 프로젝트 영구 삭제 진입점~~ | ✅ **완료(E4, 2026-08-04)** — `projects-detail.test.ts`(GET·DELETE 미인증/미존재/성공, 타인 소유는 `ownership-isolation.test.ts`가 이미 커버) + `popular-services.test.ts`(usage≥5 / 병합 / 빈 usage / dedup 가드). **`vitest.config.ts` `coverage.include`에 `popular-services` 편입 필수**였다 |
 | **T3** | ~~E2E 전반~~ → ✅ **E6 완료** | 단위 테스트가 구조적으로 못 잡는 4종(§5)을 request-level E2E로 고정. `e2e/seed.mjs`가 SQLite 픽스처를 서버 기동 전 시드. CI는 **Build + E2E 양쪽**에 `NEXT_PUBLIC_ROOT_DOMAIN=xzawed.xyz` (빌드타임 인라인). Host는 `127.0.0.1` + `e2e/helpers/httpHost.ts`로 명시 주입(`slug.localhost` 불가) | `e2e/serving/*` 1회 프로젝트(setup storageState 의존). A 패스스루 · B 마커 동등성 · C CSP `headersArray` 1회 · D 유령 세션 401. pages/* 는 기존 device matrix 유지 |
-| **T4** | `PublishDialog` 실패 분기 | 기존 7개 테스트가 전부 정상 경로. slug reason 분기(`invalid`/`reserved`/`taken`), AbortError 무시, publish catch, 에러 렌더가 **전부 미실행** | reason별 메시지 + 게시 버튼 disabled 유지, publish reject 시 에러 렌더 |
-| **T5** | `src/templates/` 개별 11종 | 레지스트리는 "등록됨"만 검증. 소비처가 try/catch로 삼켜서 **깨져도 예외 없이 품질만 떨어진다** | `it.each`로 11종: `generate()`가 비지 않은 promptHint 반환 + `authType!=='none'`이면 프록시 경로 포함 |
+| **T4** | ~~`PublishDialog` 실패 분기~~ | ~~기존 7개 테스트가 전부 정상 경로~~ | ✅ **완료(E5, 2026-08-04)** — 7 → **17케이스**. reason 3종 + 미지 reason fail-closed + 검사 실패 idle + AbortError 무시 + publish reject(Error/비-Error) + **실패 시 다이얼로그 미종료** + 재시도 성공. 마지막 항목이 핵심 계약이라 뮤테이션(`finally`에 `onClose` 주입)으로 이빨을 확인했다 |
+| **T5** | ~~`src/templates/` 개별 11종~~ | ~~레지스트리는 "등록됨"만 검증~~ | ✅ **완료(E5, 2026-08-04)** — `templateContract.test.ts`가 `templateRegistry.list()`로 **11종 자동 구동**(하드코딩 id 목록 아님). 메타데이터·id 유일성·`matchScore` 0~1·`generate` 6컨텍스트 무예외·출력 형태·**플레이스홀더 누수 부재**. 누수 탐지기는 `${undefined}` 주입 뮤테이션으로 검증 |
 | **T6** | `PopularServiceSuggestions.tsx` (143줄) | useEffect가 자동 fetch하는데 MSW 핸들러가 없고 `onUnhandledRequest:'error'`라 **핸들러부터 추가하지 않으면 테스트 작성 자체가 막힌다** | `handlers.ts`에 엔드포인트 추가 → 로딩 / 빈 목록 / fetch 실패 3케이스 |
 | **T7** | ~~`RePromptPanel.tsx`~~ | ~~재생성 진입 UI 전체~~ | ✅ **완료(E9/P4)** — `RePromptPanel.test.tsx`(제출·중복 차단·서버 오류·언마운트 abort) + `runClientRegeneration.test.ts`(SSE/poll/abort/not_found). vitest·codecov·sonar exclude 3곳 제거 |
 | **T8** | 나머지 페이지 4종·`src/components/auth/` | 페이지 테스트로 간접 커버 중이라 우선순위 낮음 | — |
 
 ### MSW 관련 주의
 
-`src/test/setup.ts`가 `onUnhandledRequest:'error'`다. 새 컴포넌트가 fetch하는 엔드포인트는
-`src/test/mocks/handlers.ts`에 **핸들러를 반드시 추가**해야 한다.
+새 컴포넌트가 fetch하는 엔드포인트는 `src/test/mocks/handlers.ts`에 **핸들러를 반드시 추가**해야 한다.
 
-> ⚠️ 다만 MSW `'error'`는 비동기 전파상 테스트를 항상 빨갛게 만들지는 않는다(MSW #946/#943).
-> **전체 통과가 "미처리 요청 부재"의 충분 증거는 아니다.**
+> ✅ **E7 완료(2026-08-04).** `src/test/setup.ts`는 이제 `onUnhandledRequest`를 **콜백으로 받아
+> 기록하고 `afterEach`에서 단언**한다. 앱이 `.catch()`로 삼킨 요청도 테스트를 실패시키므로
+> **전체 통과 = 미처리 요청 부재**가 성립한다.
+>
+> 이전 caveat(MSW #946/#943 — `'error'` 문자열 설정은 비동기 전파상 테스트를 항상 빨갛게
+> 만들지 못함)는 그 단언이 있어야만 해소된다. **`afterEach` 단언을 걷어내면 caveat가 되살아난다.**
+> 탐지기 자체는 "삼켜진 미처리 요청" 임시 테스트로 실패를 확인했다.
 
 ---
 

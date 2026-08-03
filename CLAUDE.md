@@ -334,7 +334,7 @@ pnpm countries:check     # 쓰기 없이 업스트림 드리프트 검사 — 0 
 - **모듈 레벨 플래그 테스트**: `let registered = false` 류는 `vi.resetModules()` + 매 테스트 `await import(...)` 격리 (`eventPersister.ts`)
 - **api 라우트 테스트**: `@/lib/config/providers`·`@/lib/supabase/server` 모킹 **불필요**(모듈 삭제됨). 잔존 시 미존재 모듈 모킹. `vitest.config.ts` `testTimeout`/`hookTimeout` 15000ms는 경합 마진으로 유지 — [ADR](docs/decisions/2026-06-09-test-flaky-timeout-contention-fix.md)
 - **happy-dom iframe**: `environmentOptions.happyDOM.settings.navigation.disableChildFrameNavigation = true`. v20 `disableIframePageLoading` deprecated. `disableFallbackToSetURL` 기본 false 유지(iframe.src 단언용)
-- **MSW `onUnhandledRequest:'error'`**: 새 fetch 엔드포인트는 `src/test/mocks/handlers.ts`에 핸들러 필수. **caveat**: MSW `'error'`가 비동기 전파상 테스트를 항상 빨갛게 만들지는 않음(MSW #946/#943) — 전체 통과 ≠ 미처리 요청 부재
+- **MSW 미처리 요청**: 새 fetch 엔드포인트는 `src/test/mocks/handlers.ts`에 핸들러 필수. `onUnhandledRequest`는 **콜백으로 기록 + `afterEach` 단언**이라(`src/test/setup.ts`) 앱이 `.catch()`로 삼킨 요청도 테스트를 실패시킨다. 옛 `'error'` 문자열 설정만 쓰던 시절의 caveat(MSW #946/#943 — 전체 통과 ≠ 미처리 요청 부재)는 **2026-08-04 E7로 해소**됐다. 이 단언을 걷어내면 caveat가 되살아난다
 - **SonarCloud vs Codecov**: Codecov/Vitest는 `coverage.include` 화이트리스트만, SonarCloud는 `sonar.sources=src` 전체 — 숫자 불일치를 설정 오류로 단정하지 말 것
 - **`coverage.include` 누락 시 CI 빨갱 (2026-07-10 실증)**: lcov에 없는 파일의 변경 라인은 `new_coverage`/`codecov/patch`에서 **0%**. 라우트 테스트 추가 시 `vitest.config.ts` `coverage.include`에도 추가. 비테스트 파일은 `sonar.coverage.exclusions`와 `codecov.yml` `ignore` **양쪽**
 - **`temperature`**: Claude 4.x에서 미지원·Provider에서 제거. `IAiPrompt.temperature`는 legacy 필드만 유지(API 미전달)

@@ -58,6 +58,14 @@ export default defineConfig({
         'src/app/api/v1/catalog/**/route.ts',
         'src/app/api/v1/preview/**/route.ts',
         'src/app/api/v1/projects/**/route.ts',
+        // 2026-08-03: E4 — popular-services 라우트 테스트 백필. whitelist 미등록 시
+        // codecov/patch·SonarCloud new_coverage 가 0%로 집계되어 CI 가 빨개진다.
+        'src/app/api/v1/popular-services/route.ts',
+        // 2026-08-04: E5 — 템플릿 11종 계약 테스트(templateContract.test.ts)가 생기면서 편입.
+        // 편입 전엔 lcov 에 데이터가 없어 `TemplateRegistry.list()` 추가만으로
+        // SonarCloud new_coverage 가 **0%**가 되어 게이트가 실패했다(PR #263 실측).
+        // 계약 테스트가 11종 전부의 generate/matchScore 를 실행하므로 이제 데이터가 있다.
+        'src/templates/**/*.ts',
         'src/app/api/v1/generate/status/**/route.ts',
         'src/app/api/auth/**/route.ts',
         'src/app/site/**/route.ts',
