@@ -75,5 +75,5 @@
 ## 후속 / 비범위
 - (사용자) `ENCRYPTION_KEY` 미설정 — 개인 API 키 암호화 등록에 필요(부팅·로그인엔 불필요).
 - (사용자) 관리자 로그인 E2E 확인.
-- `scripts/*.sql`(backfillGoldenSet·2026-06-21 ops)은 Supabase 대상 1회성 SQL — inert라 보존(빌드 무관). 필요 시 별도 정리.
+- `scripts/*.sql`(backfillGoldenSet·2026-06-21 ops)은 Supabase 대상 1회성 SQL — inert라 보존(빌드 무관). 필요 시 별도 정리. → **2026-08-03(C7) 삭제 완료.**
 - 백업 크론(WBS P6.3)·verification cron 컨테이너 내부화(P5.2)는 여전히 이연.

@@ -100,16 +100,6 @@ describe('verifyAdminKey()', () => {
     ).not.toThrow();
   });
 
-  it('x-real-ip 헤더만 있어도 레이트 리밋 IP를 식별한다', () => {
-    const req = new Request('http://test.com/admin', {
-      headers: {
-        'x-real-ip': '192.168.1.100',
-        Authorization: 'Bearer secret-admin-key',
-      },
-    });
-    expect(() => verifyAdminKey(req)).not.toThrow();
-  });
-
   it('헤더 없이 요청하면 IP가 unknown으로 처리된다 (에러 종류만 확인)', () => {
     // Authorization 없으므로 ForbiddenError 발생 (IP unknown 처리는 내부)
     const req = new Request('http://test.com/admin');
@@ -144,5 +134,124 @@ describe('verifyAdminKey()', () => {
         )
       ).toThrow(ForbiddenError);
     });
+  });
+});
+
+// ───────────────────────────────────────────────
+// 레이트리밋 용량 정책 (SDD 4.1 — 활성 윈도 evict 금지)
+//
+// 버킷 Map이 모듈 레벨이므로 `vi.resetModules()` + 동적 import로 매 테스트를 격리한다.
+// 용량·한도를 작게 낮춰 1000회 반복 없이 경계를 검증한다.
+// ───────────────────────────────────────────────
+describe('verifyAdminKey() 레이트리밋 용량 정책', () => {
+  const KEY = 'secret-admin-key';
+
+  /**
+   * `vi.resetModules()` 이후의 모듈은 `errors.ts`까지 새로 로드하므로,
+   * 파일 최상단에서 정적 import한 `ForbiddenError`와 **클래스 identity가 다르다**.
+   * `toThrow(ForbiddenError)`가 조용히 어긋나지 않도록 같은 레지스트리의 클래스를 함께 돌려준다.
+   */
+  async function loadAdminAuth(
+    maxUsers: number,
+    perMin: number
+  ): Promise<{
+    verifyAdminKey: (request: Request) => void;
+    Forbidden: typeof ForbiddenError;
+  }> {
+    vi.resetModules();
+    vi.stubEnv('ADMIN_API_KEY', KEY);
+    vi.stubEnv('MAX_CONCURRENT_RATE_LIMIT_USERS', String(maxUsers));
+    vi.stubEnv('RATE_LIMIT_PER_MIN', String(perMin));
+    const [{ verifyAdminKey }, { ForbiddenError: Forbidden }] = await Promise.all([
+      import('./adminAuth'),
+      import('./errors'),
+    ]);
+    return { verifyAdminKey, Forbidden };
+  }
+
+  function req(ip: string): Request {
+    return new Request('http://test.com/admin', {
+      headers: { 'x-forwarded-for': ip, Authorization: `Bearer ${KEY}` },
+    });
+  }
+
+  /** x-forwarded-for 없이 x-real-ip만 붙인 요청 — 신뢰 경계가 붙였다는 보장이 없다. */
+  function reqRealIpOnly(realIp: string): Request {
+    return new Request('http://test.com/admin', {
+      headers: { 'x-real-ip': realIp, Authorization: `Bearer ${KEY}` },
+    });
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
+
+  it('용량이 가득 차면 살아 있는 윈도를 버리는 대신 새 IP를 차단한다', async () => {
+    const { verifyAdminKey, Forbidden } = await loadAdminAuth(2, 2);
+
+    // ip-a 한도 소진
+    expect(() => verifyAdminKey(req('ip-a'))).not.toThrow();
+    expect(() => verifyAdminKey(req('ip-a'))).not.toThrow();
+    expect(() => verifyAdminKey(req('ip-a'))).toThrow(Forbidden);
+
+    // ip-b 로 용량을 상한까지 채운다
+    expect(() => verifyAdminKey(req('ip-b'))).not.toThrow();
+
+    // ip-c 는 자리가 없다 → 활성 카운터를 evict하지 말고 차단해야 한다
+    expect(() => verifyAdminKey(req('ip-c'))).toThrow(Forbidden);
+  });
+
+  it('용량 압박이 있어도 기존 IP의 한도가 리셋되지 않는다 (우회 회귀)', async () => {
+    const { verifyAdminKey, Forbidden } = await loadAdminAuth(2, 2);
+
+    expect(() => verifyAdminKey(req('ip-a'))).not.toThrow();
+    expect(() => verifyAdminKey(req('ip-a'))).not.toThrow();
+    expect(() => verifyAdminKey(req('ip-a'))).toThrow(Forbidden);
+
+    // 용량을 넘기는 신규 IP들 — LRU였다면 여기서 ip-a 버킷이 evict된다
+    expect(() => verifyAdminKey(req('ip-b'))).not.toThrow();
+    expect(() => verifyAdminKey(req('ip-c'))).toThrow(Forbidden);
+
+    // ip-a 는 여전히 한도 초과 상태여야 한다. 통과하면 한도가 우회된 것이다.
+    expect(() => verifyAdminKey(req('ip-a'))).toThrow(Forbidden);
+  });
+
+  it('만료된 버킷은 정리되어 새 IP가 다시 들어갈 수 있다', async () => {
+    vi.useFakeTimers();
+    const { verifyAdminKey, Forbidden } = await loadAdminAuth(2, 5);
+
+    expect(() => verifyAdminKey(req('ip-a'))).not.toThrow();
+    expect(() => verifyAdminKey(req('ip-b'))).not.toThrow();
+    // 상한 도달 — 만료된 것이 없으므로 차단
+    expect(() => verifyAdminKey(req('ip-c'))).toThrow(Forbidden);
+
+    // 윈도가 지나면 만료 버킷이 정리되어 자리가 생긴다
+    vi.advanceTimersByTime(60_001);
+    expect(() => verifyAdminKey(req('ip-c'))).not.toThrow();
+  });
+
+  it('용량 소진 경고는 윈도당 1회만 남긴다 (봇 트래픽 로그 폭발 방지)', async () => {
+    const { verifyAdminKey, Forbidden } = await loadAdminAuth(1, 5);
+    // resetModules 이후의 mock 인스턴스를 잡아야 대상 모듈과 같은 logger를 본다
+    const { logger } = await import('@/lib/utils/logger');
+    vi.mocked(logger.warn).mockClear();
+
+    expect(() => verifyAdminKey(req('ip-a'))).not.toThrow();
+    expect(() => verifyAdminKey(req('ip-b'))).toThrow(Forbidden);
+    expect(() => verifyAdminKey(req('ip-c'))).toThrow(Forbidden);
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('x-real-ip는 신뢰하지 않는다 — 값이 달라도 같은 unknown 버킷을 공유한다', async () => {
+    const { verifyAdminKey, Forbidden } = await loadAdminAuth(10, 1);
+
+    // 첫 요청이 'unknown' 버킷을 만들고 한도(1)를 소진한다
+    expect(() => verifyAdminKey(reqRealIpOnly('192.168.1.100'))).not.toThrow();
+
+    // x-real-ip를 바꿔도 별도 버킷이 생기면 안 된다.
+    // 통과한다면 헤더 회전으로 per-IP 한도를 무한히 우회할 수 있다는 뜻이다.
+    expect(() => verifyAdminKey(reqRealIpOnly('203.0.113.7'))).toThrow(Forbidden);
   });
 });

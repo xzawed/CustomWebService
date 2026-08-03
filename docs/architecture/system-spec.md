@@ -229,19 +229,26 @@ Opus 4.8은 생략 = 사고 없음이었지만 **Opus 5는 생략 시 adaptive�
 
 ### 4.1 🔇 인메모리 레이트리밋은 활성 윈도를 evict하지 않는다
 
-**성립 범위**: `proxy/route.ts`의 `checkProxyRateLimit` · `siteRateLimit.ts` · `auth/rateLimit.ts` **세 곳**.
+**성립 범위**: `proxy/route.ts`의 `checkProxyRateLimit` · `siteRateLimit.ts` · `auth/rateLimit.ts` ·
+`utils/adminAuth.ts` **네 곳** — 인메모리 리밋 전부다(2026-08-03, C3로 예외 해소).
 
 | 규칙 | 이유 |
 |------|------|
 | 만료 버킷만 정리하고, 정리 후에도 자리가 없으면 **새 키를 거부**(차단) | 살아 있는 카운터가 evict되면 다음 요청이 `count:1`로 시작해 한도가 우회된다 |
 | 읽기 전용 검사(`isLimited`)도 **없는 키라도 cap이 가득이면 `true`** | 아니면 키를 회전시켜 "첫 실패는 항상 공짜"를 무한히 얻는다 |
+| 용량 소진은 **로그로 드러낸다**(윈도당 1회) | fail-closed는 정상 사용자도 막는다 — 관측되지 않으면 조용한 잠금이 된다 |
 
-> ⚠️ **이건 코드베이스 전역 규칙이 아니다.** `src/lib/utils/adminAuth.ts`는 `LRUMap`을 써서
-> 만료와 무관하게 set하므로 **활성 버킷이 evict된다** — 알려진 안티패턴이며 위 규칙의 예외다.
-> "모든 인메모리 리밋은 fail-closed"라고 일반화하지 말 것. 정리는 WBS의 C3 항목.
+> ⚠️ **`LRUMap`을 레이트리밋 버킷에 쓰지 말 것.** 만료와 무관하게 evict하므로 활성 윈도가
+> 사라진다. `LRUMap` 자체는 캐시·트래커(`proxyCache`·`generationTracker`)용으로 계속 쓴다 —
+> 거기서는 항목이 사라져도 정확성이 아니라 적중률만 떨어진다.
 
 `src/lib/auth/rateLimit.ts`는 signup·forgot·resend·login이 **Map 하나를 공유**한다.
 버킷 소진 시 signup·forgot이 과차단될 수 있으며 이는 **의도된 fail-closed**다.
+
+`utils/adminAuth.ts`도 같은 트레이드오프를 수용한다: 검사가 **인증 이전**에 돌기 때문에
+미인증 트래픽이 버킷을 다 채우면 정상 관리자도 차단된다. 그래서 소진 시
+`logger.warn('Admin rate limit capacity exhausted ...')`를 남긴다 — 인시던트 중
+`?detailed=true`가 막히면 이 로그가 유일한 단서다.
 
 ### 4.2 서브도메인 rewrite 예외는 `/api/v1/proxy` 하나뿐이다
 

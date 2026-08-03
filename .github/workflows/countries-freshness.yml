@@ -1,0 +1,109 @@
+# 번들 countries.json 신선도 검사 (C8).
+#
+# **노이즈 제로가 설계 목표다.** 드리프트가 없으면 조용히 성공하고 아무것도 남기지 않는다.
+# 변경이 있을 때만 이슈를 하나 열고, 이미 열려 있으면 중복 생성하지 않는다.
+#
+# PR을 자동으로 만들지 않는 이유 (2026-08-03 실측):
+#   1) 이 레포는 Actions의 PR 생성이 꺼져 있다 —
+#      `gh api repos/.../actions/permissions/workflow` → `can_approve_pull_request_reviews: false`.
+#      켜지 않는 한 `gh pr create`는 403으로 죽는다.
+#   2) 설령 켜도 **GITHUB_TOKEN이 만든 PR에는 CI가 돌지 않는다**(재귀 실행 차단).
+#      데이터 교체를 검증할 유일한 안전망이 사라지는 셈이라 오히려 더 나쁘다.
+#   사람이 `pnpm countries:generate` 후 평소대로 PR을 올리면 CI가 정상 동작한다.
+name: Countries Freshness
+
+on:
+  schedule:
+    # 매월 1일 06:00 UTC — 저트래픽 시각. 국가 데이터는 준-정적이라 이보다 잦을 이유가 없다.
+    - cron: '0 6 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  freshness:
+    name: countries.json freshness
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # exit 0 = 동일 · exit 1 = 드리프트 · exit 2 = 업스트림 도달 실패.
+      # 2를 1과 구분하지 않으면 GitHub raw의 일시 장애가 헛된 이슈를 만든다.
+      - name: Check freshness
+        id: check
+        run: |
+          set +e
+          SUMMARY=$(pnpm countries:check 2>&1)
+          CODE=$?
+          echo "$SUMMARY"
+          printf '%s\n' "$SUMMARY" > check-summary.txt
+          printf 'exit_code=%s\n' "$CODE" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: No drift
+        if: steps.check.outputs.exit_code == '0'
+        run: echo "드리프트 없음 — 아무것도 하지 않고 종료한다."
+
+      - name: Upstream unavailable
+        if: steps.check.outputs.exit_code == '2'
+        run: echo "업스트림 원본에 도달하지 못했다. 일시 장애로 보고 다음 주기에 재시도한다."
+
+      # 드리프트일 때만. 제목은 중복 판정 키라서 ASCII로 고정한다(본문은 한국어).
+      - name: Open drift issue
+        if: steps.check.outputs.exit_code == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: 'chore(countries): upstream drift detected'
+        run: |
+          set -euo pipefail
+
+          # 검색 인덱스는 반영이 늦어 중복 이슈를 만들 수 있다 — REST 목록으로 즉시 판정한다.
+          EXISTING=$(gh issue list --state open --limit 100 --json number,title \
+            --jq ".[] | select(.title == \"$TITLE\") | .number" | head -1)
+          if [ -n "$EXISTING" ]; then
+            echo "이미 열린 이슈 #${EXISTING} 가 있다 — 중복 생성하지 않는다."
+            exit 0
+          fi
+
+          {
+            echo '## 무엇이'
+            echo
+            echo '업스트림 [mledoze/countries](https://github.com/mledoze/countries) 와'
+            echo '번들 `src/data/countries.json` 이 어긋났다.'
+            echo
+            echo '## 신선도 검사 출력'
+            echo
+            echo '```'
+            cat check-summary.txt
+            echo '```'
+            echo
+            echo '## 조치'
+            echo
+            echo '```bash'
+            echo 'pnpm countries:generate'
+            echo '```'
+            echo
+            echo '생성 결과를 커밋해 평소대로 PR을 올린다 — 그래야 CI가 데이터 변경을 검증한다.'
+            echo '`countries.json` 은 기계 생성물이라 직접 편집하지 않는다(minify 한 줄이라 diff 도 한 줄로 보인다).'
+            echo
+            echo '드리프트가 남아 있는 동안 이 이슈는 재생성되지 않는다 — 닫으면 다음 주기에 다시 열린다.'
+          } > issue-body.md
+
+          gh issue create --title "$TITLE" --body-file issue-body.md
