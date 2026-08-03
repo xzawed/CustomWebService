@@ -1,44 +1,14 @@
 [
   {
-    "flag_name": "enable_advanced_prompt",
-    "enabled": false,
-    "description": "Enable advanced prompt engineering options for code generation",
-    "rules": { "max_tokens": 4096 }
-  },
-  {
-    "flag_name": "enable_code_viewer",
+    "flag_name": "enable_generation",
     "enabled": true,
-    "description": "Enable the code viewer panel for generated output",
-    "rules": { "default": true }
+    "description": "AI 코드 생성·재생성 허용. false로 내리면 재배포 없이 즉시 중단된다(비용 폭주·업스트림 장애 대응 킬스위치).",
+    "rules": null
   },
   {
-    "flag_name": "enable_dark_mode",
+    "flag_name": "enable_signup",
     "enabled": true,
-    "description": "Enable dark mode UI theme toggle",
-    "rules": { "default": true }
-  },
-  {
-    "flag_name": "enable_multi_language",
-    "enabled": false,
-    "description": "Enable multi-language UI support (i18n)",
-    "rules": { "supported": ["ko", "en", "ja"] }
-  },
-  {
-    "flag_name": "enable_ollama_fallback",
-    "enabled": false,
-    "description": "Fall back to local Ollama models when cloud AI is unavailable",
-    "rules": { "models": ["llama3", "codellama"] }
-  },
-  {
-    "flag_name": "enable_team_features",
-    "enabled": false,
-    "description": "Enable team collaboration and organization features",
-    "rules": { "min_plan": "pro" }
-  },
-  {
-    "flag_name": "enable_template_system",
-    "enabled": false,
-    "description": "Enable project templates for quick start",
-    "rules": { "categories": ["dashboard", "landing", "widget"] }
+    "description": "신규 회원가입 허용. false로 내리면 가입만 차단하고 기존 사용자 로그인·이용에는 영향이 없다(남용 대응).",
+    "rules": null
   }
 ]

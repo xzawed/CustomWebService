@@ -65,6 +65,13 @@ export type DomainEvent =
         finalStructuralScore: number;
         finalMobileScore: number;
       };
+    }
+  // 관리자 조작 2종. payload에 userId/projectId를 넣지 않는다 —
+  // persist()가 그 키를 FK 컬럼으로 추출하는데 관리자 조작엔 대응하는 행이 없다.
+  | { type: 'FEATURE_FLAG_CHANGED'; payload: { flag: string; enabled: boolean } }
+  | {
+      type: 'CATALOG_API_ACTIVATED';
+      payload: { apiId: string; apiName: string; envVar: string };
     };
 
 export type DomainEventType = DomainEvent['type'];
