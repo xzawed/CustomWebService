@@ -200,4 +200,213 @@ describe('PublishDialog', () => {
       expect(mockPublish).toHaveBeenCalledWith(baseProject.id);
     });
   });
+
+  // ───────────────────────────────────────────────
+  // slug 검사 실패 분기 (E5 · T4)
+  //
+  // reason별 안내 문구가 전부 미실행이었다. 문구가 틀리면 사용자는 왜 막혔는지 모른 채
+  // 같은 주소를 계속 시도한다. 어느 reason이든 게시 버튼은 잠긴 상태여야 한다.
+  // ───────────────────────────────────────────────
+  describe('slug 검사 결과 표시', () => {
+    async function typeSlugAndSettle(
+      responseBody: unknown,
+    ): Promise<HTMLElement> {
+      vi.useFakeTimers();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ json: () => Promise.resolve(responseBody) }),
+      );
+
+      render(
+        <PublishDialog
+          project={baseProject}
+          onClose={onClose}
+          onPublished={onPublished}
+        />,
+      );
+
+      fireEvent.change(screen.getByPlaceholderText('my-service'), {
+        target: { value: 'my-slug' },
+      });
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      return screen.getByRole('button', { name: '게시하기' });
+    }
+
+    it.each([
+      ['invalid', '유효하지 않은 형식입니다'],
+      ['reserved', '예약된 주소입니다'],
+      ['taken', '이미 사용 중입니다'],
+    ])('reason=%s 이면 "%s"를 보여주고 게시 버튼을 잠근다', async (reason, message) => {
+      const publishButton = await typeSlugAndSettle({
+        data: { available: false, reason },
+      });
+
+      expect(screen.getByText(message)).toBeTruthy();
+      expect(publishButton.hasAttribute('disabled')).toBe(true);
+    });
+
+    it('알 수 없는 reason은 taken으로 취급한다 (fail-closed)', async () => {
+      // 서버가 새 reason을 추가해도 게시가 열리면 안 된다.
+      const publishButton = await typeSlugAndSettle({
+        data: { available: false, reason: 'some-future-reason' },
+      });
+
+      expect(screen.getByText('이미 사용 중입니다')).toBeTruthy();
+      expect(publishButton.hasAttribute('disabled')).toBe(true);
+    });
+
+    it('slug 검사 요청이 실패하면 idle로 되돌아가 게시 버튼이 잠긴 채로 남는다', async () => {
+      vi.useFakeTimers();
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
+
+      render(
+        <PublishDialog
+          project={baseProject}
+          onClose={onClose}
+          onPublished={onPublished}
+        />,
+      );
+
+      fireEvent.change(screen.getByPlaceholderText('my-service'), {
+        target: { value: 'my-slug' },
+      });
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      // idle에는 안내 문구가 없다 — 잘못 '사용 가능'으로 보이지만 않으면 된다.
+      expect(screen.queryByText('사용 가능')).toBeNull();
+      expect(
+        screen.getByRole('button', { name: '게시하기' }).hasAttribute('disabled'),
+      ).toBe(true);
+    });
+
+    it('AbortError는 무시한다 — 언마운트 후 상태를 건드리지 않는다', async () => {
+      vi.useFakeTimers();
+      const abortError = new Error('aborted');
+      abortError.name = 'AbortError';
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortError));
+
+      const { unmount } = render(
+        <PublishDialog
+          project={baseProject}
+          onClose={onClose}
+          onPublished={onPublished}
+        />,
+      );
+
+      fireEvent.change(screen.getByPlaceholderText('my-service'), {
+        target: { value: 'my-slug' },
+      });
+
+      unmount();
+      // 언마운트 후 타이머가 풀려도 setState 경고 없이 조용히 끝나야 한다.
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+    });
+  });
+
+  // ───────────────────────────────────────────────
+  // 게시 실패 분기 (E5 · T4)
+  //
+  // 핵심 계약은 "에러 문구가 보인다"가 아니라 **다이얼로그가 닫히지 않는다**는 것이다.
+  // 실패했는데 onClose/onPublished가 불리면 사용자는 게시되지 않은 걸 게시됐다고 믿고,
+  // 재시도할 화면조차 사라진다.
+  // ───────────────────────────────────────────────
+  describe('게시 실패', () => {
+    it('publish가 Error로 거부되면 메시지를 보여주고 다이얼로그를 닫지 않는다', async () => {
+      mockPublish.mockRejectedValueOnce(new Error('slug가 이미 사용 중입니다'));
+
+      render(
+        <PublishDialog
+          project={baseProject}
+          onClose={onClose}
+          onPublished={onPublished}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: '기본 주소로 게시' }));
+
+      expect(await screen.findByText('slug가 이미 사용 중입니다')).toBeTruthy();
+      expect(onPublished).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('Error가 아닌 값으로 거부돼도 기본 실패 문구를 보여준다', async () => {
+      // fetch 계층이 문자열·객체를 던지는 경우가 있어 `err instanceof Error` 폴백이 필요하다.
+      mockPublish.mockRejectedValueOnce('network down');
+
+      render(
+        <PublishDialog
+          project={baseProject}
+          onClose={onClose}
+          onPublished={onPublished}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: '기본 주소로 게시' }));
+
+      expect(await screen.findByText('게시에 실패했습니다.')).toBeTruthy();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('AI 추천 경로에서 실패해도 다이얼로그가 유지되고 재시도할 수 있다', async () => {
+      mockPublish.mockRejectedValueOnce(new Error('일시적 오류'));
+
+      render(
+        <PublishDialog
+          project={{ ...baseProject, suggestedSlugs: ['weather-dashboard', 'seoul-hub'] }}
+          onClose={onClose}
+          onPublished={onPublished}
+        />,
+      );
+
+      const publishButton = screen.getByRole('button', { name: '게시하기' });
+      fireEvent.click(publishButton);
+
+      expect(await screen.findByText('일시적 오류')).toBeTruthy();
+      expect(onClose).not.toHaveBeenCalled();
+
+      // finally 블록이 isPublishing을 되돌리므로 버튼이 다시 눌려야 한다.
+      // 이게 깨지면 한 번 실패한 사용자는 영영 게시할 수 없다.
+      await waitFor(() => {
+        expect((publishButton as HTMLButtonElement).disabled).toBe(false);
+      });
+
+      mockPublish.mockResolvedValueOnce(undefined);
+      fireEvent.click(publishButton);
+
+      await waitFor(() => {
+        expect(onPublished).toHaveBeenCalledTimes(1);
+        expect(onClose).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('재시도가 성공하면 이전 에러 문구가 사라진다', async () => {
+      mockPublish.mockRejectedValueOnce(new Error('첫 시도 실패'));
+
+      render(
+        <PublishDialog
+          project={baseProject}
+          onClose={onClose}
+          onPublished={onPublished}
+        />,
+      );
+
+      const defaultButton = screen.getByRole('button', { name: '기본 주소로 게시' });
+      fireEvent.click(defaultButton);
+      expect(await screen.findByText('첫 시도 실패')).toBeTruthy();
+
+      mockPublish.mockResolvedValueOnce(undefined);
+      fireEvent.click(defaultButton);
+
+      await waitFor(() => {
+        expect(screen.queryByText('첫 시도 실패')).toBeNull();
+      });
+    });
+  });
 });
