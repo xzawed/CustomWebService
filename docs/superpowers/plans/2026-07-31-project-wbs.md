@@ -133,13 +133,13 @@
 |----|------|------|
 | E1 | ~~커버리지 집계 설정 정합화~~ | **완료(2026-07-31)** |
 | E2 | ~~클라이언트 상태·훅 테스트~~ | **완료(2026-07-31)** — 스토어 6 + `usePublish` |
-| E3 | builder 생성 핸들러 추출 + 테스트 (T1) — **아래 P0~P4로 분할**. P0은 완료 | L |
+| ~~E3~~ | ~~builder 생성 핸들러 추출 + 테스트 (T1) — **아래 P0~P4로 분할**~~ | **완료(2026-08-01)** — P0~P4 전부 완료, 잔여 단계 없음. 복잡도 실측·설계 원칙은 아래 「E3 분할 계획」 절 참조 |
 | E4 | 라우트 테스트 (T2: `projects/[id]`, `popular-services`) | S |
 | E5 | 약한 테스트 보강 (T4 PublishDialog 실패 분기, T5 템플릿 11종 계약) | M |
 | ~~E6~~ | ~~**E2E 확장 (T3)** — 미리보기↔게시 동등성, Host 헤더 서브도메인, 인증·생성·게시~~ | **완료** — `e2e/serving/*` 4계약(A 패스스루·B 마커 동등성·C CSP 1회·D 유령 세션 401) + seed/CI `NEXT_PUBLIC_ROOT_DOMAIN` 빌드타임 인라인. 생성 플로우는 ANTHROPIC 키 부재로 픽스처 시드로 대체 |
 | E7 | MSW 보강 — `onUnhandledRequest:'error'`가 미처리 요청 부재를 보증하지 못한다(MSW #946/#943) | S |
-| **E8** | **`AbortController`를 생성 세션 단위로 승격.** 현재는 `runClientGeneration` 호출 로컬이라, 핸드오프된 폴러가 함수 반환 후 최대 5분 더 살아 있고 끊을 수단이 없다. 사용자가 '이전' 버튼으로 재생성하면 `startGeneration`이 터미널 래치를 재개방하므로 **이전 실행의 폴러가 새 실행 상태에 써 넣을 수 있다**(cross-run 오염). 스토어/모듈 ref로 올려 새 `startGeneration`이 직전 세션을 abort하게 할 것 | M |
-| **E9** | ~~**`RePromptPanel`은 보호가 전혀 없다.**~~ | **완료** — `runClientRegeneration` + `regenerationSession` + 패널 로컬 terminal 가드 + 테스트. coverage exclude 3곳 제거 |
+| ~~**E8**~~ | ~~**`AbortController`를 생성 세션 단위로 승격.** 현재는 `runClientGeneration` 호출 로컬이라, 핸드오프된 폴러가 함수 반환 후 최대 5분 더 살아 있고 끊을 수단이 없다. 사용자가 '이전' 버튼으로 재생성하면 `startGeneration`이 터미널 래치를 재개방하므로 **이전 실행의 폴러가 새 실행 상태에 써 넣을 수 있다**(cross-run 오염). 스토어/모듈 ref로 올려 새 `startGeneration`이 직전 세션을 abort하게 할 것~~ | **완료** — 2026-08-01 PR #248. `generationSession`/`regenerationSession` 모듈 싱글톤 + `begin*Session` 직전 abort. **두 세션을 하나로 합치지 말 것** — 공유 abort 시 `generationStore`가 `generating`에 고착된다. |
+| ~~**E9**~~ | ~~**`RePromptPanel`은 보호가 전혀 없다.**~~ | **완료** — `runClientRegeneration` + `regenerationSession` + 패널 로컬 terminal 가드 + 테스트. coverage exclude 3곳 제거 |
 
 > **E6이 가장 값어치가 크다.** [테스트 지도 5절](../../reference/test-coverage-map.md)의
 > "단위 테스트로 구조적으로 못 잡는 결함" 4종의 유일한 방어선이다.
@@ -273,7 +273,7 @@ generate 경로(`RateLimitService.decrementDailyLimit`)는 `logger.warn`을 남�
 
 **2026-08-01 기준 이 WBS의 큰 항목은 대부분 닫혔다.** 아래 두 목록을 그대로 믿어도 된다 —
 닫힌 것을 다시 열지 말고, 열린 것 밖에서 일을 만들지 말 것.
-(B2 해결 · C1·F7 재검토 종결 · B6 해결 — 각 절 참조)
+(B0·B2·B6 해결 · E8 완료 · C1·F7 재검토 종결 — 각 절 참조)
 
 **끝난 것 (다시 올리지 말 것)**
 
@@ -283,14 +283,15 @@ generate 경로(`RateLimitService.decrementDailyLimit`)는 `logger.warn`을 남�
 3. ~~**C2** — 오프-볼륨 DR~~ → 코드 시임 ✅ · 유료 DR ❌ **제외(2026-08-01)**. **잔여 구현 작업 없음.** admin download 주기 당기기는 선택 습관일 뿐 이 목록에 두지 않음
 4. ~~**D-a** — `operations.md` 재작성~~ → ✅ **완료(2026-07-31)**. DR 계층 문장은 2026-08-01 결정으로 다시 맞춤
 5. ~~**E6** — E2E 확장~~ → ✅ **완료**. 구조적 사각지대 4종을 serving 1회 프로젝트로 고정
+6. ~~**B0** — Supabase/GitHub 고아 자격증명 폐기~~ → ✅ **완료(2026-08-02)** [incident-response.md](../../security/incident-response.md)
+7. ~~**E8** — AbortController 생성 세션 단위 승격~~ → ✅ **완료(2026-08-01)** PR #248. 생성·재생성 세션 분리 유지
 
 **지금 실제로 착수 가능한 것 — 이게 전부다**
 
 | 순 | 항목 | 왜 이 순서인가 |
 |---|---|---|
-| 1 | **B0** — Supabase/GitHub 고아 자격증명 폐기 | **최고 가치 오너 액션.** 출처 폐기 → Railway 사본 삭제. service_role JWT가 살아 있으면 RLS 우회. [incident-response](../../security/incident-response.md) |
-| 2 | **B3(a) · B5** — 무료 키 발급 · Unsplash 심사 | 전부 **오너 계정 조치**. 코드가 대신 못 한다. 비용 아님. ~~B1~~ ✅ 2026-08-02 · ~~B6~~ 해결 · ~~C4(b)~~ ✅ 2026-08-01 |
-| 3 | C3 · C7 · C8 · C9 | 소형 위생 작업. 급하지 않다 (~~C5~~ ✅) |
+| 1 | **B3(a) · B5** — 무료 키 발급 · Unsplash 심사 | 전부 **오너 계정 조치**. 코드가 대신 못 한다. 비용 아님. ~~B1~~ ✅ 2026-08-02 · ~~B6~~ 해결 · ~~C4(b)~~ ✅ 2026-08-01 |
+| 2 | C3 · C7 · C8 · C9 | 소형 위생 작업. 급하지 않다 (~~C5~~ ✅) |
 
 > **`qc-stats/route.ts:10`(복잡도 35)이 현재 SonarCloud 최악**인데 WBS에 항목이 없다.
 > 관리자 전용 진단 라우트라 사용자 영향이 없어 **의도적으로 올리지 않는다** — 필요해지면 그때 만들 것.
