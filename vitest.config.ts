@@ -58,6 +58,9 @@ export default defineConfig({
         'src/app/api/v1/catalog/**/route.ts',
         'src/app/api/v1/preview/**/route.ts',
         'src/app/api/v1/projects/**/route.ts',
+        // 2026-08-03: E4 — popular-services 라우트 테스트 백필. whitelist 미등록 시
+        // codecov/patch·SonarCloud new_coverage 가 0%로 집계되어 CI 가 빨개진다.
+        'src/app/api/v1/popular-services/route.ts',
         'src/app/api/v1/generate/status/**/route.ts',
         'src/app/api/auth/**/route.ts',
         'src/app/site/**/route.ts',

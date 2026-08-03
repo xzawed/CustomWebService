@@ -100,3 +100,47 @@ describe('resolveCuratedServices', () => {
     expect(weatherItem!.apiIds).toContain('api-owm');
   });
 });
+
+/**
+ * `/api/v1/popular-services` 라우트에는 **현재 도달 불가능한 방어 분기가 둘** 있다.
+ * 그 자체는 문제가 아니지만, "왜 도달 불가인가"가 이 헬퍼들의 성질에 달려 있어서
+ * 여기서 고정하지 않으면 규칙이 바뀌어도 아무도 모른 채 가드만 남는다.
+ *
+ * 아래 테스트가 깨지면 **라우트의 해당 가드가 살아난다는 뜻**이므로,
+ * 그때는 라우트 쪽 동작을 실제 입력으로 다시 검증해야 한다.
+ */
+describe('라우트 가드를 무력화하는 불변조건 (깨지면 라우트를 재검토할 것)', () => {
+  it('computePopularServices 의 id 와 curated id 는 네임스페이스가 서로소다', () => {
+    const usageRows = [
+      { apiId: 'api-a', context: 'ctx' },
+      { apiId: 'api-b', context: 'ctx' },
+    ];
+    const details = [
+      { id: 'api-a', name: 'A', description: null, category: null },
+      { id: 'api-b', name: 'B', description: null, category: null },
+    ];
+
+    const popular = computePopularServices(usageRows, details);
+    expect(popular.length).toBeGreaterThan(0);
+    expect(popular.every((s) => s.id.startsWith('popular-'))).toBe(true);
+    expect(CURATED_SERVICES.every((c) => c.id.startsWith('curated-'))).toBe(true);
+
+    // 두 집합이 겹치지 않으므로 라우트의 existingIds 중복 스킵 가드는 절대 발동하지 않는다.
+    const curatedIds = new Set(CURATED_SERVICES.map((c) => c.id));
+    expect(popular.some((s) => curatedIds.has(s.id))).toBe(false);
+  });
+
+  it('pickTopIds 는 비어 있지 않은 입력에 대해 절대 빈 배열을 반환하지 않는다', () => {
+    // 라우트의 `topIds.length > 0` 가드가 항상 참인 이유다.
+    expect(pickTopIds([{ apiId: 'only', context: 'c' }], 5)).toHaveLength(1);
+    expect(
+      pickTopIds(
+        [
+          { apiId: 'x', context: 'c' },
+          { apiId: 'x', context: 'c' },
+        ],
+        5
+      ).length
+    ).toBeGreaterThanOrEqual(1);
+  });
+});
