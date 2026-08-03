@@ -1,4 +1,5 @@
 import { getAuthUser } from '@/lib/auth/index';
+import { isFeatureEnabled } from '@/lib/config/featureFlags';
 import { createProjectService, createCatalogService, createRateLimitService } from '@/services/factory';
 import { createCodeRepository, createProjectRepository } from '@/repositories/factory';
 import { registerEventPersister } from '@/lib/events/eventPersister';
@@ -32,6 +33,18 @@ export async function POST(request: Request): Promise<Response> {
     const user = await getAuthUser();
     if (!user) throw new AuthRequiredError();
     await assertEmailVerified(user.id);
+
+    // 킬스위치는 **쿼터 증가 이전**에 본다 — 꺼져 있는데 일일 한도만 깎이면
+    // 스위치를 올린 뒤에도 사용자가 못 쓴다.
+    if (!isFeatureEnabled('enable_generation')) {
+      return Response.json(
+        {
+          success: false,
+          error: { code: 'GENERATION_DISABLED', message: '생성 기능이 일시 중단되었습니다.' },
+        },
+        { status: 503 },
+      );
+    }
 
     let projectId: string;
     let templateId: string | undefined;

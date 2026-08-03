@@ -80,6 +80,25 @@ export const triggerQcSchema = z.object({
   projectId: z.string().min(1),
 });
 
+/**
+ * 킬스위치 토글. **알려진 플래그만 허용한다** — 오타로 만들어진 행은 아무도 읽지 않으면서
+ * "스위치를 내렸다"는 착각만 남긴다. 인시던트 중엔 그게 제일 위험하다.
+ */
+export const setFeatureFlagSchema = z.object({
+  flag: z.enum(['enable_generation', 'enable_signup']),
+  enabled: z.boolean(),
+});
+
+/**
+ * 카탈로그 활성화. `apiIds` 생략 시 "키 검증을 통과한 비활성 API 전부"가 대상이다.
+ * 실제 활성화 여부는 **라이브 키 검증 결과**가 결정하며 이 스키마는 대상 선택만 한다.
+ */
+export const activateCatalogSchema = z.object({
+  apiIds: z.array(z.string().min(1)).optional(),
+  /** true면 검증만 하고 활성화하지 않는다(무엇이 켜질지 먼저 보기 위한 것). */
+  dryRun: z.boolean().optional(),
+});
+
 // ── 인증 ──────────────────────────────────────────────────────────────────────
 // z.string().email()는 Zod v4에서 deprecated → z.string().trim().toLowerCase().pipe(z.email()) 사용
 const emailField = z.string().trim().toLowerCase().pipe(z.email());

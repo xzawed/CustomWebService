@@ -5,6 +5,7 @@ import { createSqliteConnection, runSqliteMigrations, type SqliteDb } from './co
 import * as schema from './schema';
 import { seedCatalog, seedFeatureFlags } from './seedCatalog';
 import catalogData from '@/data/apiCatalog.json';
+import flagsData from '@/data/featureFlags.json';
 
 const TOTAL = (catalogData as unknown[]).length;
 const ACTIVE = (catalogData as Array<{ is_active: boolean }>).filter((x) => x.is_active).length;
@@ -65,17 +66,20 @@ describe('seedCatalog / seedFeatureFlags', () => {
     expect(typeof row?.is_active).toBe('boolean');
   });
 
-  it('seedFeatureFlags는 7개를 시드하고 멱등이다', () => {
-    expect(seedFeatureFlags(db)).toBe(7);
+  it('seedFeatureFlags는 번들 플래그를 시드하고 멱등이다', () => {
+    // 개수를 하드코딩하지 않는다 — 번들 JSON이 진실원이고, 숫자를 박아 두면
+    // 플래그가 늘거나 줄 때마다 무관한 테스트가 깨진다(2026-08-04에 실제로 깨졌다).
+    const expected = flagsData.length;
+    expect(seedFeatureFlags(db)).toBe(expected);
     expect(seedFeatureFlags(db)).toBe(0);
-    expect(count(schema.featureFlags)).toBe(7);
+    expect(count(schema.featureFlags)).toBe(expected);
 
-    const dark = db
+    // 킬스위치는 기본이 "켜짐"이어야 한다 — 배포 직후 기능이 꺼져 있으면 안 된다.
+    const generation = db
       .select()
       .from(schema.featureFlags)
-      .where(eq(schema.featureFlags.flag_name, 'enable_dark_mode'))
+      .where(eq(schema.featureFlags.flag_name, 'enable_generation'))
       .get();
-    expect(dark?.enabled).toBe(true);
-    expect(typeof dark?.rules).toBe('object');
+    expect(generation?.enabled).toBe(true);
   });
 });

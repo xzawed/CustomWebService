@@ -5,8 +5,10 @@ import { createSqliteConnection, type SqliteDb } from './connection';
 import * as schema from './schema';
 import { bootstrapSqlite } from './bootstrap';
 import catalogData from '@/data/apiCatalog.json';
+import flagsData from '@/data/featureFlags.json';
 
 const CATALOG_TOTAL = (catalogData as unknown[]).length;
+const FLAG_TOTAL = (flagsData as unknown[]).length;
 
 /**
  * bootstrapSqlite — 부팅 시 마이그레이션 적용 후 카탈로그·플래그 시드(멱등)를 검증한다.
@@ -29,11 +31,12 @@ describe('bootstrapSqlite', () => {
   it('빈 DB에서 마이그레이션을 적용한 뒤 카탈로그·플래그를 시드한다', () => {
     bootstrapSqlite(db);
 
-    // 카탈로그(번들 전체)·플래그(7개)도 함께 시드된다
+    // 카탈로그·플래그도 함께 시드된다. 개수는 번들 JSON에서 끌어온다 —
+    // 숫자를 박아 두면 플래그가 늘거나 줄 때마다 무관한 테스트가 깨진다.
     const catalog = db.select({ c: sql<number>`count(*)` }).from(schema.apiCatalog).get();
     expect(catalog?.c).toBe(CATALOG_TOTAL);
     const flags = db.select({ c: sql<number>`count(*)` }).from(schema.featureFlags).get();
-    expect(flags?.c).toBe(7);
+    expect(flags?.c).toBe(FLAG_TOTAL);
   });
 
   it('두 번 호출해도 마이그레이션·시드가 멱등이다(throw 없음)', () => {

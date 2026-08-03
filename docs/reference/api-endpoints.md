@@ -313,6 +313,7 @@ data: {"message": "코드 생성에 실패했습니다."}
 | 상태코드 | 코드 | 설명 |
 |---------|------|------|
 | 409 | `GENERATION_IN_PROGRESS` | 동일 프로젝트에 DB 생성 락이 이미 잡혀 있음 (`acquireGenerationLock` 실패). 일일 한도 차감분은 환불 |
+| 503 | `GENERATION_DISABLED` | `enable_generation` 킬스위치 off. 일일 한도 차감 **이전**에 반환 |
 
 ### GET /api/v1/generate/status/:projectId
 생성 진행 상태 조회 (모바일 백그라운드 폴링용)
@@ -394,6 +395,7 @@ data: {"message": "재생성에 실패했습니다."}
 | 상태코드 | 코드 | 설명 |
 |---------|------|------|
 | 409 | `GENERATION_IN_PROGRESS` | 동일 프로젝트에 DB 생성 락이 이미 잡혀 있음 (`acquireGenerationLock` 실패). 일일 한도 차감분은 환불 |
+| 503 | `GENERATION_DISABLED` | `enable_generation` 킬스위치 off. 일일 한도 차감 **이전**에 반환 |
 
 > 프로젝트당 최대 `maxRegenerationsPerProject`(기본 5회) 재생성 가능. 재생성도 일일 생성 횟수에 포함됩니다.
 
@@ -586,6 +588,7 @@ Auth.js Credentials + JWT. 세션 쿠키 필요(공개 엔드포인트 제외). 
 | 400 | `INVALID_INPUT` | Zod 검증 실패 |
 | 409 | `CONFLICT` | 이메일 중복 |
 | 429 | `RATE_LIMITED` | 시간당 한도 초과 |
+| 503 | `SIGNUP_DISABLED` | `enable_signup` 킬스위치 off. 신규 가입만 차단(기존 사용자 로그인·이용 무영향). 레이트리밋 **이전**에 반환 |
 
 ### POST /api/v1/auth/verify-email
 이메일 인증 토큰 소비.
@@ -800,7 +803,9 @@ cca2/cca3 코드(대소문자 무시) 단건 조회.
 | MAX_APIS_EXCEEDED | 400 | API 최대 선택 수 초과 |
 | CONFLICT | 409 | 리소스 충돌 (예: 이메일 중복) |
 | GENERATION_IN_PROGRESS | 409 | 동일 프로젝트 생성/재생성 진행 중 (DB 락) |
+| GENERATION_DISABLED | 503 | `enable_generation` 킬스위치 off (생성·재생성) |
 | GENERATION_FAILED | 500 | 코드 생성 실패 |
+| SIGNUP_DISABLED | 503 | `enable_signup` 킬스위치 off (신규 가입만) |
 | DEPLOY_FAILED | 500 | 배포 실패 |
 | RATE_LIMITED | 429 | 요청 횟수 초과 |
 | INTERNAL_ERROR | 500 | 처리되지 않은 서버 오류 |
@@ -1284,11 +1289,18 @@ Authorization: Bearer <ADMIN_API_KEY>
 ### GET /api/v1/admin/keys-verify
 "플랫폼 키 의존" API(`auth_type=api_key` + `auth_config.env_var`, `default_key` 없음)의 키 유효성을 **배포 런타임의 env 키로 실제 인증 요청을 보내** 검증합니다. Railway sealed 변수는 배포 런타임에만 주입되므로 이 진단은 **반드시 배포 환경에서** 실행돼야 합니다(로컬 `railway run`은 sealed 미주입). 키 값은 응답에 노출되지 않습니다. 검증 로직은 [src/lib/catalog/keyCheck.ts](../../src/lib/catalog/keyCheck.ts).
 
+> **왜 있는가:** 플랫폼 키가 실제로 먹히는지 배포 런타임에서 확인. 기본은 활성 API만 보므로, 활성화 **전**에 키를 검사하려면 `includeInactive=true`가 필요하다.
+
 **Request:**
 ```http
 GET /api/v1/admin/keys-verify
+GET /api/v1/admin/keys-verify?includeInactive=true
 Authorization: Bearer <ADMIN_API_KEY>
 ```
+
+| 쿼리 | 기본값 | 설명 |
+|------|--------|------|
+| `includeInactive` | (없음=활성만) | `true`면 비활성 API도 포함. 활성화 전 키 검증·`activatable` 목록에 필요 |
 
 **Response:**
 ```json
@@ -1296,20 +1308,159 @@ Authorization: Bearer <ADMIN_API_KEY>
   "success": true,
   "data": {
     "generatedAt": "2026-06-21T...",
-    "summary": { "total": 6, "valid": 6, "invalid": 0, "missing": 0, "rateLimited": 0, "needsPrefixFix": [] },
+    "includeInactive": false,
+    "summary": {
+      "total": 6,
+      "valid": 6,
+      "invalid": 0,
+      "missing": 0,
+      "rateLimited": 0,
+      "needsPrefixFix": [],
+      "activatable": []
+    },
     "results": [
-      { "name": "카카오 로컬 (지도·장소 검색)", "envVar": "API_KEY_F1EC6F97", "verdict": "VALID", "httpStatus": 200, "detail": "인증 성공" }
+      {
+        "name": "카카오 로컬 (지도·장소 검색)",
+        "envVar": "API_KEY_F1EC6F97",
+        "verdict": "VALID",
+        "httpStatus": 200,
+        "detail": "인증 성공",
+        "apiId": "uuid",
+        "isActive": true
+      }
     ]
   }
 }
 ```
 
 - `verdict`: `VALID` / `INVALID`(키 거부·만료) / `MISSING`(env 미설정) / `RATE_LIMITED` / `ERROR` / `NO_ENDPOINT`
+- `apiId` / `isActive`: 각 결과 행에 포함. activate 대상 식별·활성 여부 구분용
+- `summary.activatable`: 비활성이면서 `verdict=VALID`인 `apiId` 목록 — `POST /admin/catalog/activate`에 그대로 넘길 수 있음
 - `needsPrefixFix`: raw 주입은 401이지만 prefix(`KakaoAK `/`Client-ID `) 적용 시 성공한 API 목록 — 프록시가 prefix를 적용해야 함을 의미
 
 | 에러 코드 | HTTP | 설명 |
 |-----------|------|------|
 | `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
+
+### POST /api/v1/admin/catalog/activate
+비활성 상태인 "플랫폼 키 의존" API를, **라이브 키 검증이 `VALID`인 것만** 활성화합니다. 검증 통과 없이 `is_active`를 올리면 키 오류 API가 사용자에게 노출되므로, 활성화 전제를 검증 통과로 못박습니다. 검증 로직은 keys-verify와 동일(`keyCheck.ts`).
+
+> **왜 있는가:** 키가 등록된 비활성 API를 카탈로그·추천·프록시에 노출하는 유일한 쓰기 경로. `dryRun`으로 먼저 후보를 확인한 뒤 켠다.
+
+**Request:**
+```http
+POST /api/v1/admin/catalog/activate
+Authorization: Bearer <ADMIN_API_KEY>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "apiIds": ["uuid-1", "uuid-2"],
+  "dryRun": false
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `apiIds` | string[] | N | 대상 ID. **생략·빈 배열이면** 비활성 키 의존 API 전부 |
+| `dryRun` | boolean | N | `true`면 검증만 하고 DB에 쓰지 않음 (기본 `false`) |
+
+**동작:**
+- 대상 필터: `!isActive` + `authType=api_key` + `auth_config.env_var` 존재 + `default_key` 없음
+- `verdict !== VALID` → `activated: false` + 실패 사유 (쓰기 없음)
+- `dryRun: true` → 검증만, `activated: false`, reason `dryRun — 검증만 수행`
+- 성공 시: `isActive=true`, `verificationStatus='verified'`, `CATALOG_API_ACTIVATED` 이벤트
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "dryRun": false,
+    "candidates": 3,
+    "activated": 2,
+    "outcomes": [
+      {
+        "apiId": "uuid",
+        "name": "…",
+        "envVar": "API_KEY_…",
+        "activated": true,
+        "reason": "키 검증 통과"
+      }
+    ]
+  }
+}
+```
+
+| 에러 코드 | HTTP | 설명 |
+|-----------|------|------|
+| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
+| `INVALID_INPUT` | 400 | 요청 본문 형식·Zod 검증 실패 |
+
+### GET /api/v1/admin/feature-flags
+### POST /api/v1/admin/feature-flags
+운영 킬스위치 조회·토글. env 변경(재배포) 없이 DB 값으로 생성·가입을 즉시 막을 수 있습니다. 알려진 플래그만 허용합니다(오타로 만든 행은 아무도 읽지 않아 "껐다"는 착각만 남김).
+
+> **왜 있는가:** 비용 폭주·남용 시 재배포 없이 생성/가입을 즉시 차단. 읽기는 인프로세스 10초 캐시·fail-open.
+
+**알려진 플래그 (`flag` zod enum):**
+| 플래그 | 기본(시드) | 효과 |
+|--------|-----------|------|
+| `enable_generation` | `true` | false → generate/regenerate `503 GENERATION_DISABLED` |
+| `enable_signup` | `true` | false → signup `503 SIGNUP_DISABLED` (기존 사용자 무영향) |
+
+**Request (GET):**
+```http
+GET /api/v1/admin/feature-flags
+Authorization: Bearer <ADMIN_API_KEY>
+```
+
+**Response (GET):**
+```json
+{
+  "success": true,
+  "data": {
+    "known": ["enable_generation", "enable_signup"],
+    "flags": [
+      { "name": "enable_generation", "enabled": true },
+      { "name": "enable_signup", "enabled": true }
+    ]
+  }
+}
+```
+
+**Request (POST):**
+```http
+POST /api/v1/admin/feature-flags
+Authorization: Bearer <ADMIN_API_KEY>
+Content-Type: application/json
+```
+
+```json
+{ "flag": "enable_generation", "enabled": false }
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `flag` | string | Y | `enable_generation` \| `enable_signup` (그 외 이름 거부) |
+| `enabled` | boolean | Y | 목표 상태 |
+
+**Response (POST):**
+```json
+{
+  "success": true,
+  "data": { "flag": "enable_generation", "enabled": false }
+}
+```
+
+쓰기 후 캐시 무효화. `FEATURE_FLAG_CHANGED` 이벤트 + 감사 `logger.warn`.
+
+| 에러 코드 | HTTP | 설명 |
+|-----------|------|------|
+| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
+| `INVALID_INPUT` | 400 | 본문 형식 오류·알 수 없는 `flag`·Zod 검증 실패 |
 
 ### POST /api/v1/admin/verify-catalog
 활성 카탈로그 각 API의 GET 엔드포인트를 **배포 런타임에서 실제 호출**해 라이브 검증하고 `verification_status`를 갱신합니다(P5.2 — 컷오버로 제거된 CI cron의 대체). `working/degraded → verified`, `broken → broken`만, 그리고 **현재 값과 다를 때만** DB를 갱신하며, `key_gated`(키 의존 401/403)·`unknown`(예상치 못한 4xx)은 자동 판정 불가로 **기존 값을 보존**합니다(일시 장애·키 부재로 인한 오판 방지). 무인 스케줄러가 아닌 관리자 트리거 방식이라 플래핑·무인 outbound가 없습니다. 로직: [src/lib/catalog/verifyRunner.ts](../../src/lib/catalog/verifyRunner.ts).
