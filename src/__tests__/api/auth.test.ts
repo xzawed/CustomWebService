@@ -6,12 +6,19 @@ const verifyEmail = vi.fn();
 const requestPasswordReset = vi.fn();
 const resetPassword = vi.fn();
 const resendVerification = vi.fn();
+const isFeatureEnabled = vi.fn((_name: string) => true);
+
 vi.mock('@/services/factory', () => ({
   createAuthService: () => ({ signup, verifyEmail, requestPasswordReset, resetPassword, resendVerification }),
 }));
 
 vi.mock('@/lib/auth/index', () => ({
   getAuthUser: vi.fn(),
+}));
+
+// 가입 킬스위치 — 기본 true(정상 흐름). 개별 테스트에서 false로 내려 503 분기를 검증한다.
+vi.mock('@/lib/config/featureFlags', () => ({
+  isFeatureEnabled: (name: string) => isFeatureEnabled(name) as boolean,
 }));
 
 import { POST as signupPOST } from '@/app/api/v1/auth/signup/route';
@@ -37,13 +44,56 @@ function emptyReq(url: string, ip = '9.9.9.9'): Request {
 }
 
 describe('auth routes', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // 다른 테스트로 mock 값이 새지 않도록 킬스위치 기본값을 매 테스트 복구한다.
+    isFeatureEnabled.mockReturnValue(true);
+  });
 
   it('signup 성공 시 201', async () => {
     signup.mockResolvedValue({ userId: 'u1' });
     const res = await signupPOST(jsonReq('https://app/api/v1/auth/signup', { email: 'a@b.com', password: 'pw12345678' }, `ip-${Math.random()}`));
     expect(res.status).toBe(201);
     expect(signup).toHaveBeenCalledWith('a@b.com', 'pw12345678', 'https://app');
+  });
+
+  it('enable_signup=false이면 503 SIGNUP_DISABLED이고 signup을 호출하지 않는다', async () => {
+    isFeatureEnabled.mockReturnValue(false);
+
+    const res = await signupPOST(
+      jsonReq(
+        'https://app/api/v1/auth/signup',
+        { email: 'a@b.com', password: 'pw12345678' },
+        `ip-${Math.random()}`,
+      ),
+    );
+
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as {
+      success: boolean;
+      error: { code: string; message: string };
+    };
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('SIGNUP_DISABLED');
+    expect(isFeatureEnabled).toHaveBeenCalledWith('enable_signup');
+    expect(signup).not.toHaveBeenCalled();
+  });
+
+  it('enable_signup=true이면 정상 가입 흐름이 진행된다', async () => {
+    isFeatureEnabled.mockReturnValue(true);
+    signup.mockResolvedValue({ userId: 'u1' });
+
+    const res = await signupPOST(
+      jsonReq(
+        'https://app/api/v1/auth/signup',
+        { email: 'ok@b.com', password: 'pw12345678' },
+        `ip-${Math.random()}`,
+      ),
+    );
+
+    expect(res.status).toBe(201);
+    expect(isFeatureEnabled).toHaveBeenCalledWith('enable_signup');
+    expect(signup).toHaveBeenCalledWith('ok@b.com', 'pw12345678', 'https://app');
   });
 
   it('signup 입력 검증 실패 시 400', async () => {

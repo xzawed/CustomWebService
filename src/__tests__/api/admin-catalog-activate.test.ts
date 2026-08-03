@@ -4,7 +4,7 @@
  * 핵심 안전 속성: 키가 유효하지 않으면 repo.update를 절대 호출하지 않는다.
  * dryRun이면 검증만 하고 쓰지 않는다.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ApiCatalogItem } from '@/types/api';
 import type { KeyCheckResult } from '@/lib/catalog/keyCheck';
 
@@ -301,5 +301,139 @@ describe('POST /api/v1/admin/catalog/activate', () => {
     expect(body.success).toBe(true);
     expect(body.data.candidates).toBe(1);
     expect(body.data.activated).toBe(1);
+  });
+
+  it('OPTIONS 프리플라이트는 204 + 관리자 CORS 헤더를 반환한다', async () => {
+    const { OPTIONS } = await import('@/app/api/v1/admin/catalog/activate/route');
+    const res = await OPTIONS();
+    expect(res.status).toBe(204);
+    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('POST');
+    expect(res.headers.get('Access-Control-Allow-Headers')).toContain('Authorization');
+  });
+
+  it('잘못된 JSON 본문은 검증 오류(4xx)를 반환하고 500이 아니다', async () => {
+    const { POST } = await import('@/app/api/v1/admin/catalog/activate/route');
+    // 파싱 불가 문자열 — JSON.parse가 던져 ValidationError로 변환돼야 한다
+    const res = await POST(makeReq(VALID_ADMIN_KEY, '{', '10.0.1.77'));
+
+    expect(res.status).not.toBe(500);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as {
+      success: boolean;
+      error: { code: string; message: string };
+    };
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('INVALID_INPUT');
+    expect(findMany).not.toHaveBeenCalled();
+    expect(verifyApiKey).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * realFetch(라우트 내부 KeyFetch) 커버리지.
+ *
+ * 위 describe는 keyCheck 모듈을 모킹해 verifyApiKey 분기만 본다.
+ * 여기선 keyCheck를 실제 모듈로 두고 global fetch만 스텁해 realFetch 성공/네트워크 실패 경로를 탄다.
+ * MSW를 우회하므로 setup.ts의 unhandled-request 단언에 걸리지 않는다.
+ */
+describe('POST /api/v1/admin/catalog/activate — realFetch 경로', () => {
+  const REAL_FETCH_ENV = 'TEST_ACTIVATE_REAL_FETCH_KEY';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    vi.doUnmock('@/lib/catalog/keyCheck');
+    process.env.ADMIN_API_KEY = VALID_ADMIN_KEY;
+    vi.stubEnv(REAL_FETCH_ENV, 'live-key-value');
+    findMany.mockResolvedValue({ items: [], total: 0 });
+    update.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    // 이후 파일/스위트가 다시 모킹된 keyCheck를 쓰도록 복구
+    vi.doMock('@/lib/catalog/keyCheck', () => ({
+      verifyApiKey: (...args: unknown[]) => verifyApiKey(...args) as ReturnType<typeof verifyApiKey>,
+    }));
+  });
+
+  function makeRealFetchCandidate(): ApiCatalogItem {
+    return makeInactiveKeyedApi({
+      id: 'api-real-fetch',
+      name: 'Real Fetch API',
+      baseUrl: 'https://example.test',
+      authConfig: {
+        env_var: REAL_FETCH_ENV,
+        param_in: 'query',
+        param_name: 'api_key',
+      },
+      endpoints: [
+        {
+          path: '/v1/ping',
+          method: 'GET',
+          description: 'ping',
+          params: [],
+          responseExample: {},
+        },
+      ],
+    });
+  }
+
+  it('fetch 성공 시 realFetch 성공 경로로 키가 VALID 판정되고 활성화된다', async () => {
+    const candidate = makeRealFetchCandidate();
+    findMany.mockResolvedValue({ items: [candidate], total: 1 });
+
+    const fetchStub = vi.fn().mockResolvedValue({
+      status: 200,
+      headers: { get: () => 'application/json' },
+      text: async () => '{"ok":true}',
+    });
+    vi.stubGlobal('fetch', fetchStub);
+
+    const { POST } = await import('@/app/api/v1/admin/catalog/activate/route');
+    const res = await POST(makeReq(VALID_ADMIN_KEY, {}, '10.0.2.10'));
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        activated: number;
+        outcomes: Array<{ apiId: string; activated: boolean; reason: string }>;
+      };
+    };
+    expect(body.data.activated).toBe(1);
+    expect(body.data.outcomes[0]).toMatchObject({
+      apiId: candidate.id,
+      activated: true,
+    });
+    expect(fetchStub).toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith(candidate.id, {
+      isActive: true,
+      verificationStatus: 'verified',
+    });
+  });
+
+  it('fetch 거부 시 realFetch networkError 경로로 활성화하지 않는다', async () => {
+    const candidate = makeRealFetchCandidate();
+    findMany.mockResolvedValue({ items: [candidate], total: 1 });
+
+    const fetchStub = vi.fn().mockRejectedValue(new Error('network down'));
+    vi.stubGlobal('fetch', fetchStub);
+
+    const { POST } = await import('@/app/api/v1/admin/catalog/activate/route');
+    const res = await POST(makeReq(VALID_ADMIN_KEY, {}, '10.0.2.11'));
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        activated: number;
+        outcomes: Array<{ activated: boolean; reason: string }>;
+      };
+    };
+    expect(body.data.activated).toBe(0);
+    expect(body.data.outcomes[0]?.activated).toBe(false);
+    expect(body.data.outcomes[0]?.reason).toMatch(/키 검증 실패/);
+    expect(fetchStub).toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
   });
 });

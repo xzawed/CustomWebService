@@ -84,6 +84,17 @@ describe('featureFlags', () => {
       expect(isFeatureEnabled('enable_signup')).toBe(true);
     });
 
+    it('enabled 컬럼이 NULL인 행은 true(enabled)로 취급한다', () => {
+      // drizzle boolean 모드는 NULL 삽입을 거부할 수 있어 raw SQL로 NULL을 박는다.
+      raw
+        .prepare(
+          `INSERT INTO feature_flags (id, flag_name, enabled) VALUES (?, ?, NULL)`,
+        )
+        .run(crypto.randomUUID(), 'enable_generation');
+
+      expect(isFeatureEnabled('enable_generation')).toBe(true);
+    });
+
     it('DB 읽기 실패 시 true를 반환하고 캐시를 오염시키지 않는다', () => {
       insertFlag(db, 'enable_generation', false);
 
@@ -107,6 +118,19 @@ describe('featureFlags', () => {
 
       expect(isFeatureEnabled('enable_generation')).toBe(true);
       expect(getSqliteDbMock.mock.calls.length).toBe(callsAfterFirst);
+    });
+
+    it('캐시 맵에 요청 플래그 항목이 없으면 true(fail-open)를 반환한다', () => {
+      // enable_generation만 DB에 있어 캐시 맵에는 그 키만 들어간다.
+      // 이후 enable_signup 조회는 캐시 히트 경로에서 values.get(name) ?? true 를 탄다.
+      insertFlag(db, 'enable_generation', false);
+
+      expect(isFeatureEnabled('enable_generation')).toBe(false);
+      const callsAfterWarm = getSqliteDbMock.mock.calls.length;
+
+      expect(isFeatureEnabled('enable_signup')).toBe(true);
+      // 캐시 TTL 안이므로 DB를 다시 치지 않아야 한다
+      expect(getSqliteDbMock.mock.calls.length).toBe(callsAfterWarm);
     });
 
     it('TTL 만료 후에는 다시 DB를 조회한다', () => {
