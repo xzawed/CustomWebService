@@ -284,11 +284,38 @@ describe('PublishDialog', () => {
       ).toBe(true);
     });
 
-    it('AbortError는 무시한다 — 언마운트 후 상태를 건드리지 않는다', async () => {
+    it('fetch가 AbortError로 거부되면 checkResult가 checking에 머문다', async () => {
       vi.useFakeTimers();
       const abortError = new Error('aborted');
       abortError.name = 'AbortError';
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abortError));
+
+      render(
+        <PublishDialog
+          project={baseProject}
+          onClose={onClose}
+          onPublished={onPublished}
+        />,
+      );
+
+      fireEvent.change(screen.getByPlaceholderText('my-service'), {
+        target: { value: 'my-slug' },
+      });
+
+      // 디바운스(300ms) 경과 → fetch가 AbortError로 거부된다
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      // AbortError 가드가 없으면 catch가 setCheckResult('idle')을 불러 안내가 사라진다.
+      // 취소된 요청 때문에 '확인 중'이 풀리면 사용자는 멀쩡한 slug를 확인 불가로 본다.
+      expect(screen.getByText('확인 중...')).toBeTruthy();
+    });
+
+    it('언마운트하면 디바운스 타이머가 취소되어 slug 확인 요청이 나가지 않는다', async () => {
+      vi.useFakeTimers();
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
 
       const { unmount } = render(
         <PublishDialog
@@ -303,10 +330,13 @@ describe('PublishDialog', () => {
       });
 
       unmount();
-      // 언마운트 후 타이머가 풀려도 setState 경고 없이 조용히 끝나야 한다.
       await act(async () => {
         await vi.runAllTimersAsync();
       });
+
+      // cleanup이 clearTimeout을 놓치면 언마운트 뒤에 요청이 나가고,
+      // 사라진 컴포넌트에 setState를 시도하게 된다.
+      expect(fetchMock).not.toHaveBeenCalled();
     });
   });
 

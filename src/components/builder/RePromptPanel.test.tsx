@@ -377,17 +377,22 @@ describe('RePromptPanel', () => {
     expect(screen.queryByPlaceholderText(/차트를 막대 그래프/i)).toBeNull();
   });
 
-  it('textarea focus/blur 스타일 핸들러', () => {
+  it('textarea focus/blur 시 borderColor를 활성/기본으로 전환한다', () => {
     render(
       <RePromptPanel projectId="proj-1" onRegenerationComplete={onRegenerationComplete} />,
     );
     openPanel();
     const ta = screen.getByPlaceholderText(/차트를 막대 그래프/i);
+
     fireEvent.focus(ta);
+    // happy-dom이 var(...) 값을 style.borderColor에 그대로 보관한다.
+    expect(ta.style.borderColor).toBe('var(--border-active)');
+
     fireEvent.blur(ta);
+    expect(ta.style.borderColor).toBe('var(--border)');
   });
 
-  it('추천 항목 mouseEnter/Leave 스타일 핸들러', async () => {
+  it('추천 항목 mouseEnter/Leave 시 border·배경 스타일을 전환한다', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -408,8 +413,14 @@ describe('RePromptPanel', () => {
     });
 
     const item = await screen.findByText('호버 테스트 추천');
+
     fireEvent.mouseEnter(item);
+    expect(item.style.borderColor).toBe('var(--border-active)');
+    expect(item.style.background).toBe('var(--bg-hover)');
+
     fireEvent.mouseLeave(item);
+    expect(item.style.borderColor).toBe('var(--border)');
+    expect(item.style.background).toBe('var(--bg-surface)');
   });
 
   it('stale run 콜백은 무시한다 (새 실행 시작 후 이전 progress/fail)', async () => {
