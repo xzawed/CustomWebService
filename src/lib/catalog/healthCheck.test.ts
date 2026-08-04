@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   classifyResponse,
+  looksLikeErrorBody,
   summarizeApi,
   buildTestUrl,
   toVerificationStatus,
   SLOW_THRESHOLD_MS,
   type HealthStatus,
 } from './healthCheck';
+import { classifyKeyResponse } from './keyCheck';
 
 const base = {
   authType: 'none' as const,
@@ -15,6 +17,204 @@ const base = {
   bodyText: '{"results":[1,2,3]}',
   elapsedMs: 120,
 };
+
+describe('looksLikeErrorBody', () => {
+  // ── Shape A: response.header.resultCode ──────────────────────────────────
+  it('Shape A JSON 성공 코드(00)는 에러가 아니다', () => {
+    expect(
+      looksLikeErrorBody(
+        JSON.stringify({ response: { header: { resultCode: '00', resultMsg: 'NORMAL_SERVICE' } } }),
+      ),
+    ).toBe(false);
+  });
+
+  it('Shape A JSON 성공 코드(0000 / INFO-000)는 에러가 아니다', () => {
+    expect(
+      looksLikeErrorBody(JSON.stringify({ response: { header: { resultCode: '0000' } } })),
+    ).toBe(false);
+    expect(
+      looksLikeErrorBody(JSON.stringify({ response: { header: { resultCode: 'INFO-000' } } })),
+    ).toBe(false);
+  });
+
+  it('Shape A JSON 에러 코드(01)는 에러다', () => {
+    expect(
+      looksLikeErrorBody(
+        JSON.stringify({
+          response: { header: { resultCode: '01', resultMsg: 'APPLICATION_ERROR' } },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('Shape A JSON 미지 코드는 fail-closed로 에러다', () => {
+    expect(
+      looksLikeErrorBody(JSON.stringify({ response: { header: { resultCode: '99' } } })),
+    ).toBe(true);
+  });
+
+  it('Shape A XML 성공(00)은 에러가 아니고 에러 코드는 에러다', () => {
+    expect(
+      looksLikeErrorBody(
+        '<response><header><resultCode>00</resultCode><resultMsg>NORMAL_SERVICE</resultMsg></header><body/></response>',
+      ),
+    ).toBe(false);
+    expect(
+      looksLikeErrorBody(
+        '<response><header><resultCode>30</resultCode><resultMsg>SERVICE_KEY_IS_NOT_REGISTERED_ERROR</resultMsg></header></response>',
+      ),
+    ).toBe(true);
+  });
+
+  // ── 허용 코드: 03 NO_DATA, 22 LIMIT_EXCEEDED ─────────────────────────────
+  it('resultCode 03(NO_DATA)은 에러가 아니다 (인증 성공·조회 결과 없음)', () => {
+    expect(
+      looksLikeErrorBody(JSON.stringify({ response: { header: { resultCode: '03' } } })),
+    ).toBe(false);
+  });
+
+  it('resultCode 22(LIMIT_EXCEEDED)는 에러가 아니다 (429는 별도 분류)', () => {
+    expect(
+      looksLikeErrorBody(JSON.stringify({ response: { header: { resultCode: '22' } } })),
+    ).toBe(false);
+  });
+
+  // ── Shape B: OpenAPI_ServiceResponse.cmmMsgHeader ────────────────────────
+  it('Shape B JSON returnReasonCode 에러는 에러다', () => {
+    expect(
+      looksLikeErrorBody(
+        JSON.stringify({
+          OpenAPI_ServiceResponse: {
+            cmmMsgHeader: { returnReasonCode: '30', errMsg: 'SERVICE ERROR' },
+          },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('Shape B JSON 허용 코드(00)는 에러가 아니다', () => {
+    expect(
+      looksLikeErrorBody(
+        JSON.stringify({
+          OpenAPI_ServiceResponse: { cmmMsgHeader: { returnReasonCode: '00' } },
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('Shape B XML returnReasonCode 에러는 에러다', () => {
+    expect(
+      looksLikeErrorBody(
+        '<OpenAPI_ServiceResponse><cmmMsgHeader><returnReasonCode>30</returnReasonCode><errMsg>SERVICE ERROR</errMsg></cmmMsgHeader></OpenAPI_ServiceResponse>',
+      ),
+    ).toBe(true);
+  });
+
+  it('Shape B XML errMsg만 있어도 인식된 엔벨로프면 에러다', () => {
+    expect(
+      looksLikeErrorBody(
+        '<OpenAPI_ServiceResponse><cmmMsgHeader><errMsg>SERVICE ERROR</errMsg></cmmMsgHeader></OpenAPI_ServiceResponse>',
+      ),
+    ).toBe(true);
+  });
+
+  // ── Shape A′: 최상위 header.resultCode + resultMsg (response 래퍼 없음) ──
+  it('Shape A′ JSON 에러 코드(01)는 에러다', () => {
+    expect(
+      looksLikeErrorBody(
+        JSON.stringify({ header: { resultCode: '01', resultMsg: 'APPLICATION_ERROR' } }),
+      ),
+    ).toBe(true);
+  });
+
+  it('Shape A′ XML 에러 코드는 에러다', () => {
+    expect(
+      looksLikeErrorBody(
+        '<header><resultCode>01</resultCode><resultMsg>APPLICATION_ERROR</resultMsg></header>',
+      ),
+    ).toBe(true);
+  });
+
+  // ── 실측 본문 픽스처 (2026-08-05 라이브 캡처) ────────────────────────────
+  it('실측 본문: 기상청 단기예보 APPLICATION_ERROR(01)은 에러로 잡는다', () => {
+    // 기상청 단기예보 — bad params, HTTP 200, response 래퍼 없음
+    expect(
+      looksLikeErrorBody('{"header":{"resultCode":"01","resultMsg":"APPLICATION_ERROR"}}'),
+    ).toBe(true);
+  });
+
+  it('실측 본문: 기상청 중기예보 DB_ERROR(02)은 에러로 잡는다', () => {
+    expect(
+      looksLikeErrorBody('{"header":{"resultCode":"02","resultMsg":"DB_ERROR"}}'),
+    ).toBe(true);
+  });
+
+  it('실측 본문: 에어코리아 INVALID_REQUEST_PARAMETER_ERROR(10)은 에러로 잡는다', () => {
+    expect(
+      looksLikeErrorBody(
+        '{"header":{"resultCode":"10","resultMsg":"INVALID_REQUEST_PARAMETER_ERROR"}}',
+      ),
+    ).toBe(true);
+  });
+
+  it('실측 본문: NO_DATA(03) response 래핑은 에러가 아니다', () => {
+    expect(
+      looksLikeErrorBody(
+        '{"response":{"header":{"resultCode":"03","resultMsg":"NO_DATA"}}}',
+      ),
+    ).toBe(false);
+  });
+
+  it('실측 본문: 국토부 전월세 XML 000+빈 items는 에러가 아니다 (성공·빈 결과)', () => {
+    // 국토부 전월세 — resultCode 000 허용목록, totalCount 0. codegen 유용성 문제는 Part 3.
+    expect(
+      looksLikeErrorBody(
+        '<response><header><resultCode>000</resultCode><resultMsg>OK</resultMsg></header><body><items/><totalCount>0</totalCount></body></response>',
+      ),
+    ).toBe(false);
+  });
+
+  it('실측 본문: 게이트웨이 OpenAPI_ServiceResponse returnReasonCode 12는 에러다', () => {
+    expect(
+      looksLikeErrorBody(
+        '{"OpenAPI_ServiceResponse":{"cmmMsgHeader":{"errMsg":"SERVICE ERROR","returnReasonCode":"12"}}}',
+      ),
+    ).toBe(true);
+  });
+
+  // ── 오탐 가드 ────────────────────────────────────────────────────────────
+  it('최상위 bare resultCode는 엔벨로프가 아니므로 에러로 보지 않는다', () => {
+    expect(looksLikeErrorBody('{"resultCode":"01"}')).toBe(false);
+  });
+
+  it('Shape A′ 가드: 최상위 header에 resultCode만 있고 resultMsg 없으면 false', () => {
+    expect(looksLikeErrorBody('{"header":{"resultCode":"01"}}')).toBe(false);
+  });
+
+  it('Shape A′ 가드: 관련 없는 최상위 header(title)는 false', () => {
+    expect(looksLikeErrorBody('{"header":{"title":"x"}}')).toBe(false);
+  });
+
+  it('기존 REST 성공 형태는 회귀 없이 false', () => {
+    expect(looksLikeErrorBody('{"result":"success"}')).toBe(false);
+    expect(looksLikeErrorBody('{"status":"success"}')).toBe(false);
+    expect(looksLikeErrorBody('{"error":false}')).toBe(false);
+    expect(looksLikeErrorBody('{"response":{}}')).toBe(false);
+  });
+
+  it('관련 없는 XML(마커 없음)은 false', () => {
+    expect(looksLikeErrorBody('<root><item>ok</item></root>')).toBe(false);
+  });
+
+  it('deprecation 텍스트는 여전히 에러다', () => {
+    expect(looksLikeErrorBody('This API version has been deprecated.')).toBe(true);
+  });
+
+  it('기존 REST 휴리스틱(success:false / errors[])은 유지된다', () => {
+    expect(looksLikeErrorBody('{"success":false}')).toBe(true);
+    expect(looksLikeErrorBody('{"errors":[{"message":"bad"}]}')).toBe(true);
+  });
+});
 
 describe('classifyResponse', () => {
   it('treats a valid 2xx JSON body as working', () => {
@@ -116,6 +316,50 @@ describe('classifyResponse', () => {
   it('classifies an unexpected 4xx (likely test-param mismatch) as unknown, not broken', () => {
     expect(classifyResponse({ ...base, httpStatus: 404, bodyText: 'Not Found' }).status).toBe('unknown');
   });
+
+  it('HTTP 200 + Shape A 에러 엔벨로프 → broken', () => {
+    expect(
+      classifyResponse({
+        ...base,
+        bodyText: JSON.stringify({
+          response: { header: { resultCode: '30', resultMsg: 'SERVICE_KEY_IS_NOT_REGISTERED_ERROR' } },
+        }),
+      }).status,
+    ).toBe('broken');
+  });
+
+  it('HTTP 200 + 실측 최상위 header APPLICATION_ERROR(01) → broken', () => {
+    expect(
+      classifyResponse({
+        ...base,
+        bodyText: '{"header":{"resultCode":"01","resultMsg":"APPLICATION_ERROR"}}',
+      }).status,
+    ).toBe('broken');
+  });
+});
+
+describe('classifyKeyResponse + data.go.kr 엔벨로프', () => {
+  it('HTTP 200 + Shape A 에러 엔벨로프 → INVALID', () => {
+    const body = JSON.stringify({
+      response: { header: { resultCode: '30', resultMsg: 'SERVICE_KEY_IS_NOT_REGISTERED_ERROR' } },
+    });
+    expect(classifyKeyResponse(200, body, false).verdict).toBe('INVALID');
+  });
+
+  it('HTTP 200 + Shape A NO_DATA(03) → VALID (키는 통과)', () => {
+    const body = JSON.stringify({ response: { header: { resultCode: '03' } } });
+    expect(classifyKeyResponse(200, body, false).verdict).toBe('VALID');
+  });
+
+  it('HTTP 200 + 실측 최상위 header APPLICATION_ERROR(01) → INVALID', () => {
+    expect(
+      classifyKeyResponse(
+        200,
+        '{"header":{"resultCode":"01","resultMsg":"APPLICATION_ERROR"}}',
+        false,
+      ).verdict,
+    ).toBe('INVALID');
+  });
 });
 
 describe('summarizeApi', () => {
@@ -189,5 +433,23 @@ describe('buildTestUrl', () => {
     });
     expect(url).toContain('latitude=37.5665');
     expect(url).toContain('longitude=126.9780');
+  });
+
+  it('공공데이터 공통 페이징/포맷 파라미터에 안전한 샘플을 채운다', () => {
+    const url = buildTestUrl('https://apis.data.go.kr/example', {
+      path: '/getItems',
+      parameters: {
+        pageNo: 'string',
+        numOfRows: 'string',
+        dataType: 'string',
+        MobileOS: 'string',
+        MobileApp: 'string',
+      },
+    });
+    expect(url).toContain('pageNo=1');
+    expect(url).toContain('numOfRows=1');
+    expect(url).toContain('dataType=JSON');
+    expect(url).toContain('MobileOS=ETC');
+    expect(url).toContain('MobileApp=CustomWebService');
   });
 });

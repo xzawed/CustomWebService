@@ -1399,6 +1399,65 @@ Content-Type: application/json
 | `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
 | `INVALID_INPUT` | 400 | 요청 본문 형식·Zod 검증 실패 |
 
+### POST /api/v1/admin/catalog/deactivate
+지정한 **활성** 카탈로그 API를 **라이브 키 검증 없이** 비활성화합니다. 업스트림 장애·키 미설정 상태에서도 문제 API를 즉시 끌 수 있어야 하므로 activate와 달리 키 검증을 하지 않습니다.
+
+> **왜 있는가:** 잘못 시드된 키리스 API·장애 업스트림·키 만료 API를 카탈로그·추천·프록시에서 빼는 쓰기 경로. `verificationStatus`는 보존해 "왜 껐는지" 증거를 남긴다.
+
+**Request:**
+```http
+POST /api/v1/admin/catalog/deactivate
+Authorization: Bearer <ADMIN_API_KEY>
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "apiIds": ["uuid-1", "uuid-2"],
+  "dryRun": false
+}
+```
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `apiIds` | string[] | **Y** | 대상 ID. **생략·빈 배열 불가** (실수로 전부 끄는 동작 없음) |
+| `dryRun` | boolean | N | `true`면 쓰지 않고 결과만 반환 (기본 `false`) |
+
+**동작:**
+- 대상: `apiIds`에 나열된 **활성** 행 (플랫폼 키 의존 여부·authType 무관 — 키리스도 가능)
+- 미존재 ID → `deactivated: false`, reason `존재하지 않는 API ID` (예외 없음)
+- 이미 비활성 → `deactivated: false`, reason `이미 비활성` (쓰기 없음)
+- `dryRun: true` → 쓰기 없음, reason `dryRun — 비활성화하지 않음`
+- 성공 시: `isActive=false` **만** (`verificationStatus` 미변경), `CATALOG_API_DEACTIVATED` 이벤트
+- **`verifyApiKey` 호출 없음**
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "dryRun": false,
+    "requested": 2,
+    "deactivated": 1,
+    "outcomes": [
+      {
+        "apiId": "uuid",
+        "name": "…",
+        "envVar": "API_KEY_…",
+        "deactivated": true,
+        "reason": "비활성화 완료"
+      }
+    ]
+  }
+}
+```
+
+| 에러 코드 | HTTP | 설명 |
+|-----------|------|------|
+| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
+| `INVALID_INPUT` | 400 | `apiIds` 누락·빈 배열·요청 본문 형식·Zod 검증 실패 |
+
 ### GET /api/v1/admin/feature-flags
 ### POST /api/v1/admin/feature-flags
 운영 킬스위치 조회·토글. env 변경(재배포) 없이 DB 값으로 생성·가입을 즉시 막을 수 있습니다. 알려진 플래그만 허용합니다(오타로 만든 행은 아무도 읽지 않아 "껐다"는 착각만 남김).

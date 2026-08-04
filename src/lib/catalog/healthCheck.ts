@@ -37,12 +37,173 @@ function looksLikeJson(bodyText: string): boolean {
   return t.startsWith('{') || t.startsWith('[');
 }
 
+/**
+ * data.go.kr 공공데이터 포털 성공/허용 코드.
+ * - 00 / 000 / 0000 / INFO-000: 정상
+ * - 03: NO_DATA — 인증은 성공, 조회 결과만 없음 (키 INVALID로 오판하지 않음)
+ * - 22: LIMIT_EXCEEDED — HTTP 429가 별도 RATE_LIMITED로 매핑되므로 본문만으로는 에러 아님
+ */
+const DATA_GO_KR_ALLOWLIST = new Set(['00', '000', '0000', 'INFO-000', '03', '22']);
+
+function isDataGoKrAllowlisted(code: string): boolean {
+  return DATA_GO_KR_ALLOWLIST.has(code.trim());
+}
+
+/**
+ * XML 태그 본문 추출 (정규식 미사용 — ReDoS 회피).
+ * 단순 `<tag>…</tag>` 형태만 지원 (속성·네임스페이스 접두사 없음 전제).
+ */
+function extractTagContent(xml: string, tagName: string): string | null {
+  const open = `<${tagName}>`;
+  const close = `</${tagName}>`;
+  const start = xml.indexOf(open);
+  if (start === -1) return null;
+  const contentStart = start + open.length;
+  const end = xml.indexOf(close, contentStart);
+  if (end === -1) return null;
+  return xml.slice(contentStart, end).trim();
+}
+
+/**
+ * header 객체가 data.go.kr resultCode 엔벨로프인지 판정.
+ * @param requireResultMsg true면 resultMsg도 필수 (최상위 bare header 오탐 방지)
+ * @returns true=에러, false=허용, null=필드 부족으로 불일치
+ */
+function classifyHeaderResultCode(
+  header: Record<string, unknown>,
+  requireResultMsg: boolean,
+): boolean | null {
+  const resultCode = header.resultCode;
+  if (typeof resultCode !== 'string' && typeof resultCode !== 'number') return null;
+  if (requireResultMsg) {
+    const resultMsg = header.resultMsg;
+    if (typeof resultMsg !== 'string' || resultMsg.trim() === '') return null;
+  }
+  return !isDataGoKrAllowlisted(String(resultCode));
+}
+
+/**
+ * data.go.kr 에러 엔벨로프 판정.
+ * @returns true=에러, false=허용(성공/NO_DATA/LIMIT), null=엔벨로프 불일치(REST 휴리스틱으로 폴스루)
+ *
+ * Shape A:  response.header.resultCode (JSON) / <response><header><resultCode> (XML)
+ * Shape A′: 최상위 header.resultCode + resultMsg (JSON) / 최상위 <header>… (XML)
+ *           — 기상청·에어코리아 에러가 response 래퍼 없이 header만 돌린다 (2026-08-05 실측)
+ * Shape B:  OpenAPI_ServiceResponse.cmmMsgHeader.returnReasonCode|errMsg (JSON/XML)
+ *
+ * 순서: A(래핑) → A′(비래핑) → B. 둘 다 있으면 래핑이 우선.
+ * bare top-level resultCode(header 없음)는 인식하지 않는다.
+ */
+function classifyDataGoKrEnvelope(bodyText: string): boolean | null {
+  // ── JSON 경로 ──────────────────────────────────────────────────────────────
+  if (looksLikeJson(bodyText)) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(bodyText);
+    } catch {
+      parsed = null;
+    }
+    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>;
+
+      // Shape A: response.header.resultCode (resultMsg 불필요 — 중첩이 이미 식별력 있음)
+      const response = obj.response;
+      if (response !== null && typeof response === 'object' && !Array.isArray(response)) {
+        const header = (response as Record<string, unknown>).header;
+        if (header !== null && typeof header === 'object' && !Array.isArray(header)) {
+          const verdict = classifyHeaderResultCode(header as Record<string, unknown>, false);
+          if (verdict !== null) return verdict;
+        }
+      }
+
+      // Shape A′: 최상위 header.resultCode + resultMsg (둘 다 필수 — 오탐 가드)
+      const topHeader = obj.header;
+      if (topHeader !== null && typeof topHeader === 'object' && !Array.isArray(topHeader)) {
+        const verdict = classifyHeaderResultCode(topHeader as Record<string, unknown>, true);
+        if (verdict !== null) return verdict;
+      }
+
+      // Shape B: OpenAPI_ServiceResponse.cmmMsgHeader.returnReasonCode / errMsg
+      const svc = obj.OpenAPI_ServiceResponse;
+      if (svc !== null && typeof svc === 'object' && !Array.isArray(svc)) {
+        const cmm = (svc as Record<string, unknown>).cmmMsgHeader;
+        if (cmm !== null && typeof cmm === 'object' && !Array.isArray(cmm)) {
+          const cmmObj = cmm as Record<string, unknown>;
+          const reason = cmmObj.returnReasonCode;
+          if (typeof reason === 'string' || typeof reason === 'number') {
+            return !isDataGoKrAllowlisted(String(reason));
+          }
+          // 코드 없이 errMsg만 있으면 인식된 엔벨로프 → fail-closed
+          if (typeof cmmObj.errMsg === 'string' && cmmObj.errMsg.trim() !== '') {
+            return true;
+          }
+          // 엔벨로프 마커는 있으나 판정 필드 없음 → fail-closed
+          return true;
+        }
+      }
+    }
+  }
+
+  // ── XML 경로 (비-JSON early return 이전에 수행) ─────────────────────────────
+  // Shape A: <response>…<header>…<resultCode>…</resultCode>
+  const responseXml = extractTagContent(bodyText, 'response');
+  if (responseXml !== null) {
+    const headerXml = extractTagContent(responseXml, 'header');
+    if (headerXml !== null) {
+      const resultCode = extractTagContent(headerXml, 'resultCode');
+      if (resultCode !== null) {
+        return !isDataGoKrAllowlisted(resultCode);
+      }
+    }
+  }
+
+  // Shape A′: 최상위 <header>… (response 래퍼 없음). resultCode + resultMsg 둘 다 필수.
+  // response 래퍼가 이미 resultCode로 판정됐으면 위에서 반환했으므로 여기까지 오지 않는다.
+  // response 없이 header만 있거나, response에 resultCode가 없을 때만 도달.
+  if (responseXml === null) {
+    const topHeaderXml = extractTagContent(bodyText, 'header');
+    if (topHeaderXml !== null) {
+      const resultCode = extractTagContent(topHeaderXml, 'resultCode');
+      const resultMsg = extractTagContent(topHeaderXml, 'resultMsg');
+      if (resultCode !== null && resultMsg !== null && resultMsg !== '') {
+        return !isDataGoKrAllowlisted(resultCode);
+      }
+    }
+  }
+
+  // Shape B: <OpenAPI_ServiceResponse>…<cmmMsgHeader>…
+  const svcXml = extractTagContent(bodyText, 'OpenAPI_ServiceResponse');
+  if (svcXml !== null) {
+    const cmmXml = extractTagContent(svcXml, 'cmmMsgHeader');
+    if (cmmXml !== null) {
+      const reason = extractTagContent(cmmXml, 'returnReasonCode');
+      if (reason !== null) {
+        return !isDataGoKrAllowlisted(reason);
+      }
+      const errMsg = extractTagContent(cmmXml, 'errMsg');
+      if (errMsg !== null && errMsg !== '') {
+        return true;
+      }
+      return true;
+    }
+  }
+
+  return null;
+}
+
 /** 2xx 본문이 사실상 에러/폐기 응답인지 판정 (HTTP 200이 실패를 가리는 케이스 탐지). */
 export function looksLikeErrorBody(bodyText: string): boolean {
-  // 구조와 무관한 deprecation 텍스트 신호
+  // 1) 구조와 무관한 deprecation 텍스트 신호
   if (/has been deprecated|api version has been deprecated/i.test(bodyText)) return true;
 
+  // 2) data.go.kr 엔벨로프 (JSON 또는 XML) — 비-JSON early return 이전
+  const envelope = classifyDataGoKrEnvelope(bodyText);
+  if (envelope !== null) return envelope;
+
+  // 3) 비-JSON: deprecation·엔벨로프 외 신호 없음
   if (!looksLikeJson(bodyText)) return false;
+
+  // 4) 기존 REST JSON 휴리스틱
   let parsed: unknown;
   try {
     parsed = JSON.parse(bodyText);
@@ -87,8 +248,8 @@ export function classifyResponse(input: ClassifyInput): ClassifyResult {
     return { status: 'unknown', reason: `예상치 못한 4xx(${httpStatus})` };
   }
 
-  // 2xx/3xx 성공 경로 — content-type 무관하게 본문 에러/deprecation 신호 확인
-  // (looksLikeErrorBody는 비-JSON 본문이면 deprecation 텍스트만 검사하고 false 반환)
+  // 2xx/3xx 성공 경로 — content-type 무관하게 본문 에러/deprecation/공공데이터 엔벨로프 확인
+  // (looksLikeErrorBody: deprecation → data.go.kr JSON/XML 엔벨로프 → 비-JSON false → REST JSON 휴리스틱)
   if (looksLikeErrorBody(bodyText)) {
     return { status: 'broken', reason: `HTTP ${httpStatus}이나 본문이 에러/deprecation` };
   }
@@ -121,6 +282,9 @@ export function toVerificationStatus(status: HealthStatus): ApiVerificationStatu
   return null; // key_gated / unknown — 자동 판정 불가, 기존 값 보존
 }
 
+// knownSample은 key.toLowerCase()로 조회한다 — 키는 소문자로 등록.
+// 도메인 전용 좌표·관측소 파라미터(nx/ny/base_date 등)는 넣지 않는다.
+// 다른 API에서 의미가 달라 프로브를 오염시키므로 per-endpoint example_call 쪽이 맞다.
 const SAMPLE_VALUES: Record<string, string> = {
   name: 'korea',
   currency: 'USD',
@@ -151,6 +315,15 @@ const SAMPLE_VALUES: Record<string, string> = {
   lng: '126.978',
   latitude: '37.5665',
   longitude: '126.978',
+  // 공공데이터·관광 등 공통 페이징/포맷 파라미터 (제공자 간 의미가 분명한 것만)
+  pageno: '1',
+  numofrows: '1',
+  datatype: 'JSON',
+  returntype: 'json',
+  _type: 'json',
+  type: 'json',
+  mobileos: 'ETC',
+  mobileapp: 'CustomWebService',
 };
 
 // 키 인증용 파라미터는 테스트 쿼리에 넣지 않는다 (키리스로 호출해 401=key_gated 판정).
