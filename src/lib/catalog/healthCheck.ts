@@ -37,12 +37,191 @@ function looksLikeJson(bodyText: string): boolean {
   return t.startsWith('{') || t.startsWith('[');
 }
 
+/**
+ * data.go.kr 공공데이터 포털 성공/허용 코드.
+ * - 00 / 000 / 0000 / INFO-000: 정상
+ * - 03: NO_DATA — 인증은 성공, 조회 결과만 없음 (키 INVALID로 오판하지 않음)
+ * - 22: LIMIT_EXCEEDED — HTTP 429가 별도 RATE_LIMITED로 매핑되므로 본문만으로는 에러 아님
+ */
+const DATA_GO_KR_ALLOWLIST = new Set(['00', '000', '0000', 'INFO-000', '03', '22']);
+
+/** plain object만 통과. null·배열·원시값은 null. 중복 typeof 가드 제거용. */
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+/** 허용목록 밖 코드면 true(에러). 허용이면 false. */
+function verdictFromCode(code: string | number): boolean {
+  return !DATA_GO_KR_ALLOWLIST.has(String(code).trim());
+}
+
+/**
+ * XML 태그 본문 추출 (정규식 미사용 — ReDoS 회피).
+ * 단순 `<tag>…</tag>` 형태만 지원 (속성·네임스페이스 접두사 없음 전제).
+ */
+function extractTagContent(xml: string, tagName: string): string | null {
+  const open = `<${tagName}>`;
+  const close = `</${tagName}>`;
+  const start = xml.indexOf(open);
+  if (start === -1) return null;
+  const contentStart = start + open.length;
+  const end = xml.indexOf(close, contentStart);
+  if (end === -1) return null;
+  return xml.slice(contentStart, end).trim();
+}
+
+/**
+ * header 객체가 data.go.kr resultCode 엔벨로프인지 판정.
+ * @param requireResultMsg true면 resultMsg도 필수 (최상위 bare header 오탐 방지)
+ * @returns true=에러, false=허용, null=필드 부족으로 불일치
+ */
+function classifyHeaderResultCode(
+  header: Record<string, unknown>,
+  requireResultMsg: boolean,
+): boolean | null {
+  const resultCode = header.resultCode;
+  if (typeof resultCode !== 'string' && typeof resultCode !== 'number') return null;
+  if (requireResultMsg) {
+    const resultMsg = header.resultMsg;
+    if (typeof resultMsg !== 'string' || resultMsg.trim() === '') return null;
+  }
+  return verdictFromCode(resultCode);
+}
+
+/** Shape A: response.header.resultCode (resultMsg 불필요). */
+function classifyJsonShapeA(obj: Record<string, unknown>): boolean | null {
+  const response = asRecord(obj.response);
+  if (!response) return null;
+  const header = asRecord(response.header);
+  if (!header) return null;
+  return classifyHeaderResultCode(header, false);
+}
+
+/** Shape A′: 최상위 header.resultCode + resultMsg (둘 다 필수). */
+function classifyJsonShapeAPrime(obj: Record<string, unknown>): boolean | null {
+  const header = asRecord(obj.header);
+  if (!header) return null;
+  return classifyHeaderResultCode(header, true);
+}
+
+/**
+ * Shape B: OpenAPI_ServiceResponse.cmmMsgHeader.
+ * 엔벨로프가 매칭되면 코드/errMsg 유무와 무관하게 판정(미지·빈 필드 → fail-closed true).
+ */
+function classifyJsonShapeB(obj: Record<string, unknown>): boolean | null {
+  const svc = asRecord(obj.OpenAPI_ServiceResponse);
+  if (!svc) return null;
+  const cmm = asRecord(svc.cmmMsgHeader);
+  if (!cmm) return null;
+
+  const reason = cmm.returnReasonCode;
+  if (typeof reason === 'string' || typeof reason === 'number') {
+    return verdictFromCode(reason);
+  }
+  // 코드 없이 errMsg가 있든 없든 인식된 엔벨로프 → fail-closed
+  // (비어 있지 않은 errMsg도, 필드 부재도 동일하게 true)
+  return true;
+}
+
+/**
+ * JSON 본문의 data.go.kr 엔벨로프 판정.
+ * 순서: A → A′ → B. false(허용 코드)는 그대로 반환 — XML로 폴스루하지 않음.
+ */
+function classifyJsonEnvelope(bodyText: string): boolean | null {
+  if (!looksLikeJson(bodyText)) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(bodyText);
+  } catch {
+    return null;
+  }
+
+  const obj = asRecord(parsed);
+  if (!obj) return null;
+
+  return classifyJsonShapeA(obj) ?? classifyJsonShapeAPrime(obj) ?? classifyJsonShapeB(obj);
+}
+
+/** Shape A XML: <response><header><resultCode>. */
+function classifyXmlShapeA(bodyText: string): boolean | null {
+  const responseXml = extractTagContent(bodyText, 'response');
+  if (responseXml === null) return null;
+  const headerXml = extractTagContent(responseXml, 'header');
+  if (headerXml === null) return null;
+  const resultCode = extractTagContent(headerXml, 'resultCode');
+  if (resultCode === null) return null;
+  return verdictFromCode(resultCode);
+}
+
+/**
+ * Shape A′ XML: 최상위 <header> (response 래퍼 없을 때만).
+ * resultCode + resultMsg 둘 다 필수.
+ */
+function classifyXmlShapeAPrime(bodyText: string): boolean | null {
+  // response 래퍼가 있으면 최상위 header로 보지 않는다 (중첩 header 오탐 방지)
+  if (extractTagContent(bodyText, 'response') !== null) return null;
+
+  const headerXml = extractTagContent(bodyText, 'header');
+  if (headerXml === null) return null;
+  const resultCode = extractTagContent(headerXml, 'resultCode');
+  const resultMsg = extractTagContent(headerXml, 'resultMsg');
+  if (resultCode === null || resultMsg === null || resultMsg === '') return null;
+  return verdictFromCode(resultCode);
+}
+
+/** Shape B XML: <OpenAPI_ServiceResponse><cmmMsgHeader>… fail-closed. */
+function classifyXmlShapeB(bodyText: string): boolean | null {
+  const svcXml = extractTagContent(bodyText, 'OpenAPI_ServiceResponse');
+  if (svcXml === null) return null;
+  const cmmXml = extractTagContent(svcXml, 'cmmMsgHeader');
+  if (cmmXml === null) return null;
+
+  const reason = extractTagContent(cmmXml, 'returnReasonCode');
+  if (reason !== null) return verdictFromCode(reason);
+  // errMsg 유무와 무관 — 인식된 엔벨로프면 fail-closed
+  return true;
+}
+
+/**
+ * XML 본문의 data.go.kr 엔벨로프 판정.
+ * 순서: A → A′ → B.
+ */
+function classifyXmlEnvelope(bodyText: string): boolean | null {
+  return classifyXmlShapeA(bodyText) ?? classifyXmlShapeAPrime(bodyText) ?? classifyXmlShapeB(bodyText);
+}
+
+/**
+ * data.go.kr 에러 엔벨로프 판정.
+ * @returns true=에러, false=허용(성공/NO_DATA/LIMIT), null=엔벨로프 불일치(REST 휴리스틱으로 폴스루)
+ *
+ * Shape A:  response.header.resultCode (JSON) / <response><header><resultCode> (XML)
+ * Shape A′: 최상위 header.resultCode + resultMsg (JSON) / 최상위 <header>… (XML)
+ *           — 기상청·에어코리아 에러가 response 래퍼 없이 header만 돌린다 (2026-08-05 실측)
+ * Shape B:  OpenAPI_ServiceResponse.cmmMsgHeader.returnReasonCode|errMsg (JSON/XML)
+ *
+ * 순서: JSON 전체 → XML 전체. JSON이 false(허용)면 XML로 넘어가지 않는다(?? 연산).
+ * bare top-level resultCode(header 없음)는 인식하지 않는다.
+ */
+function classifyDataGoKrEnvelope(bodyText: string): boolean | null {
+  // ?? : null만 우측으로 폴스루. false(허용 코드)는 그대로 유지.
+  return classifyJsonEnvelope(bodyText) ?? classifyXmlEnvelope(bodyText);
+}
+
 /** 2xx 본문이 사실상 에러/폐기 응답인지 판정 (HTTP 200이 실패를 가리는 케이스 탐지). */
 export function looksLikeErrorBody(bodyText: string): boolean {
-  // 구조와 무관한 deprecation 텍스트 신호
+  // 1) 구조와 무관한 deprecation 텍스트 신호
   if (/has been deprecated|api version has been deprecated/i.test(bodyText)) return true;
 
+  // 2) data.go.kr 엔벨로프 (JSON 또는 XML) — 비-JSON early return 이전
+  const envelope = classifyDataGoKrEnvelope(bodyText);
+  if (envelope !== null) return envelope;
+
+  // 3) 비-JSON: deprecation·엔벨로프 외 신호 없음
   if (!looksLikeJson(bodyText)) return false;
+
+  // 4) 기존 REST JSON 휴리스틱
   let parsed: unknown;
   try {
     parsed = JSON.parse(bodyText);
@@ -87,8 +266,8 @@ export function classifyResponse(input: ClassifyInput): ClassifyResult {
     return { status: 'unknown', reason: `예상치 못한 4xx(${httpStatus})` };
   }
 
-  // 2xx/3xx 성공 경로 — content-type 무관하게 본문 에러/deprecation 신호 확인
-  // (looksLikeErrorBody는 비-JSON 본문이면 deprecation 텍스트만 검사하고 false 반환)
+  // 2xx/3xx 성공 경로 — content-type 무관하게 본문 에러/deprecation/공공데이터 엔벨로프 확인
+  // (looksLikeErrorBody: deprecation → data.go.kr JSON/XML 엔벨로프 → 비-JSON false → REST JSON 휴리스틱)
   if (looksLikeErrorBody(bodyText)) {
     return { status: 'broken', reason: `HTTP ${httpStatus}이나 본문이 에러/deprecation` };
   }
@@ -121,6 +300,9 @@ export function toVerificationStatus(status: HealthStatus): ApiVerificationStatu
   return null; // key_gated / unknown — 자동 판정 불가, 기존 값 보존
 }
 
+// knownSample은 key.toLowerCase()로 조회한다 — 키는 소문자로 등록.
+// 도메인 전용 좌표·관측소 파라미터(nx/ny/base_date 등)는 넣지 않는다.
+// 다른 API에서 의미가 달라 프로브를 오염시키므로 per-endpoint example_call 쪽이 맞다.
 const SAMPLE_VALUES: Record<string, string> = {
   name: 'korea',
   currency: 'USD',
@@ -151,6 +333,15 @@ const SAMPLE_VALUES: Record<string, string> = {
   lng: '126.978',
   latitude: '37.5665',
   longitude: '126.978',
+  // 공공데이터·관광 등 공통 페이징/포맷 파라미터 (제공자 간 의미가 분명한 것만)
+  pageno: '1',
+  numofrows: '1',
+  datatype: 'JSON',
+  returntype: 'json',
+  _type: 'json',
+  type: 'json',
+  mobileos: 'ETC',
+  mobileapp: 'CustomWebService',
 };
 
 // 키 인증용 파라미터는 테스트 쿼리에 넣지 않는다 (키리스로 호출해 401=key_gated 판정).

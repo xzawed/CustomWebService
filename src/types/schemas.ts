@@ -99,6 +99,17 @@ export const activateCatalogSchema = z.object({
   dryRun: z.boolean().optional(),
 });
 
+/**
+ * 카탈로그 비활성화. activate와 형태는 비슷하지만 **생략 의미가 다르다**.
+ * - `apiIds` 필수·비어 있으면 안 됨 (omit=전부 끔 은 구현하지 않음 — 실수 방지)
+ * - 라이브 키 검증 없음 (업스트림 다운이어도 끌 수 있어야 함)
+ */
+export const deactivateCatalogSchema = z.object({
+  apiIds: z.array(z.string().min(1)).min(1),
+  /** true면 DB에 쓰지 않고 대상·결과만 돌려준다. */
+  dryRun: z.boolean().optional(),
+});
+
 // ── 인증 ──────────────────────────────────────────────────────────────────────
 // z.string().email()는 Zod v4에서 deprecated → z.string().trim().toLowerCase().pipe(z.email()) 사용
 const emailField = z.string().trim().toLowerCase().pipe(z.email());

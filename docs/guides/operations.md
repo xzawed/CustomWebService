@@ -50,6 +50,8 @@ curl -sS -H "Authorization: Bearer $ADMIN_API_KEY" \
 | **GET** `/api/v1/admin/qc-stats?days=7` | 기간 내 생성 수·실패 수·실성공률, 구조/모바일/렌더링 QC 평균, Stage 스킵·Quality Loop 지표, 흔한 QC 실패 항목 | 생성 품질·실패율 추이. Slack 생성 실패 경보 후 원인 파악 |
 | **GET** `/api/v1/admin/site-proxy-stats?limit=50` | 게시 사이트(익명) 프록시 프로젝트별 허용/차단. **`blockedByIp` vs `blockedByProject` 구분** | 429 민원, 한도 조정 근거 수집. 인메모리 → **재시작 시 0**. `trackedProjects: 0`이면 아직 집계 트래픽 없음([#216](https://github.com/xzawed/CustomWebService/issues/216) 트리거 미충족 — **임의로 한도 바꾸지 말 것**) |
 | **GET** `/api/v1/admin/keys-verify` | 활성·플랫폼 키 의존 API의 env 키를 **배포 런타임에서** 실호출 검증(키 값 비노출) | 키 의존 API 재활성화 직후, 401 의심. **로컬/`railway run`은 sealed env 미주입** — 배포 환경에서만 유효 |
+| **POST** `/api/v1/admin/catalog/activate` | 비활성 키 의존 API를 **라이브 키 검증 VALID 시에만** 활성화 | 키 발급·env 등록 후 카탈로그에 다시 노출. `dryRun`으로 후보 확인 가능 |
+| **POST** `/api/v1/admin/catalog/deactivate` | 지정 ID의 활성 API를 **키 검증 없이** 비활성화(`apiIds` 필수) | 장애·오시드·키 만료 API를 즉시 차단. `verificationStatus`는 보존. **생략=전부 끔 없음** |
 | **POST** `/api/v1/admin/verify-catalog` | 활성 API GET을 라이브 호출해 `verification_status` 갱신(`working/degraded→verified`, `broken→broken`, 변경 시에만 쓰기; `key_gated`/`unknown` 보존) | 카탈로그 이상 의심·시드 반영 후. **스케줄 없음 — 관리자 수동 트리거**(플래핑·무인 outbound 방지) |
 | **GET** `/api/v1/admin/catalog-dump` | 프로덕션 `api_catalog` 전체(활성·비활성) 안전 투영 + `summary.active`/`inactive` | “카탈로그가 몇 개?” **하드코딩 숫자를 믿지 말고 이 응답으로 확인**. 시드 JSON diff용 |
 | **POST** `/api/v1/admin/trigger-qc` | 특정 `projectId`에 Fast+Deep QC 재실행 | QC 디버깅. `ENABLE_RENDERING_QC` 꺼져 있으면 400 |
