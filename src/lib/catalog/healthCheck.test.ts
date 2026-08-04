@@ -214,6 +214,187 @@ describe('looksLikeErrorBody', () => {
     expect(looksLikeErrorBody('{"success":false}')).toBe(true);
     expect(looksLikeErrorBody('{"errors":[{"message":"bad"}]}')).toBe(true);
   });
+
+  // ── 분기 커버: 엔벨로프 불일치·경계 (CI codecov/patch) ───────────────────
+  it('파싱 불가 JSON({로 시작)은 throw 없이 폴스루한다', () => {
+    // looksLikeJson true → JSON.parse 실패 → 엔벨로프 null → REST false
+    expect(looksLikeErrorBody('{not-valid-json')).toBe(false);
+  });
+
+  it('JSON 배열 본문은 엔벨로프가 아니다', () => {
+    expect(looksLikeErrorBody('[1,2]')).toBe(false);
+  });
+
+  it('response만 있고 header가 없거나 객체가 아니면 엔벨로프 불일치', () => {
+    expect(looksLikeErrorBody(JSON.stringify({ response: { body: {} } }))).toBe(false);
+    expect(looksLikeErrorBody(JSON.stringify({ response: { header: null } }))).toBe(false);
+    expect(looksLikeErrorBody(JSON.stringify({ response: { header: 'x' } }))).toBe(false);
+    expect(looksLikeErrorBody(JSON.stringify({ response: { header: [] } }))).toBe(false);
+    expect(looksLikeErrorBody(JSON.stringify({ response: null }))).toBe(false);
+    expect(looksLikeErrorBody(JSON.stringify({ response: 'x' }))).toBe(false);
+  });
+
+  it('header.resultCode가 string/number가 아니면 엔벨로프로 보지 않는다', () => {
+    expect(
+      looksLikeErrorBody(
+        JSON.stringify({ response: { header: { resultCode: { nested: true } } } }),
+      ),
+    ).toBe(false);
+    expect(
+      looksLikeErrorBody(JSON.stringify({ response: { header: { resultCode: null } } })),
+    ).toBe(false);
+    expect(
+      looksLikeErrorBody(JSON.stringify({ response: { header: { resultCode: ['01'] } } })),
+    ).toBe(false);
+    // 숫자 코드는 허용 — 허용목록 밖이면 에러
+    expect(
+      looksLikeErrorBody(JSON.stringify({ response: { header: { resultCode: 99 } } })),
+    ).toBe(true);
+    expect(
+      looksLikeErrorBody(JSON.stringify({ response: { header: { resultCode: 0 } } })),
+    ).toBe(true); // "0"은 허용목록에 없음 (00만 허용)
+  });
+
+  it('Shape A′ resultMsg가 빈 문자열·공백·비문자열이면 가드에 걸린다', () => {
+    expect(
+      looksLikeErrorBody(JSON.stringify({ header: { resultCode: '01', resultMsg: '' } })),
+    ).toBe(false);
+    expect(
+      looksLikeErrorBody(JSON.stringify({ header: { resultCode: '01', resultMsg: '   ' } })),
+    ).toBe(false);
+    expect(
+      looksLikeErrorBody(JSON.stringify({ header: { resultCode: '01', resultMsg: 123 } })),
+    ).toBe(false);
+    expect(looksLikeErrorBody(JSON.stringify({ header: null }))).toBe(false);
+    expect(looksLikeErrorBody(JSON.stringify({ header: 'x' }))).toBe(false);
+  });
+
+  it('Shape B: cmmMsgHeader만 있고 코드·errMsg 없으면 fail-closed true', () => {
+    expect(
+      looksLikeErrorBody(
+        JSON.stringify({ OpenAPI_ServiceResponse: { cmmMsgHeader: {} } }),
+      ),
+    ).toBe(true);
+  });
+
+  it('Shape B: errMsg가 빈 문자열이어도 fail-closed true', () => {
+    expect(
+      looksLikeErrorBody(
+        JSON.stringify({
+          OpenAPI_ServiceResponse: { cmmMsgHeader: { errMsg: '' } },
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      looksLikeErrorBody(
+        JSON.stringify({
+          OpenAPI_ServiceResponse: { cmmMsgHeader: { errMsg: '   ' } },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('Shape B: OpenAPI_ServiceResponse만 있고 cmmMsgHeader 없으면 엔벨로프 불일치', () => {
+    expect(
+      looksLikeErrorBody(JSON.stringify({ OpenAPI_ServiceResponse: { other: true } })),
+    ).toBe(false);
+    expect(
+      looksLikeErrorBody(JSON.stringify({ OpenAPI_ServiceResponse: null })),
+    ).toBe(false);
+    expect(
+      looksLikeErrorBody(JSON.stringify({ OpenAPI_ServiceResponse: 'x' })),
+    ).toBe(false);
+  });
+
+  it('Shape B: returnReasonCode 숫자 타입도 판정한다', () => {
+    expect(
+      looksLikeErrorBody(
+        JSON.stringify({
+          OpenAPI_ServiceResponse: { cmmMsgHeader: { returnReasonCode: 12 } },
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      looksLikeErrorBody(
+        JSON.stringify({
+          OpenAPI_ServiceResponse: { cmmMsgHeader: { returnReasonCode: 0 } },
+        }),
+      ),
+    ).toBe(true); // "0" ≠ "00"
+  });
+
+  it('XML: <response>에 <header> 없으면 엔벨로프 불일치', () => {
+    expect(looksLikeErrorBody('<response><body/></response>')).toBe(false);
+  });
+
+  it('XML: <header>에 <resultCode> 없으면 엔벨로프 불일치', () => {
+    expect(
+      looksLikeErrorBody('<response><header><resultMsg>X</resultMsg></header></response>'),
+    ).toBe(false);
+  });
+
+  it('XML: 닫히지 않은 태그는 extract 실패로 불일치', () => {
+    expect(looksLikeErrorBody('<header><resultCode>01</resultCode>')).toBe(false);
+    expect(
+      looksLikeErrorBody('<response><header><resultCode>01</resultCode></header>'),
+    ).toBe(false);
+  });
+
+  it('XML Shape A′: resultMsg 없으면 엄격 가드로 false', () => {
+    expect(
+      looksLikeErrorBody('<header><resultCode>01</resultCode></header>'),
+    ).toBe(false);
+    expect(
+      looksLikeErrorBody(
+        '<header><resultCode>01</resultCode><resultMsg></resultMsg></header>',
+      ),
+    ).toBe(false);
+  });
+
+  it('XML Shape A′: 허용 코드는 false', () => {
+    expect(
+      looksLikeErrorBody(
+        '<header><resultCode>00</resultCode><resultMsg>OK</resultMsg></header>',
+      ),
+    ).toBe(false);
+  });
+
+  it('XML Shape B: cmmMsgHeader만 있으면 fail-closed true', () => {
+    expect(
+      looksLikeErrorBody(
+        '<OpenAPI_ServiceResponse><cmmMsgHeader></cmmMsgHeader></OpenAPI_ServiceResponse>',
+      ),
+    ).toBe(true);
+  });
+
+  it('XML Shape B: 허용 returnReasonCode는 false', () => {
+    expect(
+      looksLikeErrorBody(
+        '<OpenAPI_ServiceResponse><cmmMsgHeader><returnReasonCode>00</returnReasonCode></cmmMsgHeader></OpenAPI_ServiceResponse>',
+      ),
+    ).toBe(false);
+  });
+
+  it('XML Shape B: OpenAPI_ServiceResponse만 있고 cmmMsgHeader 없으면 불일치', () => {
+    expect(
+      looksLikeErrorBody('<OpenAPI_ServiceResponse><other/></OpenAPI_ServiceResponse>'),
+    ).toBe(false);
+  });
+
+  it('JSON 허용 코드(false) 판정은 null이 아니므로 유지된다', () => {
+    // ?? 연산: false는 XML 폴스루 대상이 아님. 허용 코드 → false 그대로.
+    expect(
+      looksLikeErrorBody(
+        JSON.stringify({ response: { header: { resultCode: '00', resultMsg: 'NORMAL_SERVICE' } } }),
+      ),
+    ).toBe(false);
+    // 동시에 XML 성공 본문도 false (별도 경로, 동일 허용목록)
+    expect(
+      looksLikeErrorBody(
+        '<response><header><resultCode>000</resultCode><resultMsg>OK</resultMsg></header></response>',
+      ),
+    ).toBe(false);
+  });
 });
 
 describe('classifyResponse', () => {

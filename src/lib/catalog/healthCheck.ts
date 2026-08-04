@@ -45,8 +45,15 @@ function looksLikeJson(bodyText: string): boolean {
  */
 const DATA_GO_KR_ALLOWLIST = new Set(['00', '000', '0000', 'INFO-000', '03', '22']);
 
-function isDataGoKrAllowlisted(code: string): boolean {
-  return DATA_GO_KR_ALLOWLIST.has(code.trim());
+/** plain object만 통과. null·배열·원시값은 null. 중복 typeof 가드 제거용. */
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+/** 허용목록 밖 코드면 true(에러). 허용이면 false. */
+function verdictFromCode(code: string | number): boolean {
+  return !DATA_GO_KR_ALLOWLIST.has(String(code).trim());
 }
 
 /**
@@ -79,7 +86,110 @@ function classifyHeaderResultCode(
     const resultMsg = header.resultMsg;
     if (typeof resultMsg !== 'string' || resultMsg.trim() === '') return null;
   }
-  return !isDataGoKrAllowlisted(String(resultCode));
+  return verdictFromCode(resultCode);
+}
+
+/** Shape A: response.header.resultCode (resultMsg 불필요). */
+function classifyJsonShapeA(obj: Record<string, unknown>): boolean | null {
+  const response = asRecord(obj.response);
+  if (!response) return null;
+  const header = asRecord(response.header);
+  if (!header) return null;
+  return classifyHeaderResultCode(header, false);
+}
+
+/** Shape A′: 최상위 header.resultCode + resultMsg (둘 다 필수). */
+function classifyJsonShapeAPrime(obj: Record<string, unknown>): boolean | null {
+  const header = asRecord(obj.header);
+  if (!header) return null;
+  return classifyHeaderResultCode(header, true);
+}
+
+/**
+ * Shape B: OpenAPI_ServiceResponse.cmmMsgHeader.
+ * 엔벨로프가 매칭되면 코드/errMsg 유무와 무관하게 판정(미지·빈 필드 → fail-closed true).
+ */
+function classifyJsonShapeB(obj: Record<string, unknown>): boolean | null {
+  const svc = asRecord(obj.OpenAPI_ServiceResponse);
+  if (!svc) return null;
+  const cmm = asRecord(svc.cmmMsgHeader);
+  if (!cmm) return null;
+
+  const reason = cmm.returnReasonCode;
+  if (typeof reason === 'string' || typeof reason === 'number') {
+    return verdictFromCode(reason);
+  }
+  // 코드 없이 errMsg가 있든 없든 인식된 엔벨로프 → fail-closed
+  // (비어 있지 않은 errMsg도, 필드 부재도 동일하게 true)
+  return true;
+}
+
+/**
+ * JSON 본문의 data.go.kr 엔벨로프 판정.
+ * 순서: A → A′ → B. false(허용 코드)는 그대로 반환 — XML로 폴스루하지 않음.
+ */
+function classifyJsonEnvelope(bodyText: string): boolean | null {
+  if (!looksLikeJson(bodyText)) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(bodyText);
+  } catch {
+    return null;
+  }
+
+  const obj = asRecord(parsed);
+  if (!obj) return null;
+
+  return classifyJsonShapeA(obj) ?? classifyJsonShapeAPrime(obj) ?? classifyJsonShapeB(obj);
+}
+
+/** Shape A XML: <response><header><resultCode>. */
+function classifyXmlShapeA(bodyText: string): boolean | null {
+  const responseXml = extractTagContent(bodyText, 'response');
+  if (responseXml === null) return null;
+  const headerXml = extractTagContent(responseXml, 'header');
+  if (headerXml === null) return null;
+  const resultCode = extractTagContent(headerXml, 'resultCode');
+  if (resultCode === null) return null;
+  return verdictFromCode(resultCode);
+}
+
+/**
+ * Shape A′ XML: 최상위 <header> (response 래퍼 없을 때만).
+ * resultCode + resultMsg 둘 다 필수.
+ */
+function classifyXmlShapeAPrime(bodyText: string): boolean | null {
+  // response 래퍼가 있으면 최상위 header로 보지 않는다 (중첩 header 오탐 방지)
+  if (extractTagContent(bodyText, 'response') !== null) return null;
+
+  const headerXml = extractTagContent(bodyText, 'header');
+  if (headerXml === null) return null;
+  const resultCode = extractTagContent(headerXml, 'resultCode');
+  const resultMsg = extractTagContent(headerXml, 'resultMsg');
+  if (resultCode === null || resultMsg === null || resultMsg === '') return null;
+  return verdictFromCode(resultCode);
+}
+
+/** Shape B XML: <OpenAPI_ServiceResponse><cmmMsgHeader>… fail-closed. */
+function classifyXmlShapeB(bodyText: string): boolean | null {
+  const svcXml = extractTagContent(bodyText, 'OpenAPI_ServiceResponse');
+  if (svcXml === null) return null;
+  const cmmXml = extractTagContent(svcXml, 'cmmMsgHeader');
+  if (cmmXml === null) return null;
+
+  const reason = extractTagContent(cmmXml, 'returnReasonCode');
+  if (reason !== null) return verdictFromCode(reason);
+  // errMsg 유무와 무관 — 인식된 엔벨로프면 fail-closed
+  return true;
+}
+
+/**
+ * XML 본문의 data.go.kr 엔벨로프 판정.
+ * 순서: A → A′ → B.
+ */
+function classifyXmlEnvelope(bodyText: string): boolean | null {
+  return classifyXmlShapeA(bodyText) ?? classifyXmlShapeAPrime(bodyText) ?? classifyXmlShapeB(bodyText);
 }
 
 /**
@@ -91,104 +201,12 @@ function classifyHeaderResultCode(
  *           — 기상청·에어코리아 에러가 response 래퍼 없이 header만 돌린다 (2026-08-05 실측)
  * Shape B:  OpenAPI_ServiceResponse.cmmMsgHeader.returnReasonCode|errMsg (JSON/XML)
  *
- * 순서: A(래핑) → A′(비래핑) → B. 둘 다 있으면 래핑이 우선.
+ * 순서: JSON 전체 → XML 전체. JSON이 false(허용)면 XML로 넘어가지 않는다(?? 연산).
  * bare top-level resultCode(header 없음)는 인식하지 않는다.
  */
 function classifyDataGoKrEnvelope(bodyText: string): boolean | null {
-  // ── JSON 경로 ──────────────────────────────────────────────────────────────
-  if (looksLikeJson(bodyText)) {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(bodyText);
-    } catch {
-      parsed = null;
-    }
-    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const obj = parsed as Record<string, unknown>;
-
-      // Shape A: response.header.resultCode (resultMsg 불필요 — 중첩이 이미 식별력 있음)
-      const response = obj.response;
-      if (response !== null && typeof response === 'object' && !Array.isArray(response)) {
-        const header = (response as Record<string, unknown>).header;
-        if (header !== null && typeof header === 'object' && !Array.isArray(header)) {
-          const verdict = classifyHeaderResultCode(header as Record<string, unknown>, false);
-          if (verdict !== null) return verdict;
-        }
-      }
-
-      // Shape A′: 최상위 header.resultCode + resultMsg (둘 다 필수 — 오탐 가드)
-      const topHeader = obj.header;
-      if (topHeader !== null && typeof topHeader === 'object' && !Array.isArray(topHeader)) {
-        const verdict = classifyHeaderResultCode(topHeader as Record<string, unknown>, true);
-        if (verdict !== null) return verdict;
-      }
-
-      // Shape B: OpenAPI_ServiceResponse.cmmMsgHeader.returnReasonCode / errMsg
-      const svc = obj.OpenAPI_ServiceResponse;
-      if (svc !== null && typeof svc === 'object' && !Array.isArray(svc)) {
-        const cmm = (svc as Record<string, unknown>).cmmMsgHeader;
-        if (cmm !== null && typeof cmm === 'object' && !Array.isArray(cmm)) {
-          const cmmObj = cmm as Record<string, unknown>;
-          const reason = cmmObj.returnReasonCode;
-          if (typeof reason === 'string' || typeof reason === 'number') {
-            return !isDataGoKrAllowlisted(String(reason));
-          }
-          // 코드 없이 errMsg만 있으면 인식된 엔벨로프 → fail-closed
-          if (typeof cmmObj.errMsg === 'string' && cmmObj.errMsg.trim() !== '') {
-            return true;
-          }
-          // 엔벨로프 마커는 있으나 판정 필드 없음 → fail-closed
-          return true;
-        }
-      }
-    }
-  }
-
-  // ── XML 경로 (비-JSON early return 이전에 수행) ─────────────────────────────
-  // Shape A: <response>…<header>…<resultCode>…</resultCode>
-  const responseXml = extractTagContent(bodyText, 'response');
-  if (responseXml !== null) {
-    const headerXml = extractTagContent(responseXml, 'header');
-    if (headerXml !== null) {
-      const resultCode = extractTagContent(headerXml, 'resultCode');
-      if (resultCode !== null) {
-        return !isDataGoKrAllowlisted(resultCode);
-      }
-    }
-  }
-
-  // Shape A′: 최상위 <header>… (response 래퍼 없음). resultCode + resultMsg 둘 다 필수.
-  // response 래퍼가 이미 resultCode로 판정됐으면 위에서 반환했으므로 여기까지 오지 않는다.
-  // response 없이 header만 있거나, response에 resultCode가 없을 때만 도달.
-  if (responseXml === null) {
-    const topHeaderXml = extractTagContent(bodyText, 'header');
-    if (topHeaderXml !== null) {
-      const resultCode = extractTagContent(topHeaderXml, 'resultCode');
-      const resultMsg = extractTagContent(topHeaderXml, 'resultMsg');
-      if (resultCode !== null && resultMsg !== null && resultMsg !== '') {
-        return !isDataGoKrAllowlisted(resultCode);
-      }
-    }
-  }
-
-  // Shape B: <OpenAPI_ServiceResponse>…<cmmMsgHeader>…
-  const svcXml = extractTagContent(bodyText, 'OpenAPI_ServiceResponse');
-  if (svcXml !== null) {
-    const cmmXml = extractTagContent(svcXml, 'cmmMsgHeader');
-    if (cmmXml !== null) {
-      const reason = extractTagContent(cmmXml, 'returnReasonCode');
-      if (reason !== null) {
-        return !isDataGoKrAllowlisted(reason);
-      }
-      const errMsg = extractTagContent(cmmXml, 'errMsg');
-      if (errMsg !== null && errMsg !== '') {
-        return true;
-      }
-      return true;
-    }
-  }
-
-  return null;
+  // ?? : null만 우측으로 폴스루. false(허용 코드)는 그대로 유지.
+  return classifyJsonEnvelope(bodyText) ?? classifyXmlEnvelope(bodyText);
 }
 
 /** 2xx 본문이 사실상 에러/폐기 응답인지 판정 (HTTP 200이 실패를 가리는 케이스 탐지). */
