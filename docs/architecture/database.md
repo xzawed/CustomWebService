@@ -413,12 +413,29 @@ drizzle/sqlite/
 2. **`seedCatalog(db)`** — `src/data/apiCatalog.json`(프로덕션 카탈로그 미러)을 빈
    `api_catalog`에만 일괄 삽입. id·created_at은 프로덕션 값 그대로 유지(FK 일관성)
 3. **`seedFeatureFlags(db)`** — `src/data/featureFlags.json`을 빈 `feature_flags`에만 삽입
-4. **`ensureCatalogEntries(db)`** — 이미 시드된 DB에 번들 JSON의 **신규 행 삽입** + 잘못 broken/비활성으로 기록된 키리스 API 정정(멱등). `seedCatalog`는 빈 테이블에만 동작하므로 프로덕션 갱신에 필수
+4. **`ensureCatalogEntries(db)`** — 이미 시드된 DB에 번들 JSON의 **신규 행 삽입** + 잘못 broken/비활성으로 기록된 키리스 API 이름 정정(Dog API·Lorem Picsum) + **id 화이트리스트 구조 패치**(멱등). `seedCatalog`는 빈 테이블에만 동작하므로 프로덕션 갱신에 필수
 5. **`ensureFeatureFlags(db)`** — 번들 화이트리스트에 없는 죽은 플래그 행 삭제 + 누락 플래그만 삽입. **기존 `enabled`는 덮어쓰지 않음**(§3.9)
+
+#### `ensureCatalogEntries` 구조 패치 (`STRUCTURAL_PATCH_IDS`)
+
+번들 JSON만 고쳐도 **이미 채워진 프로덕션 행은 그대로**다(`seedCatalog`는 빈 테이블만 삽입).
+data.go.kr 등 구조 정정이 필요한 id는 `ensureCatalog.ts`의 `STRUCTURAL_PATCH_IDS`에
+명시하고, 부팅 시 아래 **구조 필드만** 번들 값으로 맞춘다:
+
+| 동기화 | 비동기화 (절대 덮어쓰지 않음) |
+|--------|-------------------------------|
+| `base_url`, `endpoints`, `deprecated_at`, `description` | **`is_active`**, **`verification_status`** |
+
+- **왜 `is_active`를 빼는가:** 재배포가 번들의 `is_active`로 기존 행을 덮어쓰면
+  오퍼레이터의 활성/비활성 판단이 조용히 롤백된다. `ensureFeatureFlags`가 기존 행의
+  `enabled`를 덮어쓰지 않는 것과 **같은 전례**.
+- 목록은 명시·최소 — 전체 테이블 덮어쓰기 금지. 값이 이미 일치하면 no-op
+  (`corrected`에 포함되지 않음). 반환 형태는 `{ inserted, corrected }`
+  (이름 정정 + 구조 패치 합산).
 
 > **`seedAdminUser`는 제거됨**: 공개 다중 사용자 전환(2026-06-24)으로 env 단일 관리자 시드가 불필요해졌다. 신규 환경은 `/signup`으로 첫 사용자를 생성한다.
 
-> `src/data/apiCatalog.json`은 프로덕션 `api_catalog` 미러(손편집 금지). `featureFlags.json`은 살아 있는 킬스위치 화이트리스트 출처(§3.9). 빈 테이블 시드는 `seed*`만, 이미 채워진 DB 동기화는 `ensure*`가 담당한다.
+> `src/data/apiCatalog.json`은 프로덕션 `api_catalog` 미러(손편집 금지). 구조 정정이 프로덕션에 도달하려면 JSON 수정 **과** `STRUCTURAL_PATCH_IDS` 등록이 둘 다 필요하다. `featureFlags.json`은 살아 있는 킬스위치 화이트리스트 출처(§3.9). 빈 테이블 시드는 `seed*`만, 이미 채워진 DB 동기화는 `ensure*`가 담당한다.
 
 ### 연결 설정 (pragma)
 
