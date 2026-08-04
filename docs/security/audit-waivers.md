@@ -5,7 +5,7 @@ CI는 두 단계로 `pnpm audit`을 실행한다 (`.github/workflows/ci.yml` →
 | 단계 | 명령 | 성격 |
 |------|------|------|
 | 1 | `pnpm audit --prod --audit-level=high` | **하드 게이트** — 런타임에 실제로 배포되는 트리. 면제 대상이 여기 등장하면 즉시 조치한다 |
-| 2 | `pnpm audit --audit-level=high` | 전체 트리(dev 포함). 아래 면제 목록이 적용된다 |
+| 2 | `pnpm audit --audit-level=high` | 전체 트리(dev 포함). 등록된 면제가 있으면 여기에 적용된다 — **현재 0건** |
 
 면제는 `package.json`의 `pnpm.auditConfig.ignoreGhsas`에 GHSA ID로 등록한다.
 JSON에는 주석을 달 수 없으므로 **근거는 반드시 이 문서에 기록**한다.
@@ -22,7 +22,30 @@ JSON에는 주석을 달 수 없으므로 **근거는 반드시 이 문서에 �
 
 ## 현재 면제 항목
 
-### GHSA-mh99-v99m-4gvg — brace-expansion DoS (high, CVSS 7.5)
+**없다.** `pnpm.auditConfig.ignoreGhsas`는 빈 배열이며, 무면제로 두 게이트가 모두 통과한다
+(2026-08-04 실측 — 전체 트리에 남은 것은 moderate 1건(`GHSA-67mh-4wv8-2f99` esbuild)뿐이고
+`--audit-level=high` 아래라 게이트에 걸리지 않는다).
+
+> **면제가 0건이라고 이 문서를 지우지 말 것.** 아래 이력이 "왜 면제했다가 왜 풀었는지"를 담고 있고,
+> 같은 어드바이저리가 다시 올라올 때 판단 근거가 된다.
+
+---
+
+## 해소된 면제 (이력)
+
+### ~~GHSA-mh99-v99m-4gvg~~ — brace-expansion DoS (high, CVSS 7.5) → ✅ **해소(2026-08-04)**
+
+**해소 방법**: `pnpm.overrides`에 `"brace-expansion@^1": "^1.1.18"`을 추가해 **상향으로 실제 수정**했다.
+등록 당시 없던 v1 계열 패치(`1.1.18`)가 릴리스되어 아래 "해소 조건"이 그대로 발동한 것이다.
+문서에 적힌 절차대로 **면제를 제거하고 무면제 통과를 확인**했다(`pnpm audit --audit-level=high` exit 0).
+트리에서 `brace-expansion@1.1.16`은 완전히 사라졌고 `1.1.18`·`5.0.9`만 남는다.
+
+> **교훈**: 면제 기준 ①(상위 최신 버전에도 픽스 없음)은 **시간이 지나면 저절로 거짓이 된다.**
+> 면제는 등록보다 **해제 트리거를 적어 두는 것**이 중요하다 — 이 건은 트리거가 적혀 있었기에
+> 새 어드바이저리(`GHSA-rgw5-rvv9-x895`)를 처리하다가 함께 걷어낼 수 있었다.
+
+<details>
+<summary>등록 당시 근거 (2026-07-28)</summary>
 
 - **등록일**: 2026-07-28
 - **패키지**: `brace-expansion@1.1.16`
@@ -52,6 +75,23 @@ JSON에는 주석을 달 수 없으므로 **근거는 반드시 이 문서에 �
 v5 계열에만 적용되므로 minimatch@3이 요구하는 v1 계열은 건드리지 않는다
 (v5의 CJS 빌드는 `module.exports = expand`가 아니라 named export `{ expand }`라서,
 전역 오버라이드를 걸면 minimatch@3의 `require('brace-expansion')(...)` 호출이 런타임에 깨진다).
+
+</details>
+
+---
+
+## 현재 유지 중인 스코프 오버라이드 (면제 아님 — 실제 수정)
+
+`brace-expansion`은 **메이저 라인별로 따로** 고정한다. 하나로 합치지 말 것.
+
+| 오버라이드 | 대상 경로 | 이유 |
+|---|---|---|
+| `"brace-expansion@^1": "^1.1.18"` | `eslint-config-next > eslint-plugin-import > minimatch@3` | v1 계열 패치. 2026-08-04 추가 |
+| `"brace-expansion@^5": "^5.0.9"` | `eslint > @eslint/config-array > minimatch@10` | v5 계열 패치. 2026-08-04에 `^5.0.8`에서 상향 |
+
+**전역 오버라이드(`"brace-expansion": "^5"`)를 걸면 안 된다** — v5의 CJS 빌드는 named export
+`{ expand }`라서 `minimatch@3`의 `require('brace-expansion')(pattern)` 호출이 **런타임에 깨진다**(실증됨).
+메이저 스코프를 붙이는 것이 이 함정을 피하는 유일한 방법이다.
 
 ---
 
