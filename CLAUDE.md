@@ -276,14 +276,23 @@ pnpm ai:contract-check   # AI 규약 드리프트 검사 — 0 유지 / 1 드리
 
 ### Railway 배포 상태 판별 (FAILED를 오해하지 말 것)
 - **Wait for CI 활성.** 신규 커밋 배포는 그 커밋의 CI 실행이 끝날 때까지 `WAITING`에 머문다(실측 ~2.5분) → `INITIALIZING` → `BUILDING` → `SUCCESS`
-- **env 단독 변경 재배포는 정상 동작한다.** CI 실행은 *커밋*에 붙어 있어, 같은 커밋 재배포는 **이미 green인 그 실행을 재사용**한다. 2026-07-29 실증(프로브 변수 set → 같은 커밋 patch 재배포 → `WAITING` → `SUCCESS`), 2026-06-30에도 동일. **"env 바꾸면 FAILED가 정상"은 오해다** — 그렇게 알고 넘기면 진짜 실패를 놓친다
+- ⚠️ **env 단독 변경 재배포(patch)는 `railway.toml`을 읽지 않고 실패할 수 있다 — 2026-08-05 실측.** 과거(2026-07-29·2026-06-30)에는 성공했으나 **더 이상 신뢰할 수 없다.** 실패 배포의 메타를 성공 배포와 비교하면 원인이 한눈에 드러난다:
+
+  | | `configFile` | `builder` | `healthcheckPath` | `propertyFileMapping` | `imageDigest` |
+  |---|---|---|---|---|---|
+  | **FAILED**(patch/env) | **없음** | **RAILPACK** | 없음 | **0개** | 없음 |
+  | SUCCESS(commit) | `/railway.toml` | `DOCKERFILE` | `/api/v1/health` | 6개 | 있음 |
+
+  즉 patch 배포가 **`railway.toml`을 통째로 무시하고** Railway 기본 빌더(RAILPACK) 자동 감지로 떨어져, Dockerfile·헬스체크 설정을 모두 잃고 **이미지 생성 전에 죽는다**. 빌드·배포 로그는 **둘 다 비어 있다**(산출물이 나오기 전이라 남길 게 없다) — 로그가 비었다고 "원인 미상"으로 닫지 말고 **메타의 `configFile`·`builder`를 볼 것.**
+
+  **복구 방법: 커밋을 하나 올려 정상 commit 배포를 트리거한다.** commit 배포는 `railway.toml`을 제대로 읽는다. env 값 자체는 이미 저장돼 있으므로 그 배포에서 함께 적용된다. (서비스는 이전 이미지로 계속 떠 있어 **장애는 나지 않는다** — 조용히 "env를 넣었는데 안 먹는" 상태가 될 뿐이라 더 위험하다.)
 - `railway variables --json`의 배포 메타에서 `patchId`가 있으면 **env/설정 변경으로 트리거된 재배포**, 없으면 커밋 배포다. `imageDigest`가 없으면 이미지 생성 전(=빌드 도달 전/중) 실패다
 
 | 상황 | 해석 |
 |------|------|
 | 신규 커밋 · `WAITING` 지속 | 정상 — CI 완료 대기 중 |
-| env 단독 변경 · 같은 커밋 · `SUCCESS` | 정상(실증) |
-| env 단독 변경 · 같은 커밋 · `FAILED` | **실제 실패 — 조사 필요.** 로그를 즉시 수집 |
+| env 단독 변경 · 같은 커밋 · `SUCCESS` | 정상 — env가 적용됐다 |
+| env 단독 변경 · 같은 커밋 · `FAILED` | **실제 실패.** 먼저 메타의 `configFile`·`builder`를 볼 것 — `RAILPACK`이면 위의 railway.toml 미적용 건이다(로그는 비어 있다). **env는 적용되지 않았다** — 커밋을 올려 복구 |
 | 신규 커밋 · `BUILDING`/`DEPLOYING` 중 `FAILED` | 실제 배포 실패 |
 | 서비스 health 죽음 | 실제 장애 — 즉시 롤백 검토 |
 
