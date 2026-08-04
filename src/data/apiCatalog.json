@@ -987,7 +987,7 @@
   {
     "id": "f45de6c5-95e6-4c4a-989e-c60b060a9c7c",
     "name": "식약처 식품영양성분",
-    "description": "식품의약품안전처 식품 영양성분 데이터. 식품명으로 열량·단백질·지방·탄수화물 등 조회. (공공데이터포털 키 필요)",
+    "description": "식품의약품안전처 식품 영양성분 데이터. 식품명으로 열량·단백질·지방·탄수화물 등 조회. (공공데이터포털 키 필요) ⚠️ 2026-08-05 실측: 업스트림 FoodNtrIrdntInfoService1이 NO_OPENAPI_SERVICE_ERROR(code 12)로 폐기됨. 후속 서비스 후보 6종을 프로브했으나 모두 code 12 — 대체 API 없음. 행은 이력 보존을 위해 삭제하지 않음.",
     "category": "health",
     "base_url": "https://apis.data.go.kr/1471000/FoodNtrIrdntInfoService1",
     "auth_type": "api_key",
@@ -1025,7 +1025,7 @@
       "data.go.kr"
     ],
     "api_version": null,
-    "deprecated_at": null,
+    "deprecated_at": "2026-08-05T00:00:00.000Z",
     "successor_id": null,
     "cors_supported": false,
     "requires_proxy": true,
@@ -1640,7 +1640,7 @@
   {
     "id": "17665554-5a7c-4df0-91a7-826dab855f05",
     "name": "국토부 아파트 전월세",
-    "description": "국토교통부 아파트 전·월세 실거래 데이터. 지역코드·기간으로 임대 계약 내역 조회. (공공데이터포털 키 필요)",
+    "description": "국토교통부 아파트 전·월세 실거래 데이터. 지역코드·기간으로 임대 계약 내역 조회. ⚠️ 응답은 XML 전용 — `_type`/`dataType`을 무시하며 res.json() 호출 금지. DOMParser 등으로 XML 파싱 필수. (공공데이터포털 키 필요)",
     "category": "public",
     "base_url": "https://apis.data.go.kr/1613000/RTMSDataSvcAptRent",
     "auth_type": "api_key",
@@ -1660,12 +1660,12 @@
         "method": "GET",
         "parameters": {
           "pageNo": "1",
-          "LAWD_CD": "법정동코드 앞 5자리 (예: 11680=강남구)",
+          "LAWD_CD": "법정동코드 앞 5자리 (예: 11680=강남구). ⚠️ 잘못된 코드도 resultCode 000 + 빈 <items/> 를 반환하므로 오류 없이 결과가 비어 보일 수 있다.",
           "DEAL_YMD": "계약연월 YYYYMM",
           "numOfRows": "10"
         },
-        "description": "아파트 전월세 실거래 조회",
-        "exampleCall": "const res = await fetch('/api/v1/proxy?apiId=<이 API ID>&proxyPath=%2FgetRTMSDataSvcAptRent&LAWD_CD=11680&DEAL_YMD=202504&pageNo=1&numOfRows=10');\nconst data = await res.json();\nconst items = data.response.body.items.item; // [{aptNm, deposit, monthlyRent, excluUseAr}]",
+        "description": "아파트 전월세 실거래 조회 (응답 XML 전용 — res.json() 금지)",
+        "example_call": "/getRTMSDataSvcAptRent?LAWD_CD=11680&DEAL_YMD=202607&pageNo=1&numOfRows=10",
         "responseDataPath": "response.body.items.item"
       }
     ],
@@ -1817,9 +1817,9 @@
   {
     "id": "c76876b5-a4d8-49cf-a0c9-0240daf3eb5e",
     "name": "한국관광공사 TourAPI",
-    "description": "전국 관광지, 맛집, 숙박, 축제 정보. 여행 계획 세울 때 지역별 볼거리·먹거리를 찾아보세요.",
+    "description": "전국 관광지, 맛집, 숙박, 축제 정보. 여행 계획 세울 때 지역별 볼거리·먹거리를 찾아보세요. KorService1은 폐기(NO_OPENAPI_SERVICE_ERROR code 12) — KorService2를 사용한다.",
     "category": "tourism",
-    "base_url": "https://apis.data.go.kr/B551011/KorService1",
+    "base_url": "https://apis.data.go.kr/B551011/KorService2",
     "auth_type": "api_key",
     "auth_config": {
       "env_var": "API_KEY_TOURAPI",
@@ -1833,21 +1833,36 @@
     "docs_url": "https://api.visitkorea.or.kr/",
     "endpoints": [
       {
-        "path": "/areaBasedList1",
+        "path": "/areaBasedList2",
         "method": "GET",
         "parameters": {
-          "areaCode": "string",
-          "contentTypeId": "string"
+          "MobileOS": "필수. 클라이언트 OS 구분 (예: ETC). 생략 시 실패",
+          "MobileApp": "필수. 앱 이름 (예: CustomWebService). 생략 시 실패",
+          "_type": "필수. 응답 형식 — 반드시 json. 생략 시 실패",
+          "numOfRows": "한 페이지 결과 수",
+          "pageNo": "페이지 번호",
+          "areaCode": "지역 코드 (예: 1=서울)",
+          "contentTypeId": "콘텐츠 유형 (예: 12=관광지)",
+          "arrange": "정렬 (A=제목순 등)"
         },
-        "description": "지역 기반 관광지 목록"
+        "description": "지역 기반 관광지 목록 (KorService2)",
+        "example_call": "/areaBasedList2?MobileOS=ETC&MobileApp=CustomWebService&_type=json&numOfRows=10&pageNo=1&areaCode=1&contentTypeId=12&arrange=A",
+        "responseDataPath": "response.body.items.item"
       },
       {
-        "path": "/searchKeyword1",
+        "path": "/searchKeyword2",
         "method": "GET",
         "parameters": {
-          "keyword": "string"
+          "MobileOS": "필수. 클라이언트 OS 구분 (예: ETC). 생략 시 실패",
+          "MobileApp": "필수. 앱 이름 (예: CustomWebService). 생략 시 실패",
+          "_type": "필수. 응답 형식 — 반드시 json. 생략 시 실패",
+          "numOfRows": "한 페이지 결과 수",
+          "pageNo": "페이지 번호",
+          "keyword": "검색 키워드 (예: 경복궁)"
         },
-        "description": "키워드 검색"
+        "description": "키워드 검색 (KorService2)",
+        "example_call": "/searchKeyword2?MobileOS=ETC&MobileApp=CustomWebService&_type=json&numOfRows=10&pageNo=1&keyword=경복궁",
+        "responseDataPath": "response.body.items.item"
       }
     ],
     "tags": [
@@ -2368,12 +2383,17 @@
         "path": "/getVilageFcst",
         "method": "GET",
         "parameters": {
-          "nx": "number",
-          "ny": "number",
-          "base_date": "string",
-          "base_time": "string"
+          "nx": "격자 X 좌표",
+          "ny": "격자 Y 좌표",
+          "base_date": "발표 일자 YYYYMMDD. ⚠️ 예시 날짜를 그대로 복사하지 말 것 — 런타임에 오늘/어제 날짜를 계산해 넣는다. 지난(또는 미발표) 날짜를 쓰면 NO_DATA(03)이 반환되어 검증은 통과해도 사용자 화면에 데이터가 없다.",
+          "base_time": "발표 시각 — 고정 슬롯만 허용: 0200, 0500, 0800, 1100, 1400, 1700, 2000, 2300",
+          "dataType": "필수. JSON을 받으려면 반드시 JSON (미지정 시 XML 응답)",
+          "pageNo": "페이지 번호",
+          "numOfRows": "한 페이지 결과 수 (단기예보는 1000 권장)"
         },
-        "description": "동네 예보 조회 (3시간 단위)"
+        "description": "동네 예보 조회 (3시간 단위)",
+        "example_call": "/getVilageFcst?nx=60&ny=127&base_date=20260804&base_time=0500&dataType=JSON&pageNo=1&numOfRows=1000",
+        "responseDataPath": "response.body.items.item"
       }
     ],
     "tags": [
@@ -2417,10 +2437,15 @@
         "path": "/getMidTa",
         "method": "GET",
         "parameters": {
-          "tmFc": "string",
-          "regId": "string"
+          "regId": "예보구역코드 (예: 11B10101=서울)",
+          "tmFc": "발표시각 YYYYMMDD0600 또는 YYYYMMDD1800. ⚠️ 반드시 과거 슬롯 — 오늘 슬롯은 NO_DATA(03). 예시 시각을 그대로 복사하지 말고 런타임에 가장 최근 과거 슬롯을 계산한다. 지난 날짜로 검증은 통과해도 사용자 화면에 데이터가 없을 수 있다. ⚠️ example_call의 날짜가 만료돼 보여도 지우지 말 것 — tmFc를 빼면 resultCode 11(필수 파라미터 누락)이라 키 검증이 실패해 활성화 자체가 불가능해진다. 만료된 예시를 남기면 03(NO_DATA·허용)이라 활성화는 되고, 실제 호출은 런타임 계산값을 쓴다.",
+          "dataType": "필수. JSON을 받으려면 반드시 JSON (미지정 시 XML 응답)",
+          "pageNo": "페이지 번호",
+          "numOfRows": "한 페이지 결과 수"
         },
-        "description": "중기 기온 예보 조회"
+        "description": "중기 기온 예보 조회",
+        "example_call": "/getMidTa?regId=11B10101&tmFc=202608040600&dataType=JSON&pageNo=1&numOfRows=10",
+        "responseDataPath": "response.body.items.item"
       }
     ],
     "tags": [
@@ -2464,10 +2489,16 @@
         "path": "/getMsrstnAcctoRltmMesureDnsty",
         "method": "GET",
         "parameters": {
-          "dataTerm": "string",
-          "stationName": "string"
+          "stationName": "측정소명 (예: 종로구)",
+          "dataTerm": "조회기간 (DAILY 등)",
+          "returnType": "필수. 생략 시 HTTP 504. 반드시 json",
+          "pageNo": "필수. 생략 시 HTTP 504",
+          "ver": "선택. API 버전 (예: 1.0)",
+          "numOfRows": "선택. 한 페이지 결과 수"
         },
-        "description": "측정소별 실시간 대기질 조회"
+        "description": "측정소별 실시간 대기질 조회",
+        "example_call": "/getMsrstnAcctoRltmMesureDnsty?stationName=종로구&dataTerm=DAILY&returnType=json&ver=1.0&pageNo=1&numOfRows=10",
+        "responseDataPath": "response.body.items"
       }
     ],
     "tags": [
