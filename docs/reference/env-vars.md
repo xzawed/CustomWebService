@@ -73,7 +73,7 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 
 | 변수 | 필수 | Railway | 설명 |
 |------|------|---------|------|
-| `ANTHROPIC_API_KEY` | ✅ | ✅ | Claude API 키 |
+| `ANTHROPIC_API_KEY` | ✅ | ✅ | Claude API 키. `pnpm ai:contract-check`가 이 키로 Extended Thinking 라이브 규약(omit→adaptive 기본 · adaptive · disabled · disabled+xhigh→400)을 실측한다. 종료 코드: **0** 규약 유지 · **1** 드리프트 · **2** 도달 실패(키 미설정·인증·네트워크·레이트리밋 — 드리프트 아님). 실제 토큰 비용이 들므로 SDK/모델 상향 직후 수동 실행용 |
 | `AI_PROVIDER` | 선택 | ➖ | AI Provider 선택. 현재 허용값은 `claude` 하나뿐 (기본). 그 외 값 설정 시 `AiProviderFactory.create()`가 `Unknown AI provider` 에러를 던짐. 코드 위치: `src/providers/ai/AiProviderFactory.ts` |
 | `AI_MODEL_SUGGESTION` | 선택 | ✅ `claude-haiku-4-5` | 컨텍스트 추천용 모델 (기본: `claude-haiku-4-5` — 4.5가 최신 Haiku이므로 상향 대상 아님). 허용값: `claude-haiku-4-5` · `claude-sonnet-4-6` · `claude-sonnet-5` · `claude-opus-4-6` · `claude-opus-4-7` · `claude-opus-4-8` · `claude-opus-5` |
 | `AI_MODEL_GENERATION` | 선택 | ✅ `claude-opus-5` | 코드 생성용 모델 (기본: `claude-opus-5`). 허용값 동일. **허용목록(`ALLOWED_CLAUDE_MODELS`)에 없는 값은 경고 로그만 남기고 조용히 기본값으로 폴백**하므로 모델 추가 시 `src/providers/ai/AiProviderFactory.ts`를 함께 수정할 것. **구세대 ID를 목록에서 지우면 env 롤백이 무시된다.** 주의: 날짜 suffix 포함 ID는 허용목록에 없어 폴백됨 |
