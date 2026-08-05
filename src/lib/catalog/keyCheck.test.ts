@@ -251,4 +251,40 @@ describe('verifyApiKeyForActivation (연속 검증 게이트)', () => {
     await verifyApiKeyForActivation(apiQuery, 'k', okFetch, { gapMs: -500, sleep });
     expect(sleep).toHaveBeenCalledWith(0);
   });
+
+  // 아래 두 케이스는 프로브 이전에 빠지는 경로다 — fetch·sleep 이 한 번도 일어나면 안 된다.
+  it('env_var 미정의면 ERROR 로 즉시 빠진다 (fetch 0회)', async () => {
+    const doFetch: KeyFetch = vi.fn(async () => ({ status: 200, bodyText: '{}', networkError: false }));
+    const sleep = vi.fn(async () => undefined);
+
+    const r = await verifyApiKeyForActivation(
+      { ...apiQuery, authConfig: { param_in: 'query', param_name: 'k' } },
+      'k',
+      doFetch,
+      { sleep },
+    );
+
+    expect(r.verdict).toBe('ERROR');
+    expect(r.detail).toContain('env_var');
+    expect(r.attempts).toBe(0);
+    expect(doFetch).not.toHaveBeenCalled();
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it('GET 엔드포인트가 없으면 NO_ENDPOINT 로 즉시 빠진다 (fetch 0회)', async () => {
+    const doFetch: KeyFetch = vi.fn(async () => ({ status: 200, bodyText: '{}', networkError: false }));
+    const sleep = vi.fn(async () => undefined);
+
+    const r = await verifyApiKeyForActivation(
+      { ...apiQuery, endpoints: [{ path: '/x', method: 'POST' }] },
+      'k',
+      doFetch,
+      { sleep },
+    );
+
+    expect(r.verdict).toBe('NO_ENDPOINT');
+    expect(r.attempts).toBe(0);
+    expect(doFetch).not.toHaveBeenCalled();
+    expect(sleep).not.toHaveBeenCalled();
+  });
 });

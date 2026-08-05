@@ -219,6 +219,36 @@ describe('POST /api/v1/admin/catalog/activate', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  // attempts===0 (env 미설정 등 프로브 이전 탈락)은 "3회 중 N회" 카운트를 붙이면 거짓말이 된다.
+  // 한 번도 시도하지 않았기 때문이다 — 사유만 그대로 전달해야 한다.
+  it('env 미설정(MISSING, attempts:0)이면 reason 에 성공 카운트를 붙이지 않는다', async () => {
+    const candidate = makeInactiveKeyedApi();
+    findMany.mockResolvedValue({ items: [candidate], total: 1 });
+    verifyApiKeyForActivation.mockResolvedValue({
+      name: candidate.name,
+      envVar: 'API_KEY_TEST',
+      verdict: 'MISSING',
+      detail: '환경변수 미설정',
+      samples: 3,
+      successes: 0,
+      attempts: 0,
+      attemptResults: [],
+    });
+
+    const { POST } = await import('@/app/api/v1/admin/catalog/activate/route');
+    const res = await POST(makeReq(VALID_ADMIN_KEY, {}));
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { activated: number; outcomes: Array<{ activated: boolean; reason: string }> };
+    };
+    expect(body.data.activated).toBe(0);
+    expect(body.data.outcomes[0]?.reason).toMatch(/키 검증 실패\(MISSING\)/);
+    expect(body.data.outcomes[0]?.reason).toMatch(/환경변수 미설정/);
+    expect(body.data.outcomes[0]?.reason).not.toMatch(/회 중/);
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it('키 검증이 INVALID면 repo.update를 호출하지 않는다 (기존 동작 유지)', async () => {
     const candidate = makeInactiveKeyedApi();
     findMany.mockResolvedValue({ items: [candidate], total: 1 });
