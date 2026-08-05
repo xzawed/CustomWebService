@@ -14,6 +14,40 @@ permissions:
   contents: read
 
 jobs:
+  # 문서 정합성 — 트리거·경로·명령어는 테스트도 lint도 안 잡는 유일한 문서 요소다.
+  # 실제로 죽어 있던 것이 2건 나왔다(ENV_VAR_DENYLIST · isNotFound).
+  #
+  # ⚠️ needs 체인에 넣지 않는다(독립 잡). 또 최소 1주기는 continue-on-error로 둔다.
+  # 이유: 이 레포는 main에 브랜치 보호가 없고 Railway가 Wait for CI를 쓴다 —
+  # 문서 결함이 워크플로를 red로 만들면 **다음 코드 배포가 SKIPPED**되고,
+  # SKIPPED는 CI를 다시 green으로 만들어도 되살아나지 않는다.
+  # 관측 1주기 후 continue-on-error를 떼는 것은 별도 판단으로 한다.
+  docs-integrity:
+    name: Docs Integrity
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # exit 1 = 문서 위반 / exit 2 = 검사기 자체 고장. 둘을 합치지 말 것.
+      - name: Check documentation integrity
+        run: pnpm docs:check
+
   lint-and-typecheck:
     name: Lint & Type Check
     runs-on: ubuntu-latest
