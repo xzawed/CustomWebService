@@ -112,7 +112,11 @@ pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요, CI에서 �
 pnpm countries:generate  # 국가 데이터(src/data/countries.json) 재생성 (준-정적)
 pnpm countries:check     # 쓰기 없이 업스트림 드리프트 검사 — 0 동일 / 1 드리프트 / 2 업스트림 도달 실패
 pnpm ai:contract-check   # AI 규약 드리프트 검사 — 0 유지 / 1 드리프트 / 2 도달 실패
+pnpm docs:check          # 문서 정합성 4종(명령·경로·링크 대소문자·ADR 트리거) — 0 통과 / 1 위반 / 2 검사기 고장
 ```
+
+> `docs:check`는 CI에서 **독립 잡 + `continue-on-error`** 로 돈다. 문서 결함이 워크플로를
+> red로 만들면 Wait for CI가 다음 코드 배포를 `SKIPPED`로 만들고, `SKIPPED`는 되살아나지 않는다.
 
 > `pnpm admin:hash`(단일 관리자 해시 생성)는 다중 사용자 전환(2026-06-24)으로 **제거됨**. 계정 생성은 `/signup` 공개 페이지를 통해 수행한다.
 
