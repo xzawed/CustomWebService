@@ -11,6 +11,11 @@ const rows = catalogData as unknown as InsertRow[];
 
 const TOUR_API_ID = 'c76876b5-a4d8-49cf-a0c9-0240daf3eb5e';
 const FOOD_NTR_ID = 'f45de6c5-95e6-4c4a-989e-c60b060a9c7c';
+const DISEASE_SH_ID = 'bb29c4e4-e908-40f8-946a-6c9b9265fa6c';
+const JIKAN_ID = '6c31e6c8-0c29-44d0-98cd-0fd579ab6cb6';
+const OFF_ID = 'e0043eeb-749a-4890-94de-840d1a0c6164';
+const ZENQUOTES_ID = '4c6f5228-e6ec-45bb-b0bb-e947dcdeb1c1';
+const AIRKOREA_ID = 'c84860a1-336c-45f1-b1df-00f25bd810bd';
 
 describe('ensureCatalogEntries', () => {
   let db: SqliteDb;
@@ -140,15 +145,141 @@ describe('ensureCatalogEntries', () => {
     expect(after?.is_active).toBe(true);
     expect(after?.verification_status).toBe('broken');
   });
+
+  it('구조 패치가 cache_ttl_seconds 를 번들과 동기화한다', () => {
+    const zen = rows.find((x) => x.id === ZENQUOTES_ID)!;
+    expect(zen.cache_ttl_seconds).toBe(120);
+
+    db.insert(schema.apiCatalog)
+      .values({
+        ...zen,
+        cache_ttl_seconds: null, // 프로덕션에 TTL 없던 상태
+        description: '구 설명',
+      })
+      .run();
+
+    const r1 = ensureCatalogEntries(db);
+    expect(r1.corrected).toBeGreaterThanOrEqual(1);
+
+    const after = db
+      .select()
+      .from(schema.apiCatalog)
+      .where(eq(schema.apiCatalog.id, ZENQUOTES_ID))
+      .get();
+    expect(after?.cache_ttl_seconds).toBe(120);
+    expect(after?.description).toBe(zen.description);
+
+    const r2 = ensureCatalogEntries(db);
+    expect(r2.corrected).toBe(0);
+  });
+
+  it('disease.sh: deprecated_at 반영 · is_active·verification_status 보존 (프록시 차단은 deactivate 2단계)', () => {
+    const disease = rows.find((x) => x.id === DISEASE_SH_ID)!;
+    expect(disease.deprecated_at).toBe('2026-08-05T00:00:00.000Z');
+    expect(disease.is_active).toBe(false);
+
+    db.insert(schema.apiCatalog)
+      .values({
+        ...disease,
+        deprecated_at: null,
+        description: '구 설명',
+        is_active: true, // 아직 활성 — 구조 패치가 끄면 안 됨
+        verification_status: 'verified',
+      })
+      .run();
+
+    ensureCatalogEntries(db);
+
+    const after = db
+      .select()
+      .from(schema.apiCatalog)
+      .where(eq(schema.apiCatalog.id, DISEASE_SH_ID))
+      .get();
+    expect(after?.deprecated_at).toBe('2026-08-05T00:00:00.000Z');
+    expect(after?.description).toBe(disease.description);
+    // proxy/route.ts 는 isActive 만 본다 — 구조 패치가 true를 유지해야 2단계 폐기가 성립
+    expect(after?.is_active).toBe(true);
+    expect(after?.verification_status).toBe('verified');
+  });
+
+  it('Jikan 엔드포인트에서 /v4/top/anime 가 제거되고 구조 패치로 반영된다', () => {
+    const jikan = rows.find((x) => x.id === JIKAN_ID)!;
+    const paths = (jikan.endpoints as { path: string }[]).map((e) => e.path);
+    expect(paths).not.toContain('/v4/top/anime');
+    expect(paths).toEqual(['/v4/anime/1', '/v4/anime']);
+
+    db.insert(schema.apiCatalog)
+      .values({
+        ...jikan,
+        endpoints: [
+          { path: '/v4/anime/1', method: 'GET' },
+          { path: '/v4/anime', method: 'GET' },
+          { path: '/v4/top/anime', method: 'GET' }, // 구 프로덕션 행
+        ],
+        description: '구 설명',
+      })
+      .run();
+
+    ensureCatalogEntries(db);
+
+    const after = db
+      .select()
+      .from(schema.apiCatalog)
+      .where(eq(schema.apiCatalog.id, JIKAN_ID))
+      .get();
+    const afterPaths = (after?.endpoints as { path: string }[]).map((e) => e.path);
+    expect(afterPaths).not.toContain('/v4/top/anime');
+    expect(afterPaths).toEqual(['/v4/anime/1', '/v4/anime']);
+  });
+
+  it('Open Food Facts 엔드포인트에서 /cgi/search.pl 이 제거되고 구조 패치로 반영된다', () => {
+    const off = rows.find((x) => x.id === OFF_ID)!;
+    const paths = (off.endpoints as { path: string }[]).map((e) => e.path);
+    expect(paths).not.toContain('/cgi/search.pl');
+    expect(paths).toEqual(['/api/v2/product/737628064502.json']);
+
+    db.insert(schema.apiCatalog)
+      .values({
+        ...off,
+        endpoints: [
+          { path: '/api/v2/product/737628064502.json', method: 'GET' },
+          { path: '/cgi/search.pl', method: 'GET' },
+        ],
+        description: '구 설명',
+      })
+      .run();
+
+    ensureCatalogEntries(db);
+
+    const after = db
+      .select()
+      .from(schema.apiCatalog)
+      .where(eq(schema.apiCatalog.id, OFF_ID))
+      .get();
+    const afterPaths = (after?.endpoints as { path: string }[]).map((e) => e.path);
+    expect(afterPaths).not.toContain('/cgi/search.pl');
+    expect(afterPaths).toEqual(['/api/v2/product/737628064502.json']);
+  });
 });
 
-describe('apiCatalog data.go.kr 구조 정정 (시드 데이터 회귀 방지)', () => {
-  it('6개 대상 항목이 기대 base_url·example_call·deprecated_at 을 갖는다', () => {
+describe('apiCatalog 구조 정정 (시드 데이터 회귀 방지)', () => {
+  it('구조 패치 대상 항목이 기대 base_url·endpoints·deprecated_at·cache_ttl 을 갖는다', () => {
     const byId = new Map(
       (catalogData as { id: string }[]).map((r) => [r.id, r as Record<string, unknown>]),
     );
 
-    expect(listStructuralPatchIds()).toHaveLength(6);
+    expect(listStructuralPatchIds()).toHaveLength(10);
+    expect(listStructuralPatchIds()).toEqual(
+      expect.arrayContaining([
+        TOUR_API_ID,
+        FOOD_NTR_ID,
+        DISEASE_SH_ID,
+        JIKAN_ID,
+        OFF_ID,
+        ZENQUOTES_ID,
+        AIRKOREA_ID,
+      ]),
+    );
 
     const tour = byId.get(TOUR_API_ID)!;
     expect(tour.base_url).toBe('https://apis.data.go.kr/B551011/KorService2');
@@ -172,12 +303,13 @@ describe('apiCatalog data.go.kr 구조 정정 (시드 데이터 회귀 방지)',
     );
     expect(midEp?.responseDataPath).toBe('response.body.items.item');
 
-    const air = byId.get('c84860a1-336c-45f1-b1df-00f25bd810bd')!;
+    const air = byId.get(AIRKOREA_ID)!;
     const airEp = (air.endpoints as { example_call?: string; responseDataPath?: string }[])[0];
     expect(airEp?.example_call).toBe(
       '/getMsrstnAcctoRltmMesureDnsty?stationName=종로구&dataTerm=DAILY&returnType=json&ver=1.0&pageNo=1&numOfRows=10',
     );
     expect(airEp?.responseDataPath).toBe('response.body.items');
+    expect(air.cache_ttl_seconds).toBe(3600);
 
     const molit = byId.get('17665554-5a7c-4df0-91a7-826dab855f05')!;
     expect(String(molit.description)).toMatch(/XML/);
@@ -191,5 +323,32 @@ describe('apiCatalog data.go.kr 구조 정정 (시드 데이터 회귀 방지)',
     expect(food.successor_id).toBeNull();
     expect(food.is_active).toBe(false);
     expect(String(food.description)).toMatch(/폐기|code 12|대체/);
+
+    const disease = byId.get(DISEASE_SH_ID)!;
+    expect(disease.deprecated_at).toBe('2026-08-05T00:00:00.000Z');
+    expect(disease.successor_id).toBeNull();
+    expect(disease.is_active).toBe(false);
+    expect(String(disease.description)).toMatch(/502|Cloudflare|폐기/);
+
+    const jikan = byId.get(JIKAN_ID)!;
+    expect((jikan.endpoints as { path: string }[]).map((e) => e.path)).toEqual([
+      '/v4/anime/1',
+      '/v4/anime',
+    ]);
+    expect(String(jikan.description)).toMatch(/top\/anime|504/);
+
+    const off = byId.get(OFF_ID)!;
+    expect((off.endpoints as { path: string }[]).map((e) => e.path)).toEqual([
+      '/api/v2/product/737628064502.json',
+    ]);
+    expect(String(off.description)).toMatch(/search\.pl|503/);
+
+    const zen = byId.get(ZENQUOTES_ID)!;
+    expect(zen.cache_ttl_seconds).toBe(120);
+    expect(String(zen.description)).toMatch(/429|캐시|TTL/);
+  });
+
+  it('apiCatalog 총 항목 수는 61 (행 삭제 없이 구조만 변경)', () => {
+    expect((catalogData as unknown[]).length).toBe(61);
   });
 });

@@ -70,8 +70,39 @@ curl -sS -H "Authorization: Bearer $ADMIN_API_KEY" \
 
 - **“활성 N개” 고정 문구를 문서/대시보드에 박지 않는다.** 진실원은 DB(`api_catalog.is_active`)이며 랜딩 카피도 `getActiveApiCount()`로 읽는다.
 - 운영 확인: `GET /api/v1/admin/catalog-dump` → `data.summary`.
-- 번들 시드 [`src/data/apiCatalog.json`](../../src/data/apiCatalog.json) 기준(이 문서 작성 시 로컬 검증): **총 61 · 활성 36 · 비활성 25**. 프로덕션은 배포·ensureCatalog·수동 변경으로 달라질 수 있다.
+- 번들 시드 [`src/data/apiCatalog.json`](../../src/data/apiCatalog.json) 기준(2026-08-05 로컬 검증): **총 61**. 활성/비활성 수는 배포·ensureCatalog·수동 변경으로 달라지므로 **dump의 `summary`를 본다** (disease.sh 폐기 후 번들 기준 활성 약 35·비활성 약 26).
 - `supabase/seed.sql` **삭제됨**. 시드는 부팅 시 빈 테이블일 때만 JSON 삽입 + `ensureCatalogEntries` 멱등 반영. 절차 세부는 컷오버 ADR·[역사 런북](../archive/guides/sqlite-cutover-runbook.md).
+
+### 1.5 API 폐기 런북 (수동 전용 — 자동 폐기 없음)
+
+> **원칙:** 불안정한 서비스는 없느니만 못하다. 다만 **자동으로 `deprecated_at`/`is_active`를 바꾸는 스케줄러는 두지 않는다.**  
+> 짧은 샘플·일시 업스트림 장애로 “건강한 API를 죽인” 오판이 이미 있었다(2026-08-05: 5회 샘플이 12회 샘플과 어긋남 — ZenQuotes는 429 버스트, Jikan/OFF는 엔드포인트 1개만 문제). 임계값 데이터 없이 자동화하면 같은 오판이 기계 속도로 반복된다.
+
+**완전한 폐기 = 2단계** (구조 패치만으로는 프록시가 안 끊김):
+
+| 단계 | 작업 | 효과 |
+|------|------|------|
+| 1. 코드 | `src/data/apiCatalog.json`에 `deprecated_at`·설명·`is_active:false`(미러)·필요 시 엔드포인트 정리 + `ensureCatalog.ts`의 `STRUCTURAL_PATCH_IDS`에 id 등록 | 배포 부팅 시 `deprecated_at`·endpoints·`cache_ttl_seconds` 등 **구조 필드만** 동기화. **`is_active`는 구조 패치가 쓰지 않음** |
+| 2. 배포 후 런타임 | `POST /api/v1/admin/catalog/deactivate` `{ "apiIds": ["…"] }` | `is_active=false` — **프록시 차단** (`proxy/route.ts`는 `api.isActive`만 검사) |
+
+```bash
+# 배포 SUCCESS 확인 후 — disease.sh 예시
+curl -X POST "$APP_URL/api/v1/admin/catalog/deactivate" \
+  -H "Authorization: Bearer $ADMIN_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"apiIds":["bb29c4e4-e908-40f8-946a-6c9b9265fa6c"]}'
+```
+
+**엔드포인트만 죽은 경우 (API 전체 유지):** 번들에서 해당 path만 제거하고 id를 `STRUCTURAL_PATCH_IDS`에 넣는다. 예: Jikan `/v4/top/anime`, Open Food Facts `/cgi/search.pl`. 전체를 폐기하지 않는다.
+
+**플래키·레이트리밋인 경우 (폐기 금지):** `cache_ttl_seconds`를 번들에 넣고 구조 패치로 동기화한다. 예: ZenQuotes 120s(짧은 TTL — 장시간 캐시는 “랜덤” 제품 의미를 깨뜨림), 에어코리아 3600(시간 단위 데이터·Open-Meteo AQ와 동일). TTL만 JSON에 넣고 구조 목록에 id·필드가 없으면 **프로덕션에 영원히 안 먹는다**.
+
+**하지 말 것:**
+- `verify-catalog` broken → 자동 deactivate/deprecate 연결
+- 한두 번의 5xx만으로 전체 API 폐기 (엔드포인트 단위·샘플 폭을 먼저 볼 것)
+- 구조 패치 없이 번들만 고치고 “배포됐으니 프로덕션도 반영됐겠지” 가정
+
+상세 필드 표·불변조건: [database.md §ensureCatalogEntries](../architecture/database.md).
 
 ---
 

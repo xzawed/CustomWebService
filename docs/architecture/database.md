@@ -424,14 +424,30 @@ data.go.kr 등 구조 정정이 필요한 id는 `ensureCatalog.ts`의 `STRUCTURA
 
 | 동기화 | 비동기화 (절대 덮어쓰지 않음) |
 |--------|-------------------------------|
-| `base_url`, `endpoints`, `deprecated_at`, `description` | **`is_active`**, **`verification_status`** |
+| `base_url`, `endpoints`, `deprecated_at`, `description`, **`cache_ttl_seconds`** | **`is_active`**, **`verification_status`** |
 
 - **왜 `is_active`를 빼는가:** 재배포가 번들의 `is_active`로 기존 행을 덮어쓰면
   오퍼레이터의 활성/비활성 판단이 조용히 롤백된다. `ensureFeatureFlags`가 기존 행의
   `enabled`를 덮어쓰지 않는 것과 **같은 전례**.
+- **왜 `cache_ttl_seconds`를 넣는가:** 프록시 응답 캐시 TTL은 코드/시드 소유 설정이다.
+  번들에만 넣고 구조 패치에서 빼면 이미 채워진 프로덕션 행에 TTL이 **영원히 반영되지 않는다**
+  (2026-08-05 실측: ZenQuotes·에어코리아 TTL 부여가 이 경로 없이는 silent no-op).
 - 목록은 명시·최소 — 전체 테이블 덮어쓰기 금지. 값이 이미 일치하면 no-op
   (`corrected`에 포함되지 않음). 반환 형태는 `{ inserted, corrected }`
   (이름 정정 + 구조 패치 합산).
+
+##### 폐기(deprecation)는 2단계 — `deprecated_at` 만으로는 프록시가 안 끊긴다
+
+| 단계 | 무엇 | 효과 |
+|------|------|------|
+| 1. 구조 패치 | 번들 JSON + `STRUCTURAL_PATCH_IDS`에 `deprecated_at`(·설명) | 카탈로그 브라우징·추천에서 제외 (`findMany`: `is_active AND deprecated_at IS NULL`) |
+| 2. 런타임 비활성 | 배포 후 `POST /api/v1/admin/catalog/deactivate` | `is_active=false` — **프록시가 여기서만 차단** |
+
+근거: `src/app/api/v1/proxy/route.ts`는 `api.isActive`만 검사한다. `deprecated_at`이
+찍혀 있어도 `is_active=true`면 게시 사이트·미리보기가 계속 업스트림을 호출한다.
+구조 패치가 `is_active`를 쓰지 않는 불변조건과 맞물려 **완전한 폐기는 항상 수동
+deactivate가 한 번 더 필요하다.** (자동 폐기 스케줄러 없음 — 일시 업스트림 장애로
+건강한 API가 꺼지는 것을 막기 위함. 절차는 [operations.md](../guides/operations.md).)
 
 > **`seedAdminUser`는 제거됨**: 공개 다중 사용자 전환(2026-06-24)으로 env 단일 관리자 시드가 불필요해졌다. 신규 환경은 `/signup`으로 첫 사용자를 생성한다.
 
