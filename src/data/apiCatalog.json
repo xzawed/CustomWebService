@@ -883,7 +883,7 @@
   {
     "id": "4c6f5228-e6ec-45bb-b0bb-e947dcdeb1c1",
     "name": "ZenQuotes",
-    "description": "명언·격언 랜덤 표시. 오늘의 한마디, 동기부여 화면을 만들 때 좋아요. HTTPS 지원, 무료, 인증 불필요.",
+    "description": "명언·격언 랜덤 표시. 오늘의 한마디, 동기부여 화면을 만들 때 좋아요. HTTPS 지원, 무료, 인증 불필요. ⚠️ 2026-08-05: cache_ttl_seconds=120. 무작위 인용구인데 캐시하면 TTL 동안 모든 방문자가 같은 문구를 본다. 그럼에도 캐시가 없으면 429가 나서 아무것도 안 보인다 — 실측 200×5 → 429×6 → 200(버스트; 직접 호출은 정상). 장시간 TTL(예: 3600)은 제품 의미가 깨지므로 짧은 값만 사용.",
     "category": "fun",
     "base_url": "https://zenquotes.io/api",
     "auth_type": "none",
@@ -923,7 +923,7 @@
     "cors_supported": false,
     "requires_proxy": true,
     "credit_required": null,
-    "cache_ttl_seconds": null,
+    "cache_ttl_seconds": 120,
     "verification_status": "verified",
     "verified_at": "2026-06-22T21:41:04.914+00:00",
     "last_verification_note": "2026-06-22 자동 헬스체크: degraded",
@@ -2470,7 +2470,7 @@
   {
     "id": "c84860a1-336c-45f1-b1df-00f25bd810bd",
     "name": "에어코리아 대기오염정보",
-    "description": "대기오염 측정 정보. 측정소별 미세먼지·초미세먼지·오존 등 실시간 조회. ⚠️ 개발계정 일일 한도 500건 (타 공공API 10,000건의 1/20). (공공데이터포털 키 필요)",
+    "description": "대기오염 측정 정보. 측정소별 미세먼지·초미세먼지·오존 등 실시간 조회. ⚠️ 개발계정 일일 한도 500건 (타 공공API 10,000건의 1/20). (공공데이터포털 키 필요) ⚠️ 2026-08-05: cache_ttl_seconds=3600(Open-Meteo Air Quality와 동일·시간 단위 데이터). 실측 83%(10/12, HTTP 504 2회) · rate_limit 500/일인데 캐시가 없어 방문자마다 업스트림을 쳤다. 간헐 504는 있으나 호스트 자체는 살아 있어 폐기하지 않음. 활성화는 admin activate로만.",
     "category": "weather",
     "base_url": "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc",
     "auth_type": "api_key",
@@ -2514,7 +2514,7 @@
     "cors_supported": false,
     "requires_proxy": true,
     "credit_required": null,
-    "cache_ttl_seconds": null,
+    "cache_ttl_seconds": 3600,
     "verification_status": "unverified",
     "verified_at": "2026-05-01T04:29:30.77912+00:00",
     "last_verification_note": "2026-05-01: HTTPS 전환. 개발계정 500건/일은 타 API 대비 매우 낮음. 운영계정 신청 권장.\n2026-05-01: API 키 등록 필요 — 즉시 사용 불가 기준으로 비활성화.",
@@ -2728,7 +2728,7 @@
   {
     "id": "6c31e6c8-0c29-44d0-98cd-0fd579ab6cb6",
     "name": "Jikan (MyAnimeList)",
-    "description": "애니메이션·만화 정보(평점, 줄거리, 캐릭터)를 MyAnimeList 기반으로 제공해요. 애니 추천·검색 앱에 좋아요. 오픈소스·키 불필요.",
+    "description": "애니메이션·만화 정보(평점, 줄거리, 캐릭터)를 MyAnimeList 기반으로 제공해요. 애니 추천·검색 앱에 좋아요. 오픈소스·키 불필요. ⚠️ 2026-08-05: `/v4/top/anime` 제거 — 실측 12/12 HTTP 504(\"Jikan failed to connect to MyAnimeList\"). 단건 조회(`/v4/anime/1`)는 100% 정상(p50 1.0s)이라 API 전체는 유지. 최악-엔드포인트 집계만으로 전체를 폐기하지 않음.",
     "category": "entertainment",
     "base_url": "https://api.jikan.moe",
     "auth_type": "none",
@@ -2755,14 +2755,6 @@
           "page": "number"
         },
         "description": "키워드로 애니 검색"
-      },
-      {
-        "path": "/v4/top/anime",
-        "method": "GET",
-        "parameters": {
-          "page": "number"
-        },
-        "description": "인기 애니 랭킹"
       }
     ],
     "tags": [
@@ -2788,7 +2780,7 @@
   {
     "id": "e0043eeb-749a-4890-94de-840d1a0c6164",
     "name": "Open Food Facts",
-    "description": "전 세계 식품 바코드로 제품명·성분·영양정보·등급을 알려줘요. 식품·건강·다이어트 앱에 좋아요. 오픈데이터·키 불필요.",
+    "description": "전 세계 식품 바코드로 제품명·성분·영양정보·등급을 알려줘요. 식품·건강·다이어트 앱에 좋아요. 오픈데이터·키 불필요. ⚠️ 2026-08-05: `/cgi/search.pl` 제거 — 카탈로그 선언 파라미터가 프로브에 주입되지 않아 HTML 200이 나오거나, search_terms+json=1로 호출해도 503. 제품 조회(`/api/v2/product/...`)는 100% 정상. 검색 경로는 업스트림이 안정된 뒤에만 재등록.",
     "category": "data",
     "base_url": "https://world.openfoodfacts.org",
     "auth_type": "none",
@@ -2807,15 +2799,6 @@
           "fields": "string"
         },
         "description": "바코드로 제품 조회 (경로의 숫자를 바코드로 변경)"
-      },
-      {
-        "path": "/cgi/search.pl",
-        "method": "GET",
-        "parameters": {
-          "search_terms": "string",
-          "json": "number"
-        },
-        "description": "제품명 검색 (json=1 필요)"
       }
     ],
     "tags": [
@@ -2895,14 +2878,14 @@
   {
     "id": "bb29c4e4-e908-40f8-946a-6c9b9265fa6c",
     "name": "disease.sh (세계 통계)",
-    "description": "나라별·세계 코로나19 및 보건 통계를 제공해요. 통계 위젯·지도 시각화에 좋아요. 오픈소스·키 불필요.",
+    "description": "나라별·세계 코로나19 및 보건 통계를 제공해요. 통계 위젯·지도 시각화에 좋아요. 오픈소스·키 불필요. ⚠️ 2026-08-05 실측: 두 엔드포인트 모두 12/12 HTTP 502(Cloudflare). 업스트림 사망으로 폐기. 후속 API 없음. 행은 이력 보존을 위해 삭제하지 않음.",
     "category": "data",
     "base_url": "https://disease.sh",
     "auth_type": "none",
     "auth_config": {},
     "rate_limit": null,
     "changelog": [],
-    "is_active": true,
+    "is_active": false,
     "icon_url": null,
     "docs_url": "https://disease.sh/docs/",
     "endpoints": [
@@ -2930,7 +2913,7 @@
       "no-auth"
     ],
     "api_version": null,
-    "deprecated_at": null,
+    "deprecated_at": "2026-08-05T00:00:00.000Z",
     "successor_id": null,
     "cors_supported": true,
     "requires_proxy": false,
