@@ -2,6 +2,8 @@
 
 > **참고 (2026-08-03, C7)**: 본 ADR이 가리키던 1회성 SQL 파일들은 Supabase/Postgres 백엔드 대상이었고, 2026-06-23 SQLite 컷오버로 그 백엔드가 제거되어 삭제했다. 적용 결과(비활성·env_var 수정 등)는 본문 기록으로 남는다.
 
+> **언제 읽나**: 카탈로그 API를 활성화·비활성화하거나, keys-verify / verify-catalog / healthCheck.classifyResponse·looksLikeErrorBody 를 손댈 때 — 상태코드만 보던 검증이 2xx+에러 본문 API를 프로덕션에 방치한 인시던트
+
 ## 컨텍스트
 
 "제공 중인 API가 정상 동작하는지, 그 과정이 WBS 기준으로 수행되는지"를 다이나믹 워크플로우 + 딥리서치로 전수 검증했다. 활성 31개 API를 라이브로 호출하고 독립 교차검증(15 에이전트)했다.

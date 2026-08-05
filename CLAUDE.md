@@ -8,6 +8,50 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 - 배포: Railway (단일 인스턴스, Dockerfile, standalone output)
 - 프로덕션 운영 중 (실사용자 서비스), 안정화 및 품질 개선 단계
 
+## 작업 게이트 (모든 작업에 선행 — 이 절만은 건너뛰지 말 것)
+
+아래는 취향이 아니라 **실제로 거짓보고를 만든 경로**다. 2026-08-05 세션 전수 분석에서
+라이브 실측이 문서·합성 근거를 **8회** 뒤집었고, 원인은 문서 부족이 아니라 여기 적힌 것들이었다.
+근거: [docs/guides/agent-working-rules.md](docs/guides/agent-working-rules.md)
+
+### G1. 증거 등급을 섞지 말 것
+
+**라이브 실측 > 코드 읽기 > 문서 > 합성 테스트.** 낮은 등급을 높은 등급의 어조로 보고하는 것이
+"거짓보고"의 정체다. 보고 문장에 등급이 드러나야 한다 — *"실측했다"* / *"코드상 그렇다"* /
+*"문서에 그렇게 적혀 있다"* / *"추정이다"*.
+
+- 합성 테스트 2,433건 통과가 실제 응답 4건이 새는 것을 못 막았다. **초록색은 증거가 아니다.**
+- 문서에 적힌 수치·목록은 **관측 시점의 사실**이다. 지금도 참인지는 명령으로 확인한다.
+
+### G2. "동작한다"의 정의를 프록시 지표로 대체하지 말 것
+
+**HTTP 200 ≠ 정상. `keys-verify` VALID ≠ 동작.** `keys-verify`는 *키가 주입되고 인증 경로가
+하드 실패하지 않았다*만 말한다. 기능 정상성은 `looksLikeErrorBody`를 포함한 판정이다.
+
+> 이 함정으로 **두 번** 사고가 났다 — REST Countries(2026-06-21), data.go.kr 4종(2026-08-05).
+> 활성화 전 [ADR 2026-06-21](docs/decisions/2026-06-21-api-catalog-health-monitoring.md)을 열 것.
+
+### G3. 완료 선언은 잔여 목록과 함께만
+
+**"남은 것 없음"·"오너 액션만 남음"을 잔여 항목 열거 없이 쓰지 않는다.** 한 세션에서 3번 그렇게
+말했고 3번 다 코드 작업이 더 나왔다. 형식: *"오너: X / 코드 미해결: Y / 확인 못 한 것: Z"*.
+
+### G4. 균일한 결과는 도메인 결론 전에 방법을 의심할 것
+
+*"61개 전부 그렇다"*, *"경로 5개 전부 실패"* 처럼 **너무 깨끗한 결과**는 대개 쿼리·전제 버그다.
+실제로 `.params`(존재하지 않음)와 `.parameters`(실제 필드)를 혼동해 "61개 전부 미정의"라고
+보고한 적이 있다. 결론 내기 전에 **원본 객체 하나를 통째로 출력**해 볼 것.
+
+### G5. 모르는 것은 추측하지 말고 "모름"으로 보고할 것
+
+경로·서비스명·파라미터를 지어내 프로브하는 것은 작업이 아니다(TAGO 지하철 5개 전부 오답).
+공식 문서·`example_call`·실제 동작 예시가 없으면 **"미상 — 차단됨"** 으로 올린다.
+
+### G6. 도메인을 건드리기 전에 해당 ADR을 열 것
+
+`docs/decisions/` 42개 전부 첫 줄에 **`> 언제 읽나`** 트리거가 있다. 손대려는 파일·함수·env가
+그 트리거에 있으면 **읽고 시작한다.** ADR은 "왜 이렇게 됐는지"이고, 대부분 **이미 한 번 사고가 난 것**이다.
+
 ## 기술 스택
 
 | 영역 | 기술 |
@@ -23,47 +67,30 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 | CI/CD | GitHub Actions → lint → type-check → test → build → deploy |
 | Package Manager | pnpm |
 
-## 프로젝트 구조
+## 모듈 지도 — 어느 파일이 어떤 규칙을 소유하는가
 
-```
-src/
-├── app/             # Next.js App Router (pages, layouts, API routes)
-│   ├── api/         # /api/v1/* REST endpoints (admin/ 하위: debug, keys-verify, verify-catalog, catalog-dump, catalog/activate, feature-flags, backup/latest, qc-stats, site-proxy-stats, test-generation, trigger-qc)
-│   ├── (auth)/      # 인증 관련 페이지
-│   ├── (main)/      # 메인 페이지 그룹
-│   └── site/        # 서브도메인 서빙 ([slug])
-├── components/      # UI 컴포넌트 (auth/, builder/, catalog/, dashboard/, layout/, settings/, ui/)
-├── hooks/           # 커스텀 React hooks
-├── lib/             # 유틸리티
-│   ├── ai/          # AI 파이프라인 — generationPipeline(오케스트레이터), stageRunner, generationSaver, qualityLoop, generationTracker(진행률 전용), generationLock(중복 생성 차단 — DB 락)
-│   ├── auth/        # 인증 — getAuthUser, local-auth*(Credentials+JWT, edge-safe 분할 base/edge), password(scrypt hashPassword/verifyPassword), tokens(auth_tokens 발급/검증), rateLimit(per-IP 스로틀), verifiedGuard(assertEmailVerified), authorize(assertOwner)
-│   ├── cache/       # proxyCache.ts — LRU+TTL 인메모리 캐시 (프록시 응답 서버사이드 캐시)
-│   ├── config/      # 설정 — env 기반(features, generation, rateLimit, qc) + featureFlags(DB 기반 운영 킬스위치, 재배포 없이 즉시 반영·fail-open)
-│   ├── catalog/     # API 카탈로그 — healthCheck.ts(DB기반 라이브 검증 분류), verifyRunner.ts(라이브 검증 오케스트레이터·verification_status 갱신, admin 트리거), keyCheck.ts(플랫폼 키 검증), activeApiCount.ts(활성 개수 동적 카운트 — 랜딩/카탈로그 마케팅 카피, 하드코딩 금지)
-│   ├── constants/   # 공용 상수 — cdn.ts (CSP CDN 화이트리스트, buildSiteCsp)
-│   ├── countries/   # 자체 호스팅 국가 데이터 API 로직 — transform(mledoze 변환), query(region/search 필터·코드 조회), types
-│   ├── db/          # 임베디드 SQLite — sqlite/(connection WAL/FK + runSqliteMigrations, schema 11테이블, bootstrap, seedCatalog, ensureCatalog, backup 주기 .backup 덤프+보관정책, retention 무한증가 테이블 정리), errors(UNIQUE 위반 감지)
-│   ├── proxy/       # 게시/앱 프록시 인가 — resolveProxyContext(site·app 단일 진입점), siteRateLimit(익명 게시 사이트 IP·프로젝트 한도)
-│   ├── email/       # 이메일 발송 — emailService(sendVerificationEmail/sendPasswordResetEmail), Resend provider, no-op console fallback(RESEND_API_KEY 미설정 시)
-│   ├── events/      # EventBus (pub/sub) + eventPersister (전체 이벤트 자동 DB 기록)
-│   ├── generation/  # pollGenerationStatus — 생성 상태 폴링 (builder/page.tsx에서 추출, 주입형·단위 테스트 대상)
-│   ├── monitoring/  # slackAlert (Webhook 알림), errorRateMonitor (생성 실패율 임계값 감지)
-│   ├── i18n/        # 다국어 — t() 함수, ko.ts (한국어 메시지), types.ts (MessageKey)
-│   ├── qc/          # QC 로직 — browserPool, deepQcRunner, qcChecks, renderingQc (index.ts는 renderingQc만 export)
-│   ├── services/    # lib 레벨 유틸리티 서비스
-│   ├── templates/   # 코드 생성 템플릿 (lib 레벨)
-│   └── utils/       # 공통 유틸리티, 에러 클래스
-├── middleware.ts     # 서브도메인 라우팅, 보안 헤더 (CSP, HSTS)
-├── providers/       # AI Provider (IAiProvider → ClaudeProvider)
-├── repositories/    # 데이터 접근 계층 — sqlite/(9 IRepository 구현 — SqliteGenerationLockRepository 추가), interfaces, utils, factory(무인자 SQLite 생성)
-├── services/        # 비즈니스 로직 계층
-├── stores/          # Zustand 스토어
-├── templates/       # 코드 생성 템플릿
-├── types/           # TypeScript 타입 정의 — schemas.ts (Zod 공용 스키마), project.ts, api.ts, events.ts 등
-├── data/            # 번들 데이터 — countries.json(mledoze), apiCatalog.json(61행)·featureFlags.json(7) — 부팅 시드 소스(프로덕션 미러)
-├── __tests__/       # 테스트 파일 (+ 소스 옆 co-located *.test.ts)
-└── test/            # 테스트 헬퍼, 설정
-```
+레이아웃: `src/` = `app`(App Router 라우트) · `components` · `hooks` · `lib`(도메인 로직) ·
+`providers`(AI) · `repositories` · `services` · `stores` · `types` · `data`(부팅 시드) · `__tests__`·`test`.
+**파일 목록은 glob으로 확인한다** — 여기엔 목록이 아니라 **불변조건의 소유자**만 적는다.
+(파일 개수·행 수 같은 스냅샷 수치는 적지 않는다. 썩고, 모델은 그걸 믿는다.)
+
+| 소유자 | 소유한 규칙 |
+|---|---|
+| `middleware.ts` | 서브도메인 rewrite · CSP/HSTS. **Edge runtime** — Node 전용 모듈 금지, 인증은 `local-auth-edge` 동적 import만 |
+| `lib/proxy/resolveProxyContext` | site·app 프록시 인가 **단일 진입점**. 라우트에 인가 분기를 새로 만들지 말 것 |
+| `lib/cache/proxyCache` | `buildCacheKey` 4번째 인자 **키 신원 필수** — 없으면 교차 테넌트 유출 |
+| `lib/catalog/healthCheck` | 정상/고장 판정. **HTTP 200+에러 본문**을 여기서 잡는다 |
+| `lib/catalog/keyCheck` | **키 인증 검증 전용 — 동작 판정이 아니다**(활성화 게이트로 쓰지 말 것) |
+| `lib/catalog/activeApiCount` | 활성 개수 **동적 카운트 — 하드코딩 금지** |
+| `lib/ai/generationLock` | 중복 생성 차단(DB 락). `generationTracker`는 **진행률 전용** |
+| `lib/auth/rateLimit` | `getClientIp` **단일 출처** — XFF **최우측**만 신뢰 |
+| `lib/auth/local-auth*` | Credentials+JWT. **edge-safe 분할**(base/edge) — middleware에서 scrypt 쪽을 정적 import 금지 |
+| `lib/config/featureFlags` | DB 기반 운영 킬스위치. 재배포 없이 즉시 반영 · **fail-open** |
+| `lib/constants/cdn` | CSP CDN 화이트리스트 **단일 출처** (`buildSiteCsp`) |
+| `lib/db/sqlite/ensureCatalog` | 부팅 시 구조 동기화. **`is_active`·`verification_status`는 절대 안 건드린다** |
+| `lib/events/eventPersister` | 모든 도메인 이벤트 자동 DB 기록(감사 로그) |
+| `repositories/factory` | **무인자** SQLite 생성 — 클라이언트 주입 금지 |
+| `src/data/*.json` | 부팅 시드(프로덕션 미러). **JSON만 고쳐선 기존 행이 안 바뀐다** → `ensureCatalog` 구조 패치 |
 
 ## 개발 명령어
 
@@ -128,29 +155,18 @@ pnpm ai:contract-check   # AI 규약 드리프트 검사 — 0 유지 / 1 드리
 - `RESEND_API_KEY` — 이메일 발송 Resend API 키 (미설정 시 콘솔 no-op 폴백 — 이메일 실제 미발송)
 - `EMAIL_FROM` — 발신자 주소 (예: `noreply@xzawed.xyz`, `RESEND_API_KEY` 설정 시 필수. 빈 문자열 금지 — 발송 실패)
 - `APP_URL` — 이메일 링크(인증·재설정)의 공개 base URL (예: `https://xzawed.xyz`). 미설정 시 `NEXT_PUBLIC_ROOT_DOMAIN`→요청 origin 폴백. 프록시 뒤 0.0.0.0 링크 방지 + 호스트 헤더 미신뢰(reset poisoning 차단). 로직: `getBaseUrl`(`src/lib/auth/routeHelpers.ts`)
-- `SQLITE_PATH` — SQLite 파일 경로 (기본 `/data/app.db`, Railway Volume 마운트 필수)
-- `SQLITE_BACKUP_ENABLED`/`SQLITE_BACKUP_INTERVAL_MS`/`SQLITE_BACKUP_RETENTION`/`SQLITE_BACKUP_DIR` — 자동 SQLite 백업(P6.3). 부팅 시 `scheduleBackups`가 주기 `.backup` 덤프를 `<SQLITE 디렉터리>/backups/`에 남기고 최근 N개만 보관. 기본: enabled=true·24h·7개·`/data/backups`. 로직: `src/lib/db/sqlite/backup.ts` (상세: [env-vars.md](docs/reference/env-vars.md))
-- `NEXT_PUBLIC_ROOT_DOMAIN` (서브도메인 가상 호스팅)
-- `ANTHROPIC_API_KEY`
-- `ADMIN_API_KEY` — 관리자 API 인증 (QC 통계, 수동 QC 트리거)
-- `ENABLE_RENDERING_QC` — Playwright 렌더링 QC 활성화 (true/false)
-- `ENCRYPTION_KEY` — 사용자 API 키 암호화
-- `GITHUB_TOKEN` / `GITHUB_ORG` / `RAILWAY_TOKEN` — **removed/unused** (외부 사용자 서비스 export 스택 제거, 2026-08-01). Railway에 남아 있으면 삭제 가능. [ADR](docs/decisions/2026-08-01-remove-external-deploy-stack.md)
-- `MAX_APIS_PER_PROJECT`, `MAX_DAILY_GENERATIONS` 등 제한 설정
-- `AI_MODEL_SUGGESTION` — 추천용 모델 (기본: `claude-haiku-4-5`)
-- `AI_MODEL_GENERATION` — 코드 생성 모델 (기본: `claude-opus-5`, Sonnet 폴백: `claude-sonnet-5`)
-- `SLACK_WEBHOOK_URL` — 에러·알림 sink. **Slack만 사용**(`errorRateMonitor` 생성 실패율 + `scheduleBackups` 백업 실패/복구 → `sendSlackAlert`). **Sentry SaaS는 의도적으로 미도입·스캐폴딩 제거**(#220 · C4(a)/(b)). `SLACK_WEBHOOK_URL`은 **2026-07-31에 등록·실경보 도착까지 검증 완료** — 경보는 xzawed 워크스페이스 `#alerts` 채널로 간다. **빈 문자열은 미설정과 같다**(`if (!webhookUrl)` no-op) — 점검 시 키 존재가 아니라 **값 길이**를 볼 것. 절차·실측: [monitoring-sink-setup.md](docs/guides/monitoring-sink-setup.md)
-- `LOG_LEVEL` — 로그 상세도 (`debug`/`info`/`warn`/`error`, 기본 `info`)
-- `ET_COMPLEXITY_THRESHOLD` — Extended Thinking 활성화 임계값 (기본: 35점, `evaluateComplexityScore()` 결과 비교)
-- `QUALITY_LOOP_ITERATION_TIMEOUT_MS` — Quality Loop 반복당 타임아웃 (기본: 120000ms = 120초)
-- `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` — ET 활성화 시 Quality Loop 반복당 타임아웃 (기본: 200000ms = 200초). ET 응답이 최대 150초 소요되므로 일반 타임아웃(`QUALITY_LOOP_ITERATION_TIMEOUT_MS`)과 별도 설정
-- `QUALITY_LOOP_MAX_ITERATIONS` — Quality Loop 최대 반복 횟수 (기본: 2회, 상한: 3회)
-- `QUALITY_LOOP_STRICT_ADOPTION` — Quality Loop retry 채택 가드 (기본: `true`. `false`로 설정 시 한쪽 점수 향상만으로도 채택하는 기존 OR 로직 복원 — 운영 데이터 비교용 롤백 스위치)
-- `PIPELINE_MAX_DURATION_MS` — 파이프라인 총 허용 시간 (기본: 290000ms = 290초). Quality Loop 시작 시 `경과 시간 + iterationTimeout > 이 값`이면 반복을 건너뜀. Railway 300초 한도를 고려한 안전 마진 확보용
-- `QC_QUALITY_THRESHOLD`, `QC_MOBILE_THRESHOLD` — Quality Loop 재시도 트리거 점수 임계값 (각 기본: 60)
-- `RATE_LIMIT_BYPASS_USER_IDS` — 쉼표 구분 userId 목록. 포함된 계정은 일일 생성 한도 검사 스킵 (관리자/개발자 우회용)
-- `GENERATION_LOCK_HEARTBEAT_MS` / `GENERATION_LOCK_STALE_MS` — 생성 락 생존 신호 주기(기본 30초) / 죽은 락 판정 시간(기본 5분). **stale은 heartbeat보다 커야 하며** 아니면 `heartbeat × 2`로 교정하고 경고를 남긴다. 로직: `src/lib/config/generation.ts`
-- 전체 환경변수 목록은 [docs/reference/env-vars.md](docs/reference/env-vars.md) 참조
+- `SQLITE_PATH` — 기본 `/data/app.db`. **Railway Volume 마운트 필수** — 아니면 재배포마다 데이터가 사라진다
+- `ENCRYPTION_KEY` — 사용자 API 키 암호화 · `ADMIN_API_KEY` — 관리자 API 인증
+- `GENERATION_LOCK_STALE_MS` > `GENERATION_LOCK_HEARTBEAT_MS` — 어기면 `heartbeat × 2`로 **조용히 교정**된다
+- `GITHUB_TOKEN` / `GITHUB_ORG` / `RAILWAY_TOKEN` — **제거됨·미사용**. 다시 쓰지 말 것 [ADR](docs/decisions/2026-08-01-remove-external-deploy-stack.md)
+
+> ⚠️ **빈 문자열은 "미설정"과 같다.** 코드가 `if (!value)`로 검사하므로 값이 `""`면 없는 것과 동일하게
+> 동작한다. 점검할 때 **키 존재가 아니라 값 길이를 볼 것.** `SLACK_WEBHOOK_URL`·`EMAIL_FROM`이 그렇고,
+> 2026-08-05에 Railway의 `API_KEY_*` 24개 중 14개가 빈 문자열이었다(설정된 것처럼 보였다).
+
+**나머지 전부**(AI 모델·Quality Loop·QC 임계·백업 주기·레이트리밋 등)는
+**[docs/reference/env-vars.md](docs/reference/env-vars.md)가 유일한 진실원**이다. 여기에 복제하지 말 것 —
+두 곳에 적히는 순간 한쪽이 썩는다.
 
 ## 문서 참조
 
@@ -167,7 +183,9 @@ pnpm ai:contract-check   # AI 규약 드리프트 검사 — 0 유지 / 1 드리
 | 코드 생성/재생성 QC **(필수)** | [docs/guides/qc-process.md](docs/guides/qc-process.md) |
 | 환경변수 목록 | [docs/reference/env-vars.md](docs/reference/env-vars.md) |
 | API 엔드포인트 | [docs/reference/api-endpoints.md](docs/reference/api-endpoints.md) |
+| **에이전트 작업 규율 — 게이트 G1~G6의 근거** | [docs/guides/agent-working-rules.md](docs/guides/agent-working-rules.md) |
 | 일상 운영·모니터링·백업 | [docs/guides/operations.md](docs/guides/operations.md) |
+| **배포했는데 반영이 안 될 때** (조용한 미배포 2종) | [docs/guides/railway-deploy-troubleshooting.md](docs/guides/railway-deploy-troubleshooting.md) |
 | SQLite 복구 런북 | [docs/guides/sqlite-restore-runbook.md](docs/guides/sqlite-restore-runbook.md) |
 | 시크릿 노출·회전 | [docs/security/incident-response.md](docs/security/incident-response.md) |
 | 에러 코드 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
@@ -275,42 +293,23 @@ pnpm ai:contract-check   # AI 규약 드리프트 검사 — 0 유지 / 1 드리
 - 배포 롤백이 필요할 때 태그 목록(`git tag -l 'deploy/*'`)으로 이전 커밋 빠르게 식별
 
 ### Railway 배포 상태 판별 (FAILED를 오해하지 말 것)
-- **Wait for CI 활성.** 신규 커밋 배포는 그 커밋의 CI 실행이 끝날 때까지 `WAITING`에 머문다(실측 ~2.5분) → `INITIALIZING` → `BUILDING` → `SUCCESS`
-- ⚠️ **env 단독 변경 재배포(patch)는 `railway.toml`을 읽지 않고 실패할 수 있다 — 2026-08-05 실측.** 과거(2026-07-29·2026-06-30)에는 성공했으나 **더 이상 신뢰할 수 없다.** 실패 배포의 메타를 성공 배포와 비교하면 원인이 한눈에 드러난다:
-
-  | | `configFile` | `builder` | `healthcheckPath` | `propertyFileMapping` | `imageDigest` |
-  |---|---|---|---|---|---|
-  | **FAILED**(patch/env) | **없음** | **RAILPACK** | 없음 | **0개** | 없음 |
-  | SUCCESS(commit) | `/railway.toml` | `DOCKERFILE` | `/api/v1/health` | 6개 | 있음 |
-
-  즉 patch 배포가 **`railway.toml`을 통째로 무시하고** Railway 기본 빌더(RAILPACK) 자동 감지로 떨어져, Dockerfile·헬스체크 설정을 모두 잃고 **이미지 생성 전에 죽는다**. 빌드·배포 로그는 **둘 다 비어 있다**(산출물이 나오기 전이라 남길 게 없다) — 로그가 비었다고 "원인 미상"으로 닫지 말고 **메타의 `configFile`·`builder`를 볼 것.**
-
-  **복구 방법: 커밋을 하나 올려 정상 commit 배포를 트리거한다.** commit 배포는 `railway.toml`을 제대로 읽는다. env 값 자체는 이미 저장돼 있으므로 그 배포에서 함께 적용된다. (서비스는 이전 이미지로 계속 떠 있어 **장애는 나지 않는다** — 조용히 "env를 넣었는데 안 먹는" 상태가 될 뿐이라 더 위험하다.)
-- `railway variables --json`의 배포 메타에서 `patchId`가 있으면 **env/설정 변경으로 트리거된 재배포**, 없으면 커밋 배포다. `imageDigest`가 없으면 이미지 생성 전(=빌드 도달 전/중) 실패다
+**병합했으면 배포 status가 `SUCCESS`인지 반드시 확인한다.** 조용한 미배포가 2종 있고, 둘 다
+서비스는 멀쩡히 떠 있고 health도 200이라 **배포 목록을 보지 않으면 모른다.**
 
 | 상황 | 해석 |
 |------|------|
-| 신규 커밋 · `WAITING` 지속 | 정상 — CI 완료 대기 중 |
-| env 단독 변경 · 같은 커밋 · `SUCCESS` | 정상 — env가 적용됐다 |
-| env 단독 변경 · 같은 커밋 · `FAILED` | **실제 실패.** 먼저 메타의 `configFile`·`builder`를 볼 것 — `RAILPACK`이면 위의 railway.toml 미적용 건이다(로그는 비어 있다). **env는 적용되지 않았다** — 커밋을 올려 복구 |
-| 신규 커밋 · `BUILDING`/`DEPLOYING` 중 `FAILED` | 실제 배포 실패 |
+| 신규 커밋 · `WAITING` 지속 | 정상 — CI 완료 대기 중(실측 ~2.5분) |
+| env 단독 변경 · `SUCCESS` | 정상 — env가 적용됐다 |
+| env 단독 변경 · **`FAILED`** | 메타의 `builder`를 볼 것. **`RAILPACK`이면 `railway.toml` 미적용**(로그는 비어 있다). **env는 적용되지 않았다** |
+| 신규 커밋 · **`SKIPPED`** | **CI 실패로 배포 취소.** `gh run rerun`으로 CI를 green으로 만들어도 **되살아나지 않는다** |
+| 신규 커밋 · `BUILDING`/`DEPLOYING` 중 `FAILED` | 실제 배포 실패 — 로그 즉시 수집 |
 | 서비스 health 죽음 | 실제 장애 — 즉시 롤백 검토 |
-| 신규 커밋 · `SKIPPED` | **CI가 실패해 배포가 취소됐다.** CI를 재실행해 green으로 만들어도 **되살아나지 않는다** — 아래 |
 
-- ⚠️ **`SKIPPED`는 되돌릴 수 없다 — 새 커밋이 필요하다 (2026-08-05 실측).** Wait for CI의 판정은 **일회성**이다. 그 커밋의 CI가 실패하면 배포가 `SKIPPED`로 확정되고, `gh run rerun`으로 CI를 green으로 만들어도 Railway는 다시 배포하지 않는다. 실측 사례: GitHub Actions 러너가 `Set up job`에서 45분 멈췄다 실패(체크아웃도 못 함·로그 없음) → 재실행은 성공했지만 배포는 `SKIPPED`로 남았다.
-
-  **즉 CI의 일시적 인프라 장애만으로도 변경이 조용히 배포되지 않는다.** [patch 배포 실패](#)와 증상이 같다 — 서비스는 이전 이미지로 멀쩡히 떠 있고 health도 200이라 **배포 목록을 직접 보지 않으면 모른다.** 병합 후에는 반드시 배포 status가 `SUCCESS`인지 확인할 것.
-
-  복구는 동일하다: **커밋을 하나 올려 새 배포를 트리거한다.**
-
-- **FAILED를 보면 로그를 즉시 수집할 것.** 후속 배포로 대체되면 사라진다(2026-07-28 건이 그래서 원인 미상으로 남았다)
-  ```bash
-  railway deployment list --json   # 실패 배포 id 확보
-  railway logs -b <deployment-id>  # 빌드 로그
-  railway logs -d <deployment-id>  # 배포 로그
-  ```
-- 실측 quirk: `railway variable set`은 재배포를 트리거하지만 **`railway variable delete`는 트리거하지 않는다**(삭제한 변수는 다음 배포에서야 컨테이너에서 사라진다)
-- 배경·실증 기록: [#201](https://github.com/xzawed/CustomWebService/issues/201)
+- **`FAILED`·`SKIPPED` 복구는 동일하다: 커밋을 하나 올려 새 배포를 트리거한다.** env 값은 이미 저장돼 있어 그 배포에서 함께 적용된다
+- **`FAILED`를 보면 로그를 즉시 수집할 것** — 후속 배포로 대체되면 사라진다(2026-07-28 건이 그래서 원인 미상으로 남았다). 단 위 두 건은 **로그가 비어 있는 것이 정상**이니 메타를 봐야 한다
+- 메타 읽기: `patchId` 있음 = env 변경 재배포 · `imageDigest` 없음 = 이미지 생성 전 실패 · `builder`는 `DOCKERFILE`이어야 정상
+- 실측 quirk: `railway variable set`은 재배포를 트리거하지만 **`railway variable delete`는 트리거하지 않는다**
+- 진단 절차·실증 근거: **[railway-deploy-troubleshooting.md](docs/guides/railway-deploy-troubleshooting.md)** · [#201](https://github.com/xzawed/CustomWebService/issues/201)
 
 ## 개발 워크플로우
 

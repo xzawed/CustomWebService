@@ -1,5 +1,7 @@
 # 검수 MEDIUM 발견 항목 수정 (2026-07-29)
 
+> **언제 읽나**: qualityLoop AbortSignal/abort, rateLimit charged 환불, proxy 인메모리 리밋 Map(활성 버킷 eviction 금지), getClientIp 의 x-real-ip 미신뢰, isPrivateHost IPv4-mapped SSRF 를 손댈 때
+
 ## 상태
 
 승인됨 — 구현 완료

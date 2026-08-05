@@ -1,5 +1,7 @@
 # 의존성 보안 일괄 상향 및 감사 게이트 2단계화 (2026-07-28)
 
+> **언제 읽나**: pnpm audit 2단계 게이트, pnpm.overrides(sharp·brace-expansion 스코프), auditConfig.ignoreGhsas, Dependabot 보안 PR 일괄 상향을 손댈 때
+
 ## 상태
 
 승인됨 — 구현 완료

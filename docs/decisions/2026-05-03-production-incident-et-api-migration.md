@@ -1,5 +1,7 @@
 # ADR: 프로덕션 인시던트 회고 — ET API 마이그레이션 및 연쇄 장애 (2026-05-03)
 
+> **언제 읽나**: ClaudeProvider thinking/ET, qualityLoop 타임아웃 로그, browserPool executablePath, builder genStatus 고착, RATE_LIMIT_BYPASS_USER_IDS 를 손댈 때 — 2026-05-03 생성 전면 장애 연쇄 인시던트 회고
+
 ## 배경
 
 2026-05-03 프로덕션 서비스(xzawed.xyz)에서 코드 생성 기능이 전면 장애 상태에 빠지는 인시던트가 발생했다. 직접 원인은 Anthropic의 Extended Thinking(ET) API 브레이킹 체인지였으나, 이를 대응하는 과정에서 기존에 잠재하고 있던 4개의 독립 문제가 연쇄적으로 드러났다.

@@ -1,5 +1,7 @@
 # 생성 락을 인메모리 tracker에서 SQLite로 분리 (2026-07-29)
 
+> **언제 읽나**: generationLock·generation_locks 테이블, GENERATION_LOCK_HEARTBEAT_MS/STALE_MS, generate/regenerate 중복 차단, generationTracker 역할 분리를 손댈 때 — 인메모리 락 eviction 이 이중 생성·토큰 이중청구를 허용
+
 ## 상태
 
 승인됨 — 구현 완료 ([#198](https://github.com/xzawed/CustomWebService/issues/198))

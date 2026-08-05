@@ -1,5 +1,7 @@
 # ADR: Unsplash Attribution 자동 주입 (2026-05-04, PR #102)
 
+> **언제 읽나**: injectUnsplashAttribution·codeParser 후처리, Unsplash 프롬프트 attribution 지시, 또는 생성 HTML 귀속 문구를 손댈 때
+
 ## 배경
 
 AI가 생성하는 HTML에는 무료 이미지 소스로 Unsplash(`source.unsplash.com`, `images.unsplash.com`)가 자주 사용된다. Unsplash의 이용 약관(API Guidelines)은 Unsplash 이미지를 사용하는 경우 출처를 표시(Attribution)할 것을 요구한다.

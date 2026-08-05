@@ -1,5 +1,7 @@
 # 로그인 레이트리밋 — IP + 계정, 잠금 없는 방식 (#223)
 
+> **언제 읽나**: authorizeWithLoginRateLimit, rateLimit.ts 로그인 IP/계정 버킷, MAX_AUTH_RATE_LIMIT_BUCKETS, 로그인 한도 초과 시 return null 규약을 손댈 때
+
 - 날짜: 2026-07-30
 - 상태: 채택
 - 관련: [#223](https://github.com/xzawed/CustomWebService/issues/223), PR #232

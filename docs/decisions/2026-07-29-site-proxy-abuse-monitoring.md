@@ -1,5 +1,7 @@
 # 게시 사이트 프록시 오남용 모니터링 (2026-07-29)
 
+> **언제 읽나**: siteRateLimit 프로젝트 한도 로그, GET /api/v1/admin/site-proxy-stats, SITE_PROXY_PROJECT_LIMIT_PER_MIN/IP 한도 조정, blockedByIp vs blockedByProject 해석을 손댈 때
+
 ## 상태
 
 승인됨 — 구현 완료 ([#200](https://github.com/xzawed/CustomWebService/issues/200))

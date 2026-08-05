@@ -1,5 +1,7 @@
 # ADR: Quality Loop 재활성화 및 ET 전용 타임아웃 분리 (2026-05-03, PR #99)
 
+> **언제 읽나**: QUALITY_LOOP_MAX_ITERATIONS·QUALITY_LOOP_ITERATION_TIMEOUT_MS·QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS·QUALITY_LOOP_STRICT_ADOPTION 또는 qualityLoop.ts ET 분기를 손댈 때
+
 ## 배경
 
 2026-05-03 프로덕션 인시던트([ADR 2026-05-03-production-incident-et-api-migration](2026-05-03-production-incident-et-api-migration.md) 참조)에서 Quality Loop는 두 가지 문제로 인해 비활성화 조치(QUALITY_LOOP_MAX_ITERATIONS=0)가 적용되었다:

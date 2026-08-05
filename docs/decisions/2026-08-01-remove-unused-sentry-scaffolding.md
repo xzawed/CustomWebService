@@ -1,5 +1,7 @@
 # 미사용 Sentry 스캐폴딩 제거
 
+> **언제 읽나**: Sentry/@sentry/nextjs·withSentryConfig·SENTRY_DSN 재도입을 검토하거나, instrumentation.ts 부팅 훅만 손댈 때 — 스캐폴딩은 동작하지 않았고 SaaS 도입 제외
+
 - 날짜: 2026-08-01
 - 상태: 채택
 - 관련: WBS C4(b) ([2026-07-31-project-wbs.md](../superpowers/plans/2026-07-31-project-wbs.md)), #220

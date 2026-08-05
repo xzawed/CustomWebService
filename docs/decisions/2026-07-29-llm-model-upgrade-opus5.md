@@ -1,5 +1,7 @@
 # 생성 모델 Opus 4.8 → Opus 5 상향 (2026-07-29)
 
+> **언제 읽나**: AI_MODEL_GENERATION/SUGGESTION, ALLOWED_CLAUDE_MODELS, ClaudeProvider thinking(disabled/adaptive)·output_config.effort, AiProviderFactory 모델 ID를 손댈 때 — Opus 5 에서 thinking 생략=adaptive 기본
+
 ## 상태
 
 승인됨 — 구현·배포 완료

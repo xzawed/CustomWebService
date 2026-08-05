@@ -1,5 +1,7 @@
 # AI 추천 일일 쿼터 분리 (#219)
 
+> **언제 읽나**: suggest-apis/context/preferences/modification 일일 쿼터, suggestion_count·MAX_DAILY_SUGGESTIONS, createForTask('suggestion') 모델, 차감 시점(검증 후)을 손댈 때 — DEFAULT 0 누락 시 전 사용자 잠금
+
 - 날짜: 2026-07-30
 - 상태: 채택
 - 관련: [#219](https://github.com/xzawed/CustomWebService/issues/219), PR #224

@@ -1,5 +1,7 @@
 # ADR: 공개 회원가입 + 다중 사용자 인증 전환
 
+> **언제 읽나**: signup/verify-email/forgot-password, authorize+scrypt, auth_tokens, assertEmailVerified, Resend(EMAIL_FROM/RESEND_API_KEY), assertOwner 를 손댈 때
+
 - **날짜:** 2026-06-24
 - **상태:** 채택됨 (구현 완료)
 - **관련 스펙:** [docs/superpowers/specs/2026-06-24-public-signup-multi-user-auth-design.md](../superpowers/specs/2026-06-24-public-signup-multi-user-auth-design.md)

@@ -1,5 +1,7 @@
 # 프록시 캐시 키에 키 신원 추가 (2026-07-29)
 
+> **언제 읽나**: buildCacheKey 4번째 인자 keyIdentity, keyFingerprint, NO_KEY_IDENTITY, 또는 usedPersonalKey 캐시 스킵 부활을 손댈 때 — 키 신원 없으면 교차 테넌트 캐시 유출
+
 ## 상태
 
 승인됨 — 구현 완료 ([#199](https://github.com/xzawed/CustomWebService/issues/199))

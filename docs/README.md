@@ -78,6 +78,8 @@
 | [testing.md](guides/testing.md) | 테스트 전략·모킹·실행 명령 (개수/% 스냅샷 없음) |
 | [deployment.md](guides/deployment.md) | CI/CD·Railway·도메인·관리자 검증 API |
 | [operations.md](guides/operations.md) | 일상 운영·모니터링·백업·장애 대응 |
+| [agent-working-rules.md](guides/agent-working-rules.md) | **CLAUDE.md 작업 게이트 G1~G6의 근거** — 거짓보고 원인 전수 분석(2026-08-05) |
+| [railway-deploy-troubleshooting.md](guides/railway-deploy-troubleshooting.md) | **병합했는데 반영이 안 될 때** — 조용한 미배포 2종(patch/railway.toml, CI 실패 SKIPPED) |
 | [qc-process.md](guides/qc-process.md) | 생성/재생성 QC 8단계 |
 | [sqlite-restore-runbook.md](guides/sqlite-restore-runbook.md) | DB 손상·오염 시 백업 복구 |
 | [monitoring-sink-setup.md](guides/monitoring-sink-setup.md) | Slack 알림 sink 등록·검증 |
@@ -139,50 +141,50 @@
 
 (과거 `CLAUDE.md` 문서 참조 테이블에서 이동. 시간순.)
 
-| 문서 | 한 줄 요약 |
-|------|------------|
-| [tech-choices.md](decisions/tech-choices.md) | 핵심 기술 선택 배경 |
-| [db-provider-pattern.md](decisions/db-provider-pattern.md) | Repository 팩토리 패턴 |
-| [organization-code-removal.md](decisions/organization-code-removal.md) | Organization 코드 제거 |
-| [provider-migration.md](decisions/provider-migration.md) | DB/Auth Provider 추상화 (역사 — 컷오버로 single-stack) |
-| [2026-04-26-repository-utils-extraction.md](decisions/2026-04-26-repository-utils-extraction.md) | Repository 공통 유틸 추출 |
-| [2026-04-26-ci-eslint-migration.md](decisions/2026-04-26-ci-eslint-migration.md) | CI ESLint (`next lint` 제거) |
-| [2026-04-26-coverage-improvement-retrospective.md](decisions/2026-04-26-coverage-improvement-retrospective.md) | 커버리지 개선 회고 (PR #45·#46) |
-| [2026-04-26-sonarcloud-security-a11y-coverage.md](decisions/2026-04-26-sonarcloud-security-a11y-coverage.md) | SonarCloud 보안·a11y·커버리지 |
-| [2026-04-29-generation-success-rate-improvement.md](decisions/2026-04-29-generation-success-rate-improvement.md) | 생성 성공률 Phase 2 |
-| [2026-04-30-accuracy-gate-and-visibility.md](decisions/2026-04-30-accuracy-gate-and-visibility.md) | 정확도 게이트·가시화 |
-| [2026-05-01-api-catalog-verification.md](decisions/2026-05-01-api-catalog-verification.md) | 카탈로그 전수 검증 |
-| [2026-05-01-api-catalog-immediate-usable-cleanup.md](decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md) | 즉시 사용 가능 기준 정리 |
-| [2026-05-01-developer-key-api-reactivation.md](decisions/2026-05-01-developer-key-api-reactivation.md) | 개발자 키 API 재활성화 |
-| [2026-05-03-production-incident-et-api-migration.md](decisions/2026-05-03-production-incident-et-api-migration.md) | ET 마이그레이션 연쇄 장애 회고 |
-| [2026-05-03-quality-loop-restoration-et-timeout.md](decisions/2026-05-03-quality-loop-restoration-et-timeout.md) | Quality Loop·ET 타임아웃 분리 |
-| [2026-05-04-proxy-response-cache.md](decisions/2026-05-04-proxy-response-cache.md) | 프록시 LRU+TTL 캐시 |
-| [2026-05-04-unsplash-attribution-auto-injection.md](decisions/2026-05-04-unsplash-attribution-auto-injection.md) | Unsplash attribution 자동 삽입 |
-| [2026-05-22-playwright-core-nft-browsers-json-fix.md](decisions/2026-05-22-playwright-core-nft-browsers-json-fix.md) | playwright-core browsers.json nft 수정 |
-| [2026-05-23-security-audit-findings.md](decisions/2026-05-23-security-audit-findings.md) | 보안 감사 C-1·H-2~H-11 |
-| [2026-06-09-test-flaky-timeout-contention-fix.md](decisions/2026-06-09-test-flaky-timeout-contention-fix.md) | Vitest full-suite 플래키 타임아웃 |
-| [2026-06-09-service-health-audit-fixes.md](decisions/2026-06-09-service-health-audit-fixes.md) | 서비스 건강 감사 16건 |
-| [2026-06-21-api-catalog-health-monitoring.md](decisions/2026-06-21-api-catalog-health-monitoring.md) | 카탈로그 헬스·키 검증 자동화 |
-| [2026-06-22-node22-supabase-websocket-fix.md](decisions/2026-06-22-node22-supabase-websocket-fix.md) | Node 22 고정 |
-| [2026-06-22-verification-status-consumption.md](decisions/2026-06-22-verification-status-consumption.md) | verification_status AI 추천 소비 |
-| [2026-06-22-catalog-registration-and-seed-resync.md](decisions/2026-06-22-catalog-registration-and-seed-resync.md) | Countries 등록·시드 재동기화 |
-| [2026-06-23-sqlite-cutover-and-supabase-removal.md](decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md) | SQLite 컷오버·Supabase 제거 |
-| [2026-06-24-public-signup-multi-user-auth.md](decisions/2026-06-24-public-signup-multi-user-auth.md) | 공개 회원가입·다중 사용자 |
-| [2026-07-28-better-sqlite3-v13-napi-prebuilds.md](decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md) | better-sqlite3 v13 N-API 프리빌트 |
-| [2026-07-28-dependency-security-updates.md](decisions/2026-07-28-dependency-security-updates.md) | 의존성 보안·audit 2단계 |
-| [2026-07-28-published-site-proxy-authz.md](decisions/2026-07-28-published-site-proxy-authz.md) | 게시 사이트 프록시 인가 |
-| [2026-07-29-medium-audit-findings.md](decisions/2026-07-29-medium-audit-findings.md) | 검수 MEDIUM 항목 |
-| [2026-07-29-durable-generation-lock.md](decisions/2026-07-29-durable-generation-lock.md) | DB generation lock |
-| [2026-07-29-proxy-cache-key-identity.md](decisions/2026-07-29-proxy-cache-key-identity.md) | 캐시 키 키-신원 |
-| [2026-07-29-site-proxy-abuse-monitoring.md](decisions/2026-07-29-site-proxy-abuse-monitoring.md) | site 프록시 오남용 지표 |
-| [2026-07-29-llm-model-upgrade-opus5.md](decisions/2026-07-29-llm-model-upgrade-opus5.md) | Opus 5 상향·thinking 규약 |
-| [2026-07-30-account-delete-and-export.md](decisions/2026-07-30-account-delete-and-export.md) | 계정 삭제·내보내기·유령 세션 |
-| [2026-07-30-login-rate-limit.md](decisions/2026-07-30-login-rate-limit.md) | 로그인 레이트리밋 |
-| [2026-07-30-monitoring-sink-slack-only.md](decisions/2026-07-30-monitoring-sink-slack-only.md) | Slack-only sink·백업 경보 |
-| [2026-07-30-suggestion-daily-quota-separation.md](decisions/2026-07-30-suggestion-daily-quota-separation.md) | AI 추천 일일 쿼터 분리 |
-| [2026-08-01-remove-external-deploy-stack.md](decisions/2026-08-01-remove-external-deploy-stack.md) | 외부 deploy export 스택 제거 |
-| [2026-08-01-remove-unused-sentry-scaffolding.md](decisions/2026-08-01-remove-unused-sentry-scaffolding.md) | 미사용 Sentry 스캐폴딩 제거 (C4(b)) |
-| [2026-08-01-db-provider-boot-gate.md](decisions/2026-08-01-db-provider-boot-gate.md) | `DB_PROVIDER` 부팅 게이트 완화 (C5) |
+| 문서 | 한 줄 요약 | 언제 읽나 (요약) |
+|------|------------|------------------|
+| [tech-choices.md](decisions/tech-choices.md) | 핵심 기술 선택 배경 | 이력 — 컷오버·다중사용자 ADR·overview 대체 |
+| [db-provider-pattern.md](decisions/db-provider-pattern.md) | Repository 팩토리 패턴 | 이력 — 무인자 SQLite factory는 컷오버 ADR 정본 |
+| [organization-code-removal.md](decisions/organization-code-removal.md) | Organization 코드 제거 | 이력 — orgs 도메인 제거됨 |
+| [provider-migration.md](decisions/provider-migration.md) | DB/Auth Provider 추상화 (역사 — 컷오버로 single-stack) | 이력 — Provider 이중화 폐기 |
+| [2026-04-26-repository-utils-extraction.md](decisions/2026-04-26-repository-utils-extraction.md) | Repository 공통 유틸 추출 | `repositories/utils`·pagination·rowMapper 손댈 때 |
+| [2026-04-26-ci-eslint-migration.md](decisions/2026-04-26-ci-eslint-migration.md) | CI ESLint (`next lint` 제거) | `lint` 스크립트·`eslint.config.mjs`·CI Lint 손댈 때 |
+| [2026-04-26-coverage-improvement-retrospective.md](decisions/2026-04-26-coverage-improvement-retrospective.md) | 커버리지 개선 회고 (PR #45·#46) | coverage.include·Codecov vs Sonar·모듈 플래그 테스트 |
+| [2026-04-26-sonarcloud-security-a11y-coverage.md](decisions/2026-04-26-sonarcloud-security-a11y-coverage.md) | SonarCloud 보안·a11y·커버리지 | DOMPurify ADD_TAGS·validateSecurity·키보드 a11y |
+| [2026-04-29-generation-success-rate-improvement.md](decisions/2026-04-29-generation-success-rate-improvement.md) | 생성 성공률 Phase 2 | ClaudeProvider 타임아웃·QL 타임아웃·qc-stats·STAGE3 |
+| [2026-04-30-accuracy-gate-and-visibility.md](decisions/2026-04-30-accuracy-gate-and-visibility.md) | 정확도 게이트·가시화 | Stage2 트리거·placeholder·STRICT_ADOPTION·LRUMap |
+| [2026-05-01-api-catalog-verification.md](decisions/2026-05-01-api-catalog-verification.md) | 카탈로그 전수 검증 | 이력 — 2026-05-01 검증 스냅샷 |
+| [2026-05-01-api-catalog-immediate-usable-cleanup.md](decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md) | 즉시 사용 가능 기준 정리 | `is_active` 기준·즉시사용/지속무료 정책으로 정리할 때 |
+| [2026-05-01-developer-key-api-reactivation.md](decisions/2026-05-01-developer-key-api-reactivation.md) | 개발자 키 API 재활성화 | 플랫폼 키 env로 키 의존 API 재활성화·`env_var` 정합 |
+| [2026-05-03-production-incident-et-api-migration.md](decisions/2026-05-03-production-incident-et-api-migration.md) | ET 마이그레이션 연쇄 장애 회고 | thinking/ET·QL 타임아웃·browserPool·genStatus 고착 (인시던트) |
+| [2026-05-03-quality-loop-restoration-et-timeout.md](decisions/2026-05-03-quality-loop-restoration-et-timeout.md) | Quality Loop·ET 타임아웃 분리 | `QUALITY_LOOP_*` env·ET 전용 타임아웃·STRICT_ADOPTION |
+| [2026-05-04-proxy-response-cache.md](decisions/2026-05-04-proxy-response-cache.md) | 프록시 LRU+TTL 캐시 | `proxyCache`·`buildCacheKey`·`cache_ttl_seconds` |
+| [2026-05-04-unsplash-attribution-auto-injection.md](decisions/2026-05-04-unsplash-attribution-auto-injection.md) | Unsplash attribution 자동 삽입 | `injectUnsplashAttribution`·Unsplash 프롬프트 귀속 |
+| [2026-05-22-playwright-core-nft-browsers-json-fix.md](decisions/2026-05-22-playwright-core-nft-browsers-json-fix.md) | playwright-core browsers.json nft 수정 | Dockerfile `browsers.json` 복사·standalone/nft (7일 500) |
+| [2026-05-23-security-audit-findings.md](decisions/2026-05-23-security-audit-findings.md) | 보안 감사 C-1·H-2~H-11 | iframe sandbox·ENV denylist·QL validateAll·CSP connect-src |
+| [2026-06-09-test-flaky-timeout-contention-fix.md](decisions/2026-06-09-test-flaky-timeout-contention-fix.md) | Vitest full-suite 플래키 타임아웃 | `testTimeout`/`hookTimeout`·api cold-import 모킹 |
+| [2026-06-09-service-health-audit-fixes.md](decisions/2026-06-09-service-health-audit-fixes.md) | 서비스 건강 감사 16건 | `not_found` 폴링·리밋 환불·bypass 로깅·Stage3 userPrompt |
+| [2026-06-21-api-catalog-health-monitoring.md](decisions/2026-06-21-api-catalog-health-monitoring.md) | 카탈로그 헬스·키 검증 자동화 | keys-verify·verify-catalog·`looksLikeErrorBody` (2xx+에러본문 인시던트) |
+| [2026-06-22-node22-supabase-websocket-fix.md](decisions/2026-06-22-node22-supabase-websocket-fix.md) | Node 22 고정 | `engines.node`·CI·Dockerfile Node 버전 변경 시 |
+| [2026-06-22-verification-status-consumption.md](decisions/2026-06-22-verification-status-consumption.md) | verification_status AI 추천 소비 | `suggest-apis` broken 제외·verified 우선·browsing 비가림 |
+| [2026-06-22-catalog-registration-and-seed-resync.md](decisions/2026-06-22-catalog-registration-and-seed-resync.md) | Countries 등록·시드 재동기화 | countries 카탈로그·`apiCatalog.json`·ensureCatalog 시드 |
+| [2026-06-23-sqlite-cutover-and-supabase-removal.md](decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md) | SQLite 컷오버·Supabase 제거 | Provider 분기 재도입·Supabase/pg 복귀·factory 해체 시 |
+| [2026-06-24-public-signup-multi-user-auth.md](decisions/2026-06-24-public-signup-multi-user-auth.md) | 공개 회원가입·다중 사용자 | signup·authorize·auth_tokens·assertEmailVerified·Resend |
+| [2026-07-28-better-sqlite3-v13-napi-prebuilds.md](decisions/2026-07-28-better-sqlite3-v13-napi-prebuilds.md) | better-sqlite3 v13 N-API 프리빌트 | `onlyBuiltDependencies` 빈 배열·b-sqlite3 메이저·Docker 빌드툴 |
+| [2026-07-28-dependency-security-updates.md](decisions/2026-07-28-dependency-security-updates.md) | 의존성 보안·audit 2단계 | `pnpm audit` 2단계·overrides·ignoreGhsas·Dependabot 일괄 |
+| [2026-07-28-published-site-proxy-authz.md](decisions/2026-07-28-published-site-proxy-authz.md) | 게시 사이트 프록시 인가 | `SUBDOMAIN_PASSTHROUGH`·`resolveProxyContext`·site 인가 (H-1) |
+| [2026-07-29-medium-audit-findings.md](decisions/2026-07-29-medium-audit-findings.md) | 검수 MEDIUM 항목 | AbortSignal·`charged` 환불·x-real-ip·활성 버킷 eviction 금지 |
+| [2026-07-29-durable-generation-lock.md](decisions/2026-07-29-durable-generation-lock.md) | DB generation lock | `generationLock`·`GENERATION_LOCK_*`·tracker 역할 분리 |
+| [2026-07-29-proxy-cache-key-identity.md](decisions/2026-07-29-proxy-cache-key-identity.md) | 캐시 키 키-신원 | `buildCacheKey` 4번째 `keyIdentity`·`keyFingerprint` 필수 |
+| [2026-07-29-site-proxy-abuse-monitoring.md](decisions/2026-07-29-site-proxy-abuse-monitoring.md) | site 프록시 오남용 지표 | `site-proxy-stats`·프로젝트 한도 로그·SITE_PROXY_* 조정 |
+| [2026-07-29-llm-model-upgrade-opus5.md](decisions/2026-07-29-llm-model-upgrade-opus5.md) | Opus 5 상향·thinking 규약 | `AI_MODEL_*`·ALLOWED 목록·thinking disabled/adaptive |
+| [2026-07-30-account-delete-and-export.md](decisions/2026-07-30-account-delete-and-export.md) | 계정 삭제·내보내기·유령 세션 | `cascadeDeleteUser`·export·`getAuthUser` DB 행 확인 |
+| [2026-07-30-login-rate-limit.md](decisions/2026-07-30-login-rate-limit.md) | 로그인 레이트리밋 | `authorizeWithLoginRateLimit`·로그인 IP/계정 버킷·return null |
+| [2026-07-30-monitoring-sink-slack-only.md](decisions/2026-07-30-monitoring-sink-slack-only.md) | Slack-only sink·백업 경보 | `sendSlackAlert`·errorRateMonitor·scheduleBackups 경보 |
+| [2026-07-30-suggestion-daily-quota-separation.md](decisions/2026-07-30-suggestion-daily-quota-separation.md) | AI 추천 일일 쿼터 분리 | `suggestion_count`·`MAX_DAILY_SUGGESTIONS`·suggest-* 차감 |
+| [2026-08-01-remove-external-deploy-stack.md](decisions/2026-08-01-remove-external-deploy-stack.md) | 외부 deploy export 스택 제거 | deploy 재도입·GITHUB/RAILWAY_TOKEN 사용 검토 시 |
+| [2026-08-01-remove-unused-sentry-scaffolding.md](decisions/2026-08-01-remove-unused-sentry-scaffolding.md) | 미사용 Sentry 스캐폴딩 제거 (C4(b)) | Sentry 재도입·withSentryConfig·SENTRY_DSN 검토 시 |
+| [2026-08-01-db-provider-boot-gate.md](decisions/2026-08-01-db-provider-boot-gate.md) | `DB_PROVIDER` 부팅 게이트 완화 (C5) | `assertSqliteEnv`·`DB_PROVIDER` 미설정·health≠DB 정상 |
 
 ---
 

@@ -1,5 +1,7 @@
 # ADR: 프록시 응답 캐시 — LRU+TTL 인메모리 캐시 도입 (2026-05-04, PR #101)
 
+> **언제 읽나**: proxyCache.ts·buildCacheKey·cache_ttl_seconds(cacheTtlSeconds) 또는 /api/v1/proxy GET 캐시 조건을 손댈 때
+
 ## 배경
 
 CustomWebService의 API 프록시(`/api/v1/proxy`)는 사용자 서비스에서 외부 API를 호출할 때 서버사이드 릴레이 역할을 한다. 이 아키텍처에서는 동일한 사용자 요청이 반복될 때마다 업스트림 외부 API 호출이 발생한다.

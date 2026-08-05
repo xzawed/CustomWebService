@@ -1,5 +1,7 @@
 # ADR: 코드 생성 성공률 개선 — Phase 2 (2026-04-29)
 
+> **언제 읽나**: ClaudeProvider 타임아웃/Retry-After, QUALITY_LOOP_ITERATION_TIMEOUT_MS, validateSecurity 인라인 script 경고 강등, qc-stats realSuccessRate, STAGE3_FALLBACK_USED 를 손댈 때
+
 ## 배경
 
 프로덕션 운영 중 코드 생성 파이프라인에서 세 가지 범주의 문제가 반복적으로 발생했다.

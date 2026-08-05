@@ -1,5 +1,7 @@
 # ADR: 서비스 종합 건강 감사 및 발견 항목 수정
 
+> **언제 읽나**: pollGenerationStatus 의 not_found, 레이트리밋 환불(pendingDecrement)·RATE_LIMIT_BYPASS 로깅, Stage 3 userPrompt 보존, test:integration 스크립트 범위를 손댈 때
+
 - 날짜: 2026-06-09
 - 상태: 채택
 - 관련 브랜치: `fix/audit-findings-batch`
