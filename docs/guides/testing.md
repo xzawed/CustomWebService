@@ -264,7 +264,7 @@ push/PR
 
 새 fetch 엔드포인트는 `src/test/mocks/handlers.ts`에 핸들러 필수.
 
-**caveat**: MSW `'error'`가 비동기 전파상 테스트를 항상 빨갛게 만들지는 않는다(MSW #946/#943). **전체 통과 ≠ 미처리 요청 부재.**
+**해소됨(2026-08-04, E7)**: 예전에는 MSW `'error'`가 비동기 전파상 테스트를 항상 빨갛게 만들지 못해 "전체 통과 ≠ 미처리 요청 부재"였다(MSW #946/#943). 지금은 `src/test/setup.ts`가 `onUnhandledRequest` **콜백으로 기록 + `afterEach` 단언**을 하므로 앱이 `.catch()`로 삼킨 요청도 테스트를 실패시킨다. **이 단언을 걷어내면 caveat가 되살아난다.**
 
 ### `coverage.include` 누락
 

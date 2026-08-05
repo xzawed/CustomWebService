@@ -1,6 +1,7 @@
 # ADR: Repository 공통 유틸리티 추출
 
-> **언제 읽나**: src/repositories/utils/ 의 normalizePagination·toDatabaseRow·isNotFound 를 손대거나 Repository 공통 매핑을 추가할 때
+> **언제 읽나**: `src/repositories/utils/` 의 `normalizePagination`·`toDatabaseRow`·`buildConditions`·`parseEndpoints` 를 손대거나 Repository 공통 매핑을 추가할 때
+> (본문의 `isNotFound`는 Supabase 시절 헬퍼로 **SQLite 컷오버 때 제거됨** — 현행 코드에 없다)
 
 > **날짜:** 2026-04-26
 > **상태:** 완료

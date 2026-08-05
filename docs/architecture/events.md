@@ -158,7 +158,7 @@ unsubscribe(); // on() 반환값을 호출하면 구독 취소
 ## EventRepository (감사 로그)
 
 모든 도메인 이벤트는 `platform_events` 테이블에 비동기 영속화됨.  
-**파일:** `src/repositories/eventRepository.ts`
+**파일:** 인터페이스 `src/repositories/interfaces/IEventRepository.ts` · 구현 `src/repositories/sqlite/SqliteEventRepository.ts` · 생성 `createEventRepository()`(`src/repositories/factory.ts:43`)
 
 **현재 표준 패턴:** `eventPersister`(`src/lib/events/eventPersister.ts`)가 `eventBus`를 구독하여 모든 `DomainEvent`를 자동으로 `platform_events`에 기록합니다. 서버 시작 시 `registerEventPersister()`를 1회 호출하면 이후 모든 `eventBus.emit()` 호출이 자동으로 DB에 기록됩니다.
 

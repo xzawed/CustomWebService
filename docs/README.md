@@ -51,7 +51,7 @@
 | 경로 | 내용 |
 |------|------|
 | [`CLAUDE.md`](../CLAUDE.md) | 에이전트 필수 규칙·스택 요약 (단일 규칙서) |
-| [`Agents.md`](../Agents.md) | **포인터 only** — 규칙 본문 금지 |
+| [`AGENTS.md`](../AGENTS.md) | **포인터 only** — 규칙 본문 금지 |
 | [`README.md`](../README.md) | 제품 정문·설치 퀵스타트 |
 | [`.env.example`](../.env.example) | 로컬 스타터 env (코드가 읽는 변수만) |
 | [`.claude/commands/`](../.claude/commands/) | 슬래시 커맨드 체크리스트 5종 |

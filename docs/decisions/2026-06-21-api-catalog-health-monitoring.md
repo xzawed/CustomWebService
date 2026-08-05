@@ -4,6 +4,8 @@
 
 > **언제 읽나**: 카탈로그 API를 활성화·비활성화하거나, keys-verify / verify-catalog / healthCheck.classifyResponse·looksLikeErrorBody 를 손댈 때 — 상태코드만 보던 검증이 2xx+에러 본문 API를 프로덕션에 방치한 인시던트
 
+> ⚠️ **본문의 CLI는 전부 제거됐다** — `pnpm catalog:healthcheck` · `catalog:healthcheck:write` · `keys:verify` 는 SQLite 컷오버로 사라졌고 `scheduled.yml` 일일 잡도 없다. **현행 수단은 런타임 관리자 엔드포인트**: `GET /api/v1/admin/keys-verify`(진단·단발) · `POST /api/v1/admin/verify-catalog`(수동 트리거) · `POST /api/v1/admin/catalog/{activate,deactivate}`. 분류 로직 `src/lib/catalog/healthCheck.ts` 는 그대로 살아 있다. 아래 본문은 **결정 당시의 기록**으로 읽을 것.
+
 ## 컨텍스트
 
 "제공 중인 API가 정상 동작하는지, 그 과정이 WBS 기준으로 수행되는지"를 다이나믹 워크플로우 + 딥리서치로 전수 검증했다. 활성 31개 API를 라이브로 호출하고 독립 교차검증(15 에이전트)했다.
