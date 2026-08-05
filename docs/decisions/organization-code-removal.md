@@ -1,5 +1,7 @@
 # Organization 코드 제거 결정
 
+> **언제 읽나**: 이력 참고용 — 현행 규칙 아님. Organization 도메인은 제거됐고 SQLite 스키마에도 orgs/memberships 없음(organization_id 컬럼만 잔존); database.md·2026-06-23 컷오버 ADR 참고
+
 **날짜**: 2026-04-13
 
 > **상태:** Superseded — Organizations 코드·테이블 시드는 제거 경로를 거쳤고 SQLite 스키마에도 orgs/memberships 테이블이 없다(`organization_id` 컬럼만 nullable 잔존). · 대체: [database.md](../architecture/database.md), [2026-06-23 컷오버 ADR](2026-06-23-sqlite-cutover-and-supabase-removal.md)

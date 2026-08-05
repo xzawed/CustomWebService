@@ -1,5 +1,7 @@
 # ADR: SonarCloud 품질 게이트 수정 — 보안·접근성·커버리지 (2026-04-26)
 
+> **언제 읽나**: codeParser DOMPurify·ADD_TAGS, validateSecurity 인라인 script, 또는 ApiCard/PublishDialog 키보드 접근성을 손댈 때
+
 ## 배경
 
 SonarCloud 품질 게이트가 FAILED 상태였음:

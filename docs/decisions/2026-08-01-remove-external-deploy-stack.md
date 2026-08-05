@@ -1,5 +1,7 @@
 # 외부 배포 스택 제거 (GitHub/Railway 사용자 서비스 export)
 
+> **언제 읽나**: deploy 라우트/DeployService 재도입, GITHUB_TOKEN·GITHUB_ORG·RAILWAY_TOKEN 사용, 또는 health checks.deploy 부활을 검토할 때 — 제품 배포는 서브도메인 publish 만
+
 - 날짜: 2026-08-01
 - 상태: 채택
 - 관련: WBS A1–A5 ([2026-07-31-project-wbs.md](../superpowers/plans/2026-07-31-project-wbs.md))

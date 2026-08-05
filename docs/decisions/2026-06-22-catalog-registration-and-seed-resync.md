@@ -1,5 +1,7 @@
 # 카탈로그 등록(B-3 완료) & seed.sql 전면 재동기화(B-5) — ADR
 
+> **언제 읽나**: countries 카탈로그 등록·successor_id, apiCatalog.json/seedFeatureFlags 시드, ensureCatalogEntries 를 손대거나 카탈로그를 프로덕션과 재동기화할 때
+
 - 날짜: 2026-06-22
 - 상태: 완료 (프로덕션 반영 + seed.sql 커밋)
 - 배경: 2026-06-22 잔여작업 핸드오프의 후속 항목 B-3(마지막 단계)·B-5 처리.

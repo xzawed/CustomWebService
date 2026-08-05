@@ -1,5 +1,7 @@
 # ADR: CI Lint 인프라 — next lint 제거, eslint src 직접 호출
 
+> **언제 읽나**: package.json 의 lint/lint:fix 스크립트, eslint.config.mjs, 또는 CI Lint 잡을 손댈 때 (next lint 제거·ESLint flat config 전환 배경)
+
 > **날짜:** 2026-04-26
 > **상태:** 완료
 

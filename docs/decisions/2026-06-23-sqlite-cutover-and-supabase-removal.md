@@ -1,5 +1,7 @@
 # ADR: SQLite 프로덕션 컷오버 + Supabase/Postgres/OAuth 코드 완전 제거 (P8.2)
 
+> **언제 읽나**: DB_PROVIDER/AUTH_PROVIDER 분기 재도입, Supabase/pg 의존성 복귀, 무인자 factory 해체, 또는 SQLite 단일 스택을 흔들 때
+
 - 날짜: 2026-06-23
 - 상태: 채택 (구현 완료, `feat/sqlite-migration` 브랜치)
 - 관련: [DB 제거 → SQLite 전환 WBS(역사)](../archive/superpowers/plans/2026-06-22-db-removal-sqlite-migration.md) §0 / Phase 8, [컷오버 런북(역사)](../archive/guides/sqlite-cutover-runbook.md)

@@ -1,5 +1,7 @@
 # ADR: 정확도 게이트 회귀 방지·가시화·개선 통합 작업 (2026-04-30)
 
+> **언제 읽나**: staticNeedsStage2·hardcodedArrayCount, placeholderPatterns, QUALITY_LOOP_STRICT_ADOPTION, generationTracker/proxy LRUMap, STAGE_SKIPPED/QUALITY_LOOP_COMPLETED·qc-stats 가시화를 손댈 때
+
 ## 배경
 
 프로덕션 운영 중 AI 코드 생성 서비스(slug.xzawed.xyz). 사용자가 입력한 컨텍스트와 선택한 API에 맞춰 HTML/CSS/JS를 생성. **사용자 페이지가 요구사항대로 정확하게 생성되는 것이 최우선** 요구사항.

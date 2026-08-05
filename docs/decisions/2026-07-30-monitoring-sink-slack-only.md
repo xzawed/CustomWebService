@@ -1,5 +1,7 @@
 # 알림 sink를 Slack으로 고정하고 백업 실패를 배선 (#220)
 
+> **언제 읽나**: sendSlackAlert·SLACK_WEBHOOK_URL, errorRateMonitor, scheduleBackups 실패/복구 경보 배선(상태 전이·voided alert)을 손댈 때 — Sentry SaaS 미도입·Slack-only
+
 - 날짜: 2026-07-30
 - 상태: 채택
 - 관련: [#220](https://github.com/xzawed/CustomWebService/issues/220), PR #231

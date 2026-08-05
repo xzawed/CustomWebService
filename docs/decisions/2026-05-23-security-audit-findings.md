@@ -1,5 +1,7 @@
 # 보안 감사 발견 항목 수정 ADR
 
+> **언제 읽나**: preview iframe sandbox, proxy ENV_VAR_DENYLIST, quality loop validateAll 재검증, CSP connect-src(buildSiteCsp), ENCRYPTION_KEY 빈값 처리, AbortError 재시도를 손댈 때
+
 **날짜:** 2026-05-23  
 **PR:** [#129](https://github.com/xzawed/CustomWebService/pull/129) (C-1·H-2·H-3·H-4·H-9), [#131](https://github.com/xzawed/CustomWebService/pull/131) (H-5·H-6·H-7·H-8·H-10·H-11)  
 **상태:** 완료

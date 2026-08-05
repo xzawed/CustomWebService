@@ -1,5 +1,7 @@
 # verification_status 신선도 유지 + AI 추천 소비 (B-2)
 
+> **언제 읽나**: suggest-apis 후보 필터, verification_status(broken 제외·verified 우선), catalogRepository.search 가시성, verifyRunner 쓰기 경로를 손댈 때
+
 - 날짜: 2026-06-22
 - 상태: 적용 (PR `feat/verification-status-consumption`)
 - 선행: [2026-06-21-api-catalog-health-monitoring.md](2026-06-21-api-catalog-health-monitoring.md) 잔여작업 "verification_status 소비(P1)"

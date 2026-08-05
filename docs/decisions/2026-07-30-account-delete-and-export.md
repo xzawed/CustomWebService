@@ -1,5 +1,7 @@
 # 계정 삭제 · 데이터 내보내기 (#221)
 
+> **언제 읽나**: cascadeDeleteUser·계정 DELETE, GET /api/v1/auth/export, getAuthUser DB 행 확인(유령 세션 차단), deletedUserId/payload 익명화를 손댈 때
+
 - 날짜: 2026-07-30
 - 상태: 채택
 - 관련: [#221](https://github.com/xzawed/CustomWebService/issues/221), PR #233

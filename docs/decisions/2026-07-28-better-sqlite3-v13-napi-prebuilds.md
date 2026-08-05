@@ -1,5 +1,7 @@
 # better-sqlite3 v13 상향 — N-API 프리빌트 전환 및 빌드 툴체인 제거 (2026-07-28)
 
+> **언제 읽나**: pnpm.onlyBuiltDependencies(빈 배열 유지), better-sqlite3 메이저 상향, Dockerfile 네이티브 빌드 툴체인(g++/make/python3)을 손댈 때 — 키 삭제 시 pnpm 9에서 node-gyp 가 되살아남
+
 ## 상태
 
 승인됨 — 구현 완료

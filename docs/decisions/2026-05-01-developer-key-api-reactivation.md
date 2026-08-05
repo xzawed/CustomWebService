@@ -1,5 +1,7 @@
 # 개발자 키 제공 방식 API 재활성화 ADR (2026-05-01)
 
+> **언제 읽나**: 플랫폼 키 env(DATA_GO_KR_API_KEY·KAKAO_REST_API_KEY·UNSPLASH_ACCESS_KEY 등)로 키 의존 API를 재활성화하거나 auth_config.env_var 를 맞출 때
+
 ## 컨텍스트
 
 2026-05-01 즉시 사용 가능 기준 정리([docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md](2026-05-01-api-catalog-immediate-usable-cleanup.md))에서 24개 API를 `is_active=false`로 비활성화했다. 비활성화 사유는 "API 키 등록 필요 — 즉시 사용 불가".

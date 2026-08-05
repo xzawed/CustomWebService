@@ -1,5 +1,7 @@
 # playwright-core browsers.json nft 추적 실패 수정
 
+> **언제 읽나**: Dockerfile 의 playwright-core browsers.json 복사, next standalone/nft, browserPool·ENABLE_RENDERING_QC 경로를 손댈 때 — 7일간 generate/regenerate 500 인시던트
+
 **Status**: Accepted  
 **Date**: 2026-05-22  
 **PR**: #125, #127

@@ -1,5 +1,7 @@
 # `DB_PROVIDER` 부팅 게이트 완화 — 미설정을 장애로 취급하지 않는다
 
+> **언제 읽나**: assertSqliteEnv·getSqliteDb, DB_PROVIDER 미설정 처리, 테스트 환경 SQLITE_PATH 강제, 또는 health 의 checks.database 해석을 손댈 때 — health 200 ≠ DB 정상
+
 - 날짜: 2026-08-01
 - 상태: 채택
 - 관련: WBS C5, [2026-06-23 SQLite 컷오버 ADR](2026-06-23-sqlite-cutover-and-supabase-removal.md)

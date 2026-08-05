@@ -1,5 +1,7 @@
 # Node 22 전면 상향 — supabase-js 2.108 eager WebSocket 가드 대응 (#154 근본 원인)
 
+> **언제 읽나**: package.json engines.node, CI node-version, Dockerfile node:*-alpine 을 바꾸거나 Node 다운그레이드를 검토할 때 — Node 20 + 구 supabase-js 조합이 createClient 에서 크래시
+
 - 날짜: 2026-06-22
 - 상태: 적용 (PR `fix/node22-supabase-websocket`)
 - 관련 이슈: #154 (카탈로그 헬스체크 "BROKEN 감지" — **오탐**)

@@ -1,5 +1,7 @@
 # ADR: Vitest full-suite 플래키 타임아웃 — 경합 기인 cold-import 지연 해소
 
+> **언제 읽나**: vitest.config.ts 의 testTimeout/hookTimeout·maxWorkers, 또는 api 라우트 테스트 cold-import/vi.resetModules 패턴을 손댈 때
+
 - 날짜: 2026-06-09
 - 상태: 채택
 - 관련 PR: fix/test-flaky-timeout-config-providers-mock

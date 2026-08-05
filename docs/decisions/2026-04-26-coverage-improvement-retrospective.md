@@ -1,5 +1,7 @@
 # 커버리지 개선 회고 (2026-04-26)
 
+> **언제 읽나**: vitest coverage.include·Codecov·SonarCloud 숫자 불일치를 해석하거나, eventPersister 모듈 플래그·vi.resetModules 테스트를 손댈 때
+
 > PR #45 + PR #46 — 테스트 커버리지 대규모 개선 작업 전체 회고
 
 ## 최종 성과

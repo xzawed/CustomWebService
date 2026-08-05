@@ -1,5 +1,7 @@
 # 게시 사이트 프록시 복구 및 인가 모델 정비 (2026-07-28)
 
+> **언제 읽나**: middleware SUBDOMAIN_PASSTHROUGH_PREFIXES, resolveProxyContext, site/app 프록시 인가, assertOwner, siteRateLimit 을 손댈 때 — 서브도메인 /api/v1/proxy 404·익명 401·개인 키 IDOR(H-1) 인시던트
+
 ## 상태
 
 승인됨 — 구현 완료 · **실환경 검증 완료(2026-07-29)**
