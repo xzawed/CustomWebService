@@ -24,9 +24,11 @@ const CORRECTIONS = ['Dog API', 'Lorem Picsum'];
  * 구조 정정이 필요한 카탈로그 id 목록(명시·최소).
  * 값은 번들 JSON에서 읽어 오며, 전체 테이블 덮어쓰기는 하지 않는다.
  *
- * ⚠️ is_active·verification_status 는 절대 건드리지 않는다.
+ * ⚠️ **구조 패치는** is_active·verification_status 를 건드리지 않는다.
  * 재배포가 is_active를 덮어쓰면 오퍼레이터의 활성/비활성 판단이 조용히 롤백된다.
  * ensureFeatureFlags가 기존 행의 enabled를 덮어쓰지 않는 것과 같은 전례.
+ * (모듈 전체로는 예외가 하나 있다 — 위 `CORRECTIONS`는 이름 기준으로 매 부팅
+ * is_active=true 를 되돌린다. 아래 폐기 절차의 ⚠️를 볼 것.)
  *
  * ⚠️ 폐기(deprecation)는 2단계다.
  * 구조 패치는 `deprecated_at`만 동기화한다. 브라우징·추천은 `deprecated_at IS NULL`로
@@ -34,6 +36,10 @@ const CORRECTIONS = ['Dog API', 'Lorem Picsum'];
  * 찍혀 있고 `is_active=true`면 게시 사이트가 계속 업스트림을 친다.
  * 완전한 폐기는 (1) 번들 JSON + STRUCTURAL_PATCH_IDS 로 `deprecated_at`/설명 반영
  * → 배포 후 (2) `POST /api/v1/admin/catalog/deactivate` 로 `is_active=false` 를 따로 건다.
+ *
+ * ⚠️ 단, `CORRECTIONS`에 이름이 있는 API(Dog API · Lorem Picsum)는 (2)가 유지되지 않는다.
+ * 다음 부팅의 `ensureCatalogEntries`가 is_active=true 로 되돌린다. 이 둘을 폐기하려면
+ * 먼저 `CORRECTIONS`에서 이름을 빼야 한다.
  */
 const STRUCTURAL_PATCH_IDS: readonly string[] = [
   'c76876b5-a4d8-49cf-a0c9-0240daf3eb5e', // 한국관광공사 TourAPI → KorService2
