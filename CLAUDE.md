@@ -49,7 +49,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 
 ### G6. 도메인을 건드리기 전에 해당 ADR을 열 것
 
-`docs/decisions/` 42개 전부 첫 줄에 **`> 언제 읽나`** 트리거가 있다. 손대려는 파일·함수·env가
+`docs/decisions/`의 **모든 ADR** 첫 줄에 **`> 언제 읽나`** 트리거가 있다. 손대려는 파일·함수·env가
 그 트리거에 있으면 **읽고 시작한다.** ADR은 "왜 이렇게 됐는지"이고, 대부분 **이미 한 번 사고가 난 것**이다.
 
 ## 기술 스택
@@ -87,7 +87,7 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 | `lib/auth/local-auth*` | Credentials+JWT. **edge-safe 분할**(base/edge) — middleware에서 scrypt 쪽을 정적 import 금지 |
 | `lib/config/featureFlags` | DB 기반 운영 킬스위치. 재배포 없이 즉시 반영 · **fail-open** |
 | `lib/constants/cdn` | CSP CDN 화이트리스트 **단일 출처** (`buildSiteCsp`) |
-| `lib/db/sqlite/ensureCatalog` | 부팅 시 구조 동기화. **`is_active`·`verification_status`는 절대 안 건드린다** |
+| `lib/db/sqlite/ensureCatalog` | 부팅 시 구조 동기화(`is_active`·`verification_status` 미변경). **예외: `CORRECTIONS`(Dog API·Lorem Picsum) 2건은 매 부팅 `is_active=true`로 되돌린다** — 이 둘만은 deactivate가 유지되지 않는다 |
 | `lib/events/eventPersister` | 모든 도메인 이벤트 자동 DB 기록(감사 로그) |
 | `repositories/factory` | **무인자** SQLite 생성 — 클라이언트 주입 금지 |
 | `src/data/*.json` | 부팅 시드(프로덕션 미러). **JSON만 고쳐선 기존 행이 안 바뀐다** → `ensureCatalog` 구조 패치 |
@@ -157,7 +157,7 @@ pnpm ai:contract-check   # AI 규약 드리프트 검사 — 0 유지 / 1 드리
 - `APP_URL` — 이메일 링크(인증·재설정)의 공개 base URL (예: `https://xzawed.xyz`). 미설정 시 `NEXT_PUBLIC_ROOT_DOMAIN`→요청 origin 폴백. 프록시 뒤 0.0.0.0 링크 방지 + 호스트 헤더 미신뢰(reset poisoning 차단). 로직: `getBaseUrl`(`src/lib/auth/routeHelpers.ts`)
 - `SQLITE_PATH` — 기본 `/data/app.db`. **Railway Volume 마운트 필수** — 아니면 재배포마다 데이터가 사라진다
 - `ENCRYPTION_KEY` — 사용자 API 키 암호화 · `ADMIN_API_KEY` — 관리자 API 인증
-- `GENERATION_LOCK_STALE_MS` > `GENERATION_LOCK_HEARTBEAT_MS` — 어기면 `heartbeat × 2`로 **조용히 교정**된다
+- `GENERATION_LOCK_STALE_MS` > `GENERATION_LOCK_HEARTBEAT_MS` — 어기면 `heartbeat × 2`로 교정되며 `logger.warn`이 남는다(`config/generation.ts:32`)
 - `GITHUB_TOKEN` / `GITHUB_ORG` / `RAILWAY_TOKEN` — **제거됨·미사용**. 다시 쓰지 말 것 [ADR](docs/decisions/2026-08-01-remove-external-deploy-stack.md)
 
 > ⚠️ **빈 문자열은 "미설정"과 같다.** 코드가 `if (!value)`로 검사하므로 값이 `""`면 없는 것과 동일하게
@@ -196,7 +196,7 @@ pnpm ai:contract-check   # AI 규약 드리프트 검사 — 0 유지 / 1 드리
 | 슬래시 커맨드 체크리스트 only | [.claude/commands/](.claude/commands/) |
 
 - [README.md](README.md) — 제품 정문·설치 퀵스타트
-- [Agents.md](Agents.md) — **포인터 only** (규칙 본문 복제 금지)
+- [AGENTS.md](AGENTS.md) — **포인터 only** (규칙 본문 복제 금지)
 - [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) — PR 템플릿
 - [.scamanager/](.scamanager/) — pre-push 자동 코드리뷰 훅 (`install-hook.sh`로 설치)
 
@@ -205,7 +205,8 @@ pnpm ai:contract-check   # AI 규약 드리프트 검사 — 0 유지 / 1 드리
 이 서비스는 다수 사용자가 이용 중입니다. 배포 품질 = 서비스 신뢰도.
 
 ### CSP / 보안 헤더 변경 시
-- `src/middleware.ts`, `src/app/site/[slug]/route.ts`, `src/app/api/v1/preview/[projectId]/route.ts` 3개 파일을 반드시 동시에 확인 (전체 경로 기준 — 이름만으로는 못 찾음)
+- 헤더를 **set 하는 3곳**: `src/middleware.ts`, `src/app/site/[slug]/route.ts`, `src/app/api/v1/preview/[projectId]/route.ts` — 반드시 동시에 확인 (전체 경로 기준 — 이름만으로는 못 찾음)
+- 문자열을 **소유하는 2곳**: `src/middleware.ts`(앱 CSP 자체 배열) · `src/lib/constants/cdn.ts`(`buildSiteCsp`·`SITE_CSP`·`PREVIEW_CSP`). route 2개는 상수를 적용만 한다 — **CDN 허용을 고치는 곳은 route가 아니라 `cdn.ts`다**
 - CSP 헤더가 2중 적용되는 경로가 없는지 검증 (HTTP 표준: CSP 2개면 둘 다 적용)
 - 프롬프트가 사용하는 CDN이 CSP에서 허용되는지 확인
 
@@ -225,12 +226,12 @@ pnpm ai:contract-check   # AI 규약 드리프트 검사 — 0 유지 / 1 드리
 ### railway.toml `startCommand` 금지 (비root 실행 유지)
 - Railway는 **Dockerfile 배포에서 `startCommand`로 이미지의 `ENTRYPOINT`를 덮어쓴다**([공식 문서](https://docs.railway.com/deployments/start-command): *"the start command overrides the image's ENTRYPOINT in exec form"*)
 - `startCommand`를 지정하면 `Dockerfile`의 `/docker-entrypoint.sh`(→ `chown /data` + `su-exec nextjs:nodejs`)가 실행되지 않아 **컨테이너가 root로 뜬다**. Dockerfile에 `USER` 지시자가 없는 이유는 마운트 볼륨 쓰기 크래시 때문(의도적)
-- 기동 명령을 바꿔야 하면 `startCommand`가 아니라 `docker-entrypoint.sh`의 `exec su-exec ...` 줄을 고칠 것
+- 기동 명령을 바꿔야 하면 `startCommand`가 아니라 **`Dockerfile:78`의 `printf`가 생성하는** 엔트리포인트의 `exec su-exec ...` 부분을 고칠 것 (별도 `.sh` 파일은 저장소에 없다)
 - 2026-07-10 수정 이력: `startCommand = "node server.js"` 제거로 비root 실행 복원
 
 ### 클라이언트 IP 도출 규칙 (레이트리밋)
 - `x-forwarded-for`는 **최우측** 항목만 신뢰한다. 최좌측은 클라이언트가 위조할 수 있어 per-IP 리밋이 무력화된다
-- 단일 출처: `getClientIp()`(`src/lib/auth/rateLimit.ts`) — `adminAuth.verifyAdminKey()`와 동일 규칙. 새 리밋을 추가할 때 XFF를 직접 파싱하지 말 것
+- 단일 출처: `getClientIp()`(`src/lib/auth/rateLimit.ts`). 소비처는 `utils/adminAuth`·`auth/local-auth-config`·`auth/routeHelpers`·`api/v1/proxy/route` 4곳 — 새 리밋을 추가할 때 XFF를 직접 파싱하지 말 것
 - **`x-real-ip`는 신뢰하지 않는다**(2026-07-29). 신뢰 경계가 붙였다는 보장이 없어 클라이언트가 위조·회전할 수 있고, 폴백을 두면 XFF 없는 경로에서 per-IP 한도가 무력화된다. 식별 불가 시 `'unknown'` 단일 버킷으로 fail-closed
 
 ### 인메모리 레이트리밋 구현 규칙

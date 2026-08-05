@@ -217,7 +217,7 @@ for (const r of c) if (r.auth_config?.env_var)
 | 변수 | 기본값 | Railway | 설명 |
 |------|--------|---------|------|
 | `RATE_LIMIT_PER_MIN` | `60` | ➖ | proxy + admin 라우트 분당 요청 한도 (사용자/IP 단위) |
-| `MAX_CONCURRENT_RATE_LIMIT_USERS` | `1000` | ➖ | rate limit Map의 LRU evict 임계값 (활성 사용자/IP 한도). 초과 시 가장 오래된 항목 자동 evict — Railway 단일 인스턴스 메모리 누적 차단 |
+| `MAX_CONCURRENT_RATE_LIMIT_USERS` | `1000` | ➖ | proxy·admin 인메모리 리미터의 최대 버킷 수 (활성 사용자/IP 한도). 초과 시 **신규 키를 거부(과차단)** 한다 — **활성 윈도를 LRU evict 하지 않는다**(evict하면 다음 요청이 `count:1`로 시작해 한도가 우회됨). 코드: `api/v1/proxy/route.ts:41,46` · `utils/adminAuth.ts:69,73` |
 | `SITE_PROXY_RATE_LIMIT_PER_MIN` | `20` | ➖ | 익명 게시 사이트 프록시 — IP+projectId 단위 분당 한도 |
 | `SITE_PROXY_PROJECT_LIMIT_PER_MIN` | `120` | ➖ | 익명 게시 사이트 프록시 — 프로젝트 전역 분당 한도. 분산 IP로 한 오너의 API 키를 소진시키는 것을 막는 **실질 상한**. 도달 시 `logger.warn('Site proxy project limit reached')`가 버킷당 윈도 1회 남고, 사용량은 `GET /api/v1/admin/site-proxy-stats`로 확인한다. 조정 기준: [모니터링 ADR](../decisions/2026-07-29-site-proxy-abuse-monitoring.md) |
 | `MAX_SITE_RATE_LIMIT_BUCKETS` | `5000` | ➖ | site 리미터가 동시에 추적하는 최대 버킷 수. 초과 시 만료 항목만 정리하고 활성 카운터는 유지(한도 우회 방지) |
@@ -238,7 +238,7 @@ for (const r of c) if (r.auth_config?.env_var)
 | `ENABLE_RENDERING_QC` | `false` | ✅ **`true` 운영 중** | Playwright 렌더링 QC 활성화. Alpine 시스템 Chromium 사용 (`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`, PR #94에서 `browserPool.ts`에 executablePath 명시 전달 수정 완료) |
 | `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` | `/usr/bin/chromium` | ✅ **설정됨** | Alpine 이미지 내 Chromium 실행 파일 경로. `playwright-core`는 이 환경변수를 자동으로 읽지 않으므로 `browserPool.ts`에서 `chromium.launch({ executablePath: ... })`로 명시적 전달. |
 | `QUALITY_LOOP_ITERATION_TIMEOUT_MS` | `120000` | ✅ **`150000` 운영 중** | 품질 루프 반복당 타임아웃 (ms). ET 비활성 생성에 적용. 빈 문자열 또는 0 이하 값 설정 시 기본값 120000으로 폴백 |
-| `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` | `200000` | ✅ **`200000` 운영 중** | Extended Thinking 활성 시 품질 루프 반복당 타임아웃 (ms). ET 활성 조건(API ≥ 3개 또는 컨텍스트 ≥ 500자)에서만 사용. 미설정 시 기본값 200000(200초). ET 응답은 90~150초 소요되므로 `QUALITY_LOOP_ITERATION_TIMEOUT_MS`와 별도 관리 |
+| `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` | `200000` | ✅ **`200000` 운영 중** | Extended Thinking 활성 시 품질 루프 반복당 타임아웃 (ms). ET 활성 조건은 `evaluateComplexityScore() >= ET_COMPLEXITY_THRESHOLD`(기본 35)이며, "API 3개" 또는 "컨텍스트 500자" 단독으로는 임계에 도달하지 않는다(각각 5pt·15pt). 미설정 시 기본값 200000(200초). ET 응답은 90~150초 소요되므로 `QUALITY_LOOP_ITERATION_TIMEOUT_MS`와 별도 관리 |
 | `QUALITY_LOOP_MAX_ITERATIONS` | `2` | ✅ **`2` 운영 중** | 품질 루프 최대 반복 횟수. 기본 2회 (최대 3회 상한). **현재 2회 운영 중.** 낮출수록 총 생성 시간 단축 — Railway 300초 타임아웃 초과 방지용 |
 | `QUALITY_LOOP_STRICT_ADOPTION` | `true` | ➖ | 채택 가드: `true`(기본)는 한 점수 향상 + 다른 점수 동등 이상일 때만 retry 채택(시소 진동 방지). `false`로 설정 시 기존 OR 로직(한쪽 향상) 복원 — 운영 데이터 비교용 롤백 스위치 |
 | `PIPELINE_MAX_DURATION_MS` | `290000` | ➖ | 파이프라인 총 허용 시간(ms). Quality Loop 시작 전 `경과 시간 + iterationTimeout > 이 값`이면 반복 스킵. Railway 300초 한도를 고려해 기본값 290초(10초 여유). 미설정 시 290000 자동 사용 |

@@ -251,18 +251,22 @@ curl -fsS -H "Authorization: Bearer $ADMIN_API_KEY" \
 
 ### 4.1 Railway 배포 상태 해석
 
-Wait for CI가 활성이다. 신규 커밋은 CI 완료까지 `WAITING`에 머무를 수 있다.  
-**env 단독 변경 재배포가 항상 FAILED인 것은 아니다**(실증: 정상 `SUCCESS` 가능). `FAILED`면 **실제 실패로 보고 로그를 먼저 챙긴다** — 후속 배포로 대체되면 로그가 사라진다.
+Wait for CI가 활성이다. 신규 커밋은 CI 완료까지 `WAITING`에 머무를 수 있다(실측 ~2.5분).  
+**조용한 미배포가 2종 있다** — 둘 다 서비스는 이전 이미지로 멀쩡히 떠 있고 health도 200이라, 배포 목록을 직접 보지 않으면 알 수 없다. **병합 후에는 반드시 status가 `SUCCESS`인지 확인한다.**
 
 | 상황 | 해석 |
 |------|------|
 | 신규 커밋 · `WAITING` 지속 | 정상 — CI 완료 대기 |
-| env 단독 변경 · 같은 커밋 · `SUCCESS` | 정상 |
-| env 단독 변경 · 같은 커밋 · `FAILED` | **조사** — 로그 즉시 수집 |
-| 신규 커밋 · `BUILDING`/`DEPLOYING` 중 `FAILED` | 실제 배포 실패 |
+| env 단독 변경 · 같은 커밋 · `SUCCESS` | 정상 — env가 적용됐다 |
+| env 단독 변경 · 같은 커밋 · **`FAILED`** | 메타의 `builder`를 볼 것. `RAILPACK`이면 `railway.toml` 미적용 건이고 **로그는 비어 있는 것이 정상**이다(이미지 생성 전 실패). **env는 적용되지 않았다** |
+| 신규 커밋 · **`SKIPPED`** | **CI 실패로 배포 취소.** `gh run rerun`으로 CI를 green으로 만들어도 **되살아나지 않는다** |
+| 신규 커밋 · `BUILDING`/`DEPLOYING` 중 `FAILED` | 실제 배포 실패 — 로그 즉시 수집 |
 | 서비스 health 죽음 | 장애 — 롤백 검토 |
 
-상세·quirks: 프로젝트 지침 [CLAUDE.md — Railway 배포 상태 판별](../../Claude.md).  
+**`FAILED`·`SKIPPED` 복구는 동일하다: 커밋을 하나 올려 새 배포를 트리거한다.** env 값은 이미 저장돼 있어 그 배포에서 함께 적용된다.
+`FAILED`를 보면 로그를 즉시 수집한다(후속 배포로 대체되면 사라진다) — 단 위 RAILPACK 건은 로그가 비어 있는 것이 정상이니 메타를 봐야 한다.
+
+상세·실증 근거: [railway-deploy-troubleshooting.md](railway-deploy-troubleshooting.md) · 판별표 원본은 [CLAUDE.md — Railway 배포 상태 판별](../../CLAUDE.md).  
 `railway variables` 메타의 `patchId` 유무로 env 변경 재배포 vs 커밋 배포를 구분할 수 있다.
 
 ### 4.2 실패 배포 로그 수집 (대체되기 전)
@@ -281,7 +285,7 @@ railway logs -d <deployment-id>         # 런타임/배포
    `git tag -l 'deploy/*'`  
    성공 배포 후 관례: `git tag deploy/YYYY-MM-DD-HHmm && git push origin --tags`  
 2. 해당 커밋으로 재배포(Railway 대시보드 Rollback 또는 태그 커밋 재배포).  
-3. env/`railway.toml`/`startCommand` 함정: Dockerfile `ENTRYPOINT`를 덮어쓰면 비root·`/data` chown 경로가 깨질 수 있다 — [Claude.md 배포 품질 원칙](../../Claude.md).
+3. env/`railway.toml`/`startCommand` 함정: Dockerfile `ENTRYPOINT`를 덮어쓰면 비root·`/data` chown 경로가 깨질 수 있다 — [Claude.md 배포 품질 원칙](../../CLAUDE.md).
 
 ### 4.4 킬스위치 — 재배포 없이 즉시 멈추기 (2026-08-04~)
 
@@ -398,4 +402,4 @@ curl -s -X POST -H "Authorization: Bearer $ADMIN_API_KEY" \
 | [system-spec.md](../architecture/system-spec.md) | 깨면 사고 나는 불변조건 |
 | [incident-response.md](../security/incident-response.md) | 보안 인시던트 |
 | [2026-07-31-project-wbs.md](../superpowers/plans/2026-07-31-project-wbs.md) | 잔여 작업·관측 대기 항목 |
-| [Claude.md](../../Claude.md) | 프로젝트 헌법(배포 품질·Railway 판별·운영 함정) |
+| [CLAUDE.md](../../CLAUDE.md) | 프로젝트 헌법(배포 품질·Railway 판별·운영 함정) |

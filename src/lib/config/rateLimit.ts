@@ -22,7 +22,13 @@ export const RATE_LIMIT_PER_MIN = envInt('RATE_LIMIT_PER_MIN', 60);
 /** rate limit 윈도우(밀리초). 기본 60초. */
 export const RATE_LIMIT_WINDOW_MS = 60_000;
 
-/** 동시 활성 사용자 한도 (LRU evict 임계값). 기본 1000명. */
+/**
+ * 동시 활성 사용자(버킷) 한도. 기본 1000명.
+ *
+ * ⚠️ LRU evict 임계값이 **아니다**. 가득 차면 만료분만 정리하고, 그래도 자리가 없으면
+ * **신규 키를 거부(과차단)** 한다 — 활성 윈도를 버리면 다음 요청이 `count:1`로 시작해
+ * 한도가 우회되기 때문. 소비처: `api/v1/proxy/route.ts:41,46` · `utils/adminAuth.ts:69,73`.
+ */
 export const MAX_CONCURRENT_RATE_LIMIT_USERS = envInt('MAX_CONCURRENT_RATE_LIMIT_USERS', 1000);
 
 /**
