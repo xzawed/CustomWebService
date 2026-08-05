@@ -180,17 +180,14 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 | **배포했는데 반영이 안 될 때** (조용한 미배포 2종) | [docs/guides/railway-deploy-troubleshooting.md](docs/guides/railway-deploy-troubleshooting.md) |
 | SQLite 복구 런북 | [docs/guides/sqlite-restore-runbook.md](docs/guides/sqlite-restore-runbook.md) |
 | 시크릿 노출·회전 | [docs/security/incident-response.md](docs/security/incident-response.md) |
-| 에러 코드 | [docs/reference/error-codes.md](docs/reference/error-codes.md) |
+| **DB 스키마·시드·`ensureCatalog` 계약** | [docs/architecture/database.md](docs/architecture/database.md) |
 | 개발 환경·팩토리 규칙 | [docs/guides/development.md](docs/guides/development.md) |
 | 설계 결정(ADR) 전체 | [docs/decisions/](docs/decisions/) · 목록은 [docs/README.md](docs/README.md) |
-| 컷오버 등 **비실행** 역사 | [docs/archive/](docs/archive/) |
-| 문서 인덱스·anti-recurrence | [docs/README.md](docs/README.md) |
-| 슬래시 커맨드 체크리스트 only | [.claude/commands/](.claude/commands/) |
+| 문서 인덱스·anti-recurrence·**나머지 전부** | [docs/README.md](docs/README.md) |
 
-- [README.md](README.md) — 제품 정문·설치 퀵스타트
-- [AGENTS.md](AGENTS.md) — **포인터 only** (규칙 본문 복제 금지)
-- [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) — PR 템플릿
-- [.scamanager/](.scamanager/) — pre-push 자동 코드리뷰 훅 (`install-hook.sh`로 설치)
+여기 없는 문서(에러 코드·archive 역사·`.claude/commands`·`.claude/rules`·PR 템플릿·`.scamanager`)는
+**전부 [docs/README.md](docs/README.md)에 등재돼 있다.** 현재 시제 문서는 모두 첫 줄에
+`> **언제 읽나**` 트리거를 갖고 있으므로, 인덱스에서 제목만 보고 열지 말지 판단할 수 있다.
 
 ## 배포 품질 원칙 (필수)
 
