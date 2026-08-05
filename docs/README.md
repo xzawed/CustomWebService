@@ -46,6 +46,12 @@
 | [superpowers/](superpowers/) | 설계 초안·장기 계획. **현재 상태는 architecture/guides/reference/`CLAUDE.md` 우선** |
 | [archive/](archive/) | **역사 문서 (비실행).** 완료된 컷오버·마이그레이션 절차 |
 
+**파일명 규약** — 날짜가 붙는 두 곳만 고정이다(나머지는 주제 기반 kebab-case):
+
+- `superpowers/specs/` — 기능 설계 문서 `YYYY-MM-DD-<topic>-design.md`
+- `superpowers/plans/` — 구현 계획 `YYYY-MM-DD-<topic>.md`
+- `decisions/` — ADR `YYYY-MM-DD-<topic>.md`
+
 루트 보조:
 
 | 경로 | 내용 |
