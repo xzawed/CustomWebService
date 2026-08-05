@@ -204,6 +204,80 @@ for (const name of adrs) {
   }
 }
 
+// ── ⑤ .claude/rules 의 paths 글롭이 **실제로 파일에 매치되는가** ────────────
+// 경로가 실재하는지만 보면 부족하다. gitignore 시맨틱 매처에서 대괄호 리터럴은
+// 문자 클래스로 해석되어 `src/app/site/[slug]/route.ts` 같은 Next.js 동적 경로에
+// **영구 미발동**한다 — 파일은 실재하는데 규칙은 절대 안 뜬다.
+// 0매치는 "규칙이 존재하지만 아무 일도 하지 않는다"는 뜻이므로 위반으로 센다.
+const RULES_DIR = path.join(ROOT, '.claude/rules');
+
+/** 글롭 → 정규식. `**` = 임의 깊이, `*` = 세그먼트 내부, `?` = 한 글자 */
+function globToRegExp(glob: string): RegExp {
+  let re = '';
+  for (let i = 0; i < glob.length; i += 1) {
+    const c = glob[i];
+    if (c === '*') {
+      if (glob[i + 1] === '*') {
+        re += glob[i + 2] === '/' ? '(?:.*/)?' : '.*';
+        i += glob[i + 2] === '/' ? 2 : 1;
+      } else re += '[^/]*';
+    } else if (c === '?') re += '[^/]';
+    else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(`^${re}$`);
+}
+
+if (fs.existsSync(RULES_DIR)) {
+  const allRepoFiles: string[] = (function collect(dir: string, acc: string[] = []): string[] {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (/node_modules|[\\/]\.git$|\.next|coverage/.test(p)) continue;
+        collect(p, acc);
+      } else acc.push(rel(p));
+    }
+    return acc;
+  })(ROOT);
+
+  const ruleFiles = (function collect(dir: string, acc: string[] = []): string[] {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) collect(p, acc);
+      else if (e.name.endsWith('.md')) acc.push(p);
+    }
+    return acc;
+  })(RULES_DIR);
+
+  for (const f of ruleFiles) {
+    const src = fs.readFileSync(f, 'utf8');
+    const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(src);
+    if (!fm) continue; // paths 없는 규칙 = 무조건 로드. 검사 대상 아님
+    const pathsBlock = /paths:\s*\n((?:\s*-\s*.*\n?)+)/.exec(fm[1]);
+    if (!pathsBlock) continue;
+
+    for (const line of pathsBlock[1].split(/\r?\n/)) {
+      const m = /^\s*-\s*["']?(.+?)["']?\s*$/.exec(line);
+      if (!m) continue;
+      const glob = m[1];
+
+      if (glob.includes('[')) {
+        add(
+          '⑤ rules paths',
+          rel(f),
+          `\`${glob}\` — 대괄호는 글롭 매처에서 문자 클래스로 해석된다. ` +
+            `Next.js 동적 경로(\`[slug]\`)를 이렇게 쓰면 **영구 미발동**한다. 디렉터리 재귀형(\`dir/**\`)을 쓸 것`,
+        );
+        continue;
+      }
+      const reg = globToRegExp(glob);
+      const hits = allRepoFiles.filter((p) => reg.test(p)).length;
+      if (hits === 0) {
+        add('⑤ rules paths', rel(f), `\`${glob}\` 가 **0개 파일**에 매치된다 — 이 규칙은 절대 뜨지 않는다`);
+      }
+    }
+  }
+}
+
 // ── 보고 ──────────────────────────────────────────────────────────────────
 const byCheck = new Map<string, Violation[]>();
 for (const v of violations) {
@@ -215,7 +289,7 @@ for (const v of violations) {
 console.log(`문서 정합성 검사 — md ${allMd.length}개 · ADR ${adrs.length}개\n`);
 
 if (violations.length === 0) {
-  console.log('위반 없음 (4/4 통과)');
+  console.log('위반 없음 (5/5 통과)');
   process.exit(0);
 }
 
