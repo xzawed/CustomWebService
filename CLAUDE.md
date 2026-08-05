@@ -399,20 +399,9 @@ Sentry SaaS 도입.
 작업 세션을 시작할 때 아래 두 가지를 반드시 먼저 확인한다.
 
 1. **Railway 배포 상태** — `railway deployment list --json` (최신 배포 status·커밋 확인)
-2. **SonarCloud 품질 상태** — 아래 우선순위로 확인:
-   - **(기본)** SonarQube MCP 도구로 `xzawed_CustomWebService` 프로젝트 이슈·품질 게이트 조회
-   - **(차선 — MCP 미로드 시)** SonarCloud REST API로 대체 (`SONARCLOUD_TOKEN` 환경변수 또는 `~/.sonar-token` 파일에서 읽기):
-     ```bash
-     # 토큰 설정: echo "토큰값" > ~/.sonar-token && chmod 600 ~/.sonar-token
-     # 또는: export SONARCLOUD_TOKEN=토큰값
-     SONAR_TOKEN="${SONARCLOUD_TOKEN:-$(cat ~/.sonar-token 2>/dev/null)}"
-     # 품질 게이트
-     curl -s -u "$SONAR_TOKEN:" \
-       "https://sonarcloud.io/api/qualitygates/project_status?projectKey=xzawed_CustomWebService"
-     # 신규 이슈
-     curl -s -u "$SONAR_TOKEN:" \
-       "https://sonarcloud.io/api/issues/search?projectKeys=xzawed_CustomWebService&resolved=false&ps=5"
-     ```
+2. **SonarCloud 품질 상태** — SonarQube MCP 도구로 `xzawed_CustomWebService` 조회.
+   MCP 미로드 시 REST 폴백 절차(토큰 셋업·curl 2건)는 [operations.md §1.6](docs/guides/operations.md).
+   **게이트는 신규 코드만 본다** — PASS여도 기존 BLOCKER·CRITICAL은 따로 조회해야 한다
 
 이상 징후(배포 실패, 품질 게이트 FAILED, 신규 버그/취약점)가 있을 때만 사용자에게 보고한다. 정상이면 별도 보고 없이 작업을 진행한다.
 
@@ -447,13 +436,7 @@ Claude는 이 프로젝트에서 컨텍스트 업무를 정확하고 효율적�
 
 Claude는 프로젝트 문서의 파일명·위치·내용을 정확하고 이해하기 쉽게 관리합니다.
 
-**디렉터리 용도:**
-- `docs/architecture/` — 시스템 구조 설명
-- `docs/guides/` — 작업 절차 가이드
-- `docs/reference/` — API·환경변수 등 참조 자료
-- `docs/decisions/` — 설계 결정 배경 (ADR)
-- `docs/superpowers/specs/` — 기능 설계 문서 (`YYYY-MM-DD-<topic>-design.md`)
-- `docs/superpowers/plans/` — 구현 계획 (`YYYY-MM-DD-<topic>.md`)
+**디렉터리 용도·파일명 규약**: [docs/README.md](docs/README.md)의 폴더 표가 진실원이다.
 
 **규칙:**
 - 새 문서 추가·수정·삭제 시 [docs/README.md](docs/README.md) 인덱스를 갱신하고, 에이전트 필수 문서면 이 파일의 "문서 참조"에도 반영

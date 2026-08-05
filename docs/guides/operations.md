@@ -131,6 +131,28 @@ curl -X POST "$APP_URL/api/v1/admin/catalog/deactivate" \
 
 상세 필드 표·불변조건: [database.md §ensureCatalogEntries](../architecture/database.md).
 
+### 1.6 SonarCloud 품질 상태 조회
+
+세션 시작 시 품질 게이트를 본다. **우선순위 1은 SonarQube MCP 도구**(`xzawed_CustomWebService`
+프로젝트 이슈·품질 게이트 조회)이고, 아래는 **MCP가 로드되지 않았을 때의 REST 폴백**이다.
+토큰 셋업은 1회성이라 매 세션 읽을 필요가 없어 여기에 둔다.
+
+```bash
+# 토큰 설정: echo "토큰값" > ~/.sonar-token && chmod 600 ~/.sonar-token
+# 또는: export SONARCLOUD_TOKEN=토큰값
+SONAR_TOKEN="${SONARCLOUD_TOKEN:-$(cat ~/.sonar-token 2>/dev/null)}"
+# 품질 게이트
+curl -s -u "$SONAR_TOKEN:" \
+  "https://sonarcloud.io/api/qualitygates/project_status?projectKey=xzawed_CustomWebService"
+# 신규 이슈
+curl -s -u "$SONAR_TOKEN:" \
+  "https://sonarcloud.io/api/issues/search?projectKeys=xzawed_CustomWebService&resolved=false&ps=5"
+```
+
+> **품질 게이트는 신규 코드만 본다.** 게이트가 PASS여도 기존 코드의 BLOCKER·CRITICAL은
+> 그대로 남아 있을 수 있으므로, 필요하면 `issues/search`에 `severities=BLOCKER,CRITICAL`을
+> 붙여 **따로 조회**한다.
+
 ---
 
 ## 2. 모니터링·경보
