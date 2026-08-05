@@ -1,3 +1,4 @@
+<!-- DOC_STATUS: HISTORICAL | completed: 2026-04-14 | superseded_by: docs/architecture/ai-pipeline.md -->
 # 2단계 생성 파이프라인 설계 (Two-Stage Generation)
 
 ## 배경 및 목적

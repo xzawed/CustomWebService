@@ -1,3 +1,4 @@
+<!-- DOC_STATUS: HISTORICAL | completed: 2026-04-12 | superseded_by: docs/README.md -->
 # 문서 체계 재편성 디자인 — Claude Code 최적화
 
 **날짜**: 2026-04-12  

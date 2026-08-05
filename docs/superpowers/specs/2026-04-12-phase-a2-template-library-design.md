@@ -1,3 +1,4 @@
+<!-- DOC_STATUS: HISTORICAL | completed: 2026-04-12 | superseded_by: docs/architecture/ai-pipeline.md -->
 # Phase A-2 공식 템플릿 라이브러리 디자인
 
 **날짜**: 2026-04-12  

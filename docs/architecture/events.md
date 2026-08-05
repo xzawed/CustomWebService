@@ -1,5 +1,7 @@
 # 이벤트 시스템
 
+> **언제 읽나**: `EventBus`·`eventPersister`·`SqliteEventRepository`·`platform_events` 를 손대거나 새 도메인 이벤트를 추가할 때 (payload 키 규약·감사 로그 익명화)
+
 > **파일:** `src/lib/events/eventBus.ts`  
 > **패턴:** EventBus (발행/구독) + EventRepository (감사 로그 영속화)
 

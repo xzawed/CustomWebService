@@ -1,5 +1,7 @@
 # AI 코드 생성 파이프라인
 
+> **언제 읽나**: `generationPipeline.ts`·`promptBuilder.ts`·`qualityLoop.ts`·`evaluateComplexityScore`·Stage 1/2/3 프롬프트를 손댈 때. 복잡도 배점표와 ET 활성 조건이 여기 있다(**진실원은 코드** — 대조 후 고칠 것)
+
 > **최종 업데이트:** 2026-05-05
 
 ## 1. 개요

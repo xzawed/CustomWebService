@@ -1,5 +1,7 @@
 # QC 표준 프로세스
 
+> **언제 읽나**: QC 임계값(`QC_QUALITY_THRESHOLD`·`QC_MOBILE_THRESHOLD`·`QC_FAST_PASS_THRESHOLD`·`QC_DEEP_PASS_THRESHOLD`)·타임아웃(`QC_FAST_TIMEOUT_MS`·`QC_DEEP_TIMEOUT_MS`)·`QUALITY_LOOP_MAX_ITERATIONS`·`PIPELINE_MAX_DURATION_MS` 를 손댈 때, 또는 `codeValidator`·`qualityLoop`·`renderingQc`·`deepQcRunner` 를 고칠 때
+
 > 모든 코드 생성, 재생성, 수정, 개선 작업에 동일하게 적용되는 품질 검증 표준.
 
 ## 프로세스 요약

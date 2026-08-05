@@ -1,5 +1,7 @@
 # 에러 코드 레퍼런스
 
+> **언제 읽나**: `handleApiError`·`@/lib/utils/errors` 의 에러 클래스를 추가하거나 새 API 라우트의 에러 응답 형식을 정할 때. 관리자·킬스위치 코드는 `handleApiError` 를 거치지 않는다
+
 > **경로:** `src/lib/utils/errors.ts`
 
 ---

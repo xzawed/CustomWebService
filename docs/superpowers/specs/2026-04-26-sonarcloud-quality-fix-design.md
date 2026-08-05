@@ -1,3 +1,4 @@
+<!-- DOC_STATUS: HISTORICAL | completed: 2026-04-26 | superseded_by: docs/guides/testing.md, docs/reference/test-coverage-map.md -->
 # SonarCloud 품질 게이트 통과 설계
 
 **날짜**: 2026-04-26  

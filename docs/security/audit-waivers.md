@@ -1,5 +1,7 @@
 # 의존성 감사 면제 목록 (Audit Waivers)
 
+> **언제 읽나**: `pnpm audit` 가 CI를 막거나 `package.json` 의 `ignoreGhsas`·`overrides`(`pnpm` 블록)를 손댈 때
+
 CI는 두 단계로 `pnpm audit`을 실행한다 (`.github/workflows/ci.yml` → `lint-and-typecheck` 잡).
 
 | 단계 | 명령 | 성격 |

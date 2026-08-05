@@ -1,4 +1,12 @@
+<!-- DOC_STATUS: HISTORICAL | completed: 2026-05-01 | superseded_by: docs/guides/operations.md -->
 # 골든셋 API 목록
+
+> ⛔ **2026-05-01 스냅샷 — 현재 상태가 아니다.** 이 문서는 10개를
+> `verification_status = 'verified'` 집합이라고 적지만, 번들 시드 기준 실제 `verified`는
+> **46개**다(2026-08-06 실측). 활성/검증 상태의 **진실원은 DB**이며 운영 확인은
+> `GET /api/v1/admin/catalog-dump` 의 `summary`로 한다 —
+> [operations.md §1.4](../guides/operations.md).
+> 아래 목록은 **그날 무엇을 왜 골랐는지의 기록**으로만 읽을 것.
 
 검증 날짜: **2026-05-01** (전수 재검증 + 즉시 사용 가능 기준 정리)
 검증 방법: 4개 에이전트 병렬 WebFetch/WebSearch + DB 직접 확인

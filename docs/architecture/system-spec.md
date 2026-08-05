@@ -1,5 +1,7 @@
 # 시스템 명세 (SDD) — 불변조건과 계약
 
+> **언제 읽나**: 불변조건을 바꾸거나 새로 만들 때. 프록시 인가·캐시 키 신원·XFF·로그인 스로틀·WAL 체크포인트·삭제 캐스케이드처럼 **깨지면 조용히 사고 나는 규칙**의 원본이 여기에 있다 — `CLAUDE.md`의 요약본만 보고 고치지 말 것
+
 > **이 문서의 역할**: 구조 설명이 아니라 **"무엇이 참이어야 하는가"**를 모은 규범 계층이다.
 > 구조·흐름은 [overview.md](overview.md)·[database.md](database.md)·[ai-pipeline.md](ai-pipeline.md)·
 > [auth.md](auth.md)·[events.md](events.md)·[subdomain.md](subdomain.md)에 있고, 여기서는 반복하지 않는다.

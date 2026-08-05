@@ -1,5 +1,7 @@
 # 테스트 전략·검증 항목 가이드
 
+> **언제 읽나**: 새 테스트를 추가하거나 `vitest.config.ts`·`src/test/setup.ts`·MSW 핸들러·happy-dom 설정을 손댈 때. `coverage.include` 누락은 CI를 빨갛게 만든다
+
 > 이 문서는 CustomWebService의 테스트 구조, 모킹 전략, 실행 방법, 에이전트 함정을 설명한다.
 > 스택 진실원: 루트 [`CLAUDE.md`](../../CLAUDE.md) · [`docs/architecture/system-spec.md`](../architecture/system-spec.md).
 > 커버 범위·공백 지도: [`docs/reference/test-coverage-map.md`](../reference/test-coverage-map.md).
