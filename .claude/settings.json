@@ -27,6 +27,16 @@
     "deny": []
   },
   "hooks": {
+    "InstructionsLoaded": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{require('fs').appendFileSync('.claude/instructions-loaded.jsonl',d.trim()+'\\n')}catch(e){}})\""
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Bash(git push*)",
