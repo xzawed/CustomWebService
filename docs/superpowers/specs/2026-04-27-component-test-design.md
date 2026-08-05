@@ -1,3 +1,4 @@
+<!-- DOC_STATUS: HISTORICAL | completed: 2026-04-27 | superseded_by: docs/guides/testing.md -->
 # 설계 문서: React 컴포넌트 테스트 도입
 
 **날짜**: 2026-04-27  

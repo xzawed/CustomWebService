@@ -1,5 +1,7 @@
 # 테스트 커버 현황 지도 (TDD)
 
+> **언제 읽나**: 테스트를 추가한 뒤 `vitest.config.ts` 의 `coverage.include`·`codecov.yml`·`sonar-project.properties` 를 손댈 때. 괄호가 들어간 경로는 glob이 조용히 죽는다
+
 > **이 문서의 역할**: 어디가 검증되고 어디가 비어 있는지의 **현황 스냅샷**이다.
 > 테스트 작성 방법·전략은 [testing.md](../guides/testing.md)에 있고 여기서는 반복하지 않는다.
 >

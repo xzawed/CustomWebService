@@ -1,3 +1,4 @@
+<!-- DOC_STATUS: HISTORICAL | completed: 2026-07-28 | superseded_by: docs/decisions/2026-07-28-published-site-proxy-authz.md, docs/architecture/system-spec.md -->
 # 게시 사이트 프록시 복구 및 인가 모델 정비 설계 (2026-07-28)
 
 ## 배경

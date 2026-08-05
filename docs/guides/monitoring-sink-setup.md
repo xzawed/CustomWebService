@@ -1,5 +1,7 @@
 # 알림 sink 설정 및 검증 (#220)
 
+> **언제 읽나**: `SLACK_WEBHOOK_URL` 을 발급·등록·회전하거나 `sendSlackAlert`·경보 상태 전이 로직을 손댈 때
+
 > **상태**: ✅ **완료(2026-07-31).** 코드 배선(PR #231) → `SLACK_WEBHOOK_URL` 등록 → 합성 경보 도착 확인까지 끝났다.
 > 경보는 xzawed 워크스페이스 **`#alerts`** 채널(Slack 앱 `xzawed alerts`)로 간다.
 > 배경·결정·실측: [ADR](../decisions/2026-07-30-monitoring-sink-slack-only.md)

@@ -1,5 +1,7 @@
 # 데이터베이스 설계
 
+> **언제 읽나**: `drizzle` 스키마·`seedCatalog`·`ensureCatalogEntries`·`STRUCTURAL_PATCH_IDS`·WAL 백업을 손댈 때, 또는 `src/data/*.json` 시드를 고칠 때
+
 > **최종 업데이트:** 2026-07-29 (generation_locks 테이블 + user_daily_limits.suggestion_count — 총 11테이블)
 > **DB:** 임베디드 SQLite (better-sqlite3 + drizzle-orm/better-sqlite3, WAL 모드)
 

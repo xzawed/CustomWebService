@@ -1,5 +1,7 @@
 # 인증/인가 아키텍처
 
+> **언제 읽나**: `local-auth-config`·`local-auth-edge`·`authorizeWithLoginRateLimit`·`getAuthUser`·이메일 인증 게이트(`assertEmailVerified`)를 손댈 때
+
 > **최종 업데이트:** 2026-06-24 (공개 회원가입 + 다중 사용자 인증 도입)
 > **인증:** Auth.js v5 (NextAuth) — Credentials + JWT 무상태 세션. 공개 셀프서비스 회원가입, 이메일 인증 게이트, DB 사용자별 scrypt 검증.
 

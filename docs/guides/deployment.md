@@ -1,5 +1,7 @@
 # 배포 가이드
 
+> **언제 읽나**: CI 워크플로(`.github/workflows/ci.yml`)·`Dockerfile`·`railway.toml`·도메인 연결을 손댈 때
+
 > **최종 업데이트:** 2026-08-01  
 > **플랫폼:** Railway (자동 배포, main 브랜치 push 시)
 

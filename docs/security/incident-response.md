@@ -1,5 +1,7 @@
 # 보안 인시던트 대응 절차
 
+> **언제 읽나**: 시크릿이 노출됐거나 `ENCRYPTION_KEY`·`ADMIN_API_KEY`·`AUTH_SECRET` 을 회전해야 할 때. **`ENCRYPTION_KEY` 교체는 사용자 API 키를 전부 복호화 불가로 만든다**
+
 > 스택 진실원: 루트 [`CLAUDE.md`](../../CLAUDE.md) · [`docs/architecture/system-spec.md`](../architecture/system-spec.md).
 > 시크릿 목록의 정본은 [`docs/reference/env-vars.md`](../reference/env-vars.md). 이 문서는 **노출 시 회전 순서**와 **고아 자격증명 폐기**를 다룬다.
 >

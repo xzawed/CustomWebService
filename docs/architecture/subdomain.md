@@ -1,5 +1,7 @@
 # 서브도메인 라우팅 아키텍처
 
+> **언제 읽나**: `middleware.ts` 의 Host 감지·`/site/[slug]` rewrite·`SUBDOMAIN_PASSTHROUGH_PREFIXES`·`NEXT_PUBLIC_ROOT_DOMAIN` 을 손댈 때. 패스스루 목록이 없으면 게시 사이트의 `/api/v1/proxy` 호출이 전부 404가 된다
+
 > 최종 업데이트: 2026-05-22
 
 ---

@@ -1,5 +1,7 @@
 # API v1 엔드포인트 레퍼런스
 
+> **언제 읽나**: `src/app/api/v1/**` 에 라우트를 추가·변경하거나 요청/응답 스키마·상태 코드를 확인할 때
+
 > **Base URL (개발):** http://localhost:3000/api/v1  
 > **Base URL (프로덕션):** https://xzawed.xyz/api/v1  
 > **인증:** Auth.js v5 Credentials + JWT(무상태 세션 쿠키) 필요 (공개 엔드포인트 표시됨)

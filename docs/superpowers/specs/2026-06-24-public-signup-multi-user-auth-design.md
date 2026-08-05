@@ -1,3 +1,4 @@
+<!-- DOC_STATUS: HISTORICAL | completed: 2026-06-24 | superseded_by: docs/architecture/auth.md -->
 # 공개 회원가입 + 다중 사용자 인증 설계
 
 - **작성일**: 2026-06-24

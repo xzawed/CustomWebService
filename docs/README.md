@@ -98,7 +98,7 @@
 | [env-vars.md](reference/env-vars.md) | 환경변수 전체 |
 | [error-codes.md](reference/error-codes.md) | 에러 클래스·코드 |
 | [test-coverage-map.md](reference/test-coverage-map.md) | 테스트 커버 범위·공백 |
-| [golden-api-set.md](reference/golden-api-set.md) | 검증된 골든셋 API (런타임 admin 검증 경로) |
+| [golden-api-set.md](reference/golden-api-set.md) | **2026-05-01 스냅샷(HISTORICAL)** — 문서는 10개, 실제 `verified`는 46개. 현재 상태는 `GET /api/v1/admin/catalog-dump` |
 
 ## security/
 
@@ -129,6 +129,10 @@
 | [superpowers/plans/2026-06-22-db-removal-sqlite-migration.md](archive/superpowers/plans/2026-06-22-db-removal-sqlite-migration.md) | SQLite 전환 WBS Phase 1–8 (역사) |
 
 ## superpowers/specs/
+
+> **DOC_STATUS: HISTORICAL.** 8건 전부 **write-once**다(git상 7건이 커밋 1회, 1건이 2회 —
+> 작성 후 갱신되지 않는다). 각 파일 첫 줄의 `DOC_STATUS` 주석에 `superseded_by`가 있으니
+> **현행 상태는 그쪽을 볼 것.** 여기 적힌 파일명·수치는 설계 시점의 것이다.
 
 | 문서 | 목적 |
 |------|------|

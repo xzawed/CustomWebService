@@ -1,3 +1,4 @@
+<!-- DOC_STATUS: HISTORICAL | completed: 2026-06-22 | superseded_by: docs/decisions/2026-06-22-catalog-registration-and-seed-resync.md -->
 # 자체 호스팅 국가 데이터 API (REST Countries 대체) — 설계
 
 - 날짜: 2026-06-22

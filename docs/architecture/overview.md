@@ -1,5 +1,7 @@
 # 시스템 아키텍처
 
+> **언제 읽나**: 새 레이어·Provider를 추가하거나 `src/` 디렉터리 구조를 바꿀 때. `IAiProvider` 계약과 Route→Service→Repository 책임 경계를 확인한다
+
 > **최종 업데이트:** 2026-08-01  
 > **구현 상태:** 운영 중 (임베디드 SQLite · Auth.js Credentials 다중 사용자 · 게시=`slug` 서브도메인). 테스트 개수/%는 [test-coverage-map](../reference/test-coverage-map.md)·`pnpm test`로 확인 (이 문서에 고정 수치 없음)
 
