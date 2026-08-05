@@ -61,6 +61,9 @@
 | [`README.md`](../README.md) | 제품 정문·설치 퀵스타트 |
 | [`.env.example`](../.env.example) | 로컬 스타터 env (코드가 읽는 변수만) |
 | [`.claude/commands/`](../.claude/commands/) | 슬래시 커맨드 체크리스트 5종 |
+| [`.claude/rules/`](../.claude/rules/) | **경로 스코프 규칙** — `paths` 프론트매터가 매칭하는 파일을 **읽을 때만** 로드된다(신규 파일 Write 시엔 안 뜬다) |
+| [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) | PR 템플릿 |
+| [`.scamanager/`](../.scamanager/) | pre-push 자동 코드리뷰 훅 (`install-hook.sh`로 설치) |
 
 ---
 
