@@ -1,16 +1,16 @@
 /**
- * POST /api/v1/admin/catalog/activate — 키 검증 통과 시에만 비활성 API 활성화.
+ * POST /api/v1/admin/catalog/activate — 연속 키 검증 통과 시에만 비활성 API 활성화.
  *
- * 핵심 안전 속성: 키가 유효하지 않으면 repo.update를 절대 호출하지 않는다.
- * dryRun이면 검증만 하고 쓰지 않는다.
+ * 핵심 안전 속성: 키가 유효하지 않거나 N회 연속 VALID 가 아니면 repo.update를 절대 호출하지 않는다.
+ * dryRun이면 연속 검증은 수행하고 쓰지 않는다.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ApiCatalogItem } from '@/types/api';
-import type { KeyCheckResult } from '@/lib/catalog/keyCheck';
+import type { ConsistencyResult } from '@/lib/catalog/keyCheck';
 
 const findMany = vi.fn();
 const update = vi.fn();
-const verifyApiKey = vi.fn();
+const verifyApiKeyForActivation = vi.fn();
 const eventBusEmit = vi.fn();
 
 vi.mock('@/repositories/factory', () => ({
@@ -18,7 +18,8 @@ vi.mock('@/repositories/factory', () => ({
 }));
 
 vi.mock('@/lib/catalog/keyCheck', () => ({
-  verifyApiKey: (...args: unknown[]) => verifyApiKey(...args) as ReturnType<typeof verifyApiKey>,
+  verifyApiKeyForActivation: (...args: unknown[]) =>
+    verifyApiKeyForActivation(...args) as ReturnType<typeof verifyApiKeyForActivation>,
 }));
 
 vi.mock('@/lib/events/eventBus', () => ({
@@ -64,23 +65,54 @@ function makeInactiveKeyedApi(overrides: Partial<ApiCatalogItem> = {}): ApiCatal
   };
 }
 
-function makeValidKeyResult(name: string): KeyCheckResult {
+function makeValidConsistency(name: string, samples = 3): ConsistencyResult {
   return {
     name,
     envVar: 'NASA_API_KEY',
     verdict: 'VALID',
     httpStatus: 200,
-    detail: '인증 성공',
+    detail: `연속 ${samples}회 인증 성공`,
+    samples,
+    successes: samples,
+    attempts: samples,
+    attemptResults: Array.from({ length: samples }, () => ({
+      verdict: 'VALID' as const,
+      httpStatus: 200,
+      detail: '인증 성공',
+    })),
   };
 }
 
-function makeInvalidKeyResult(name: string): KeyCheckResult {
+function makeInvalidConsistency(name: string): ConsistencyResult {
   return {
     name,
     envVar: 'NASA_API_KEY',
     verdict: 'INVALID',
     httpStatus: 401,
     detail: '키 거부(401)',
+    samples: 3,
+    successes: 0,
+    attempts: 1,
+    attemptResults: [{ verdict: 'INVALID', httpStatus: 401, detail: '키 거부(401)' }],
+  };
+}
+
+/** VALID×2 후 ERROR — 3회 중 2회 성공 (에어코리아형 간헐 실패) */
+function makePartialErrorConsistency(name: string): ConsistencyResult {
+  return {
+    name,
+    envVar: 'NASA_API_KEY',
+    verdict: 'ERROR',
+    httpStatus: 504,
+    detail: '예상치 못한 504',
+    samples: 3,
+    successes: 2,
+    attempts: 3,
+    attemptResults: [
+      { verdict: 'VALID', httpStatus: 200, detail: '인증 성공' },
+      { verdict: 'VALID', httpStatus: 200, detail: '인증 성공' },
+      { verdict: 'ERROR', httpStatus: 504, detail: '예상치 못한 504' },
+    ],
   };
 }
 
@@ -117,7 +149,7 @@ describe('POST /api/v1/admin/catalog/activate', () => {
     process.env.NASA_API_KEY = 'test-nasa-key';
     findMany.mockResolvedValue({ items: [], total: 0 });
     update.mockResolvedValue(undefined);
-    verifyApiKey.mockResolvedValue(makeValidKeyResult('NASA APOD'));
+    verifyApiKeyForActivation.mockResolvedValue(makeValidConsistency('NASA APOD'));
   });
 
   it('Authorization 헤더 없음 → 403', async () => {
@@ -132,10 +164,10 @@ describe('POST /api/v1/admin/catalog/activate', () => {
     expect(res.status).toBe(403);
   });
 
-  it('키 검증 VALID인 비활성 키 의존 API → 활성화하고 activated:true', async () => {
+  it('연속 검증 3/3 VALID → 활성화하고 reason 에 3/3 포함', async () => {
     const candidate = makeInactiveKeyedApi();
     findMany.mockResolvedValue({ items: [candidate], total: 1 });
-    verifyApiKey.mockResolvedValue(makeValidKeyResult(candidate.name));
+    verifyApiKeyForActivation.mockResolvedValue(makeValidConsistency(candidate.name));
 
     const { POST } = await import('@/app/api/v1/admin/catalog/activate/route');
     const res = await POST(makeReq(VALID_ADMIN_KEY, {}));
@@ -156,17 +188,18 @@ describe('POST /api/v1/admin/catalog/activate', () => {
       apiId: candidate.id,
       activated: true,
     });
+    expect(body.data.outcomes[0]?.reason).toMatch(/3\/3/);
     expect(update).toHaveBeenCalledWith(candidate.id, {
       isActive: true,
       verificationStatus: 'verified',
     });
-    expect(verifyApiKey).toHaveBeenCalledOnce();
+    expect(verifyApiKeyForActivation).toHaveBeenCalledOnce();
   });
 
-  it('키 검증이 VALID가 아니면 repo.update를 호출하지 않는다', async () => {
+  it('3회 중 2회 성공(ERROR) → activated:false, reason 에 부분 성공 카운트', async () => {
     const candidate = makeInactiveKeyedApi();
     findMany.mockResolvedValue({ items: [candidate], total: 1 });
-    verifyApiKey.mockResolvedValue(makeInvalidKeyResult(candidate.name));
+    verifyApiKeyForActivation.mockResolvedValue(makePartialErrorConsistency(candidate.name));
 
     const { POST } = await import('@/app/api/v1/admin/catalog/activate/route');
     const res = await POST(makeReq(VALID_ADMIN_KEY, {}));
@@ -180,14 +213,67 @@ describe('POST /api/v1/admin/catalog/activate', () => {
     };
     expect(body.data.activated).toBe(0);
     expect(body.data.outcomes[0]?.activated).toBe(false);
-    expect(body.data.outcomes[0]?.reason).toMatch(/키 검증 실패/);
+    expect(body.data.outcomes[0]?.reason).toMatch(/키 검증 실패\(ERROR\)/);
+    expect(body.data.outcomes[0]?.reason).toMatch(/3회 중 2회 성공/);
+    expect(body.data.outcomes[0]?.reason).toMatch(/504/);
     expect(update).not.toHaveBeenCalled();
   });
 
-  it('dryRun:true이면 검증은 하되 repo.update는 호출하지 않는다', async () => {
+  // attempts===0 (env 미설정 등 프로브 이전 탈락)은 "3회 중 N회" 카운트를 붙이면 거짓말이 된다.
+  // 한 번도 시도하지 않았기 때문이다 — 사유만 그대로 전달해야 한다.
+  it('env 미설정(MISSING, attempts:0)이면 reason 에 성공 카운트를 붙이지 않는다', async () => {
     const candidate = makeInactiveKeyedApi();
     findMany.mockResolvedValue({ items: [candidate], total: 1 });
-    verifyApiKey.mockResolvedValue(makeValidKeyResult(candidate.name));
+    verifyApiKeyForActivation.mockResolvedValue({
+      name: candidate.name,
+      envVar: 'API_KEY_TEST',
+      verdict: 'MISSING',
+      detail: '환경변수 미설정',
+      samples: 3,
+      successes: 0,
+      attempts: 0,
+      attemptResults: [],
+    });
+
+    const { POST } = await import('@/app/api/v1/admin/catalog/activate/route');
+    const res = await POST(makeReq(VALID_ADMIN_KEY, {}));
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { activated: number; outcomes: Array<{ activated: boolean; reason: string }> };
+    };
+    expect(body.data.activated).toBe(0);
+    expect(body.data.outcomes[0]?.reason).toMatch(/키 검증 실패\(MISSING\)/);
+    expect(body.data.outcomes[0]?.reason).toMatch(/환경변수 미설정/);
+    expect(body.data.outcomes[0]?.reason).not.toMatch(/회 중/);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('키 검증이 INVALID면 repo.update를 호출하지 않는다 (기존 동작 유지)', async () => {
+    const candidate = makeInactiveKeyedApi();
+    findMany.mockResolvedValue({ items: [candidate], total: 1 });
+    verifyApiKeyForActivation.mockResolvedValue(makeInvalidConsistency(candidate.name));
+
+    const { POST } = await import('@/app/api/v1/admin/catalog/activate/route');
+    const res = await POST(makeReq(VALID_ADMIN_KEY, {}));
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        activated: number;
+        outcomes: Array<{ activated: boolean; reason: string }>;
+      };
+    };
+    expect(body.data.activated).toBe(0);
+    expect(body.data.outcomes[0]?.activated).toBe(false);
+    expect(body.data.outcomes[0]?.reason).toMatch(/키 검증 실패\(INVALID\)/);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('dryRun:true + 3/3 → 연속 검증은 수행하되 repo.update 는 호출하지 않는다', async () => {
+    const candidate = makeInactiveKeyedApi();
+    findMany.mockResolvedValue({ items: [candidate], total: 1 });
+    verifyApiKeyForActivation.mockResolvedValue(makeValidConsistency(candidate.name));
 
     const { POST } = await import('@/app/api/v1/admin/catalog/activate/route');
     const res = await POST(makeReq(VALID_ADMIN_KEY, { dryRun: true }));
@@ -204,7 +290,8 @@ describe('POST /api/v1/admin/catalog/activate', () => {
     expect(body.data.activated).toBe(0);
     expect(body.data.outcomes[0]?.activated).toBe(false);
     expect(body.data.outcomes[0]?.reason).toMatch(/dryRun/);
-    expect(verifyApiKey).toHaveBeenCalledOnce();
+    expect(body.data.outcomes[0]?.reason).toMatch(/3\/3/);
+    expect(verifyApiKeyForActivation).toHaveBeenCalledOnce();
     expect(update).not.toHaveBeenCalled();
   });
 
@@ -216,7 +303,7 @@ describe('POST /api/v1/admin/catalog/activate', () => {
       authConfig: { env_var: 'OTHER_KEY', param_in: 'query', param_name: 'key' },
     });
     findMany.mockResolvedValue({ items: [a, b], total: 2 });
-    verifyApiKey.mockResolvedValue(makeValidKeyResult('A'));
+    verifyApiKeyForActivation.mockResolvedValue(makeValidConsistency('A'));
 
     const { POST } = await import('@/app/api/v1/admin/catalog/activate/route');
     const res = await POST(makeReq(VALID_ADMIN_KEY, { apiIds: ['api-a'] }));
@@ -228,7 +315,7 @@ describe('POST /api/v1/admin/catalog/activate', () => {
     expect(body.data.candidates).toBe(1);
     expect(body.data.outcomes).toHaveLength(1);
     expect(body.data.outcomes[0]?.apiId).toBe('api-a');
-    expect(verifyApiKey).toHaveBeenCalledOnce();
+    expect(verifyApiKeyForActivation).toHaveBeenCalledOnce();
     expect(update).toHaveBeenCalledWith('api-a', {
       isActive: true,
       verificationStatus: 'verified',
@@ -265,7 +352,7 @@ describe('POST /api/v1/admin/catalog/activate', () => {
       items: [alreadyActive, keyless, withDefaultKey, candidate],
       total: 4,
     });
-    verifyApiKey.mockResolvedValue(makeValidKeyResult(candidate.name));
+    verifyApiKeyForActivation.mockResolvedValue(makeValidConsistency(candidate.name));
 
     const { POST } = await import('@/app/api/v1/admin/catalog/activate/route');
     const res = await POST(makeReq(VALID_ADMIN_KEY, {}));
@@ -276,7 +363,7 @@ describe('POST /api/v1/admin/catalog/activate', () => {
     };
     expect(body.data.candidates).toBe(1);
     expect(body.data.outcomes.map((o) => o.apiId)).toEqual(['api-real']);
-    expect(verifyApiKey).toHaveBeenCalledOnce();
+    expect(verifyApiKeyForActivation).toHaveBeenCalledOnce();
     expect(update).toHaveBeenCalledTimes(1);
     expect(update).toHaveBeenCalledWith('api-real', {
       isActive: true,
@@ -287,7 +374,7 @@ describe('POST /api/v1/admin/catalog/activate', () => {
   it('빈 요청 본문은 허용된다(전체 후보 의미)', async () => {
     const candidate = makeInactiveKeyedApi();
     findMany.mockResolvedValue({ items: [candidate], total: 1 });
-    verifyApiKey.mockResolvedValue(makeValidKeyResult(candidate.name));
+    verifyApiKeyForActivation.mockResolvedValue(makeValidConsistency(candidate.name));
 
     const { POST } = await import('@/app/api/v1/admin/catalog/activate/route');
     // body 없음 (undefined) → 라우트가 {}로 처리
@@ -325,16 +412,18 @@ describe('POST /api/v1/admin/catalog/activate', () => {
     expect(body.success).toBe(false);
     expect(body.error.code).toBe('INVALID_INPUT');
     expect(findMany).not.toHaveBeenCalled();
-    expect(verifyApiKey).not.toHaveBeenCalled();
+    expect(verifyApiKeyForActivation).not.toHaveBeenCalled();
   });
 });
 
 /**
  * realFetch(라우트 내부 KeyFetch) 커버리지.
  *
- * 위 describe는 keyCheck 모듈을 모킹해 verifyApiKey 분기만 본다.
+ * 위 describe는 keyCheck 모듈을 모킹해 연속 검증 분기만 본다.
  * 여기선 keyCheck를 실제 모듈로 두고 global fetch만 스텁해 realFetch 성공/네트워크 실패 경로를 탄다.
  * MSW를 우회하므로 setup.ts의 unhandled-request 단언에 걸리지 않는다.
+ *
+ * 연속 검증(3회)이므로 성공 경로에서 fetch 는 3회 호출된다.
  */
 describe('POST /api/v1/admin/catalog/activate — realFetch 경로', () => {
   const REAL_FETCH_ENV = 'TEST_ACTIVATE_REAL_FETCH_KEY';
@@ -354,7 +443,8 @@ describe('POST /api/v1/admin/catalog/activate — realFetch 경로', () => {
     vi.unstubAllEnvs();
     // 이후 파일/스위트가 다시 모킹된 keyCheck를 쓰도록 복구
     vi.doMock('@/lib/catalog/keyCheck', () => ({
-      verifyApiKey: (...args: unknown[]) => verifyApiKey(...args) as ReturnType<typeof verifyApiKey>,
+      verifyApiKeyForActivation: (...args: unknown[]) =>
+        verifyApiKeyForActivation(...args) as ReturnType<typeof verifyApiKeyForActivation>,
     }));
   });
 
@@ -380,7 +470,7 @@ describe('POST /api/v1/admin/catalog/activate — realFetch 경로', () => {
     });
   }
 
-  it('fetch 성공 시 realFetch 성공 경로로 키가 VALID 판정되고 활성화된다', async () => {
+  it('fetch 성공 시 연속 검증 통과로 활성화된다 (fetch 3회)', async () => {
     const candidate = makeRealFetchCandidate();
     findMany.mockResolvedValue({ items: [candidate], total: 1 });
 
@@ -406,14 +496,15 @@ describe('POST /api/v1/admin/catalog/activate — realFetch 경로', () => {
       apiId: candidate.id,
       activated: true,
     });
-    expect(fetchStub).toHaveBeenCalled();
+    expect(body.data.outcomes[0]?.reason).toMatch(/3\/3/);
+    expect(fetchStub).toHaveBeenCalledTimes(3);
     expect(update).toHaveBeenCalledWith(candidate.id, {
       isActive: true,
       verificationStatus: 'verified',
     });
-  });
+  }, 15_000);
 
-  it('fetch 거부 시 realFetch networkError 경로로 활성화하지 않는다', async () => {
+  it('fetch 거부 시 첫 시도 ERROR 로 조기 종료·활성화하지 않는다', async () => {
     const candidate = makeRealFetchCandidate();
     findMany.mockResolvedValue({ items: [candidate], total: 1 });
 
@@ -433,7 +524,8 @@ describe('POST /api/v1/admin/catalog/activate — realFetch 경로', () => {
     expect(body.data.activated).toBe(0);
     expect(body.data.outcomes[0]?.activated).toBe(false);
     expect(body.data.outcomes[0]?.reason).toMatch(/키 검증 실패/);
-    expect(fetchStub).toHaveBeenCalled();
+    // 조기 종료: 첫 non-VALID 에서 멈춤 → fetch 1회
+    expect(fetchStub).toHaveBeenCalledTimes(1);
     expect(update).not.toHaveBeenCalled();
   });
 });

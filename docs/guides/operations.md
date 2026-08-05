@@ -49,8 +49,8 @@ curl -sS -H "Authorization: Bearer $ADMIN_API_KEY" \
 | **GET** `/api/v1/admin/debug` | Node/플랫폼, **실제 적용 AI 모델**(`models.<task>.env` / `resolved` / **`fellBack`**), **이메일 설정 여부**(`email.configured` · `fromSet` · `fromDomain` — 값 자체는 비노출), standalone 필수 모듈 로드(`playwright-core`, `@anthropic-ai/sdk`, `better-sqlite3`, `drizzle-orm`) | **첫 진단.** 모델 env 변경 직후, 생성 500, 신규 가입자가 생성·배포 403일 때(`RESEND_API_KEY` 없으면 인증 메일이 no-op → `assertEmailVerified`가 막음) |
 | **GET** `/api/v1/admin/qc-stats?days=7` | 기간 내 생성 수·실패 수·실성공률, 구조/모바일/렌더링 QC 평균, Stage 스킵·Quality Loop 지표, 흔한 QC 실패 항목 | 생성 품질·실패율 추이. Slack 생성 실패 경보 후 원인 파악 |
 | **GET** `/api/v1/admin/site-proxy-stats?limit=50` | 게시 사이트(익명) 프록시 프로젝트별 허용/차단. **`blockedByIp` vs `blockedByProject` 구분** | 429 민원, 한도 조정 근거 수집. 인메모리 → **재시작 시 0**. `trackedProjects: 0`이면 아직 집계 트래픽 없음([#216](https://github.com/xzawed/CustomWebService/issues/216) 트리거 미충족 — **임의로 한도 바꾸지 말 것**) |
-| **GET** `/api/v1/admin/keys-verify` | 활성·플랫폼 키 의존 API의 env 키를 **배포 런타임에서** 실호출 검증(키 값 비노출) | 키 의존 API 재활성화 직후, 401 의심. **로컬/`railway run`은 sealed env 미주입** — 배포 환경에서만 유효 |
-| **POST** `/api/v1/admin/catalog/activate` | 비활성 키 의존 API를 **라이브 키 검증 VALID 시에만** 활성화 | 키 발급·env 등록 후 카탈로그에 다시 노출. `dryRun`으로 후보 확인 가능 |
+| **GET** `/api/v1/admin/keys-verify` | 활성·플랫폼 키 의존 API의 env 키를 **배포 런타임에서** 실호출 검증(키 값 비노출). **단발 프로브**(진단 전용) | 키 의존 API 재활성화 **전** 점검, 401 의심. **로컬/`railway run`은 sealed env 미주입** — 배포 환경에서만 유효. 쓰기 게이트가 아님 |
+| **POST** `/api/v1/admin/catalog/activate` | 비활성 키 의존 API를 **연속 N회 VALID**(기본 3·간격 2s) 일 때만 활성화 | 키 발급·env 등록 후 카탈로그에 다시 노출. `dryRun`으로 연속 검증만 확인 가능. 아래 §1.5.1 |
 | **POST** `/api/v1/admin/catalog/deactivate` | 지정 ID의 활성 API를 **키 검증 없이** 비활성화(`apiIds` 필수) | 장애·오시드·키 만료 API를 즉시 차단. `verificationStatus`는 보존. **생략=전부 끔 없음** |
 | **POST** `/api/v1/admin/verify-catalog` | 활성 API GET을 라이브 호출해 `verification_status` 갱신(`working/degraded→verified`, `broken→broken`, 변경 시에만 쓰기; `key_gated`/`unknown` 보존) | 카탈로그 이상 의심·시드 반영 후. **스케줄 없음 — 관리자 수동 트리거**(플래핑·무인 outbound 방지) |
 | **GET** `/api/v1/admin/catalog-dump` | 프로덕션 `api_catalog` 전체(활성·비활성) 안전 투영 + `summary.active`/`inactive` | “카탈로그가 몇 개?” **하드코딩 숫자를 믿지 말고 이 응답으로 확인**. 시드 JSON diff용 |
@@ -72,6 +72,33 @@ curl -sS -H "Authorization: Bearer $ADMIN_API_KEY" \
 - 운영 확인: `GET /api/v1/admin/catalog-dump` → `data.summary`.
 - 번들 시드 [`src/data/apiCatalog.json`](../../src/data/apiCatalog.json) 기준(2026-08-05 로컬 검증): **총 61**. 활성/비활성 수는 배포·ensureCatalog·수동 변경으로 달라지므로 **dump의 `summary`를 본다** (disease.sh 폐기 후 번들 기준 활성 약 35·비활성 약 26).
 - `supabase/seed.sql` **삭제됨**. 시드는 부팅 시 빈 테이블일 때만 JSON 삽입 + `ensureCatalogEntries` 멱등 반영. 절차 세부는 컷오버 ADR·[역사 런북](../archive/guides/sqlite-cutover-runbook.md).
+
+### 1.5.1 카탈로그 활성화 연속 검증 게이트
+
+`POST /admin/catalog/activate` 는 단발 200 으로 켜지 않는다. 한 번 프로브하면
+간헐 5xx(예: 에어코리아 실측 83%·연속 504)를 놓쳐 불안정한 API가 사용자에게 노출된다.
+
+| 항목 | 값 |
+|------|-----|
+| 구현 | `verifyApiKeyForActivation` (`keyCheck.ts`) — `verifyApiKey` 재사용 |
+| 기본 | **3회 연속 VALID**, 시도 간격 **2s** |
+| 조기 종료 | **첫 non-VALID 에서 중단** (남은 샘플 미실행) — 관리자 요청 시간 상한 |
+| `keys-verify` | **단발 유지** (진단 전용). 연속 검증은 activate(쓰기)만 |
+
+**`outcomes[].reason` 읽기:**
+
+| reason 예 | 의미 | 조치 |
+|-----------|------|------|
+| `키 검증 통과 (3/3)` | 연속 성공 → 활성화됨 | 없음 |
+| `dryRun — 키 검증 통과 (3/3)` | 연속 성공, DB 미기록 | `dryRun` 빼고 재호출 |
+| `키 검증 실패(INVALID) — 3회 중 0회 성공 (401)` | 키 거부 | env 키·prefix 점검 |
+| `키 검증 실패(ERROR) — 3회 중 2회 성공 (504)` | 간헐 업스트림 장애 | **지금은 켜지 않음**. 안정화 후 재시도 또는 폐기 검토 |
+| `키 검증 실패(RATE_LIMITED) — … (429)` | 키는 통과, 한도 초과 | **키가 틀린 게 아님** — 나중에 재시도. INVALID 로 해석 금지 |
+| `키 검증 실패(MISSING) — 환경변수 미설정` | env 비어 있음 | Railway 변수 값 확인 |
+
+`apiIds` 로 대상을 좁히면 벽시계 시간이 줄어든다. 전체 후보를 한 번에 돌릴 때는
+MISSING(fetch 없음)은 즉시 스킵되고, 실패 API는 1회에서 끝나므로 현실 상한은
+「프로브 대상 수 × (최대 3회 fetch + 2×2s 간격)」이다.
 
 ### 1.5 API 폐기 런북 (수동 전용 — 자동 폐기 없음)
 

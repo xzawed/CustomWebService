@@ -119,3 +119,161 @@ export async function verifyApiKey(
 
   return { name: api.name, envVar, verdict: 'INVALID', httpStatus: raw.status, detail: raw.detail };
 }
+
+/** 활성화 게이트 한 번의 시도 결과 (오퍼레이터가 부분 실패 원인을 볼 수 있게). */
+export interface ConsistencyAttempt {
+  verdict: KeyVerdict;
+  httpStatus?: number;
+  detail: string;
+}
+
+/**
+ * 활성화 전용 연속 검증 결과.
+ * `KeyCheckResult`와 호환 필드를 유지하고, samples/successes/attempts·시도별 판정을 붙인다.
+ */
+export interface ConsistencyResult extends KeyCheckResult {
+  /** 요청한 연속 성공 횟수 (기본 3) */
+  samples: number;
+  /** VALID 로 끝난 시도 수 */
+  successes: number;
+  /** 실제로 돌린 시도 수 (조기 종료 시 samples 미만). MISSING/NO_ENDPOINT 는 0 */
+  attempts: number;
+  /** 시도별 판정 (네트워크 프로브가 나간 것만) */
+  attemptResults: ConsistencyAttempt[];
+}
+
+export interface ConsistencyOptions {
+  samples?: number;
+  gapMs?: number;
+  /** 테스트 결정성용. 기본은 setTimeout 기반 sleep */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+const defaultSleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+/**
+ * 활성화 게이트 — N회 연속 VALID 일 때만 통과.
+ *
+ * `verifyApiKey` 를 시도마다 재사용한다(로직 복제 금지).
+ *
+ * **첫 non-VALID 에서 즉시 중단**한다. 이유: 정상 API는 빠르게 응답하고,
+ * 실패·타임아웃 API는 1회에서 끝난다. 조기 종료 없이 전부 돌리면
+ * 최악 `후보 수 × samples × 15s` 로 관리자 요청이 수분 단위가 된다.
+ *
+ * 판정:
+ * - 전부 VALID → activatable
+ * - INVALID → 키 거부 (그대로 INVALID)
+ * - RATE_LIMITED → 보류(키가 틀린 게 아님). INVALID 로 덮어쓰지 않음
+ * - ERROR(5xx/타임아웃 등) → 활성화 거부 — 에어코리아 간헐 504 가 이 경로
+ * - MISSING / NO_ENDPOINT → 재시도·sleep 없이 즉시 반환 (attempts=0)
+ */
+export async function verifyApiKeyForActivation(
+  api: KeyCheckApi,
+  key: string | undefined,
+  doFetch: KeyFetch,
+  options: ConsistencyOptions = {},
+): Promise<ConsistencyResult> {
+  // samples는 최소 1로 죈다. 0·음수를 그대로 두면 루프가 한 번도 돌지 않아
+  // "전부 VALID" 분기로 떨어지고, 프로브를 한 번도 안 한 API가 활성화된다.
+  // (게이트를 통째로 무력화하는 값이므로 조용히 통과시키지 않고 1로 올린다.)
+  const samples = Math.max(1, Math.trunc(options.samples ?? 3));
+  const gapMs = Math.max(0, options.gapMs ?? 2000);
+  const sleep = options.sleep ?? defaultSleep;
+
+  const cfg = api.authConfig ?? {};
+  const envVar = cfg.env_var ?? '(none)';
+  const emptyAttempts: ConsistencyAttempt[] = [];
+
+  if (!cfg.env_var) {
+    return {
+      name: api.name,
+      envVar,
+      verdict: 'ERROR',
+      detail: 'env_var 미정의',
+      samples,
+      successes: 0,
+      attempts: 0,
+      attemptResults: emptyAttempts,
+    };
+  }
+  if (!key) {
+    return {
+      name: api.name,
+      envVar,
+      verdict: 'MISSING',
+      detail: '환경변수 미설정',
+      samples,
+      successes: 0,
+      attempts: 0,
+      attemptResults: emptyAttempts,
+    };
+  }
+
+  const getEp = (api.endpoints ?? []).find((e) => (e.method ?? 'GET') === 'GET');
+  if (!getEp) {
+    return {
+      name: api.name,
+      envVar,
+      verdict: 'NO_ENDPOINT',
+      detail: 'GET 엔드포인트 없음',
+      samples,
+      successes: 0,
+      attempts: 0,
+      attemptResults: emptyAttempts,
+    };
+  }
+
+  const attemptResults: ConsistencyAttempt[] = [];
+  let successes = 0;
+  let last: KeyCheckResult | null = null;
+
+  for (let i = 0; i < samples; i += 1) {
+    if (i > 0) {
+      await sleep(gapMs);
+    }
+
+    const r = await verifyApiKey(api, key, doFetch);
+    last = r;
+    attemptResults.push({
+      verdict: r.verdict,
+      httpStatus: r.httpStatus,
+      detail: r.detail,
+    });
+
+    if (r.verdict === 'VALID') {
+      successes += 1;
+      continue;
+    }
+
+    // 첫 non-VALID — 남은 샘플은 돌리지 않는다 (INVALID / RATE_LIMITED / ERROR 모두)
+    return {
+      name: r.name,
+      envVar: r.envVar,
+      verdict: r.verdict,
+      httpStatus: r.httpStatus,
+      detail: r.detail,
+      needsPrefixFix: r.needsPrefixFix,
+      samples,
+      successes,
+      attempts: attemptResults.length,
+      attemptResults,
+    };
+  }
+
+  // 전부 VALID
+  return {
+    name: last!.name,
+    envVar: last!.envVar,
+    verdict: 'VALID',
+    httpStatus: last!.httpStatus,
+    detail: `연속 ${samples}회 인증 성공`,
+    needsPrefixFix: last!.needsPrefixFix,
+    samples,
+    successes,
+    attempts: attemptResults.length,
+    attemptResults,
+  };
+}
