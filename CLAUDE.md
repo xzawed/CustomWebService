@@ -94,29 +94,17 @@ AI 기반 노코드 플랫폼. 무료 API를 선택하고 서비스를 설명하
 
 ## 개발 명령어
 
-```bash
-pnpm dev              # 개발 서버 (Turbopack)
-pnpm build            # 프로덕션 빌드
-pnpm lint             # ESLint 검사 (CI 게이트)
-pnpm lint:fix         # ESLint 자동 수정
-pnpm type-check       # TypeScript 타입 검사 (CI 게이트)
-pnpm test             # 전체 테스트 (CI는 test:coverage로 전체 실행)
-pnpm test:unit        # 단위 테스트 (lib, providers, services, repositories)
-pnpm test:integration # 통합 테스트 (API routes — src/__tests__/api + src/app/api)
-pnpm test:coverage    # 커버리지 리포트
-pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요, CI에서 실행)
-```
+**명령 목록의 정본은 `package.json`의 `scripts`다** — 여기에 복제하지 않는다(복제하는 순간
+한쪽이 썩는다). 아래는 그 파일에서 **파생되지 않는 것**만이다.
 
-```bash
-# 운영 스크립트
-pnpm countries:generate  # 국가 데이터(src/data/countries.json) 재생성 (준-정적)
-pnpm countries:check     # 쓰기 없이 업스트림 드리프트 검사 — 0 동일 / 1 드리프트 / 2 업스트림 도달 실패
-pnpm ai:contract-check   # AI 규약 드리프트 검사 — 0 유지 / 1 드리프트 / 2 도달 실패
-pnpm docs:check          # 문서 정합성 4종(명령·경로·링크 대소문자·ADR 트리거) — 0 통과 / 1 위반 / 2 검사기 고장
-```
-
-> `docs:check`는 CI에서 **독립 잡 + `continue-on-error`** 로 돈다. 문서 결함이 워크플로를
-> red로 만들면 Wait for CI가 다음 코드 배포를 `SKIPPED`로 만들고, `SKIPPED`는 되살아나지 않는다.
+- **CI 게이트 순서**: `lint` → `type-check` → `test:coverage` → `build` → E2E.
+  CI가 도는 것은 `test`가 아니라 **`test:coverage`** 다
+- `test:e2e`는 **실제 백엔드 env가 있어야** 돈다 — 로컬에서 맨몸으로 돌리면 실패한다
+- 검사 스크립트(`countries:check`·`ai:contract-check`·`docs:check`)의 **종료 코드 1과 2를
+  절대 합치지 말 것** — 1은 드리프트·위반이고 **2는 도달 실패·검사기 고장**이다. 일시적
+  외부 장애를 "규약이 바뀌었다"로 오인하면 경보 신뢰가 통째로 무너진다(각 코드의 의미는 스크립트 헤더에)
+- `docs:check`는 CI에서 **독립 잡 + `continue-on-error`** 로 돈다. 문서 결함이 워크플로를
+  red로 만들면 Wait for CI가 다음 코드 배포를 `SKIPPED`로 만들고, `SKIPPED`는 되살아나지 않는다
 
 > `pnpm admin:hash`(단일 관리자 해시 생성)는 다중 사용자 전환(2026-06-24)으로 **제거됨**. 계정 생성은 `/signup` 공개 페이지를 통해 수행한다.
 
