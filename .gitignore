@@ -81,3 +81,6 @@ verify.log
 # 접근성 스냅샷은 페이지에 보이는 값을 그대로 담는다 — 2026-07-31에 Slack Incoming Webhook URL이
 # 평문으로 기록된 것을 실제로 확인했다. 커밋되면 라이브 시크릿이 유출되므로 반드시 무시한다.
 .playwright-mcp/
+
+# .claude/rules 실발동 관측 로그(InstructionsLoaded 훅) — 머신·세션마다 다르다
+.claude/instructions-loaded.jsonl
