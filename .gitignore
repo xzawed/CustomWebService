@@ -84,3 +84,7 @@ verify.log
 
 # .claude/rules 실발동 관측 로그(InstructionsLoaded 훅) — 머신·세션마다 다르다
 .claude/instructions-loaded.jsonl
+
+# SCAManager 훅 설정 — 평문 토큰이 들어 있다. 절대 커밋하지 말 것.
+# (2026-04-08~2026-08-07 공개 저장소에 노출된 이력이 있다 — 회전 없이는 무효화되지 않는다)
+.scamanager/config.json

@@ -62,6 +62,57 @@ Railway 변수 **67 → 61개**. 살아 있어야 하는 9개(`NEXT_PUBLIC_AUTH_
 
 ---
 
+## 사례 기록 — 2026-08-07 `.scamanager` 토큰 공개 노출 (⏳ 오너 회전 대기)
+
+근본원인 분석 중 발견됐다. **이 저장소 하나의 문제가 아니다.**
+
+| 항목 | 실측 |
+|---|---|
+| 파일 | `.scamanager/config.json` — git **추적 중**이었다 |
+| 내용 | `token` 64자 + 서버 엔드포인트 |
+| 이 저장소 | **PUBLIC** · 커밋 `b2186f4`(**2026-04-08**) 이후 약 4개월 노출 |
+| 전송 | **평문 HTTP** + **URL 쿼리스트링**(`?token=…`) — 프록시·서버 액세스 로그에 남는다 |
+| 토큰 권한(스크립트 기준) | `GET /api/hook/verify` · `POST /api/hook/result`(리뷰 결과 **위조** 가능) |
+
+### 범위 — 워크스페이스 8개 저장소, 토큰은 저장소마다 다르다
+
+sha256 지문 대조 결과 **고유 토큰 8개**(공유 아님) → **회전은 저장소별로 각각** 필요하다.
+
+| 저장소 | 공개 | config 추적 | 전송 |
+|---|---|---|---|
+| **CustomWebService** | **PUBLIC** | 추적됨 → 이번에 해제 | HTTP |
+| **LangTrans** | **PUBLIC** | 추적됨 | HTTP |
+| **claude-grok-build-plugin** | **PUBLIC** | 추적됨 | HTTPS |
+| **xzawedPAIS** | **PUBLIC** | 추적됨 | HTTPS |
+| SCAManager-test-samples | PRIVATE | 추적됨 | HTTP |
+| Noble-Watcher | PRIVATE | 미추적 ✔ | HTTP |
+| GoldCalc · TravellerInfo | 미상(`gh` 조회 실패) | 추적됨 | HTTP |
+
+### 이번에 한 것 (이 저장소만)
+
+- `.gitignore`에 `.scamanager/config.json` 추가 · `git rm --cached`로 추적 해제
+- `config.example.json` 추가(토큰 자리는 플레이스홀더)
+- 로컬 `config.json`은 남겨 훅 동작에 영향 없음
+
+### ⚠️ 코드로는 끝나지 않는다 — 오너 액션
+
+**추적 해제는 앞으로의 노출만 막는다. 커밋 `b2186f4` 이하 히스토리에는 토큰이 그대로 있고,
+공개 저장소는 이미 클론·미러링됐을 수 있다. 유일한 실질 조치는 회전이다.**
+
+1. SCAManager에서 **공개 저장소 4곳의 토큰을 각각 폐기·재발급**
+2. 나머지 3곳(비공개·미상)도 같은 처리 권장 — 평문 HTTP 구간이 남아 있다
+3. 각 저장소에서 `.gitignore` + `git rm --cached` 반복
+4. 서버를 **HTTPS 전용**으로, 토큰을 **쿼리스트링이 아니라 헤더**로 옮기는 것을 검토
+   (쿼리스트링 토큰은 액세스 로그에 영구 기록된다)
+
+> `.scamanager/pre-commit-secrets.sh`(gitleaks)가 저장소에 있는데 **`.git/hooks`에 설치돼
+> 있지 않다.** 설치돼 있었다면 최초 커밋에서 걸렸을 수 있다. 다만 그 훅은 gitleaks 바이너리가
+> 없으면 `exit 0`으로 스킵되므로, 설치만으로 보장되지는 않는다.
+
+**토큰 유효성은 의도적으로 프로브하지 않았다.**
+
+---
+
 ## 시크릿 노출 의심 시 즉시 조치
 
 ### 1. 노출 확인

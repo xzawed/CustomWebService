@@ -1,0 +1,5 @@
+{
+  "server": "https://scamanager-production.up.railway.app",
+  "repo": "xzawed/CustomWebService",
+  "token": "<SCAManager 대시보드에서 발급 — 이 파일이 아니라 config.json에 넣고, config.json은 커밋하지 않는다>"
+}
