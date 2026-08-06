@@ -354,3 +354,158 @@ describe('KNOWN-DEFECT: 늦게 도착한 추천 응답이 사용자 선택을 �
     expect(useApiSelectionStore.getState().selectedApis).toHaveLength(0);
   });
 });
+
+describe('KNOWN-DEFECT 해소: 취소된 AI 요청이 로딩 표시를 고착시킨다', () => {
+  /** 응답을 테스트가 원하는 시점에 해소할 수 있게 만드는 지연 게이트. */
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  it('Gate label must not survive into a new session (suggest-preferences)', async () => {
+    const gate = deferred<void>();
+    installHandlers({ catalog: [makeApi('a1')] });
+    server.use(
+      http.post('*/api/v1/suggest-preferences', async () => {
+        await gate.promise;
+        return HttpResponse.json({ data: null });
+      }),
+    );
+
+    renderComponent(<BuilderPage />);
+    fireEvent.click(screen.getByText('API를 직접 선택').closest('button')!);
+    await waitFor(() => expect(screen.getByText('사용할 API를 선택하세요')).toBeTruthy());
+
+    const { act } = await import('@testing-library/react');
+    await act(async () => {
+      useApiSelectionStore.getState().addApi(makeApi('a1') as never);
+      useContextStore.getState().setContext(LONG_CONTEXT);
+    });
+
+    fireEvent.click(screen.getByText('다음').closest('button')!);
+    await waitFor(() => expect(screen.getByText('어떤 서비스를 만들고 싶으세요?')).toBeTruthy());
+
+    // 대조군 — 600ms debounce 후 로딩 라벨이 실제로 뜬다 (TemplateSelector.tsx:82)
+    await waitFor(
+      () => expect(screen.getByText('✦ AI 추천 준비 중...')).toBeTruthy(),
+      { timeout: 3000 },
+    );
+
+    // 비행 중 방식 변경 → 새 context-first 세션 (TemplateSelector가 step 1에도 렌더됨)
+    fireEvent.click(screen.getByText('방식 변경').closest('button')!);
+    await waitFor(() => expect(screen.getByText('어떤 방식으로 시작하시겠어요?')).toBeTruthy());
+    fireEvent.click(screen.getByText('아이디어로 시작').closest('button')!);
+    await waitFor(() => expect(screen.getByText('어떤 서비스를 만들고 싶으세요?')).toBeTruthy());
+
+    // 이전 세션 응답이 늦게 도착해도 로딩 라벨이 남지 않아야 한다
+    gate.resolve();
+    await waitFor(() => expect(screen.queryByText('✦ AI 추천 준비 중...')).toBeNull());
+  });
+
+  it('Recommendation spinner must not survive into a new session (suggest-apis)', async () => {
+    const gate = deferred<void>();
+    let recHits = 0;
+    installHandlers({ catalog: [makeApi('a1', 'Weather API')] });
+    server.use(
+      http.get('*/api/v1/popular-services', () =>
+        HttpResponse.json({ data: { services: [popularService(['a1'])] } }),
+      ),
+      http.post('*/api/v1/suggest-apis', async () => {
+        recHits += 1;
+        await gate.promise;
+        return HttpResponse.json({ data: { recommendations: [] } });
+      }),
+    );
+
+    await enterContextFirst();
+    useContextStore.getState().setContext(LONG_CONTEXT);
+    await waitFor(() => expect(useContextStore.getState().isValid()).toBe(true));
+
+    fireEvent.click(screen.getByText('다음').closest('button')!);
+    await waitFor(() => expect(screen.getByText('추천된 API를 확인하세요')).toBeTruthy());
+
+    // 대조군 — 추천 스피너가 실제로 보인다 (ApiRecommendations.tsx:34)
+    await waitFor(() =>
+      expect(screen.getByText('AI가 서비스에 적합한 API를 찾고 있습니다...')).toBeTruthy(),
+    );
+
+    fireEvent.click(screen.getByText('방식 변경').closest('button')!);
+    await waitFor(() => expect(screen.getByText('어떤 방식으로 시작하시겠어요?')).toBeTruthy());
+    gate.resolve();
+    fireEvent.click(screen.getByText('아이디어로 시작').closest('button')!);
+    await waitFor(() => expect(screen.getByText('어떤 서비스를 만들고 싶으세요?')).toBeTruthy());
+
+    // 인기 서비스 카드: lastRecommendedContext를 fetch 없이 설정하는 유일한 경로
+    // → 다음 「다음」에서 재조회 가드가 막혀, 고착된 로딩 플래그가 드러난다
+    await waitFor(() => expect(screen.getByText('날씨 대시보드')).toBeTruthy());
+    fireEvent.click(screen.getByText('날씨 대시보드').closest('button')!);
+    await waitFor(() => {
+      expect(useApiSelectionStore.getState().selectedApis).toHaveLength(1);
+    });
+
+    fireEvent.click(screen.getByText('다음').closest('button')!);
+    await waitFor(() => expect(screen.getByText('추천된 API를 확인하세요')).toBeTruthy());
+
+    expect(screen.queryByText('AI가 서비스에 적합한 API를 찾고 있습니다...')).toBeNull();
+    expect(screen.getByText('AI 추천 API')).toBeTruthy();
+    // CRITICAL: 재조회가 일어나면 테스트가 공허해진다 — 정확히 1회만
+    expect(recHits).toBe(1);
+  });
+
+  it('NEGATIVE CONTROL — 이전 요청 finally가 최신 요청 로딩을 끄면 안 된다 (token guard)', async () => {
+    // 이 테스트는 토큰 가드(if (reqIdRef.current === reqId))를 삭제하고
+    // finally에서 무조건 setIsXLoading(false)로 "단순화"하면 CI가 실패하도록 존재한다.
+    const gates: Array<ReturnType<typeof deferred<void>>> = [];
+    let recHits = 0;
+    installHandlers({ catalog: [makeApi('a1')] });
+    server.use(
+      http.post('*/api/v1/suggest-apis', async () => {
+        recHits += 1;
+        const gate = deferred<void>();
+        gates.push(gate);
+        await gate.promise;
+        return HttpResponse.json({ data: { recommendations: [] } });
+      }),
+    );
+
+    await enterContextFirst();
+    useContextStore.getState().setContext(LONG_CONTEXT);
+    await waitFor(() => expect(useContextStore.getState().isValid()).toBe(true));
+
+    fireEvent.click(screen.getByText('다음').closest('button')!);
+    await waitFor(() => expect(screen.getByText('추천된 API를 확인하세요')).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText('AI가 서비스에 적합한 API를 찾고 있습니다...')).toBeTruthy(),
+    );
+    await waitFor(() => expect(gates).toHaveLength(1));
+
+    // 이전 → step 1, 컨텍스트를 다른 유효 문자열로 바꾼 뒤 다시 다음 (request 2)
+    fireEvent.click(screen.getByText('이전').closest('button')!);
+    await waitFor(() => expect(screen.getByText('어떤 서비스를 만들고 싶으세요?')).toBeTruthy());
+
+    const OTHER_CONTEXT =
+      '다른 컨텍스트로 추천을 다시 요청합니다. 실시간 환율과 뉴스를 보여주는 앱을 만들고 싶습니다.';
+    useContextStore.getState().setContext(OTHER_CONTEXT);
+    await waitFor(() => expect(useContextStore.getState().context).toBe(OTHER_CONTEXT));
+
+    fireEvent.click(screen.getByText('다음').closest('button')!);
+    await waitFor(() => expect(screen.getByText('추천된 API를 확인하세요')).toBeTruthy());
+    await waitFor(() => expect(recHits).toBe(2));
+    await waitFor(() => expect(gates).toHaveLength(2));
+    expect(screen.getByText('AI가 서비스에 적합한 API를 찾고 있습니다...')).toBeTruthy();
+
+    // request 1만 해소 — 최신 요청(request 2)이 아직 비행 중이므로 스피너는 유지돼야 한다
+    gates[0].resolve();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getByText('AI가 서비스에 적합한 API를 찾고 있습니다...')).toBeTruthy();
+
+    // request 2 해소 후에야 스피너가 사라진다
+    gates[1].resolve();
+    await waitFor(() =>
+      expect(screen.queryByText('AI가 서비스에 적합한 API를 찾고 있습니다...')).toBeNull(),
+    );
+  });
+});
