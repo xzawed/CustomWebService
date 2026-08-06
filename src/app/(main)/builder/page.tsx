@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { CatalogView } from '@/components/catalog/CatalogView';
@@ -50,6 +50,16 @@ export default function BuilderPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
   const [regenVersion, setRegenVersion] = useState<number | undefined>(undefined);
+
+  /**
+   * 비행 중인 AI 제안 요청(suggest-context · suggest-apis)의 취소 핸들.
+   *
+   * 둘은 모드별로 배타적이라(api-first는 suggest-context, context-first는 suggest-apis)
+   * ref 하나를 공유한다. 방식 변경·모드 선택은 이걸 abort해서 **이전 세션의 늦은 응답이
+   * 새 세션에 주입되는 것**을 막는다. 없으면 `fetchApiRecommendations`의 `clearApis()`가
+   * 새 세션 선택을 지우고 이전 컨텍스트의 추천을 채워 넣는다.
+   */
+  const aiRequestAbortRef = useRef<AbortController | null>(null);
 
   // Context suggestion state (for api-first mode)
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -137,12 +147,18 @@ export default function BuilderPage() {
       }
     }
     loadCatalog();
-    return () => abortCtrl.abort();
+    return () => {
+      abortCtrl.abort();
+      // 언마운트 시 비행 중인 AI 제안 요청도 끊는다 — 사라진 화면에 상태를 쓰지 않는다.
+      aiRequestAbortRef.current?.abort();
+    };
   }, []);
 
   // === Mode selection from big cards ===
   const handleModeSelect = useCallback(
     (selectedMode: BuilderMode) => {
+      // 이전 세션의 AI 요청이 살아 있으면 새 세션을 오염시킨다 — 먼저 끊는다.
+      aiRequestAbortRef.current?.abort();
       setMode(selectedMode);
       setModeConfirmed(true);
       setStep(1);
@@ -163,6 +179,9 @@ export default function BuilderPage() {
     setStep(1);
     clearApis();
     resetContext();
+    // 비행 중인 AI 제안 요청을 끊는다. 안 끊으면 늦은 응답의 clearApis()가
+    // 새 세션 선택을 지우고 이전 컨텍스트의 추천을 주입한다.
+    aiRequestAbortRef.current?.abort();
     // 고아 폴러 네트워크를 즉시 끊는다. 스토어 오염 1차 방어는 runId(E8).
     abortGenerationSession();
     resetGeneration();
@@ -261,6 +280,13 @@ export default function BuilderPage() {
   // === API-first mode: fetch context suggestions ===
   const fetchSuggestions = useCallback(async () => {
     if (selectedApis.length === 0) return;
+
+    // 추천과 같은 이유로 취소 가능해야 한다 — 방식을 바꾸면 이전 세션의 제안이
+    // 새 세션 화면에 뜨면 안 된다. 두 요청은 서로 배타적이라 ref 하나를 공유한다.
+    aiRequestAbortRef.current?.abort();
+    const abortCtrl = new AbortController();
+    aiRequestAbortRef.current = abortCtrl;
+
     setIsSuggestionsLoading(true);
     setSuggestions([]);
     setActiveSuggestionIndex(null);
@@ -275,6 +301,7 @@ export default function BuilderPage() {
             category: a.category,
           })),
         }),
+        signal: abortCtrl.signal,
       });
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
@@ -282,18 +309,30 @@ export default function BuilderPage() {
         throw new Error(errBody?.error?.message ?? `HTTP ${res.status}`);
       }
       const data = await res.json();
+      if (abortCtrl.signal.aborted) return;
       setSuggestions(data.data?.suggestions ?? []);
     } catch (err) {
+      if ((err as { name?: string }).name === 'AbortError') return;
       console.error('[suggest-context] failed:', err instanceof Error ? err.message : err);
       setSuggestions([]);
     } finally {
-      setIsSuggestionsLoading(false);
+      if (!abortCtrl.signal.aborted) {
+        setIsSuggestionsLoading(false);
+      }
     }
   }, [selectedApis]);
 
   // === Context-first mode: fetch API recommendations ===
   const fetchApiRecommendations = useCallback(async () => {
     if (!context || context.length < LIMITS.contextMinLength) return;
+
+    // 이전 요청을 취소하고 이번 요청을 현재 것으로 등록한다.
+    // 없으면 방식 변경으로 세션을 새로 시작해도 **이전 컨텍스트의 추천이 살아남아**
+    // 아래 clearApis() 이후 새 세션에 주입된다(세션 간 오염).
+    aiRequestAbortRef.current?.abort();
+    const abortCtrl = new AbortController();
+    aiRequestAbortRef.current = abortCtrl;
+
     setIsRecommendationsLoading(true);
     setApiRecommendations([]);
     setRecommendationsError(false);
@@ -302,9 +341,12 @@ export default function BuilderPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ context }),
+        signal: abortCtrl.signal,
       });
       if (!res.ok) throw new Error('Failed to fetch API recommendations');
       const data = await res.json();
+      // 응답 파싱 사이에 취소됐을 수 있다 — 쓰기 직전에 한 번 더 본다.
+      if (abortCtrl.signal.aborted) return;
       const recs: ApiRecommendation[] = data.data?.recommendations ?? [];
       setApiRecommendations(recs);
       setLastRecommendedContext(context);
@@ -313,12 +355,16 @@ export default function BuilderPage() {
       for (const rec of recs) {
         addApi(rec.api);
       }
-    } catch {
+    } catch (err) {
+      // 취소는 실패가 아니다 — 에러 UI를 띄우거나 상태를 되돌리지 않는다.
+      if ((err as { name?: string }).name === 'AbortError') return;
       setApiRecommendations([]);
       setRecommendationsError(true);
       setLastRecommendedContext(null);
     } finally {
-      setIsRecommendationsLoading(false);
+      if (!abortCtrl.signal.aborted) {
+        setIsRecommendationsLoading(false);
+      }
     }
   }, [context, clearApis, addApi]);
 
@@ -411,23 +457,28 @@ export default function BuilderPage() {
   const handleSelectPopularService = useCallback(
     (service: PopularService) => {
       setContext(service.context);
-      if (service.apiIds.length > 0) {
-        clearApis();
-        for (const apiId of service.apiIds) {
-          const api = apis.find((a) => a.id === apiId);
-          if (api) addApi(api);
-        }
-        setApiRecommendations(
-          service.apiIds
-            .map((apiId) => {
-              const api = apis.find((a) => a.id === apiId);
-              return api ? { api, reason: '인기 서비스 추천 API' } : null;
-            })
-            .filter((r): r is ApiRecommendation => r !== null)
-        );
-        setLastRecommendedContext(service.context);
-        setRecommendationsError(false);
-      }
+
+      // 카탈로그에서 **실제로 해석된** API만 센다. 카탈로그가 아직 안 왔거나
+      // 로드에 실패했으면 여기가 빈 배열이 된다.
+      const resolved = service.apiIds
+        .map((apiId) => apis.find((a) => a.id === apiId))
+        .filter((api): api is ApiCatalogItem => api !== undefined);
+
+      // ⚠️ 해석된 게 하나도 없으면 **아무것도 건드리지 않는다.**
+      // 예전에는 `service.apiIds.length > 0`만 보고 진행해서, 카탈로그가 비어 있으면
+      // clearApis()로 선택만 지우고 API는 하나도 못 넣은 채 `lastRecommendedContext`를
+      // 설정했다. 그러면 handleNextStep의 `context !== lastRecommendedContext` 가드가
+      // 거짓이 되어 추천 재조회까지 막혀 **2단계에서 빠져나갈 수 없었다**(데드엔드).
+      // 지금은 컨텍스트만 채우고 빠지므로, 「다음」에서 정상적으로 추천을 조회한다.
+      if (resolved.length === 0) return;
+
+      clearApis();
+      for (const api of resolved) addApi(api);
+      setApiRecommendations(
+        resolved.map((api) => ({ api, reason: '인기 서비스 추천 API' }))
+      );
+      setLastRecommendedContext(service.context);
+      setRecommendationsError(false);
     },
     [setContext, clearApis, addApi, apis]
   );

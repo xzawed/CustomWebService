@@ -247,7 +247,7 @@ describe('KNOWN-DEFECT: 인기 서비스 선택이 카탈로그 미로드 시 �
     });
   });
 
-  it('KNOWN-DEFECT — 카탈로그가 비어 있으면 컨텍스트만 채우고 API를 조용히 버린다', async () => {
+  it('카탈로그가 비어 있으면 컨텍스트만 채우고 **기존 선택은 건드리지 않는다**', async () => {
     // 카탈로그 응답이 비어 있는 상황(로드 실패·지연·limit 캡으로 잘림)을 재현한다.
     installHandlers({ catalog: [] });
     server.use(
@@ -257,16 +257,20 @@ describe('KNOWN-DEFECT: 인기 서비스 선택이 카탈로그 미로드 시 �
     );
 
     await enterContextFirst();
+    // 사용자가 이미 고른 API가 있는 상태로 만든다 — 수정 전에는 이게 지워졌다.
+    useApiSelectionStore.getState().addApi(makeApi('user-picked') as never);
     await waitFor(() => expect(screen.getByText('날씨 대시보드')).toBeTruthy());
     fireEvent.click(screen.getByText('날씨 대시보드').closest('button')!);
 
     await waitFor(() => expect(useContextStore.getState().context).toBe(LONG_CONTEXT));
-    // ⛔ 여기가 결함이다 — 컨텍스트는 들어갔는데 API는 하나도 안 들어갔다.
-    // `apis.find()`가 전부 undefined를 반환하는데 `clearApis()`는 이미 실행된 뒤다.
-    expect(useApiSelectionStore.getState().selectedApis).toHaveLength(0);
+    // 해석된 API가 0개이므로 `handleSelectPopularService`는 조기 반환한다 —
+    // `clearApis()`가 실행되지 않아 사용자의 기존 선택이 살아남는다.
+    const selected = useApiSelectionStore.getState().selectedApis;
+    expect(selected).toHaveLength(1);
+    expect(selected[0].id).toBe('user-picked');
   });
 
-  it('KNOWN-DEFECT — 그 상태에서 「다음」을 눌러도 추천을 재조회하지 않는다 (데드엔드)', async () => {
+  it('회귀 — 그 상태에서 「다음」을 누르면 추천을 정상적으로 재조회한다 (데드엔드 아님)', async () => {
     let suggestApiHits = 0;
     installHandlers({ catalog: [] });
     server.use(
@@ -286,13 +290,12 @@ describe('KNOWN-DEFECT: 인기 서비스 선택이 카탈로그 미로드 시 �
 
     fireEvent.click(screen.getByText('다음').closest('button')!);
 
-    // ⛔ 결함의 핵심 — `handleSelectPopularService`가 `lastRecommendedContext`를
-    // `context`와 **같은 값**으로 설정해 두었기 때문에, `handleNextStep`의
-    // `context !== lastRecommendedContext` 가드가 거짓이 되어 재조회가 막힌다.
-    // 사용자는 API 0개인 채로 2단계에 도착하고 빠져나갈 방법이 없다.
+    // 수정 전에는 `lastRecommendedContext`가 `context`와 같은 값으로 설정돼 있어
+    // `handleNextStep`의 `context !== lastRecommendedContext` 가드가 거짓이 되고
+    // 재조회가 막혀 **API 0개로 2단계에 갇혔다**. 지금은 해석 실패 시 그 값을 건드리지
+    // 않으므로 정상적으로 추천을 조회한다.
     await waitFor(() => expect(screen.getByText('추천된 API를 확인하세요')).toBeTruthy());
-    expect(suggestApiHits).toBe(0);
-    expect(useApiSelectionStore.getState().selectedApis).toHaveLength(0);
+    await waitFor(() => expect(suggestApiHits).toBe(1));
   });
 });
 
@@ -310,7 +313,7 @@ describe('KNOWN-DEFECT: 늦게 도착한 추천 응답이 사용자 선택을 �
   // "비행 중 수동 선택이 지워진다"는 **의도된 동작일 수 있다**(추천이 도착하면 자동 선택이
   // 대체하는 게 설계일 수 있음). 반면 **방식을 바꿔 새 세션을 시작했는데 이전 세션의 추천이
   // 흘러드는 것**은 어떤 해석으로도 옳지 않다. 모호하지 않은 쪽을 고정한다.
-  it('KNOWN-DEFECT — 방식 변경 후에도 이전 세션의 늦은 추천이 새 세션을 오염시킨다', async () => {
+  it('회귀 — 방식 변경 후 도착한 이전 세션의 추천은 새 세션에 주입되지 않는다', async () => {
     const gate = deferred<void>();
     const leaked = makeApi('leaked', '이전 세션 추천 API');
     installHandlers({ catalog: [makeApi('a1'), leaked] });
@@ -344,14 +347,10 @@ describe('KNOWN-DEFECT: 늦게 도착한 추천 응답이 사용자 선택을 �
     // 이제 **이전 세션의** 늦은 응답이 도착한다.
     gate.resolve();
 
-    // ⛔ 결함 — `fetchApiRecommendations`(295-323)에 AbortController가 없다.
-    // (이 페이지에서 AbortController는 113행 카탈로그·217행 preferences 둘뿐이다.)
-    // 그래서 방식 변경으로 취소돼야 할 요청이 살아남아, 312행 `clearApis()` 후
-    // **이전 컨텍스트의 추천이 새 세션에 주입된다.**
-    await waitFor(() => {
-      const selected = useApiSelectionStore.getState().selectedApis;
-      expect(selected).toHaveLength(1);
-      expect(selected[0].id).toBe('leaked');
-    });
+    // `handleResetMode`·`handleModeSelect`가 `aiRequestAbortRef`를 abort했으므로
+    // 이 응답은 아무 상태도 쓰지 않는다. 수정 전에는 `clearApis()` 후 이전 컨텍스트의
+    // 추천이 새 세션에 주입됐다.
+    await new Promise((r) => setTimeout(r, 50)); // 주입이 일어난다면 이 사이에 일어난다
+    expect(useApiSelectionStore.getState().selectedApis).toHaveLength(0);
   });
 });
