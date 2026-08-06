@@ -212,3 +212,4 @@
 | `2026-07-30-login-rate-limit.md` | [ADR](decisions/2026-07-30-login-rate-limit.md) |
 | `2026-07-30-monitoring-sink-wiring.md` | [ADR](decisions/2026-07-30-monitoring-sink-slack-only.md), [setup](guides/monitoring-sink-setup.md) |
 | `2026-07-30-sqlite-restore-runbook.md` | [복구 런북](guides/sqlite-restore-runbook.md) |
+| `2026-08-06-long-file-decomposition-scope.md` | [ADR](decisions/2026-08-06-long-file-decomposition-scope.md) — **긴 파일 3종 중 0종 분해**. "길어서 쪼개려" 할 때 먼저 읽을 것 |
