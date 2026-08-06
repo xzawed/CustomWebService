@@ -58,8 +58,11 @@ function installHandlers(
   } = {},
 ) {
   server.use(
+    // ⚠️ 응답 형태는 `{ data: { items } }` 다 — 페이지가 `apisData.data?.items ?? []` 로 읽는다
+    // (page.tsx:126). `{ data: [...] }` 로 주면 조용히 빈 배열이 되어 **대조군이 실험군과
+    // 구분되지 않는다.** 초안에서 실제로 이 함정에 걸렸다.
     http.get('*/api/v1/catalog', () =>
-      HttpResponse.json({ data: overrides.catalog ?? [makeApi('a1'), makeApi('a2')] }),
+      HttpResponse.json({ data: { items: overrides.catalog ?? [makeApi('a1'), makeApi('a2')] } }),
     ),
     http.get('*/api/v1/catalog/categories', () =>
       HttpResponse.json({ data: overrides.categories ?? [{ id: 'utility', name: '유틸리티' }] }),
@@ -187,5 +190,108 @@ describe('BuilderPage — 카탈로그 로드', () => {
     fireEvent.click(screen.getByText('API를 직접 선택').closest('button')!);
 
     await waitFor(() => expect(screen.getByText('사용할 API를 선택하세요')).toBeTruthy());
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// KNOWN-DEFECT — 아래 단언들은 **현재 동작이 잘못됐음을 고정**한다.
+//
+// 리팩터링 PR은 이 단언들도 그대로 통과해야 한다(동작을 바꾸지 않았다는 증명).
+// **결함을 고치는 PR만이 이 단언을 뒤집을 수 있고**, 그때는 뒤집힌 단언이
+// 곧 수정의 증거가 된다. 그 외의 이유로 이 블록을 고치지 말 것.
+//
+// 근거: docs/superpowers/plans/2026-07-31-project-wbs.md 의 F20
+// ════════════════════════════════════════════════════════════════════════════
+
+const LONG_CONTEXT = '실시간 날씨와 미세먼지를 한 화면에서 보여주는 대시보드를 만들고 싶습니다. 지역을 선택하면 해당 지역 정보가 표시되면 좋겠습니다.';
+
+function popularService(apiIds: string[]) {
+  return {
+    id: 'ps1',
+    title: '날씨 대시보드',
+    description: '날씨와 미세먼지',
+    context: LONG_CONTEXT,
+    apiNames: ['Weather API'],
+    apiIds,
+    category: 'utility',
+    usageCount: 42,
+  };
+}
+
+/** context-first 모드로 진입해 step 1까지 간다. */
+async function enterContextFirst() {
+  renderComponent(<BuilderPage />);
+  fireEvent.click(screen.getByText('아이디어로 시작').closest('button')!);
+  await waitFor(() => expect(screen.getByText('어떤 서비스를 만들고 싶으세요?')).toBeTruthy());
+}
+
+describe('KNOWN-DEFECT: 인기 서비스 선택이 카탈로그 미로드 시 데드엔드를 만든다', () => {
+  it('대조군 — 카탈로그가 로드돼 있으면 인기 서비스 선택이 API를 실제로 채운다', async () => {
+    installHandlers({
+      catalog: [makeApi('a1', 'Weather API')],
+      popular: [popularService(['a1'])],
+    });
+    server.use(
+      http.get('*/api/v1/popular-services', () =>
+        HttpResponse.json({ data: { services: [popularService(['a1'])] } }),
+      ),
+    );
+
+    await enterContextFirst();
+    await waitFor(() => expect(screen.getByText('날씨 대시보드')).toBeTruthy());
+    fireEvent.click(screen.getByText('날씨 대시보드').closest('button')!);
+
+    await waitFor(() => {
+      expect(useContextStore.getState().context).toBe(LONG_CONTEXT);
+      expect(useApiSelectionStore.getState().selectedApis).toHaveLength(1);
+    });
+  });
+
+  it('KNOWN-DEFECT — 카탈로그가 비어 있으면 컨텍스트만 채우고 API를 조용히 버린다', async () => {
+    // 카탈로그 응답이 비어 있는 상황(로드 실패·지연·limit 캡으로 잘림)을 재현한다.
+    installHandlers({ catalog: [] });
+    server.use(
+      http.get('*/api/v1/popular-services', () =>
+        HttpResponse.json({ data: { services: [popularService(['a1'])] } }),
+      ),
+    );
+
+    await enterContextFirst();
+    await waitFor(() => expect(screen.getByText('날씨 대시보드')).toBeTruthy());
+    fireEvent.click(screen.getByText('날씨 대시보드').closest('button')!);
+
+    await waitFor(() => expect(useContextStore.getState().context).toBe(LONG_CONTEXT));
+    // ⛔ 여기가 결함이다 — 컨텍스트는 들어갔는데 API는 하나도 안 들어갔다.
+    // `apis.find()`가 전부 undefined를 반환하는데 `clearApis()`는 이미 실행된 뒤다.
+    expect(useApiSelectionStore.getState().selectedApis).toHaveLength(0);
+  });
+
+  it('KNOWN-DEFECT — 그 상태에서 「다음」을 눌러도 추천을 재조회하지 않는다 (데드엔드)', async () => {
+    let suggestApiHits = 0;
+    installHandlers({ catalog: [] });
+    server.use(
+      http.get('*/api/v1/popular-services', () =>
+        HttpResponse.json({ data: { services: [popularService(['a1'])] } }),
+      ),
+      http.post('*/api/v1/suggest-apis', () => {
+        suggestApiHits += 1;
+        return HttpResponse.json({ data: { recommendations: [] } });
+      }),
+    );
+
+    await enterContextFirst();
+    await waitFor(() => expect(screen.getByText('날씨 대시보드')).toBeTruthy());
+    fireEvent.click(screen.getByText('날씨 대시보드').closest('button')!);
+    await waitFor(() => expect(useContextStore.getState().context).toBe(LONG_CONTEXT));
+
+    fireEvent.click(screen.getByText('다음').closest('button')!);
+
+    // ⛔ 결함의 핵심 — `handleSelectPopularService`가 `lastRecommendedContext`를
+    // `context`와 **같은 값**으로 설정해 두었기 때문에, `handleNextStep`의
+    // `context !== lastRecommendedContext` 가드가 거짓이 되어 재조회가 막힌다.
+    // 사용자는 API 0개인 채로 2단계에 도착하고 빠져나갈 방법이 없다.
+    await waitFor(() => expect(screen.getByText('추천된 API를 확인하세요')).toBeTruthy());
+    expect(suggestApiHits).toBe(0);
+    expect(useApiSelectionStore.getState().selectedApis).toHaveLength(0);
   });
 });
