@@ -148,7 +148,7 @@ src/
 ```bash
 pnpm test              # 전체 Vitest
 pnpm test:coverage     # 커버리지 리포트
-pnpm test:e2e          # Playwright E2E (실 백엔드 env 필요)
+pnpm test:e2e          # Playwright E2E (env 불필요, pnpm build 선행)
 ```
 
 ---

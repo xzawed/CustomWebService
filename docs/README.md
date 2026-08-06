@@ -63,7 +63,7 @@
 | [`.claude/commands/`](../.claude/commands/) | 슬래시 커맨드 체크리스트 5종 |
 | [`.claude/rules/`](../.claude/rules/) | **경로 스코프 규칙** — `paths` 프론트매터가 매칭하는 파일을 **읽을 때만** 로드된다(신규 파일 Write 시엔 안 뜬다) |
 | [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) | PR 템플릿 |
-| [`.scamanager/`](../.scamanager/) | pre-push 자동 코드리뷰 훅 (`install-hook.sh`로 설치) |
+| [`.scamanager/`](../.scamanager/) | **설치하지 말 것** — `install-hook.sh`는 토큰을 **평문 HTTP의 URL 쿼리스트링**으로 보낸다(`?token=…`). 현재 훅은 **미설치**이며 `config.json`은 추적 대상에서 제외됐다 ([인시던트](security/incident-response.md)) |
 
 ---
 
