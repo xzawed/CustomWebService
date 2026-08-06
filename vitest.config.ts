@@ -76,6 +76,11 @@ export default defineConfig({
         // 이 패턴이 login/signup/forgot-password/reset-password/verify-email 5개를 전부 잡으며,
         // `(main)` 하위 페이지는 잡지 않는다(의도된 범위).
         'src/app/[(]auth[)]/**/page.tsx',
+        // 2026-08-06: F14 조사 결과 이 페이지(757줄)가 **커버리지 집계에서 빠져 있었다**.
+        // 위 (auth) 건과 같은 함정을 다시 확인했다 — `'src/app/(main)/**/*.tsx'`는 매칭 0건이고
+        // 문자 클래스 형태만 잡힌다(picomatch 2.3.2 실측). 범위를 이 파일 하나로 좁힌 이유는
+        // `'src/app/[(]main[)]/**/*.tsx'`가 12건(테스트 없는 다른 페이지 포함)을 쓸어담기 때문.
+        'src/app/[(]main[)]/builder/page.tsx',
         'src/hooks/**',
         'src/lib/**',
         'src/services/**',
