@@ -306,13 +306,20 @@ describe('KNOWN-DEFECT: 늦게 도착한 추천 응답이 사용자 선택을 �
     return { promise, resolve };
   }
 
-  it('KNOWN-DEFECT — 비행 중 사용자가 고른 API를 응답 도착 시 clearApis()가 지운다', async () => {
+  // 시나리오를 "세션 간 오염"으로 잡은 이유:
+  // "비행 중 수동 선택이 지워진다"는 **의도된 동작일 수 있다**(추천이 도착하면 자동 선택이
+  // 대체하는 게 설계일 수 있음). 반면 **방식을 바꿔 새 세션을 시작했는데 이전 세션의 추천이
+  // 흘러드는 것**은 어떤 해석으로도 옳지 않다. 모호하지 않은 쪽을 고정한다.
+  it('KNOWN-DEFECT — 방식 변경 후에도 이전 세션의 늦은 추천이 새 세션을 오염시킨다', async () => {
     const gate = deferred<void>();
-    installHandlers({ catalog: [makeApi('a1'), makeApi('a2')] });
+    const leaked = makeApi('leaked', '이전 세션 추천 API');
+    installHandlers({ catalog: [makeApi('a1'), leaked] });
     server.use(
       http.post('*/api/v1/suggest-apis', async () => {
         await gate.promise; // 테스트가 열어줄 때까지 비행 상태로 붙잡는다
-        return HttpResponse.json({ data: { recommendations: [] } });
+        return HttpResponse.json({
+          data: { recommendations: [{ api: leaked, reason: '이전 세션에서 추천됨' }] },
+        });
       }),
     );
 
@@ -324,17 +331,27 @@ describe('KNOWN-DEFECT: 늦게 도착한 추천 응답이 사용자 선택을 �
     fireEvent.click(screen.getByText('다음').closest('button')!);
     await waitFor(() => expect(screen.getByText('추천된 API를 확인하세요')).toBeTruthy());
 
-    // 요청이 아직 비행 중인 사이 사용자가 직접 API를 고른다.
-    useApiSelectionStore.getState().addApi(makeApi('a1') as never);
-    expect(useApiSelectionStore.getState().selectedApis).toHaveLength(1);
+    // 요청이 비행 중인 사이 사용자가 **방식을 바꾼다** → handleResetMode 가 전부 비운다.
+    fireEvent.click(screen.getByText('방식 변경').closest('button')!);
+    await waitFor(() => expect(screen.getByText('어떤 방식으로 시작하시겠어요?')).toBeTruthy());
+    expect(useApiSelectionStore.getState().selectedApis).toHaveLength(0);
 
-    // 이제 늦은 응답이 도착한다.
+    // 새 세션을 시작한다 — handleModeSelect 가 한 번 더 비운다.
+    fireEvent.click(screen.getByText('API를 직접 선택').closest('button')!);
+    await waitFor(() => expect(screen.getByText('사용할 API를 선택하세요')).toBeTruthy());
+    expect(useApiSelectionStore.getState().selectedApis).toHaveLength(0);
+
+    // 이제 **이전 세션의** 늦은 응답이 도착한다.
     gate.resolve();
 
-    // ⛔ 결함 — `fetchApiRecommendations`(295-323)에는 AbortController가 없고,
-    // 312행 `clearApis()`가 **응답 도착 시점에 무조건** 실행된다.
-    // 그래서 사용자가 비행 중 고른 선택이 조용히 사라진다.
-    // (이 페이지에서 AbortController는 113행 카탈로그와 217행 preferences 둘뿐이다.)
-    await waitFor(() => expect(useApiSelectionStore.getState().selectedApis).toHaveLength(0));
+    // ⛔ 결함 — `fetchApiRecommendations`(295-323)에 AbortController가 없다.
+    // (이 페이지에서 AbortController는 113행 카탈로그·217행 preferences 둘뿐이다.)
+    // 그래서 방식 변경으로 취소돼야 할 요청이 살아남아, 312행 `clearApis()` 후
+    // **이전 컨텍스트의 추천이 새 세션에 주입된다.**
+    await waitFor(() => {
+      const selected = useApiSelectionStore.getState().selectedApis;
+      expect(selected).toHaveLength(1);
+      expect(selected[0].id).toBe('leaked');
+    });
   });
 });
