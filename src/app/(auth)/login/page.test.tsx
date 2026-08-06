@@ -71,4 +71,25 @@ describe('LoginPage local(Credentials) mode', () => {
     expect(signupLink.getAttribute('href')).toBe('/signup');
     expect(forgotLink.getAttribute('href')).toBe('/forgot-password');
   });
+
+  // KNOWN-DEFECT: handleCredentialsLogin에서 setCredLoading(true) 후 signIn(line 26)이
+  // reject되면 try/catch/finally가 없어 credLoading이 true로 남고 에러도 안 보인다.
+  // 수정 전까지 이 테스트는 FAIL이 정상이다.
+  it('signIn이 거부되면(네트워크 실패) 버튼이 영구 비활성화되고 에러도 표시되지 않는다 (KNOWN-DEFECT)', async () => {
+    mocks.signIn.mockRejectedValue(new Error('network down'));
+    renderComponent(<LoginPage />);
+
+    const emailInput = screen.getByLabelText('이메일');
+    fireEvent.change(emailInput, { target: { value: 'admin@example.com' } });
+    fireEvent.change(screen.getByLabelText('비밀번호'), { target: { value: 'hunter2' } });
+    fireEvent.submit(emailInput.closest('form')!);
+
+    // 기대: 네트워크 실패 후에도 버튼이 다시 활성화되고 에러가 보여야 한다.
+    await waitFor(() => {
+      const button = screen.getByRole('button', { name: /로그인/ });
+      expect(button.hasAttribute('disabled')).toBe(false);
+    });
+    // credError는 role=alert 없는 plain div. 의도 문구는 아직 미정 → 관용 매처.
+    expect(screen.getByText(/오류|실패|잠시 후|다시 시도/)).toBeTruthy();
+  });
 });

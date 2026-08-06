@@ -23,14 +23,31 @@ export default function LoginPage() {
     setCredError(null);
     setCredLoading(true);
 
-    const res = await signIn('credentials', { email, password, redirect: false });
+    let res: Awaited<ReturnType<typeof signIn>>;
+    try {
+      res = await signIn('credentials', { email, password, redirect: false });
+    } catch {
+      // signIn은 자격증명 오류를 `res.error`로 돌려주지만 **네트워크·서버 도달 실패는 throw**한다.
+      // 이 catch가 없으면 아래가 통째로 실행되지 않아 credLoading이 true로 굳고, 버튼이
+      // '로그인 중...'으로 영구 비활성화되며 **에러 문구조차 뜨지 않는다**(새로고침 외 탈출 불가).
+      // 자격증명 오류와 문구를 반드시 구분한다 — 같은 문구를 쓰면 사용자가 비밀번호를 의심하며
+      // 재시도해 계정 스로틀만 소모한다. 이 문구는 계정 존재 여부와 무관하므로 오라클이 아니다.
+      setCredError('로그인 요청에 실패했습니다. 네트워크 상태를 확인하고 잠시 후 다시 시도해 주세요.');
+      setCredLoading(false);
+      return;
+    }
 
     if (res?.error) {
+      // 스로틀 초과도 여기로 온다(authorize가 null 반환). 계정 존재 여부가 새지 않도록
+      // **항상 같은 문구**여야 한다 — docs/decisions/2026-07-30-login-rate-limit.md
       setCredError('이메일 또는 비밀번호가 올바르지 않습니다.');
       setCredLoading(false);
       return;
     }
 
+    // 성공 경로는 credLoading을 **의도적으로 true로 둔다.** 페이지를 떠나는 중이며,
+    // 여기서 false로 되돌리면 내비게이션이 끝나기 전에 버튼이 다시 눌려 이중 제출이 된다.
+    // (finally로 일괄 해제하지 않는 이유가 이것이다 — 실패 경로에서만 해제한다.)
     window.location.assign(getSafeRedirectParam() ?? '/dashboard');
   };
 
