@@ -151,7 +151,7 @@ pnpm test             # 전체 테스트
 pnpm test:unit        # 단위 테스트
 pnpm test:integration # 통합 테스트 (API routes)
 pnpm test:coverage    # 커버리지 리포트
-pnpm test:e2e         # E2E (Playwright — 실 백엔드 env 필요)
+pnpm test:e2e         # E2E (Playwright — env 불필요, pnpm build 선행 필요)
 pnpm type-check       # TypeScript 검사
 pnpm lint             # ESLint
 pnpm lint:fix         # ESLint 자동 수정

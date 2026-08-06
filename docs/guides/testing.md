@@ -32,7 +32,7 @@
 pnpm exec vitest list
 pnpm exec playwright test --list
 pnpm test                 # 통과 여부 진실원
-pnpm test:e2e             # E2E (실 백엔드 env 필요)
+pnpm test:e2e             # E2E (env 불필요, pnpm build 선행 필요)
 ```
 
 ### 핵심 원칙

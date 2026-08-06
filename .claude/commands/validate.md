@@ -10,7 +10,7 @@
 
 - `pnpm test:unit` — lib · providers · services · repositories
 - `pnpm test:integration` — `src/__tests__/api` · `src/app/api`
-- 서빙/CSP 변경 시: `/verify-csp`, `/verify-serving` 체크리스트 또는 `pnpm test:e2e` (실 env)
+- 서빙/CSP 변경 시: `/verify-csp`, `/verify-serving` 체크리스트 또는 `pnpm test:e2e` (env 불필요 · `pnpm build` 선행)
 
 각 단계 실패 시 파일·라인·에러 메시지를 보고하고 다음 단계로 넘기지 말 것.  
 전부 통과 시 명령별 결과만 짧게 요약.
