@@ -615,20 +615,44 @@ SSE가 끊긴 **모바일 폴링 사용자는 진행률 5%에 정체**한다 —
 
 F14 조사 중 `builder/page.tsx`를 전수로 읽으며 나왔다. **이것이 F14의 실제 산출이다.**
 
-| # | 결함 | 확인된 경로 | 위험 |
-|---|---|---|---|
-| 1 | `regenVersion` 미리셋 → 미리보기 **404** | `setRegenVersion`이 `onRegenerationComplete` 2곳에서만 호출되고 어디서도 리셋 안 됨. 574·694행이 `regenVersion ?? version` | 재생성 후 방식 변경 시 |
-| 2 | `isPreferenceLoading` 영구 true | 비행 중 abort → `finally`의 `!aborted` 가드가 리셋 스킵 → 다음 실행이 212행 가드로 조기 반환. **`try` 안 조기 `return`은 원인이 아니다**(`finally`가 덮음) | 로딩 스피너 영구 표시 |
-| 3 | 인기 서비스 **데드엔드** | `apis`가 비면 `clearApis()`로 선택만 지우고 아무것도 못 추가하는데 `setLastRecommendedContext`·`setRecommendationsError(false)`는 설정돼 재조회까지 막힘 | 카탈로그 미로드·실패 시 |
-| 4 | 늦은 응답이 **사용자 선택을 덮어씀** | `AbortController`가 113·217행 둘뿐. `fetchSuggestions`·`fetchApiRecommendations`엔 없고 후자는 `clearApis()` 후 주입 | 모드 변경·빠른 조작 시 |
+| # | 결함 | 확인된 경로 | 위험 | 상태 |
+|---|---|---|---|---|
+| 1 | `regenVersion` 미리셋 → 미리보기 **404** | `setRegenVersion(undefined)` 호출이 저장소 전체에 **0건**. 625·745행이 `regenVersion ?? version` | 재생성 후 **새 프로젝트 생성** 시 | ✅ 해소 |
+| 2 | `isPreferenceLoading` 고착 | 비행 중 abort → `finally`의 `!aborted` 가드가 리셋 스킵 → 재실행이 231행 조기 반환. **`try` 안 조기 `return`은 원인이 아니다**(`finally`가 덮음) | 거짓 진행 표시 | ✅ 해소 |
+| 3 | 인기 서비스 **데드엔드** | `apis`가 비면 `clearApis()`로 선택만 지우고 아무것도 못 추가하는데 `setLastRecommendedContext`·`setRecommendationsError(false)`는 설정돼 재조회까지 막힘 | 카탈로그 미로드·실패 시 | ✅ 해소 ([#289](https://github.com/xzawed/CustomWebService/pull/289)) |
+| 4 | 늦은 응답이 **사용자 선택을 덮어씀** | `fetchSuggestions`·`fetchApiRecommendations`에 `AbortController` 부재 | 모드 변경·빠른 조작 시 | ✅ 해소 ([#289](https://github.com/xzawed/CustomWebService/pull/289)) |
+| 5 | `isRecommendationsLoading` **데드엔드** (신규 — #289가 만든 것) | #289의 `finally { if (!aborted) }`가 `handleResetMode:184`의 abort와 결합. `ApiRecommendations.tsx:30-39`가 로딩이면 **스피너만 리턴하고 조기 종료**해 「다시 추천」·「재시도」 버튼까지 사라진다 | **자력 탈출 불가** — 컨텍스트 텍스트를 직접 고쳐야만 풀림 | ✅ 해소 |
+| 6 | 로그인·가입 **영구 비활성화** (신규 — 전수 스캔 부산물) | `setLoading(true)` 뒤 `await`에 try/catch/finally 없음. 네트워크 실패 시 버튼 disabled 고착 + **에러 문구도 안 뜸** | **전 사용자 진입점** · 새로고침 외 탈출 없음 | ✅ 해소 ([#292](https://github.com/xzawed/CustomWebService/pull/292)) |
+
+**2026-08-07 조사에서 정정된 것** — 위 표의 원래 기술 3건이 실제와 달랐다:
+
+- 행 번호 574·694 → **625·745** (드리프트)
+- 결함 1의 트리거는 "재생성 후 **방식 변경**"이 아니라 **새 프로젝트 생성**(「새로 생성하기」→「생성하기」)이다. 증상도 404 그 자체가 아니라, 404 본문이 `application/json`이라 **iframe에 원본 JSON 에러 텍스트가 그대로 보이는 것**이다(실측)
+- 결함 2는 **"영구 true"가 아니다.** 정상 분기(`context ≥ 20자` + API 선택됨)로 재진입하면 회복된다 — 정확한 표현은 *"조기 반환 분기로 재실행된 경우 무기한 지속"*. 또 **"로딩 스피너"가 아니라** `TemplateSelector.tsx:80-84`의 `<p>` **한 줄**이다(스피너·disabled·차단 없음). 기능 차단이 아니라 **거짓 진행 표시**
+- 결함 1의 `RePromptPanel.tsx:106` `?? 1` 폴백 가설은 **거짓**이었다 — 서버가 version을 항상 채우므로 도달 불가한 방어 코드다(아래 잔여 참조)
+
+**해소 방식(2026-08-07)**: 결함 2·5는 **소유권 토큰**으로 닫았다 — 해제 조건을 *"내 요청이
+취소됐나"*(`!signal.aborted`)에서 *"내가 아직 최신 소유자인가"*(`reqIdRef.current === reqId`)로
+바꿨다. 전자는 (a) 후속 요청의 선점과 (b) 리셋에 의한 폐기를 구분하지 못하는데, (a)에서는
+끄면 안 되고 (b)에서는 반드시 꺼야 한다. **한 비트로 두 질문에 답하려던 것이 결함이었다.**
+결함 1은 `regen: { projectId, version } | null`로 **신원을 값 안에 담아** 리셋 호출 자체를
+불필요하게 만들었다 — 리셋 누락이 버그가 될 수 없는 형태다.
+
+> **왜 abort 지점마다 해제 코드를 넣지 않았나**: 그 방식은 의무가 `abort 지점 × 플래그`로
+> 곱해진다. **#289가 정확히 그 곱셈을 절반만 채우다 결함 5를 만들었다.** 같은 형태를 한 번 더
+> 사는 것은 "최소 수정이 재발을 못 막았다"는 전제와 모순된다.
+
+**남긴 것(부풀리지 않고 명시)**:
+- `RePromptPanel.tsx:106`의 `?? 1` — 오늘 도달 불가지만 **"버전 미상"을 최신본이 아니라 1번으로
+  바꾸는 잘못된 기본값**. 고치려면 `RePromptPanel.test.tsx:315`(현재 green)와
+  `RePromptSection.tsx:14`(타입 `number`)를 함께 바꿔야 한다 → **별건 PR**
+- `isLoadingCatalog`(144행)의 `!aborted` — abort 주체가 언마운트뿐이라 도달 불가. 일관성 결여만 남음
+- `isSuggestionsLoading` — 상태는 고쳐졌으나 **오늘 화면에 드러나는 경로를 찾지 못했다**(없다고
+  증명한 것은 아니다). 회귀 테스트 없음 — "증상이 고쳐졌다"고 보고하면 안 된다
 
 **선행 조건(완료)**: 이 페이지가 커버리지 집계에서 빠져 있었다 → `vitest.config.ts` 편입
 ([PR #284](https://github.com/xzawed/CustomWebService/pull/284)). `(auth)`와 같은 **괄호 경로
 glob 함정**을 다시 확인했다 — `'src/app/(main)/**/*.tsx'`는 매칭 0건.
-
-**착수 순서**: 특성화 테스트(결함 3건을 KNOWN-DEFECT 라벨로 고정) → 커버리지 게이트 3파일
-정합 → 중복 제거 → 결함 수정. `codecov.yml`·`sonar-project.properties`는 **테스트가 생긴 뒤에만**
-건드린다(지금 제외를 풀면 builder를 건드리는 모든 PR이 patch 0%로 실패한다).
 
 ---
 
