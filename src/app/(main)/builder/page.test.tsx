@@ -295,3 +295,46 @@ describe('KNOWN-DEFECT: 인기 서비스 선택이 카탈로그 미로드 시 �
     expect(useApiSelectionStore.getState().selectedApis).toHaveLength(0);
   });
 });
+
+describe('KNOWN-DEFECT: 늦게 도착한 추천 응답이 사용자 선택을 덮어쓴다', () => {
+  /** 응답을 테스트가 원하는 시점에 해소할 수 있게 만드는 지연 게이트. */
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  it('KNOWN-DEFECT — 비행 중 사용자가 고른 API를 응답 도착 시 clearApis()가 지운다', async () => {
+    const gate = deferred<void>();
+    installHandlers({ catalog: [makeApi('a1'), makeApi('a2')] });
+    server.use(
+      http.post('*/api/v1/suggest-apis', async () => {
+        await gate.promise; // 테스트가 열어줄 때까지 비행 상태로 붙잡는다
+        return HttpResponse.json({ data: { recommendations: [] } });
+      }),
+    );
+
+    await enterContextFirst();
+    // 컨텍스트를 유효 길이(LIMITS.contextMinLength=50)로 채워 「다음」을 활성화한다
+    useContextStore.getState().setContext(LONG_CONTEXT);
+    await waitFor(() => expect(useContextStore.getState().isValid()).toBe(true));
+
+    fireEvent.click(screen.getByText('다음').closest('button')!);
+    await waitFor(() => expect(screen.getByText('추천된 API를 확인하세요')).toBeTruthy());
+
+    // 요청이 아직 비행 중인 사이 사용자가 직접 API를 고른다.
+    useApiSelectionStore.getState().addApi(makeApi('a1') as never);
+    expect(useApiSelectionStore.getState().selectedApis).toHaveLength(1);
+
+    // 이제 늦은 응답이 도착한다.
+    gate.resolve();
+
+    // ⛔ 결함 — `fetchApiRecommendations`(295-323)에는 AbortController가 없고,
+    // 312행 `clearApis()`가 **응답 도착 시점에 무조건** 실행된다.
+    // 그래서 사용자가 비행 중 고른 선택이 조용히 사라진다.
+    // (이 페이지에서 AbortController는 113행 카탈로그와 217행 preferences 둘뿐이다.)
+    await waitFor(() => expect(useApiSelectionStore.getState().selectedApis).toHaveLength(0));
+  });
+});
