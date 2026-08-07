@@ -208,7 +208,7 @@ for (const r of c) if (r.auth_config?.env_var)
 |------|--------|---------|------|
 | `MAX_APIS_PER_PROJECT` | `5` | ➖ | 프로젝트당 최대 API 수 |
 | `MAX_DAILY_GENERATIONS` | `10` | ➖ | 사용자당 일일 생성 횟수 |
-| `MAX_DAILY_SUGGESTIONS` | `30` | ➖ | 사용자당 일일 AI 추천(suggest-*) 횟수. free 기본 30, pro 오버라이드 150. 코드: `src/lib/config/features.ts` · `RateLimitService.checkAndIncrementDailySuggestionLimit` |
+| `MAX_DAILY_SUGGESTIONS` | `30` | ➖ | 사용자당 일일 AI 추천(suggest-*) 횟수. ⚠️ **`PLAN_OVERRIDES.pro`(150)는 도달 불가한 죽은 설정이다** — `getLimits(plan = 'free')`의 호출부 6곳(`generate/regenerate/route`·`health/route`·`generationSaver`·`projectService`·`rateLimitService` ×2)이 **전부 인자 없이** 부르므로 실효값은 항상 `free`다(2026-08-07 코드 실측). 코드: `src/lib/config/features.ts` · `RateLimitService.checkAndIncrementDailySuggestionLimit` |
 | `MAX_PROJECTS_PER_USER` | `20` | ➖ | 사용자당 최대 프로젝트 수 |
 | `MAX_REGENERATIONS` | `5` | ➖ | 프로젝트당 재생성 횟수 |
 | `MAX_CODE_VERSIONS` | `10` | ➖ | 프로젝트당 최대 코드 버전 수. 초과 시 오래된 버전 삭제 |
