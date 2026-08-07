@@ -11,6 +11,14 @@ function getSafeRedirectParam(): string | null {
   return redirect.startsWith('/') ? redirect : null;
 }
 
+/**
+ * 서버에 **도달하지 못한** 경우의 문구. 자격증명 오류와 반드시 구분한다 —
+ * 같은 문구를 쓰면 사용자가 비밀번호를 의심하며 재시도해 계정 스로틀만 소모한다.
+ * 이 문구는 계정 존재 여부와 무관하므로 오라클이 아니다.
+ */
+const REQUEST_FAILED_MESSAGE =
+  '로그인 요청에 실패했습니다. 네트워크 상태를 확인하고 잠시 후 다시 시도해 주세요.';
+
 export default function LoginPage() {
   // 셀프호스트 단일 관리자 — Auth.js Credentials(이메일/비번) 로그인.
   const [email, setEmail] = useState('');
@@ -27,19 +35,37 @@ export default function LoginPage() {
     try {
       res = await signIn('credentials', { email, password, redirect: false });
     } catch {
-      // signIn은 자격증명 오류를 `res.error`로 돌려주지만 **네트워크·서버 도달 실패는 throw**한다.
-      // 이 catch가 없으면 아래가 통째로 실행되지 않아 credLoading이 true로 굳고, 버튼이
-      // '로그인 중...'으로 영구 비활성화되며 **에러 문구조차 뜨지 않는다**(새로고침 외 탈출 불가).
-      // 자격증명 오류와 문구를 반드시 구분한다 — 같은 문구를 쓰면 사용자가 비밀번호를 의심하며
-      // 재시도해 계정 스로틀만 소모한다. 이 문구는 계정 존재 여부와 무관하므로 오라클이 아니다.
-      setCredError('로그인 요청에 실패했습니다. 네트워크 상태를 확인하고 잠시 후 다시 시도해 주세요.');
+      // 좁은 경로다: providers·csrf 조회는 성공하고 **callback 만 실패**할 때
+      // `new URL(data.url)` 이 TypeError 를 던진다. 아래 `!res` 분기가 나머지를 덮는다.
+      setCredError(REQUEST_FAILED_MESSAGE);
       setCredLoading(false);
       return;
     }
 
-    if (res?.error) {
+    // ⚠️ **`signIn` 은 네트워크·서버 도달 실패에 throw 하지 않는다.** (next-auth 5.0.0-beta.32 실측)
+    //
+    //   fetch 실패 → `fetchData` 가 `catch { logger.error(...); return null }` 로 삼킴
+    //   → `getProviders()` 가 null → signIn 은 `window.location.href='/api/auth/error'` 만 쓰고
+    //     **`return;`** — 즉 **undefined 로 resolve** 한다(reject 아님).
+    //
+    // 그래서 undefined 를 성공으로 읽으면 아래 `window.location.assign('/dashboard')` 가 실행되고,
+    // 세션이 없어 다시 로그인으로 튕긴다 — **원인 표시가 없는 왕복**이 된다.
+    // `AUTH_TRUST_HOST` 누락으로 `/api/auth/*` 가 500 일 때도 같은 경로다.
+    //
+    // 실측 근거: `fetch` 를 거부시켜 실제 signIn 을 호출하면
+    //   reject=false · 반환값=undefined · location.href 쓰기=["/api/auth/error"]
+    if (!res) {
+      setCredError(REQUEST_FAILED_MESSAGE);
+      setCredLoading(false);
+      return;
+    }
+
+    if (res.error) {
       // 스로틀 초과도 여기로 온다(authorize가 null 반환). 계정 존재 여부가 새지 않도록
       // **항상 같은 문구**여야 한다 — docs/decisions/2026-07-30-login-rate-limit.md
+      // 위 두 분기(도달 실패)와 문구를 구분한다 — 같은 문구를 쓰면 사용자가 비밀번호를
+      // 의심하며 재시도해 계정 스로틀만 소모한다. 도달 실패 문구는 계정 존재 여부와
+      // 무관하므로 오라클이 아니다.
       setCredError('이메일 또는 비밀번호가 올바르지 않습니다.');
       setCredLoading(false);
       return;
