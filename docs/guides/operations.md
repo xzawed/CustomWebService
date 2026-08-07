@@ -1,8 +1,8 @@
 # 운영 가이드
 
-> **언제 읽나**: 프로덕션을 오늘 점검·대응할 때. 관리자 엔드포인트 호출, Railway 배포 상태 해석, API 폐기 런북, 백업·보존, SonarCloud 조회 절차가 여기 있다
+> **언제 읽나**: 프로덕션을 오늘 점검·대응할 때. 관리자 엔드포인트 호출, Railway 배포 상태 해석, API 폐기 런북, 백업·보존, SonarCloud 조회 절차, 의존성 감사 게이트(`pnpm audit`)·Dependabot 보안 PR 처리가 여기 있다
 
-> **최종 업데이트:** 2026-08-02  
+> **최종 업데이트:** 2026-08-07  
 > **대상:** 프로덕션(https://xzawed.xyz)을 **오늘** 점검·대응해야 하는 운영자  
 > **스택:** Railway 단일 인스턴스 · 임베디드 SQLite(`/data/app.db`) · Auth.js 로컬 인증 · Slack 경보
 
@@ -290,7 +290,7 @@ Wait for CI가 활성이다. 신규 커밋은 CI 완료까지 `WAITING`에 머�
 **`FAILED`·`SKIPPED` 복구는 동일하다: 커밋을 하나 올려 새 배포를 트리거한다.** env 값은 이미 저장돼 있어 그 배포에서 함께 적용된다.
 `FAILED`를 보면 로그를 즉시 수집한다(후속 배포로 대체되면 사라진다) — 단 위 RAILPACK 건은 로그가 비어 있는 것이 정상이니 메타를 봐야 한다.
 
-상세·실증 근거: [railway-deploy-troubleshooting.md](railway-deploy-troubleshooting.md) · 판별표 원본은 [CLAUDE.md — Railway 배포 상태 판별](../../CLAUDE.md).  
+상세·실증 근거이자 **판별표의 진실원**: [railway-deploy-troubleshooting.md](railway-deploy-troubleshooting.md).  
 `railway variables` 메타의 `patchId` 유무로 env 변경 재배포 vs 커밋 배포를 구분할 수 있다.
 
 ### 4.2 실패 배포 로그 수집 (대체되기 전)
@@ -309,7 +309,7 @@ railway logs -d <deployment-id>         # 런타임/배포
    `git tag -l 'deploy/*'`  
    성공 배포 후 관례: `git tag deploy/YYYY-MM-DD-HHmm && git push origin --tags`  
 2. 해당 커밋으로 재배포(Railway 대시보드 Rollback 또는 태그 커밋 재배포).  
-3. env/`railway.toml`/`startCommand` 함정: Dockerfile `ENTRYPOINT`를 덮어쓰면 비root·`/data` chown 경로가 깨질 수 있다 — [Claude.md 배포 품질 원칙](../../CLAUDE.md).
+3. env/`railway.toml`/`startCommand` 함정: Dockerfile `ENTRYPOINT`를 덮어쓰면 비root·`/data` chown 경로가 깨질 수 있다 — [railway-deploy-troubleshooting.md](railway-deploy-troubleshooting.md).
 
 ### 4.4 킬스위치 — 재배포 없이 즉시 멈추기 (2026-08-04~)
 
@@ -381,6 +381,7 @@ curl -s -X POST -H "Authorization: Bearer $ADMIN_API_KEY" \
 | 백업 실패/복구 Slack | 상태 전이 | §2.2 |
 | CI → (main) 배포 | 푸시 | [deployment.md](deployment.md) |
 | Wait for CI | 신규 커밋 배포 전 | §4.1 |
+| 의존성 감사 2단계 (`pnpm audit`) | 푸시 — `Lint & Type Check` 잡 | §5.4 |
 
 ### 5.2 수동·트리거 (스케줄 없음 · 운영자 판단)
 
@@ -396,6 +397,7 @@ curl -s -X POST -H "Authorization: Bearer $ADMIN_API_KEY" \
 | 배포 태그 부착 | 배포 **성공 확인 후** (관례) |
 | Slack webhook 재발급 | 유출·채널 이전 — [monitoring-sink-setup.md](monitoring-sink-setup.md) |
 | SQLite 복구 리허설 | 인시던트 전 연습 시 런북 |
+| Dependabot 보안 알림 일괄 상향 | 알림이 쌓이거나 Dependabot PR이 audit 게이트에 막힐 때 — **개별 머지 금지**, §5.4 |
 
 ### 5.3 비용·외부 한도 (요약을 넘기지 않음)
 
@@ -411,6 +413,25 @@ curl -s -X POST -H "Authorization: Bearer $ADMIN_API_KEY" \
 
 배포 파이프라인·무료 티어 표의 일부 구문([deployment.md §7](deployment.md))은 아직 컷오버 이전 잔재가 있을 수 있다. **운영 판단은 이 문서와 실측 콘솔을 우선**한다.
 
+### 5.4 의존성 감사 게이트 (`pnpm audit`)
+
+> CI가 실패로 잡아주는 규칙이라 항상 로드할 필요는 없다. 다만 **Dependabot 보안 PR을 어떻게
+> 처리하는가**는 사람이 판단하는 운영 절차이므로 여기 둔다. 배경·실증: [ADR 2026-07-28 의존성 보안 일괄 상향](../decisions/2026-07-28-dependency-security-updates.md) · 면제 목록: [audit-waivers.md](../security/audit-waivers.md)
+
+- CI는 2단계로 실행한다: ① `pnpm audit --prod --audit-level=high`(**프로덕션 트리 하드 게이트**), ② `pnpm audit --audit-level=high`(전체 트리, 검토된 면제 적용)
+- **감사는 트리 전체를 평가한다** — Dependabot이 패키지 하나만 올린 PR은 다른 취약점이 남아 있으면 무조건 실패한다. 보안 알림이 여러 건 쌓였으면 개별 PR을 하나씩 머지하려 하지 말고 **한 브랜치로 통합 상향**할 것 (2026-07-28: PR 4건이 전부 이 데드락으로 막혀 있었음)
+- 면제는 `package.json`의 `pnpm.auditConfig.ignoreGhsas`에 등록하고 **근거는 반드시 [audit-waivers.md](../security/audit-waivers.md)에 기록**한다(JSON에 주석 불가). 등록 기준: ① 상위 최신 버전에도 픽스 없음 ② 프로덕션 번들 미포함 ③ 공격자 통제 입력 아님 — 셋 다 충족 시에만
+- **전이 의존성 오버라이드는 스코프를 좁힐 것**: `"brace-expansion@^5": "^5.0.8"`처럼 버전 범위를 명시한다. 전역 오버라이드는 메이저가 다른 소비자를 런타임에 깨뜨린다(v5 CJS는 named export라 `minimatch@3`의 `require(...)(pattern)` 호출이 깨짐 — 실증됨)
+- `sharp`는 `next`의 optionalDependency(`^0.34.5`)라 상위 상향으로 패치 버전에 도달하지 못한다 → `pnpm.overrides`로 상향. 변경 시 **Alpine musl 프리빌트(`@img/sharp-linuxmusl-x64`) 존재 여부와 lockfile 등재를 반드시 확인**(Dockerfile이 `node:22-alpine`)
+
+**실측 스냅샷 (2026-08-07, `package.json`·`node_modules/next/package.json` 읽음 — 값은 시점의 사실이다):**
+게이트 2단계는 `.github/workflows/ci.yml`의 `lint-and-typecheck` 잡에 그대로 있고,
+`pnpm.auditConfig.ignoreGhsas`는 **빈 배열(무면제)** 이다. `pnpm.overrides`의 스코프 오버라이드는
+위 예시(`^5.0.8`)보다 올라간 `"brace-expansion@^5": "^5.0.9"` · `"brace-expansion@^1": "^1.1.18"`,
+`sharp`는 `^0.35.3`이며 `next@16.2.12`의 optionalDependency는 여전히 `sharp: ^0.34.5`다
+— 즉 상위 상향으로는 도달하지 못한다는 위 서술이 지금도 참이다.
+**버전 숫자는 `package.json`에서 확인하고, 문서 값은 근거가 아니라 예시로 읽을 것.**
+
 ---
 
 ## 6. 관련 문서
@@ -425,5 +446,7 @@ curl -s -X POST -H "Authorization: Bearer $ADMIN_API_KEY" \
 | [api-endpoints.md](../reference/api-endpoints.md) | 헬스·관리자 API 스키마 |
 | [system-spec.md](../architecture/system-spec.md) | 깨면 사고 나는 불변조건 |
 | [incident-response.md](../security/incident-response.md) | 보안 인시던트 |
+| [audit-waivers.md](../security/audit-waivers.md) | `pnpm audit` 면제 근거·재검토 절차 (§5.4) |
+| [2026-07-28-dependency-security-updates.md](../decisions/2026-07-28-dependency-security-updates.md) | (ADR) audit 2단계 게이트·overrides 스코프·Dependabot 일괄 상향 배경 |
 | [2026-07-31-project-wbs.md](../superpowers/plans/2026-07-31-project-wbs.md) | 잔여 작업·관측 대기 항목 |
 | [CLAUDE.md](../../CLAUDE.md) | 프로젝트 헌법(배포 품질·Railway 판별·운영 함정) |

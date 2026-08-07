@@ -18,19 +18,21 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.push, replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
 }));
 
-// PreviewFrame 은 next/dynamic 으로 로드된다 — 테스트에서 실제 컴포넌트가 뜨도록 lazy+Suspense.
-vi.mock('next/dynamic', () => ({
-  default: (loader: () => Promise<{ default: React.ComponentType<Record<string, unknown>> }>) => {
-    const Lazy = React.lazy(loader);
-    return function DynamicComponent(props: Record<string, unknown>) {
-      return (
-        <React.Suspense fallback={null}>
-          <Lazy {...props} />
-        </React.Suspense>
-      );
-    };
-  },
-}));
+// PreviewFrame 은 next/dynamic 으로 로드된다 — 테스트에서는 **동기적으로 실물**을 돌려준다.
+//
+// ⚠️ 처음엔 `React.lazy(loader)` + `Suspense` 로 감쌌는데 **Linux CI에서만 깨졌다**
+// (`Element type is invalid. Received a promise that resolves to: undefined`).
+// Windows 로컬에서는 `pnpm test` 도 `pnpm test:coverage` 도 통과해서 안 드러났고,
+// 하필 이 테스트를 담은 PR(#293)은 **GitHub Actions 웹훅 장애로 CI 런이 생성되지 않아**
+// 병합·배포까지 간 뒤에야 발견됐다.
+//
+// 교훈: `React.lazy` 는 로더가 반환한 프라미스의 해석 결과에 의존하므로 번들러·플랫폼별
+// 모듈 인터롭 차이를 그대로 받는다. 테스트에서 `next/dynamic` 을 대체할 때는
+// **비동기 경계를 만들지 말고** 모듈을 미리 받아 동기 컴포넌트로 돌려줄 것.
+vi.mock('next/dynamic', async () => {
+  const mod = await import('@/components/builder/PreviewFrame');
+  return { default: () => mod.default };
+});
 
 vi.mock('@/lib/generation/runClientRegeneration', () => ({
   runClientRegeneration: async (

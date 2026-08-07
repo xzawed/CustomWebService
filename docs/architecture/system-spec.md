@@ -1,6 +1,6 @@
 # 시스템 명세 (SDD) — 불변조건과 계약
 
-> **언제 읽나**: 불변조건을 바꾸거나 새로 만들 때. 프록시 인가·캐시 키 신원·XFF·로그인 스로틀·WAL 체크포인트·삭제 캐스케이드처럼 **깨지면 조용히 사고 나는 규칙**의 원본이 여기에 있다 — `CLAUDE.md`의 요약본만 보고 고치지 말 것
+> **언제 읽나**: 불변조건을 바꾸거나 새로 만들 때. 프록시 인가·캐시 키 신원·XFF·로그인 스로틀·인메모리 레이트리밋·site 프록시 한도·AI 호출 타임아웃(AbortSignal)·백그라운드 스케줄러 경보 순서·WAL 체크포인트·삭제 캐스케이드처럼 **깨지면 조용히 사고 나는 규칙**의 원본이 여기에 있다 — `CLAUDE.md`의 요약본만 보고 고치지 말 것
 
 > **이 문서의 역할**: 구조 설명이 아니라 **"무엇이 참이어야 하는가"**를 모은 규범 계층이다.
 > 구조·흐름은 [overview.md](overview.md)·[database.md](database.md)·[ai-pipeline.md](ai-pipeline.md)·
@@ -65,10 +65,12 @@ A 오너의 키로 받은 응답을 B 사이트가 200으로 받는 **교차 테
 
 ### 1.4 클라이언트 IP는 XFF 최우측만 신뢰하고, `x-real-ip` 폴백을 두지 않는다
 
-`getClientIp()`(`src/lib/auth/rateLimit.ts`)가 단일 출처다. `adminAuth`도 이것을 호출한다.
+`getClientIp()`(`src/lib/auth/rateLimit.ts`)가 **단일 출처**다. 소비처는
+`utils/adminAuth` · `auth/local-auth-config` · `auth/routeHelpers` · `api/v1/proxy/route` **4곳**이다.
 
 - 최좌측은 클라이언트가 위조할 수 있어 per-IP 리밋이 무력화된다
-- `x-real-ip`는 신뢰 경계가 붙였다는 보장이 없다 → **폴백을 두면 XFF 없는 경로에서 한도가 사라진다**
+- **`x-real-ip`는 신뢰하지 않는다**(2026-07-29). 신뢰 경계가 붙였다는 보장이 없어 클라이언트가
+  위조·회전할 수 있고, **폴백을 두면 XFF 없는 경로에서 per-IP 한도가 무력화된다**
 - 식별 불가 시 `'unknown'` 단일 버킷으로 fail-closed
 
 **새 리밋을 추가할 때 XFF를 직접 파싱하지 말 것.**
@@ -85,8 +87,11 @@ A 오너의 키로 받은 응답을 B 사이트가 200으로 받는 **교차 테
 | 검사는 **DB 조회·scrypt 이전에** | 비용이 큰 연산을 공격자가 유발하게 두지 않는다 |
 
 > 향후 UX 코드를 붙이더라도 IP/계정·존재 여부에 따라 코드를 달리하면 오라클이 된다 — **항상 같은 코드**여야 한다.
-> `authorize`의 `request`는 `@auth/core`가 재구성한 것이라 헤더가 빠지면 `getClientIp`가 조용히
-> `'unknown'`으로 붕괴한다. `local-auth-config.test.ts`의 XFF 회귀 테스트가 이 결합을 고정한다.
+>
+> **`authorize`의 `request`는 `@auth/core`가 재구성한 것**이다(`new Request(url, { headers, method, body })`).
+> 헤더가 빠지면 `getClientIp`가 조용히 `'unknown'`으로 붕괴해 **per-IP 한도가 사실상 사라진다** —
+> `local-auth-config.test.ts`의 XFF 회귀 테스트가 이 결합을 고정한다.
+> 배경: [ADR](../decisions/2026-07-30-login-rate-limit.md)
 
 ### 1.6 이메일 링크의 base URL은 host 헤더에서 도출하지 않는다
 
@@ -176,8 +181,10 @@ better-sqlite3 트랜잭션 안에서는 `await`가 불가능하다는 제약도
 
 ### 3.3 AI 호출 타임아웃은 `Promise.race`만으로 끝내지 않는다
 
-`AbortSignal`을 함께 넘긴다. race는 즉시 종료돼도 업스트림 호출은 SDK 타임아웃(최대 ~270초)까지
-살아 있어, 다음 반복이 겹치면 **토큰 비용이 이중 청구**된다.
+**타임아웃은 `Promise.race`만으로 끝내지 말고 `AbortSignal`을 함께 넘길 것.** race는 즉시 종료돼도
+업스트림 호출은 SDK 타임아웃(최대 ~270초)까지 살아 있어, 다음 반복이 겹치면
+**Opus/ET 토큰 비용이 이중 청구**된다.
+`AiPrompt.abortSignal` → `ClaudeProvider`의 `{ signal }`로 **이미 배선되어 있다**.
 
 race에서 지는 쪽의 거부는 아무도 관측하지 않으므로 생성 Promise에 no-op `.catch()`를 미리 붙여
 `unhandledRejection`을 막는다(`qualityLoop.ts` 참고).
@@ -231,12 +238,13 @@ Opus 4.8은 생략 = 사고 없음이었지만 **Opus 5는 생략 시 adaptive�
 
 ### 4.1 🔇 인메모리 레이트리밋은 활성 윈도를 evict하지 않는다
 
-**성립 범위**: `proxy/route.ts`의 `checkProxyRateLimit` · `siteRateLimit.ts` · `auth/rateLimit.ts` ·
-`utils/adminAuth.ts` **네 곳** — 인메모리 리밋 전부다(2026-08-03, C3로 예외 해소).
+**성립 범위**: `src/lib/proxy/siteRateLimit.ts` · `checkProxyRateLimit`(`proxy/route.ts`) ·
+`src/lib/auth/rateLimit.ts` · `src/lib/utils/adminAuth.ts` **네 곳** — 인메모리 리밋 전부다
+(`utils/adminAuth.ts`는 2026-08-03 C3로 합류 — **인메모리 리밋에 예외는 이제 없다**).
 
 | 규칙 | 이유 |
 |------|------|
-| 만료 버킷만 정리하고, 정리 후에도 자리가 없으면 **새 키를 거부**(차단) | 살아 있는 카운터가 evict되면 다음 요청이 `count:1`로 시작해 한도가 우회된다 |
+| 만료 버킷만 정리하고, 정리 후에도 자리가 없으면 **새 키를 거부**(차단) | 살아 있는 카운터가 evict되면 다음 요청이 `count:1`로 시작해 한도가 우회된다(동시 사용자가 많을수록 심해짐 — 2026-07-29 수정). **우회보다 과차단이 안전하다** |
 | 읽기 전용 검사(`isLimited`)도 **없는 키라도 cap이 가득이면 `true`** | 아니면 키를 회전시켜 "첫 실패는 항상 공짜"를 무한히 얻는다 |
 | 용량 소진은 **로그로 드러낸다**(윈도당 1회) | fail-closed는 정상 사용자도 막는다 — 관측되지 않으면 조용한 잠금이 된다 |
 
@@ -245,7 +253,8 @@ Opus 4.8은 생략 = 사고 없음이었지만 **Opus 5는 생략 시 adaptive�
 > 거기서는 항목이 사라져도 정확성이 아니라 적중률만 떨어진다.
 
 `src/lib/auth/rateLimit.ts`는 signup·forgot·resend·login이 **Map 하나를 공유**한다.
-버킷 소진 시 signup·forgot이 과차단될 수 있으며 이는 **의도된 fail-closed**다.
+`MAX_AUTH_RATE_LIMIT_BUCKETS`(기본 10000) 소진 시 signup·forgot이 과차단될 수 있으며
+이는 **의도된 fail-closed**다.
 
 `utils/adminAuth.ts`도 같은 트레이드오프를 수용한다: 검사가 **인증 이전**에 돌기 때문에
 미인증 트래픽이 버킷을 다 채우면 정상 관리자도 차단된다. 그래서 소진 시
@@ -268,20 +277,29 @@ Opus 4.8은 생략 = 사고 없음이었지만 **Opus 5는 생략 시 adaptive�
 CSP를 만질 때는 `middleware.ts` · `site/[slug]/route.ts` · `preview/[projectId]/route.ts`
 **3개 파일을 반드시 동시에 확인**한다.
 
-### 4.4 백그라운드 스케줄러의 경보 순서는 고정이다
+### 4.4 백그라운드 스케줄러의 경보 순서는 고정이다 (백업·보존 등)
 
-**`logger.error`(동기) → 상태 전이(동기) → 경보(`void ...catch()`)**
+**`logger.error`(동기) → 상태 전이(동기) → 경보(`void Promise.resolve(alertFn(...)).catch(...)`)**
 
 - 알림 실패가 스케줄러를 죽이면 **알림 없는 상태보다 엄격히 나쁘다**
-- `sendSlackAlert`에 비-reject 보장이 없다 → `onReject` 안에서 `await alertFn` 하지 말고 별도 voided promise로 분리
-- **매 주기 경보 금지 — 상태 전이만.** `null/true→fail` 1회(error), `fail→success` 1회(info 복구), 연속 실패는 억제
+- **`sendSlackAlert`에 비-reject 보장이 없다.** 내부 try/catch가 있지만 `try` 이전 경로·주입된
+  `alertFn`·향후 수정이 전부 위험이다. `scheduleBackups`의 `tick()`은
+  `void runFn(...).then(onOk, onErr)` 형태라 **핸들러가 던지거나 async 핸들러가 reject하면
+  `unhandledRejection`**이 된다 → `onReject` 안에서 `await alertFn`을 하지 말고 별도 voided
+  promise로 분리할 것
+- **매 주기 경보 금지 — 상태 전이만.** `null/true→fail` 1회(error), `fail→success` 1회(info 복구),
+  연속 실패는 억제. **최초 실행 실패도 경보한다**(선행 성공을 기다리면 그게 조용한 죽음이다).
+  복구 경보를 빼면 억제가 정보를 삼킨다
 - 상태는 **클로저 로컬**(모듈 레벨 플래그 금지) — 인스턴스 독립이라 테스트가 `vi.resetModules()`를 안 써도 된다
 
 > `errorRateMonitor`가 `await sendSlackAlert`를 해도 되는 이유는 `EventBus.emit`이 핸들러를
-> `.catch`로 감싸기 때문이다. **스케줄러에는 그 래퍼가 없다** — EventBus 소비자 코드를 복사하면 안 된다.
+> `.catch`로 감싸기 때문이다. **스케줄러에는 그 래퍼가 없다** — EventBus 소비자 코드를 그대로
+> 복사하면 안 된다.
 >
 > 클로저 로컬이라는 성질의 귀결: **재배포를 넘으면 복구 경보를 검증할 수 없다**
 > (`null → true`는 첫 성공이지 복구가 아니다). 2026-07-31 프로덕션에서 실증됨.
+>
+> 배경: [ADR](../decisions/2026-07-30-monitoring-sink-slack-only.md)
 
 ### 4.5 🔇 보존 정책은 유효한 미사용 토큰을 절대 삭제하지 않는다
 
@@ -310,6 +328,24 @@ CSP를 만질 때는 `middleware.ts` · `site/[slug]/route.ts` · `preview/[proj
 
 추천 라우트(`suggest-*` 4개)는 `suggestion_count`를 **공유**한다(라우트별 한도가 아니다).
 차감은 검증·소유권 확인 **이후**, 환불은 throw된 경우만(soft success는 이미 토큰을 썼으므로 환불하지 않는다).
+
+### 4.8 site 프록시 한도는 관측하면서 조정한다
+
+- 프로젝트 전역 한도(`SITE_PROXY_PROJECT_LIMIT_PER_MIN`, 기본 120)가 **분산 IP로도 우회되지 않는
+  실질 상한**이다. 도달하면 `logger.warn('Site proxy project limit reached')`가 **버킷당 윈도 1회**
+  남는다(봇이 두드릴 때 로그가 폭발하므로 매 요청 로깅 금지)
+- 사용량은 `GET /api/v1/admin/site-proxy-stats`(ADMIN_API_KEY)로 본다. `blockedByIp`(방문자 과속 —
+  정상일 수 있음)와 `blockedByProject`(**0이 아니면 오남용 또는 한도 부족**)를 반드시 구분해 해석할 것.
+  집계는 인메모리라 재시작 시 초기화된다
+- 기본값 20/120은 실사용 데이터 없이 정한 값이다. **조정 판단 기준표가
+  [ADR](../decisions/2026-07-29-site-proxy-abuse-monitoring.md)에 고정**되어 있으니 임의로 바꾸지 말고
+  지표를 근거로 바꿀 것
+- Slack 승격·Origin 바인딩은 **의도적으로 보류**했다(경보 임계를 정할 트래픽이 없고, Origin 헤더는
+  위조 가능해 단독 경계가 못 된다). 지표가 쌓인 뒤 판단한다
+
+**깨지면**: per-IP 한도(기본 20)만으로는 분산 IP를 막지 못한다 — 프로젝트 전역 한도가 **유일한
+실질 상한**이므로, 지표 없이 올리거나 없애면 오남용 방어가 사라진다. 반대로 근거 없이 낮추면
+정상 방문자가 막히는데, `blockedByIp`/`blockedByProject`를 구분해 읽지 않으면 어느 쪽인지 알 수 없다.
 
 ---
 
