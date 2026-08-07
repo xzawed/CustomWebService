@@ -92,6 +92,17 @@ describe('guardAlwaysLoadedBudget — 예산 초과 차단', () => {
     expect(runHook(write(msys, linesOf(300))).decision).toBe('deny');
   });
 
+  // ⚠️ 2026-08-07 실측: 정규화가 없던 시절 `<root>/docs/../AGENTS.md` 로 300줄 Write 가
+  // **ALLOW** 됐다. 실수로 나올 형태는 아니지만 **강제 게이트에 뚫린 구멍은 게이트가 아니다.**
+  it.each([
+    ['./ 를 포함한 경로', (p: string) => p.replace(/([^/\\]+)$/, './$1')],
+    ['../ 로 우회하는 경로', (p: string) => p.replace(/([^/\\]+)$/, 'docs/../$1')],
+    ['중복 슬래시', (p: string) => p.replace(/([^/\\]+)$/, '/$1')],
+  ])('%s 도 정규화해서 차단한다', (_name, mangle) => {
+    const agentsPath = path.join(ROOT, 'AGENTS.md').split(path.sep).join('/');
+    expect(runHook(write(mangle(agentsPath), linesOf(300))).decision).toBe('deny');
+  });
+
   it('드라이브 문자 대소문자가 달라도 차단한다', () => {
     const upper = agents.replace(/^([a-z]):/, (_, d: string) => `${d.toUpperCase()}:`);
     const lower = agents.replace(/^([A-Z]):/, (_, d: string) => `${d.toLowerCase()}:`);

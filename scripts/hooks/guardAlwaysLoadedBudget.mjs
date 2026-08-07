@@ -89,11 +89,18 @@ if (budget === undefined) allow();
 // (MSYS 형식)를 주는데 Windows Node의 `path.resolve`는 그걸 현재 드라이브 기준으로 해석해
 // `F:\f\DEVELOPMENT\...` 로 만든다. 그래서 단순 문자열 비교는 **항상 불일치 → 항상 통과**했다.
 // 시험하지 않았으면 아무것도 막지 못하는 훅을 배선할 뻔했다.
-/** `F:\a\b` · `f:/a/b` · `/f/a/b` 를 전부 `f:/a/b` 로 정규화한다(Windows FS는 대소문자 무시). */
+/**
+ * `F:\a\b` · `f:/a/b` · `/f/a/b` 를 전부 `f:/a/b` 로 정규화한다(Windows FS는 대소문자 무시).
+ *
+ * ⚠️ **`path.posix.normalize` 가 필수다.** 없으면 `./` · `../` · 중복 슬래시가 전부 훅을
+ * 통과한다 — 2026-08-07 실측: `<root>/docs/../AGENTS.md` 로 300줄 Write 가 ALLOW 됐다.
+ * 실수로 발생할 형태는 아니지만, **강제 게이트에 뚫린 구멍은 게이트가 아니다.**
+ */
 function canonical(p) {
   let s = String(p).replace(/\\/g, '/');
   const msys = /^\/([A-Za-z])\/(.*)$/.exec(s); // /f/DEVELOPMENT/... → f:/DEVELOPMENT/...
   if (msys) s = `${msys[1]}:/${msys[2]}`;
+  s = path.posix.normalize(s); // ./ · ../ · // 를 접는다
   return s.replace(/^([A-Za-z]):/, (_, d) => `${d.toLowerCase()}:`).toLowerCase().replace(/\/+$/, '');
 }
 
