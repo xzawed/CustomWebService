@@ -40,7 +40,10 @@ export async function GET(request: Request): Promise<Response> {
           models: describeTaskModels(),
           // 이메일 발송 설정 여부. `RESEND_API_KEY`가 없으면 `emailService`가 조용히
           // no-op이 되고, 그러면 이메일 인증이 영원히 완료되지 않아 `assertEmailVerified()`가
-          // generate·regenerate·deploy를 403으로 막는다 — **신규 사용자가 제품을 아예 못 쓴다.**
+          // **generate·regenerate·suggest 4종·이 라우트 7곳**을 403으로 막는다
+          // — **신규 사용자가 제품을 아예 못 쓴다.**
+          // (`deploy`는 2026-08-01 외부 배포 스택 제거로 사라졌고, **게시(publish)에는
+          //  애초에 이 게이트가 없다** — 2026-08-07 실측: `grep -rl assertEmailVerified src/app/api`)
           // 그런데 그 상태를 밖에서 관측할 방법이 없어 Railway 콘솔을 봐야만 알 수 있었다.
           // ⚠️ 값은 절대 노출하지 않는다. 설정 여부(boolean)와 발신 도메인만 노출한다.
           email: {
