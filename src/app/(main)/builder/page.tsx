@@ -60,7 +60,9 @@ export default function BuilderPage() {
    * 신원을 값 안에 담으면 `setRegen(null)`을 **어디서도 부를 필요가 없다** — 즉 리셋 누락이
    * 버그가 될 수 없다. 이전 구현은 `setRegenVersion(undefined)` 호출이 저장소 전체에 0건이었다.
    */
-  const [regen, setRegen] = useState<{ projectId: string; version: number } | null>(null);
+  const [regen, setRegen] = useState<{ projectId: string; version: number | undefined } | null>(
+    null,
+  );
 
   /**
    * 비행 중인 AI 제안 요청(suggest-context · suggest-apis)의 취소 핸들.

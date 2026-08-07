@@ -9,7 +9,16 @@ type RegenStatus = 'idle' | 'suggesting' | 'generating' | 'done' | 'error';
 
 interface RePromptPanelProps {
   projectId: string;
-  onRegenerationComplete: (version: number) => void;
+  /**
+   * 재생성 완료 통지. **`undefined` = "버전 미상"** 이고, 그건 `1`이 아니다.
+   *
+   * 서버는 현재 항상 version 을 채우지만(SSE `generationSaver`·폴링 status 라우트 양쪽),
+   * 계약이 깨지는 날 `?? 1` 로 메우면 **가장 오래된 버전**을 최신인 척 보여준다.
+   * 미상일 때의 안전한 기본값은 "버전을 지정하지 않는 것"이다 —
+   * `codeRepo.findByProject(projectId, undefined)` 가 `orderBy(desc(version))` 로 **최신 1건**을
+   * 돌려주므로, undefined 를 그대로 흘리면 자동으로 최신본이 된다.
+   */
+  onRegenerationComplete: (version: number | undefined) => void;
 }
 
 export default function RePromptPanel({ projectId, onRegenerationComplete }: RePromptPanelProps) {
@@ -103,7 +112,8 @@ export default function RePromptPanel({ projectId, onRegenerationComplete }: ReP
             setStatus('done');
             setFeedback('');
             setSuggestions([]);
-            onRegenerationComplete(version ?? 1);
+            // `?? 1` 을 쓰지 않는다 — 미상을 **가장 오래된 버전**으로 바꾸는 잘못된 기본값이었다.
+            onRegenerationComplete(version);
           });
         },
         failRegeneration: (message) => {
