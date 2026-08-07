@@ -21,11 +21,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-/** scripts/checkDocIntegrity.ts 의 BUDGETS 와 **같은 값을 유지할 것.** 어긋나면 CI와 훅이 다른 말을 한다. */
-const BUDGETS = {
-  'CLAUDE.md': 220,
-  'AGENTS.md': 80,
-};
+/**
+ * 예산은 **`scripts/doc-budgets.json` 단일 출처**에서 읽는다.
+ * 2026-08-07 이전에는 여기·`checkDocIntegrity.ts`·훅 테스트 **세 곳에 하드코딩**돼 있었고
+ * 동기화를 강제하는 것이 없었다 — 한쪽만 올리면 훅과 CI가 조용히 다른 말을 한다.
+ *
+ * 읽기 실패는 **fail-open**이다(훅 고장이 작업을 막으면 안 된다). 그 경우 CI의 ⑥이 잡는다.
+ */
+const BUDGETS = (() => {
+  try {
+    const p = path.resolve(import.meta.dirname, '..', 'doc-budgets.json');
+    return JSON.parse(fs.readFileSync(p, 'utf8')).alwaysLoaded ?? {};
+  } catch {
+    return {};
+  }
+})();
 
 const countLines = (s) => s.split(/\r?\n/).length;
 
@@ -79,11 +89,18 @@ if (budget === undefined) allow();
 // (MSYS 형식)를 주는데 Windows Node의 `path.resolve`는 그걸 현재 드라이브 기준으로 해석해
 // `F:\f\DEVELOPMENT\...` 로 만든다. 그래서 단순 문자열 비교는 **항상 불일치 → 항상 통과**했다.
 // 시험하지 않았으면 아무것도 막지 못하는 훅을 배선할 뻔했다.
-/** `F:\a\b` · `f:/a/b` · `/f/a/b` 를 전부 `f:/a/b` 로 정규화한다(Windows FS는 대소문자 무시). */
+/**
+ * `F:\a\b` · `f:/a/b` · `/f/a/b` 를 전부 `f:/a/b` 로 정규화한다(Windows FS는 대소문자 무시).
+ *
+ * ⚠️ **`path.posix.normalize` 가 필수다.** 없으면 `./` · `../` · 중복 슬래시가 전부 훅을
+ * 통과한다 — 2026-08-07 실측: `<root>/docs/../AGENTS.md` 로 300줄 Write 가 ALLOW 됐다.
+ * 실수로 발생할 형태는 아니지만, **강제 게이트에 뚫린 구멍은 게이트가 아니다.**
+ */
 function canonical(p) {
   let s = String(p).replace(/\\/g, '/');
   const msys = /^\/([A-Za-z])\/(.*)$/.exec(s); // /f/DEVELOPMENT/... → f:/DEVELOPMENT/...
   if (msys) s = `${msys[1]}:/${msys[2]}`;
+  s = path.posix.normalize(s); // ./ · ../ · // 를 접는다
   return s.replace(/^([A-Za-z]):/, (_, d) => `${d.toLowerCase()}:`).toLowerCase().replace(/\/+$/, '');
 }
 

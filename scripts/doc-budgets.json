@@ -1,0 +1,34 @@
+{
+  "_why": [
+    "문서 총량 예산의 **단일 출처**. 이 값은 세 곳이 읽는다 —",
+    "  scripts/checkDocIntegrity.ts (CI 가시화) ·",
+    "  scripts/hooks/guardAlwaysLoadedBudget.mjs (PreToolUse 실차단) ·",
+    "  src/__tests__/hooks/guardAlwaysLoadedBudget.test.ts (그 훅의 회귀 테스트).",
+    "",
+    "2026-08-07 이전에는 같은 숫자가 그 세 파일에 **각각 하드코딩**돼 있었고 동기화를",
+    "강제하는 것이 없었다. 한쪽만 올리면 훅과 CI 가 조용히 다른 말을 한다 —",
+    "CLAUDE.md 의 '두 곳에 적히는 순간 한쪽이 썩는다'가 그 게이트 자신에게 적용된 셈이었다.",
+    "",
+    "예산을 올릴 때는 **여기만** 고치고, 왜 올리는지를 _rationale 에 남길 것.",
+    "숫자만 바꾸면 다음 사람이 같은 이유로 또 올리고, 결국 다시 449줄이 된다."
+  ],
+
+  "alwaysLoaded": {
+    "CLAUDE.md": 220,
+    "AGENTS.md": 80
+  },
+
+  "currentTenseDirs": [
+    "docs/guides",
+    "docs/architecture",
+    "docs/reference",
+    "docs/security"
+  ],
+  "currentTenseMaxLines": 6500,
+
+  "_rationale": {
+    "CLAUDE.md": "목표 200줄(Anthropic 권고) + 통상 편집 여유 10%. 2026-08-07에 449줄에서 축소.",
+    "AGENTS.md": "포인터 전용 — 규칙 본문 금지.",
+    "currentTenseMaxLines": "2026-08-07 축소 직후 5,928줄 + 약 10% 여유. docs/decisions 는 대상이 아니다(ADR 은 사고 기록이고 append-only 로 자라는 것이 정상)."
+  }
+}

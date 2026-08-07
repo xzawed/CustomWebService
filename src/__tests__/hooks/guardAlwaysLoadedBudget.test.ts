@@ -15,8 +15,15 @@ import path from 'node:path';
 const ROOT = process.cwd();
 const HOOK = path.join(ROOT, 'scripts/hooks/guardAlwaysLoadedBudget.mjs');
 
-/** scripts/hooks/guardAlwaysLoadedBudget.mjs 의 BUDGETS 와 같아야 한다 */
-const BUDGET = { 'CLAUDE.md': 220, 'AGENTS.md': 80 } as const;
+/**
+ * 예산은 **`scripts/doc-budgets.json` 단일 출처**에서 읽는다 — 훅·CI 검사기와 같은 파일이다.
+ * 여기에 숫자를 다시 적으면 그 순간 네 번째 사본이 된다.
+ */
+const BUDGET = (
+  JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/doc-budgets.json'), 'utf8')) as {
+    alwaysLoaded: Record<string, number>;
+  }
+).alwaysLoaded;
 
 type Decision = 'allow' | 'deny';
 
@@ -44,7 +51,7 @@ const write = (filePath: string, content: string) => ({
 });
 
 describe('guardAlwaysLoadedBudget — 예산 초과 차단', () => {
-  // AGENTS.md 를 기준 파일로 쓴다: 예산(80) 이내(현행 ~57줄)라 "초과로 만드는 편집"을
+  // AGENTS.md 를 기준 파일로 쓴다: 예산 이내(포인터 전용이라 여유가 크다)라 "초과로 만드는 편집"을
   // 그대로 시험할 수 있다. CLAUDE.md 는 축소 작업 중 일시적으로 예산을 넘을 수 있어
   // 기준으로 삼으면 테스트가 저장소 상태에 의존하게 된다.
   const agents = path.join(ROOT, 'AGENTS.md');
@@ -83,6 +90,17 @@ describe('guardAlwaysLoadedBudget — 예산 초과 차단', () => {
   it('MSYS(Git Bash) 형식 경로도 차단한다 — /f/DEVELOPMENT/...', () => {
     const msys = agents.replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_, d: string) => `/${d.toLowerCase()}`);
     expect(runHook(write(msys, linesOf(300))).decision).toBe('deny');
+  });
+
+  // ⚠️ 2026-08-07 실측: 정규화가 없던 시절 `<root>/docs/../AGENTS.md` 로 300줄 Write 가
+  // **ALLOW** 됐다. 실수로 나올 형태는 아니지만 **강제 게이트에 뚫린 구멍은 게이트가 아니다.**
+  it.each([
+    ['./ 를 포함한 경로', (p: string) => p.replace(/([^/\\]+)$/, './$1')],
+    ['../ 로 우회하는 경로', (p: string) => p.replace(/([^/\\]+)$/, 'docs/../$1')],
+    ['중복 슬래시', (p: string) => p.replace(/([^/\\]+)$/, '/$1')],
+  ])('%s 도 정규화해서 차단한다', (_name, mangle) => {
+    const agentsPath = path.join(ROOT, 'AGENTS.md').split(path.sep).join('/');
+    expect(runHook(write(mangle(agentsPath), linesOf(300))).decision).toBe('deny');
   });
 
   it('드라이브 문자 대소문자가 달라도 차단한다', () => {

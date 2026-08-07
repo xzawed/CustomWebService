@@ -295,21 +295,29 @@ if (fs.existsSync(RULES_DIR)) {
 //
 // 예산을 올리려면 **왜 올려야 하는지를 이 주석에 적고** 올려라. 숫자만 바꾸면
 // 다음 사람이 같은 이유로 또 올리고, 1년 뒤 다시 449줄이 된다.
-const BUDGETS: { file: string; maxLines: number; why: string }[] = [
-  { file: 'CLAUDE.md', maxLines: 220, why: '목표 200줄 + 통상 편집 여유 10%' },
-  { file: 'AGENTS.md', maxLines: 80, why: '포인터 전용 — 규칙 본문 금지' },
-];
+// ⚠️ 값은 **`scripts/doc-budgets.json` 단일 출처**다. 여기에 숫자를 다시 적지 말 것 —
+// 훅(`scripts/hooks/guardAlwaysLoadedBudget.mjs`)과 그 테스트도 같은 파일을 읽는다.
+// 세 곳에 하드코딩돼 있던 것을 2026-08-07에 합쳤다(한쪽만 올리면 훅과 CI가 다른 말을 한다).
+type DocBudgets = {
+  alwaysLoaded: Record<string, number>;
+  currentTenseDirs: string[];
+  currentTenseMaxLines: number;
+  _rationale: Record<string, string>;
+};
+const budgets = JSON.parse(
+  fs.readFileSync(path.join(ROOT, 'scripts/doc-budgets.json'), 'utf8'),
+) as DocBudgets;
 
-for (const b of BUDGETS) {
-  const p = path.join(ROOT, b.file);
+for (const [file, maxLines] of Object.entries(budgets.alwaysLoaded)) {
+  const p = path.join(ROOT, file);
   if (!fs.existsSync(p)) continue;
   const n = fs.readFileSync(p, 'utf8').split(/\r?\n/).length;
-  if (n > b.maxLines) {
+  if (n > maxLines) {
     add(
       '⑥ 항상 로드 예산',
-      `${b.file}:${n}`,
-      `${n}줄 > 예산 ${b.maxLines}줄 (${b.why}). ` +
-        `줄이거나, 예산을 올려야 할 근거를 scripts/checkDocIntegrity.ts의 BUDGETS 주석에 적고 올릴 것`,
+      `${file}:${n}`,
+      `${n}줄 > 예산 ${maxLines}줄 (${budgets._rationale[file] ?? ''}). ` +
+        `줄이거나, 예산을 올려야 할 근거를 scripts/doc-budgets.json의 _rationale에 적고 올릴 것`,
     );
   }
 }
@@ -329,8 +337,8 @@ for (const b of BUDGETS) {
 // 여기서 지키는 것은 "지금도 참이어야 하는" 현재 시제 문서군뿐이다.
 //
 // 예산을 올리려면 **왜 올리는지를 여기 적고** 올릴 것. 숫자만 바꾸면 다시 불어난다.
-const CURRENT_TENSE_DIRS = ['docs/guides', 'docs/architecture', 'docs/reference', 'docs/security'];
-const CURRENT_TENSE_BUDGET = 6500; // 2026-08-07 축소 직후 5,928줄 + 약 10% 여유
+const CURRENT_TENSE_DIRS = budgets.currentTenseDirs;
+const CURRENT_TENSE_BUDGET = budgets.currentTenseMaxLines;
 
 const currentTenseFiles = allMd.filter((f) =>
   CURRENT_TENSE_DIRS.some((d) => rel(f).startsWith(`${d}/`)),
