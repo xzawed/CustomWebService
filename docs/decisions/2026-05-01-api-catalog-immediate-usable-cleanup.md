@@ -95,7 +95,7 @@ TMDB, RAWG, Unsplash, OpenWeatherMap, WeatherAPI.com
 ## 골든셋 변경
 
 TMDB·RAWG → 비활성화로 제거. The Cat API(auth_type 재분류)·NASA DEMO_KEY 신규 추가.
-상세: [docs/reference/golden-api-set.md](../reference/golden-api-set.md)
+상세: [docs/archive/reference/golden-api-set.md](../archive/reference/golden-api-set.md)
 
 ---
 

@@ -101,7 +101,6 @@
 | [env-vars.md](reference/env-vars.md) | 환경변수 전체 |
 | [error-codes.md](reference/error-codes.md) | 에러 클래스·코드 |
 | [test-coverage-map.md](reference/test-coverage-map.md) | 테스트 커버 범위·공백 |
-| [golden-api-set.md](reference/golden-api-set.md) | **2026-05-01 스냅샷(HISTORICAL)** — 문서는 10개, 실제 `verified`는 46개. 현재 상태는 `GET /api/v1/admin/catalog-dump` |
 
 ## security/
 
@@ -130,6 +129,7 @@
 |------|------|
 | [guides/sqlite-cutover-runbook.md](archive/guides/sqlite-cutover-runbook.md) | Supabase→SQLite 컷오버 런북 (2026-06-23 완료) |
 | [superpowers/plans/2026-06-22-db-removal-sqlite-migration.md](archive/superpowers/plans/2026-06-22-db-removal-sqlite-migration.md) | SQLite 전환 WBS Phase 1–8 (역사) |
+| [reference/golden-api-set.md](archive/reference/golden-api-set.md) | 골든셋 API 10개 (2026-05-01 스냅샷). **현재 verified 는 46개** — 진실원은 DB, 확인은 GET /api/v1/admin/catalog-dump. 2026-08-07에 docs/reference/ 에서 이동(HISTORICAL 문서가 현재 시제 층에 있었다) |
 
 ## superpowers/specs/
 

@@ -5,7 +5,7 @@
 > `verification_status = 'verified'` 집합이라고 적지만, 번들 시드 기준 실제 `verified`는
 > **46개**다(2026-08-06 실측). 활성/검증 상태의 **진실원은 DB**이며 운영 확인은
 > `GET /api/v1/admin/catalog-dump` 의 `summary`로 한다 —
-> [operations.md §1.4](../guides/operations.md).
+> [operations.md §1.4](../../guides/operations.md).
 > 아래 목록은 **그날 무엇을 왜 골랐는지의 기록**으로만 읽을 것.
 
 검증 날짜: **2026-05-01** (전수 재검증 + 즉시 사용 가능 기준 정리)
@@ -16,11 +16,11 @@
 
 > **2026-05-01 업데이트 (즉시 사용 가능 기준 정리)**: API 키 등록 없이 즉시 사용 가능한 API만 활성 유지.
 > TMDB·RAWG → is_active=false (키 등록 필요). The Cat API(auth_type→none 재분류)·NASA DEMO_KEY 신규 추가.
-> 전체 정리 내역: [docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md](../decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md)
+> 전체 정리 내역: [docs/decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md](../../decisions/2026-05-01-api-catalog-immediate-usable-cleanup.md)
 
 > **2026-06-21 스냅샷 (역사)**: REST Countries 폐기, 키 미설정 의존 API 비활성화, 당시 활성·키리스 위주 정리.
 > ✅ "verified 우선 추천"은 B-2(2026-06-22)로 구현 완료 — `POST /api/v1/suggest-apis`가 `broken` 제외·`verified` 우선.  
-> 상세: [docs/decisions/2026-06-22-verification-status-consumption.md](../decisions/2026-06-22-verification-status-consumption.md)
+> 상세: [docs/decisions/2026-06-22-verification-status-consumption.md](../../decisions/2026-06-22-verification-status-consumption.md)
 
 > **현행 헬스·키 검증 (CLI 없음)**: `pnpm catalog:healthcheck` / Supabase cron은 **제거됨**.  
 > 대신 배포 런타임 관리자 API: `GET /api/v1/admin/keys-verify`, `POST /api/v1/admin/verify-catalog`,  
@@ -78,7 +78,7 @@ curl -X POST -H "Authorization: Bearer $ADMIN_API_KEY" \
 ```
 
 부팅 시 `ensureCatalogEntries`가 시드 JSON 기준 신규 삽입·키리스 오분류 정정을 멱등으로 수행한다  
-([database.md](../architecture/database.md) §부팅).
+([database.md](../../architecture/database.md) §부팅).
 
 ### 이력 스크립트 (참고만)
 
