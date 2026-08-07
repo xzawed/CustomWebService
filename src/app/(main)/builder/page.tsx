@@ -84,10 +84,15 @@ export default function BuilderPage() {
    * **로딩 플래그의 존재를 알 필요가 없다.** 새 abort 지점이 생겨도 자동으로 옳다.
    * (abort 지점마다 해제 코드를 추가하는 방식은 그 곱셈을 절반만 채우다 #289에서 재도입됐다.)
    *
-   * ⚠️ 불변조건: `++xxxReqIdRef.current` 다음 줄이 `setIsXLoading(true)`여야 하고 그 직후가
-   * 대응하는 `finally`를 가진 `try`여야 한다. 사이에 `await`나 조기 return을 넣으면
-   * "true를 쓴 실행에는 반드시 대응하는 finally가 있다"가 깨져 고착이 그대로 돌아온다.
-   * 정적으로 강제되지 않는다 — `page.test.tsx`의 **선점 음성대조 테스트가 유일한 방어**다.
+   * ⚠️ 불변조건: `++xxxReqIdRef.current` 와 대응하는 `finally` 를 가진 `try` 사이에
+   * **`await` 도 조기 `return` 도 넣지 말 것.** 동기 `setState` 는 끼어도 된다
+   * (실제로 suggestions·recommendations 는 초기화 2줄이 사이에 있다 — 그건 괜찮다).
+   * 어기면 "true 를 쓴 실행에는 반드시 대응하는 finally 가 있다"가 깨져 고착이 돌아온다.
+   *
+   * ⚠️ **이 배치 규칙은 어떤 테스트도 지키지 않는다.** `page.test.tsx` 의 선점 음성대조는
+   * **토큰 비교**(이전 요청의 finally 가 최신 로딩을 끄면 안 된다)를 지킬 뿐, 증가와 `try`
+   * 사이에 조기 return 을 끼워 넣는 변경은 **통과시킨다**. 즉 여기는 리뷰로만 지켜진다 —
+   * "테스트가 막아준다"고 믿지 말 것.
    */
   const suggestionsReqIdRef = useRef(0);
   const recommendationsReqIdRef = useRef(0);

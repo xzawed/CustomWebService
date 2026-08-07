@@ -30,7 +30,18 @@ const TASK_ENV_VARS: Record<AiTaskType, string> = {
   generation: 'AI_MODEL_GENERATION',
 };
 
-function resolveTaskModel(task: AiTaskType): AllowedClaudeModel {
+/**
+ * task 별 실효 모델 ID. **`IAiProvider` 를 쓰지 않고 Anthropic SDK 를 직접 호출하는 곳도
+ * 반드시 이걸 통해야 한다** — 안 그러면 `AI_MODEL_*` env 가 그 경로에만 닿지 않고,
+ * 허용목록 검증·경고도 건너뛴다.
+ *
+ * 실제로 그런 우회가 2곳 있었다(2026-08-07 발견): `preferencesRecommender` ·
+ * `featureExtractor` 가 `model: 'claude-haiku-4-5'` 를 하드코딩하고 있었다.
+ * 값이 기본값과 우연히 같아 비용 사고는 없었지만, env 로 모델을 바꿔도 그 둘만 안 바뀌었다.
+ * tool use(`tools`/`tool_choice`)가 필요해 `IAiProvider` 를 못 쓰는 경우가 그 이유이므로,
+ * **모델 해석만 공유**하는 것이 올바른 접합점이다.
+ */
+export function resolveTaskModel(task: AiTaskType): AllowedClaudeModel {
   const envVar = TASK_ENV_VARS[task];
   const fallback = TASK_DEFAULTS[task];
   const raw = process.env[envVar]?.trim();

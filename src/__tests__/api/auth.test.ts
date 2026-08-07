@@ -21,6 +21,9 @@ vi.mock('@/lib/config/featureFlags', () => ({
   isFeatureEnabled: (name: string) => isFeatureEnabled(name) as boolean,
 }));
 
+const eventBusEmit = vi.fn();
+vi.mock('@/lib/events/eventBus', () => ({ eventBus: { emit: (e: unknown) => eventBusEmit(e) } }));
+
 import { POST as signupPOST } from '@/app/api/v1/auth/signup/route';
 import { POST as verifyPOST } from '@/app/api/v1/auth/verify-email/route';
 import { POST as forgotPOST } from '@/app/api/v1/auth/forgot-password/route';
@@ -55,6 +58,21 @@ describe('auth routes', () => {
     const res = await signupPOST(jsonReq('https://app/api/v1/auth/signup', { email: 'a@b.com', password: 'pw12345678' }, `ip-${Math.random()}`));
     expect(res.status).toBe(201);
     expect(signup).toHaveBeenCalledWith('a@b.com', 'pw12345678', 'https://app');
+  });
+
+  // 계정 **삭제**는 `USER_DELETED`로 감사 로그에 남는데 **생성**은 안 남고 있었다 —
+  // `USER_SIGNED_UP`이 `src/types/events.ts`에 정의만 되고 발행처가 0곳이었다(2026-08-07 발견).
+  // 계정 생성은 보안 감사에서 삭제만큼 중요하다.
+  it('signup 성공 시 USER_SIGNED_UP을 발행한다 (감사 로그)', async () => {
+    signup.mockResolvedValue({ userId: 'u1' });
+    await signupPOST(jsonReq('https://app/api/v1/auth/signup', { email: 'a@b.com', password: 'pw12345678' }, `ip-${Math.random()}`));
+    expect(eventBusEmit).toHaveBeenCalledWith({ type: 'USER_SIGNED_UP', payload: { userId: 'u1' } });
+  });
+
+  it('가입이 막히면(enable_signup=false) USER_SIGNED_UP을 발행하지 않는다', async () => {
+    isFeatureEnabled.mockReturnValue(false);
+    await signupPOST(jsonReq('https://app/api/v1/auth/signup', { email: 'a@b.com', password: 'pw12345678' }, `ip-${Math.random()}`));
+    expect(eventBusEmit).not.toHaveBeenCalled();
   });
 
   it('enable_signup=false이면 503 SIGNUP_DISABLED이고 signup을 호출하지 않는다', async () => {
