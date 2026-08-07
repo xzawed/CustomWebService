@@ -21,7 +21,17 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # **main 은 취소하지 않는다.** PR 브랜치는 마지막 푸시만 의미가 있으므로 취소가 옳지만,
+  # main 은 **커밋 하나하나가 배포 대상**이다. 취소하면 그 커밋은 CI 없이 배포된다.
+  #
+  # 실측(2026-08-07): 최근 main 커밋 6개 중 **성공 런이 있는 것은 2개뿐**이었다.
+  #   b70aa97 0건 · 183bca6 0건(취소 ×2) · 38f531b 1건 · 9199cec 0건(취소)
+  #   · 8dbbc3c 1건 · 6f2c7c1 0건(웹훅 장애로 런 자체가 생성 안 됨)
+  # 연달아 머지하면 앞 커밋의 런이 뒤 커밋 푸시에 취소되고, 취소된 커밋도 Railway 는 배포한다.
+  # 즉 **"CI 통과했다"가 커밋 단위로는 거짓**이 될 수 있었다.
+  #
+  # 대가: main 에 연속 머지 시 CI 분(minutes)이 더 든다. 검증 공백보다 싸다.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
