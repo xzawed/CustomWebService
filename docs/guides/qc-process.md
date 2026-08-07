@@ -1,6 +1,6 @@
 # QC 표준 프로세스
 
-> **언제 읽나**: QC 임계값(`QC_QUALITY_THRESHOLD`·`QC_MOBILE_THRESHOLD`·`QC_FAST_PASS_THRESHOLD`·`QC_DEEP_PASS_THRESHOLD`)·타임아웃(`QC_FAST_TIMEOUT_MS`·`QC_DEEP_TIMEOUT_MS`)·`QUALITY_LOOP_MAX_ITERATIONS`·`PIPELINE_MAX_DURATION_MS` 를 손댈 때, 또는 `codeValidator`·`qualityLoop`·`renderingQc`·`deepQcRunner` 를 고칠 때
+> **언제 읽나**: QC 임계값(`QC_QUALITY_THRESHOLD`·`QC_MOBILE_THRESHOLD`·`QC_FAST_PASS_THRESHOLD`·`QC_DEEP_PASS_THRESHOLD`)·타임아웃(`QC_FAST_TIMEOUT_MS`·`QC_DEEP_TIMEOUT_MS`)·`QUALITY_LOOP_MAX_ITERATIONS`·`PIPELINE_MAX_DURATION_MS` 를 손댈 때, 또는 `codeValidator`·`qualityLoop`·`renderingQc`·`deepQcRunner`·`generationPipeline` 을 고칠 때, 또는 **`promptBuilder`의 Alpine 절·`x-init` 예시를 손댈 때**(§7)
 
 > 모든 코드 생성, 재생성, 수정, 개선 작업에 동일하게 적용되는 품질 검증 표준.
 
@@ -205,10 +205,29 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 ---
 
-## 6. 변경 이력
+## 6. 생성/재생성 공통 진입점 (`generationPipeline.ts`)
+
+- QC 관련 로직 수정 시 `generationPipeline.ts`(`src/lib/ai/generationPipeline.ts`) 중심으로 수정하면 generate/regenerate 양쪽에 동시 반영됨
+- QC·저장은 최종 단계 결과에만 적용; 중간 산출물은 DB 저장 안 함
+
+> **파이프라인 설계**(3단계 Stage + Quality Loop) 전문은 [ai-pipeline.md](../architecture/ai-pipeline.md).
+
+---
+
+## 7. 생성물의 Alpine.js 이중 init 금지
+
+- Alpine은 마운트 시 `x-data` 객체의 **`init()`을 자동 호출**한다. 같은 요소에 `x-init="init()"`을 쓰면 **두 번 실행**되어 같은 API 요청이 동시에 두 번 나간다 — 업스트림 리밋이 빡빡한 API(예: OpenTDB 1req/5초)에서 두 번째가 429가 되고 사용자에게 오류 화면이 보인다(2026-07-29 프로덕션 실측)
+- 2중 방어: ① `promptBuilder.ts`(`src/lib/ai/promptBuilder.ts`)의 Alpine 절에 ❌/✅ 예시와 함께 명시 금지 ② `detectAlpineDoubleInit()`(`codeValidator.ts` — `src/lib/ai/codeValidator.ts`)가 정적 검출해 `validateFunctionality` **경고**로 올린다. 보안 문제가 아니므로 `errors`가 아니라 `warnings` — 게시를 막지 않는다
+- 검출 규칙은 **JS 본문을 보지 않는다**. `x-init`이 `init`이라는 이름의 메서드를 부르면 정의돼 있으면 이중 실행, 없으면 ReferenceError라 어느 쪽이든 버그이기 때문. 단어 경계를 쓰므로 `initialize()`·`initChart()`·`myInit()`은 잡지 않는다
+- **프롬프트에 `x-init` 예시를 추가할 때 로더 이름을 `init`으로 짓지 말 것.** 원인은 프롬프트가 나쁜 예시를 준 게 아니라(당시 프롬프트엔 없었다) 모델이 로더를 자연스럽게 `init`으로 명명한 것이었다 — 좋은 예시만으로는 못 막고 명시 금지가 필요하다. 배경: [#204](https://github.com/xzawed/CustomWebService/issues/204)
+
+---
+
+## 8. 변경 이력
 
 | 날짜 | 변경 |
 |------|------|
+| 2026-08-07 | CLAUDE.md 축소(~200줄)에 따라 두 절을 이관 — §6 생성/재생성 공통 진입점(`generationPipeline.ts` 중심 수정·중간 산출물 미저장), §7 생성물의 Alpine.js 이중 init 금지(2026-07-29 프로덕션 실측 · [#204](https://github.com/xzawed/CustomWebService/issues/204)). 기존 §6 변경 이력은 §8로 이동(§1–§5 번호는 `.claude/rules/ai-generation-qc.md`가 §4를 참조하므로 유지) |
 | 2026-05-05 | 파이프라인 총 예산 가드 추가(`PIPELINE_MAX_DURATION_MS`, 기본 290초): Quality Loop 반복 시작 전 남은 예산 확인, 초과 예상 시 반복 스킵. `resolveIterationTimeoutMs(useET)` 함수 export (ET 여부에 따른 타임아웃 반환). `proxyCache.size` live count로 변경(lazy eviction → 유효 항목만 집계) |
 | 2026-05-03 | Quality Loop 재활성화: `QUALITY_LOOP_MAX_ITERATIONS=2`(기본 2회, 최대 3회 상한), ET 전용 타임아웃 분리(`QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS=200000`), `QUALITY_LOOP_STRICT_ADOPTION` 기본값 true(AND 채택 모드) |
 | 2026-04-30 | 정확도 게이트 강화: Quality Loop 채택 가드 AND 모드(`QUALITY_LOOP_STRICT_ADOPTION` 토글), 사용자 feedback 매 반복 누적 주입, `STAGE_SKIPPED`/`QUALITY_LOOP_COMPLETED` 이벤트 발행, Stage 2 트리거에 `hardcodedArrayCount` 포함, placeholder blocklist 단일 출처화(`getPlaceholderBlocklistText()`) |

@@ -88,7 +88,7 @@
 | [deployment.md](guides/deployment.md) | CI/CD·Railway·도메인·관리자 검증 API |
 | [operations.md](guides/operations.md) | 일상 운영·모니터링·백업·장애 대응 |
 | [agent-working-rules.md](guides/agent-working-rules.md) | **CLAUDE.md 작업 게이트 G1~G6의 근거** — 거짓보고 원인 전수 분석(2026-08-05) |
-| [railway-deploy-troubleshooting.md](guides/railway-deploy-troubleshooting.md) | **병합했는데 반영이 안 될 때** — 조용한 미배포 2종(patch/railway.toml, CI 실패 SKIPPED) |
+| [railway-deploy-troubleshooting.md](guides/railway-deploy-troubleshooting.md) | **병합했는데 반영이 안 될 때** — 조용한 미배포 **3종**(patch/railway.toml · CI 실패 SKIPPED · **워크플로 미트리거**) + 판별표 |
 | [qc-process.md](guides/qc-process.md) | 생성/재생성 QC 8단계 |
 | [sqlite-restore-runbook.md](guides/sqlite-restore-runbook.md) | DB 손상·오염 시 백업 복구 |
 | [monitoring-sink-setup.md](guides/monitoring-sink-setup.md) | Slack 알림 sink 등록·검증 |
