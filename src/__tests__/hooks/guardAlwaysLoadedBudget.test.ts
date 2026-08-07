@@ -64,9 +64,20 @@ describe('guardAlwaysLoadedBudget — 예산 초과 차단', () => {
   });
 
   // ⚠️ 이 두 건이 최초 구현에서 **둘 다 통과(=차단 실패)** 했다. 경로 형식은 하나가 아니다.
-  it('Windows 백슬래시 경로도 차단한다', () => {
+  //
+  // Windows 에서만 의미가 있다. POSIX 에서 백슬래시는 **경로 구분자가 아니라 파일명의 한 글자**라
+  // `\a\b\AGENTS.md` 는 저장소 루트의 AGENTS.md 가 아닌 다른 이름이고, 훅이 통과시키는 것이 옳다.
+  // (Linux CI 에서 이 단언이 실패해 알았다 — 로컬 Windows 에서는 드러나지 않았다.)
+  it.skipIf(process.platform !== 'win32')('Windows 백슬래시 경로도 차단한다', () => {
     const winPath = agents.split(path.posix.sep).join(path.win32.sep);
     expect(runHook(write(winPath, linesOf(300))).decision).toBe('deny');
+  });
+
+  // 위 건의 플랫폼 독립 대체물 — 구분자를 섞어도 같은 파일로 정규화되는지 본다.
+  // 이건 두 플랫폼 모두에서 유효하다.
+  it('구분자가 섞인 경로도 같은 파일로 보고 차단한다', () => {
+    const mixed = agents.replace(/[\\/]([^\\/]+)$/, '/$1');
+    expect(runHook(write(mixed, linesOf(300))).decision).toBe('deny');
   });
 
   it('MSYS(Git Bash) 형식 경로도 차단한다 — /f/DEVELOPMENT/...', () => {
