@@ -81,12 +81,28 @@ sha256 지문 대조 결과 **고유 토큰 8개**(공유 아님) → **회전�
 | 저장소 | 공개 | config 추적 | 전송 |
 |---|---|---|---|
 | **CustomWebService** | **PUBLIC** | 추적됨 → 이번에 해제 | HTTP |
-| **LangTrans** | **PUBLIC** | 추적됨 | HTTP |
-| **claude-grok-build-plugin** | **PUBLIC** | 추적됨 | HTTPS |
-| **xzawedPAIS** | **PUBLIC** | 추적됨 | HTTPS |
+| **LangTrans** | **PUBLIC** | **추적 중** | **HTTP** |
+| **claude-grok-build-plugin** | **PUBLIC** | **추적 중** | HTTPS |
+| **xzawed-pais** | **PUBLIC** | **추적 중** | HTTPS |
 | SCAManager-test-samples | PRIVATE | 추적됨 | HTTP |
 | Noble-Watcher | PRIVATE | 미추적 ✔ | HTTP |
-| GoldCalc · TravellerInfo | 미상(`gh` 조회 실패) | 추적됨 | HTTP |
+| GoldCalc · TravellerInfo | **원격 없음**(아래) | 로컬에서 추적 중 | HTTP |
+
+**2026-08-08 재측정 — 위 표의 2건이 실제와 달랐다** (`gh api repos/.../contents/.scamanager`):
+
+- **`xzawedPAIS`는 존재하지 않는 이름이다. 실제는 `xzawed-pais`**(PUBLIC). 이 이름으로 찾으면
+  404가 나서 "이미 처리됐다"고 오인할 수 있다 — **런북이 헛다리를 짚게 하는 종류의 오류**다.
+- **GoldCalc · TravellerInfo는 GitHub에 없다**(`gh api` 404 · 소유 저장소 12개 목록에도 없음).
+  다만 로컬에 **원격추적 브랜치가 남아 있어 과거 푸시 흔적은 있다** → 삭제된 것으로 보인다.
+  **삭제 시점 이전에 공개였는지는 판정할 수 없다.** 모르는 것을 "안전"으로 적지 않는다 —
+  보수적으로 **회전 대상에 포함**한다. 로컬 `config.json`은 지금도 추적 중이고 평문 HTTP다.
+
+**비대상으로 확인된 것**(재조사 방지): `ArcanaInsight`는 `.scamanager/install-hook.sh`만 있고
+config 파일이 없다. `SCAManager` · `KeyCloakSDK` · `keycloak-sdk-php`는 `.scamanager` 자체가 없다.
+
+**현재 상태 요약**: 공개 저장소 **3곳(LangTrans · xzawed-pais · claude-grok-build-plugin)의
+HEAD에 토큰이 그대로 살아 있다.** CustomWebService만 HEAD가 정리됐고(히스토리는 남음),
+`config.example.json`의 토큰 자리는 자리표시자임을 확인했다.
 
 ### 이번에 한 것 (이 저장소만)
 
@@ -99,9 +115,13 @@ sha256 지문 대조 결과 **고유 토큰 8개**(공유 아님) → **회전�
 **추적 해제는 앞으로의 노출만 막는다. 커밋 `b2186f4` 이하 히스토리에는 토큰이 그대로 있고,
 공개 저장소는 이미 클론·미러링됐을 수 있다. 유일한 실질 조치는 회전이다.**
 
-1. SCAManager에서 **공개 저장소 4곳의 토큰을 각각 폐기·재발급**
-2. 나머지 3곳(비공개·미상)도 같은 처리 권장 — 평문 HTTP 구간이 남아 있다
-3. 각 저장소에서 `.gitignore` + `git rm --cached` 반복
+1. SCAManager에서 **공개 저장소 4곳의 토큰을 각각 폐기·재발급** — CustomWebService(히스토리에
+   잔존) · **LangTrans · xzawed-pais · claude-grok-build-plugin**(HEAD에 잔존, 2026-08-08 실측).
+   토큰은 저장소마다 다르므로 **한 번에 하나씩** 처리해야 한다
+2. 나머지 4곳(비공개 2 · 원격 삭제 2)도 같은 처리 권장 — 평문 HTTP 구간이 남아 있고,
+   삭제된 2곳은 **삭제 전 공개 여부를 판정할 수 없다**
+3. 각 저장소에서 `.gitignore` + `git rm --cached` 반복 — **CustomWebService에서 한 것과 동일**
+   (`config.example.json`으로 대체하면 훅 사용법은 유지된다)
 4. 서버를 **HTTPS 전용**으로, 토큰을 **쿼리스트링이 아니라 헤더**로 옮기는 것을 검토
    (쿼리스트링 토큰은 액세스 로그에 영구 기록된다)
 
