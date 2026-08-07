@@ -84,7 +84,7 @@
 | 문서 | 목적 |
 |------|------|
 | [development.md](guides/development.md) | 로컬 환경·코딩 컨벤션·무인자 factory |
-| [testing.md](guides/testing.md) | 테스트 전략·모킹·실행 명령 (개수/% 스냅샷 없음) |
+| [testing.md](guides/testing.md) | 테스트 전략·모킹·실행 명령 + **에이전트·CI 함정 전체**(§7 작성 함정 · §8 코드 계약·런타임). 개수/% 스냅샷 없음 |
 | [deployment.md](guides/deployment.md) | CI/CD·Railway·도메인·관리자 검증 API |
 | [operations.md](guides/operations.md) | 일상 운영·모니터링·백업·장애 대응 |
 | [agent-working-rules.md](guides/agent-working-rules.md) | **CLAUDE.md 작업 게이트 G1~G6의 근거** — 거짓보고 원인 전수 분석(2026-08-05) |
@@ -133,20 +133,29 @@
 
 ## superpowers/specs/
 
-> **DOC_STATUS: HISTORICAL.** 8건 전부 **write-once**다(git상 7건이 커밋 1회, 1건이 2회 —
-> 작성 후 갱신되지 않는다). 각 파일 첫 줄의 `DOC_STATUS` 주석에 `superseded_by`가 있으니
+> **DOC_STATUS: HISTORICAL.** write-once다 — 작성 후 갱신되지 않는다.
+> 2026-08-07에 8건 → **2건**으로 줄였다(아래 「삭제된 설계 문서」). 각 파일 첫 줄의 `DOC_STATUS` 주석에 `superseded_by`가 있으니
 > **현행 상태는 그쪽을 볼 것.** 여기 적힌 파일명·수치는 설계 시점의 것이다.
 
 | 문서 | 목적 |
 |------|------|
-| [2026-04-12-docs-reorganization-design.md](superpowers/specs/2026-04-12-docs-reorganization-design.md) | 문서 체계 재편 설계 |
-| [2026-04-12-phase-a2-template-library-design.md](superpowers/specs/2026-04-12-phase-a2-template-library-design.md) | 템플릿 라이브러리 설계 |
-| [2026-04-14-two-stage-generation-design.md](superpowers/specs/2026-04-14-two-stage-generation-design.md) | 2단계 생성 설계 (현 3-Stage 확장의 원칙 참고) |
-| [2026-04-26-sonarcloud-quality-fix-design.md](superpowers/specs/2026-04-26-sonarcloud-quality-fix-design.md) | SonarCloud 품질 게이트 설계 |
-| [2026-04-27-component-test-design.md](superpowers/specs/2026-04-27-component-test-design.md) | 컴포넌트 테스트 도입 설계 |
-| [2026-06-22-country-data-api-design.md](superpowers/specs/2026-06-22-country-data-api-design.md) | 자체 호스팅 국가 데이터 API |
-| [2026-06-24-public-signup-multi-user-auth-design.md](superpowers/specs/2026-06-24-public-signup-multi-user-auth-design.md) | 공개 회원가입·다중 사용자 인증 설계 |
-| [2026-07-28-published-site-proxy-authz-design.md](superpowers/specs/2026-07-28-published-site-proxy-authz-design.md) | 게시 사이트 프록시 인가 설계 |
+| [2026-04-27-component-test-design.md](superpowers/specs/2026-04-27-component-test-design.md) | 컴포넌트 테스트 도입 원칙 (수치·파일 나열은 제거 — 현행은 [testing.md](guides/testing.md)) |
+| [2026-06-22-country-data-api-design.md](superpowers/specs/2026-06-22-country-data-api-design.md) | 자체 호스팅 국가 데이터 API — 결정과 근거만 |
+
+### 삭제된 설계 문서 (2026-08-07) — 결정은 어디에 남았나
+
+문서 총량 축소에서 **완료된 작업의 설계 과정 문서**를 지웠다. 결론·근거는 아래에 있으므로
+설계 문서 자체는 중복이었다. **사고 재발을 막는 근거는 하나도 지우지 않았다** —
+검증: 삭제 전 식별자 813개를 저장소 전체와 대조해 실질 유실 0건 확인.
+
+| 삭제된 설계 문서 | 결정·근거 보존처 |
+|------------------|------------------|
+| `2026-04-12-docs-reorganization-design.md` | 재편 **완료** — 결과가 곧 현재 디렉터리 구조다(이 문서 상단 폴더 표) |
+| `2026-04-12-phase-a2-template-library-design.md` | 구현 완료 — `src/templates/` 11개 클래스가 진실원 |
+| `2026-04-14-two-stage-generation-design.md` | 현행은 3-Stage — [ai-pipeline.md](architecture/ai-pipeline.md) |
+| `2026-04-26-sonarcloud-quality-fix-design.md` | 게이트 운영은 [operations.md](guides/operations.md)·[testing.md](guides/testing.md) |
+| `2026-06-24-public-signup-multi-user-auth-design.md` | [ADR](decisions/2026-06-24-public-signup-multi-user-auth.md) |
+| `2026-07-28-published-site-proxy-authz-design.md` | [ADR](decisions/2026-07-28-published-site-proxy-authz.md) |
 
 ---
 
@@ -206,8 +215,8 @@
 | 삭제된 plan | 결정·런북 보존 |
 |-------------|----------------|
 | `2026-06-09-test-flakiness-followups.md` (**삭제됨** — ADR이 "출하 후 삭제"로 예정했던 핸드오프 문서) | [플래키 ADR](decisions/2026-06-09-test-flaky-timeout-contention-fix.md), `CLAUDE.md` 테스트 함정 |
-| `2026-06-24-public-signup-multi-user-auth.md` | [ADR](decisions/2026-06-24-public-signup-multi-user-auth.md), [설계](superpowers/specs/2026-06-24-public-signup-multi-user-auth-design.md) |
-| `2026-07-28-published-site-proxy-authz.md` | [ADR](decisions/2026-07-28-published-site-proxy-authz.md), [설계](superpowers/specs/2026-07-28-published-site-proxy-authz-design.md) |
+| `2026-06-24-public-signup-multi-user-auth.md` | [ADR](decisions/2026-06-24-public-signup-multi-user-auth.md) (설계 문서는 2026-08-07 삭제 — 위 표) |
+| `2026-07-28-published-site-proxy-authz.md` | [ADR](decisions/2026-07-28-published-site-proxy-authz.md) (설계 문서는 2026-08-07 삭제 — 위 표) |
 | `2026-07-30-account-delete-and-export.md` | [ADR](decisions/2026-07-30-account-delete-and-export.md) |
 | `2026-07-30-login-rate-limit.md` | [ADR](decisions/2026-07-30-login-rate-limit.md) |
 | `2026-07-30-monitoring-sink-wiring.md` | [ADR](decisions/2026-07-30-monitoring-sink-slack-only.md), [setup](guides/monitoring-sink-setup.md) |

@@ -53,31 +53,6 @@
 ## Route Handler 에러 처리 패턴
 
 ```typescript
-import { RateLimitError, NotFoundError, ValidationError, ForbiddenError } from '@/lib/utils/errors';
-
-try {
-  // service call
-} catch (error) {
-  if (error instanceof RateLimitError) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 429 });
-  }
-  if (error instanceof ForbiddenError) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 403 });
-  }
-  if (error instanceof NotFoundError) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 404 });
-  }
-  if (error instanceof ValidationError) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 400 });
-  }
-  logger.error('Unexpected error', { error });
-  return NextResponse.json({ success: false, error: '서버 오류가 발생했습니다' }, { status: 500 });
-}
-```
-
-> **권장 패턴:** Route Handler에서 직접 catch하는 대신 `handleApiError(error)`를 사용하면 모든 에러 유형을 표준 형식으로 일괄 처리할 수 있습니다.
-
-```typescript
 import { handleApiError } from '@/lib/utils/errors';
 
 export async function POST(request: Request): Promise<Response> {
@@ -88,6 +63,10 @@ export async function POST(request: Request): Promise<Response> {
   }
 }
 ```
+
+> **에러 종류별로 `instanceof`를 직접 분기하지 말 것.** 그 수동 catch 패턴은 `error`를
+> **문자열**로 반환해 `handleApiError`의 **객체** 형식과 응답 형태가 갈렸다. 2026-08-07 실측 기준
+> `src/app` 에 남은 인스턴스는 **0건**이고 `handleApiError`가 유일한 경로다 — 다시 만들지 말 것.
 
 ---
 
@@ -101,4 +80,5 @@ export async function POST(request: Request): Promise<Response> {
 { "success": false, "error": { "code": "ERROR_CODE", "message": "..." } }
 ```
 
-> **참고:** `handleApiError()`(`src/lib/utils/errors.ts`)는 모든 에러를 위 객체 형식(`error.code` + `error.message`)으로 반환합니다. 위 "Route Handler 에러 처리 패턴"의 수동 `catch` 예시는 `error: error.message`(문자열)를 사용하는 레거시 패턴이므로, 신규 라우트는 `handleApiError(error)` 사용을 권장합니다. `jsonResponse()` 유틸리티는 항상 `Content-Type: application/json; charset=utf-8` 헤더를 포함합니다.
+> `handleApiError()`·`jsonResponse()` 는 `src/lib/utils/errors.ts`. `jsonResponse()`는 항상
+> `Content-Type: application/json; charset=utf-8` 을 붙인다.

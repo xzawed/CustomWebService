@@ -1,1033 +1,254 @@
 # API v1 엔드포인트 레퍼런스
 
-> **언제 읽나**: `src/app/api/v1/**` 에 라우트를 추가·변경하거나 요청/응답 스키마·상태 코드를 확인할 때
+> **언제 읽나**: 라우트를 추가·변경할 때, 또는 **어떤 엔드포인트가 무슨 인증·레이트리밋을 요구하는지** 알아야 할 때
 
-> **Base URL (개발):** http://localhost:3000/api/v1  
-> **Base URL (프로덕션):** https://xzawed.xyz/api/v1  
-> **인증:** Auth.js v5 Credentials + JWT(무상태 세션 쿠키) 필요 (공개 엔드포인트 표시됨)
-
----
-
-## Base URL
-```
-개발: http://localhost:3000/api/v1
-프로덕션: https://<railway-domain>/api/v1
-```
-
-## 공통 응답 형식
-```typescript
-// 성공
-{
-    "success": true,
-    "data": T,
-    "message": "성공 메시지"
-}
-
-// 실패
-{
-    "success": false,
-    "error": {
-        "code": "ERROR_CODE",
-        "message": "에러 메시지"
-    }
-}
-```
+> ⚠️ **이 문서는 요청·응답 JSON을 서술하지 않는다.** 스키마는 코드가 진실원이고, 문서에
+> 복제하면 아무도 검증하지 않아 조용히 썩는다. 2026-08-07 감사 실측: 이 문서가 나열하던
+> 에러 코드 15개 중 **4개**(`CONTEXT_TOO_SHORT`·`CONTEXT_TOO_LONG`·`MAX_APIS_EXCEEDED`·
+> `DEPLOY_FAILED`)가 `src/` 어디에도 없는 허구였다.
+> 여기 남은 것은 **코드를 열어도 빨리 알 수 없는 것**뿐이다 — 인증·한도 한 눈 표, 라우트 파일
+> 포인터, 그리고 착각하면 사고가 나는 계약상 함정.
 
 ---
 
-## 1. API 카탈로그 (Catalog)
+## 0. 공통 규약
 
-### GET /api/v1/catalog
-API 카탈로그 전체 조회
-
-**Query Parameters:**
-| 파라미터 | 타입 | 필수 | 설명 |
-|---------|------|------|------|
-| category | string | N | 카테고리 필터 |
-| search | string | N | 검색어 |
-| page | number | N | 페이지 (기본 1) |
-| limit | number | N | 페이지 크기 (기본 20, 최대 100) |
-
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "items": [
-            {
-                "id": "uuid",
-                "name": "OpenWeatherMap",
-                "description": "현재 날씨, 5일 예보, 대기질",
-                "category": "weather",
-                "baseUrl": "https://api.openweathermap.org",
-                "authType": "api_key",
-                "rateLimit": "1000/day",
-                "isActive": true,
-                "iconUrl": "/icons/openweathermap.svg",
-                "docsUrl": "https://openweathermap.org/api",
-                "endpoints": [...],
-                "tags": ["weather", "forecast"]
-            }
-        ],
-        "total": 23,
-        "page": 1,
-        "totalPages": 2
-    }
-}
-```
-
-### GET /api/v1/catalog/:id
-특정 API 상세 조회
-
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "id": "uuid",
-        "name": "OpenWeatherMap",
-        "description": "현재 날씨, 5일 예보, 대기질",
-        "category": "weather",
-        "baseUrl": "https://api.openweathermap.org",
-        "authType": "api_key",
-        "creditRequired": null,
-        "endpoints": [...]
-    }
-}
-```
-
-| 상태코드 | 설명 |
-|---------|------|
-| 200 | 성공 |
-| 404 | 해당 ID의 API를 찾을 수 없음 |
-
-### GET /api/v1/catalog/categories
-카테고리 목록 조회
-
-**Response:**
-```json
-{
-    "success": true,
-    "data": [
-        { "key": "weather", "label": "날씨", "count": 1, "icon": "🌤" },
-        { "key": "news", "label": "뉴스", "count": 2, "icon": "📰" },
-        { "key": "finance", "label": "금융/환율", "count": 2, "icon": "💱" }
-    ]
-}
-```
+- **Base URL**: 개발 `http://localhost:3000/api/v1` · 프로덕션 `https://xzawed.xyz/api/v1`
+- **응답 래퍼** — `{ success: true, data: T }` / `{ success: false, error: { code, message } }`.
+  변환은 `handleApiError()`(`src/lib/utils/errors.ts`) 단일 출처. **예외는 §3에 열거**되어 있고, 그 예외들이 실제로 사고를 냈다.
+- **에러 코드 전체 목록은 [error-codes.md](error-codes.md)가 진실원**이다. 여기엔 그쪽에 없는 라우트 로컬 코드만 §4에 적는다.
+- **요청 본문 스키마는 §2**를 볼 것. 필드 목록을 이 문서에 복제하지 않는다.
 
 ---
 
-## 2. 프로젝트 (Projects)
+## 1. 엔드포인트 — 경로 · 인증 · 레이트리밋 · 라우트 파일
 
-### POST /api/v1/projects
-새 프로젝트 생성
+인증 표기:
+`공개` = 무인증 · `세션` = `getAuthUser()` · `세션+인증메일` = `getAuthUser()` + `assertEmailVerified()`(`src/lib/auth/verifiedGuard.ts`) ·
+`세션+소유권` = + `assertOwner()` · `관리자` = `Authorization: Bearer {ADMIN_API_KEY}`(`verifyAdminKey`).
 
-**Request Body:**
-```json
-{
-    "name": "여행자 환율 계산기",
-    "context": "여행자를 위한 환율 계산기를 만들고 싶어요...",
-    "apiIds": ["uuid-1", "uuid-2"]
-}
-```
+> **`세션+인증메일`은 생성·추천 6개에만 걸려 있다.** 게시(`publish`)에는 **없다** — 이 문서가
+> 예전에 "이메일 미인증(생성·**배포** 등)"이라 적어 두었던 것은 틀렸다(2026-08-07 코드 확인).
 
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "id": "project-uuid",
-        "name": "여행자 환율 계산기",
-        "status": "draft",
-        "apis": [...],
-        "createdAt": "2026-03-20T00:00:00Z"
-    }
-}
-```
+### 1.1 카탈로그 · 국가 데이터 (전부 공개)
 
-### GET /api/v1/projects
-내 프로젝트 목록 조회
+| 경로 | 메서드 | 인증 | 레이트리밋 | 라우트 파일 |
+|---|---|---|---|---|
+| `/api/v1/catalog` | GET | 공개 | 없음 | `src/app/api/v1/catalog/route.ts` |
+| `/api/v1/catalog/:id` | GET | 공개 | 없음 | `src/app/api/v1/catalog/[id]/route.ts` |
+| `/api/v1/catalog/categories` | GET | 공개 | 없음 | `src/app/api/v1/catalog/categories/route.ts` |
+| `/api/v1/countries` | GET·OPTIONS | 공개 | 없음 | `src/app/api/v1/countries/route.ts` |
+| `/api/v1/countries/:code` | GET·OPTIONS | 공개 | 없음 | `src/app/api/v1/countries/[code]/route.ts` |
 
-### GET /api/v1/projects/:id
-프로젝트 상세 조회
+국가 데이터는 생성 사이트가 프록시 없이 직접 부를 수 있도록 CORS `*` + `Cache-Control: public, max-age=86400`.
+**표준 래퍼가 없다** — §3 참조. 배경: [등록 ADR](../decisions/2026-06-22-catalog-registration-and-seed-resync.md)
 
-### DELETE /api/v1/projects/:id
-프로젝트 삭제
+### 1.2 프로젝트
 
-### POST /api/v1/projects/:id/rollback
-특정 버전으로 롤백 (기존 버전의 코드를 새 버전으로 복사)
+| 경로 | 메서드 | 인증 | 레이트리밋 | 라우트 파일 |
+|---|---|---|---|---|
+| `/api/v1/projects` | GET·POST | 세션 | 없음 | `src/app/api/v1/projects/route.ts` |
+| `/api/v1/projects/:id` | GET·DELETE | 세션 | 없음 | `src/app/api/v1/projects/[id]/route.ts` |
+| `/api/v1/projects/:id/rollback` | POST | 세션+소유권 | 없음 | `src/app/api/v1/projects/[id]/rollback/route.ts` |
+| `/api/v1/projects/:id/publish` | POST·DELETE | 세션 | 없음 | `src/app/api/v1/projects/[id]/publish/route.ts` |
+| `/api/v1/projects/:id/slug/check` | POST | 세션+소유권 | 없음 | `src/app/api/v1/projects/[id]/slug/check/route.ts` |
+| `/api/v1/preview/:projectId` | GET | 세션+소유권 | 없음 | `src/app/api/v1/preview/[projectId]/route.ts` |
+| `/api/v1/user-api-keys` | GET·POST·DELETE | 세션 | 없음 | `src/app/api/v1/user-api-keys/route.ts` |
 
-**Request Body:**
-```json
-{
-    "version": 2
-}
-```
+- 최초 게시 시 `slug` 직접 지정 가능, 미제공 시 자동 생성. **재게시는 기존 slug 유지.** 충돌 시 `-2`·`-3` suffix.
+- `slug/check`의 `reason`: `invalid`(형식·예약어) / `reserved` / `taken`.
+- 미리보기는 `?version=` 으로 과거 버전 조회. 1 미만·비정수는 400.
 
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "projectId": "uuid",
-        "version": 3,
-        "rolledBackFrom": 2
-    }
-}
-```
+### 1.3 생성 · AI 추천
 
-### POST /api/v1/projects/:id/publish
-생성된 서비스를 서브도메인으로 게시
+| 경로 | 메서드 | 인증 | 레이트리밋 | 라우트 파일 |
+|---|---|---|---|---|
+| `/api/v1/generate` | POST | 세션+인증메일 | 일일 생성 `MAX_DAILY_GENERATIONS`(기본 10) | `src/app/api/v1/generate/route.ts` |
+| `/api/v1/generate/regenerate` | POST | 세션+인증메일 | 동일 일일 생성 한도 | `src/app/api/v1/generate/regenerate/route.ts` |
+| `/api/v1/generate/status/:projectId` | GET | 세션 | 없음 | `src/app/api/v1/generate/status/[projectId]/route.ts` |
+| `/api/v1/suggest-apis` | POST | 세션+인증메일 | 일일 추천 `MAX_DAILY_SUGGESTIONS`(기본 30) | `src/app/api/v1/suggest-apis/route.ts` |
+| `/api/v1/suggest-context` | POST | 세션+인증메일 | 동일 일일 추천 한도 | `src/app/api/v1/suggest-context/route.ts` |
+| `/api/v1/suggest-modification` | POST | 세션+소유권+인증메일 | 동일 일일 추천 한도 | `src/app/api/v1/suggest-modification/route.ts` |
+| `/api/v1/suggest-preferences` | POST | 세션+인증메일 | 동일 일일 추천 한도 | `src/app/api/v1/suggest-preferences/route.ts` |
 
-> 최초 게시 시 `slug`를 직접 지정할 수 있습니다. 미제공 시 자동 생성됩니다. 재게시는 기존 slug를 유지합니다.
+- 한도 기본값의 진실원은 `src/lib/config/features.ts`(env override). **실패 시 `charged===true`일 때만 환불**한다.
+- 재생성은 프로젝트당 `maxRegenerationsPerProject`(기본 5회)이며 **일일 생성 횟수에도 포함**된다.
+- 추천 4종은 전부 `createForTask('suggestion')`(Haiku)를 써야 한다. 기본 팩토리를 쓰면 조용히 단가가 오른다.
 
-**Request Body (선택):**
-```json
-{
-    "slug": "my-weather-app"
-}
-```
+**SSE 계약** (`generate`·`regenerate`): 이벤트 이름 `progress`(`{progress, message}`) / `complete`(`{projectId, version, previewUrl}`) / `error`(`{message}`).
+스트림이 끊기면 클라이언트가 `generate/status/:projectId`로 폴백 폴링한다 —
+폴링 상태 union과 클라이언트 처리는 `src/lib/generation/pollGenerationStatus.ts`.
 
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `slug` | string | N | 최초 게시 시 사용할 slug. 미제공 시 AI 추천 또는 자동 생성. 충돌 시 `-2`, `-3` suffix 자동 부여 |
+`status` 값: `generating` / `completed` / `failed` / `not_found`.
+> **소유권이 다른 사용자가 조회해도 `not_found`를 준다** — 403이면 "그 프로젝트가 존재한다"가 새기 때문이다. 이건 버그가 아니라 의도다.
 
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "id": "uuid",
-        "status": "published",
-        "slug": "my-weather-app",
-        "publishedAt": "2026-03-28T00:00:00Z"
-    },
-    "qcWarnings": ["콘솔 에러 감지: ReferenceError"]
-}
-```
+**킬스위치·락 (한도 차감 순서가 계약이다)**
 
-> `qcWarnings` 필드는 렌더링 QC(`ENABLE_RENDERING_QC=true`)에서 경고가 발생한 경우에만 조건부 포함됩니다. 경고가 없으면 이 필드 자체가 응답에 포함되지 않습니다.
+| 상태 | 코드 | 의미 |
+|---|---|---|
+| 503 | `GENERATION_DISABLED` | `enable_generation` off. **일일 한도 차감 이전**에 반환 |
+| 409 | `GENERATION_IN_PROGRESS` | `acquireGenerationLock` 실패(DB 락). **차감분 환불됨** |
 
-### POST /api/v1/projects/:id/slug/check
-slug 가용성 실시간 검증 (PublishDialog에서 커스텀 입력 시 사용)
+플래그 조회는 `src/lib/config/featureFlags.ts`(10초 캐시·fail-open). 중복 차단은 tracker가 아니라 **DB 락**이다 —
+tracker로 겸했을 때 TTL 만료로 락이 사라져 Opus/ET 이중 청구가 났다. [ADR](../decisions/2026-07-29-durable-generation-lock.md)
 
-**Request Body:**
-```json
-{
-    "slug": "my-weather-app"
-}
-```
+### 1.4 인증 (Auth)
 
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "available": true
-    }
-}
-```
+Auth.js v5 Credentials + JWT(무상태 세션 쿠키). 로그인 핸들러는 `src/app/api/auth/[...nextauth]/route.ts`.
 
-사용 불가한 경우:
-```json
-{
-    "success": true,
-    "data": {
-        "available": false,
-        "reason": "taken"
-    }
-}
-```
+| 경로 | 메서드 | 인증 | 레이트리밋 | 라우트 파일 |
+|---|---|---|---|---|
+| `/api/auth/*` | GET·POST | 공개 | 로그인 실패: IP 10회/15분 · 계정 5회/5분 | `src/app/api/auth/[...nextauth]/route.ts` |
+| `/api/v1/auth/signup` | POST | 공개 | IP 5회/시간 | `src/app/api/v1/auth/signup/route.ts` |
+| `/api/v1/auth/verify-email` | POST | 공개(토큰 자체가 인가) | 없음 | `src/app/api/v1/auth/verify-email/route.ts` |
+| `/api/v1/auth/resend-verification` | POST | 세션 | 사용자 3회/시간 | `src/app/api/v1/auth/resend-verification/route.ts` |
+| `/api/v1/auth/forgot-password` | POST | 공개 | IP 5회/시간 | `src/app/api/v1/auth/forgot-password/route.ts` |
+| `/api/v1/auth/reset-password` | POST | 공개(토큰 자체가 인가) | 없음 | `src/app/api/v1/auth/reset-password/route.ts` |
+| `/api/v1/auth/status` | GET | 세션 | 없음 | `src/app/api/v1/auth/status/route.ts` |
+| `/api/v1/auth/export` | GET | 세션 | 사용자 3회/시간 | `src/app/api/v1/auth/export/route.ts` |
+| `/api/v1/auth/account` | DELETE | 세션 + **비밀번호 재인증** | 사용자 5회/시간 | `src/app/api/v1/auth/account/route.ts` |
 
-| `reason` 값 | 설명 |
-|-------------|------|
-| `invalid` | 형식 오류 (길이, 문자, 예약어) |
-| `reserved` | 시스템 예약 slug |
-| `taken` | 다른 프로젝트가 사용 중 |
+한도 상수의 진실원은 `src/lib/config/rateLimit.ts`, 적용 헬퍼는 `enforceRateLimit`(`src/lib/auth/routeHelpers.ts`).
+로그인 스로틀의 설계 제약(계정 버킷은 **제출된 이메일**로 키를 잡는다·한도 초과 시 `return null`)은
+[로그인 레이트리밋 ADR](../decisions/2026-07-30-login-rate-limit.md).
 
-| 상태 코드 | 설명 |
-|-----------|------|
-| 200 | 검증 완료 (available true/false) |
-| 400 | 요청 형식 오류 |
-| 401 | 미인증 |
-| 403 | 프로젝트 소유자가 아님 |
+**깨면 조용히 사고 나는 것들**
 
----
+- `signup` 503 `SIGNUP_DISABLED`는 **레이트리밋 이전**에 반환한다. 신규 가입만 막고 기존 사용자는 무영향.
+- `forgot-password`는 **계정 존재 여부와 무관하게 동일 응답**이다(enumeration 방지). 응답을 분기시키지 말 것.
+- `export`는 **`passwordHash`·`auth_tokens`·`generation_locks`·`user_daily_limits`·API 키 ciphertext/평문을 절대 포함하지 않는다.**
+  `userApiKeys`는 메타데이터만. 필드를 추가할 때 이 목록을 먼저 볼 것.
+- `account` DELETE는 **단일 SQLite 트랜잭션**(`src/lib/auth/deleteAccountCascade.ts`)이고, 감사 로그(`platform_events`)는
+  행을 보존한 채 `user_id` 분리 + payload 익명화한다. 이벤트 payload 키는 **`deletedUserId`** — `userId`로 쓰면
+  persist가 FK를 붙이려다 방금 지운 행을 참조한다. 세션 쿠키는 `Max-Age=0`.
+  배경: [계정 삭제·내보내기 ADR](../decisions/2026-07-30-account-delete-and-export.md) · [#221](https://github.com/xzawed/CustomWebService/issues/221)
 
-### DELETE /api/v1/projects/:id/publish
-게시 취소 (서비스를 비공개로 전환)
+### 1.5 프록시 · 공개 서빙 · 헬스
 
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "id": "uuid",
-        "status": "unpublished"
-    }
-}
-```
+| 경로 | 메서드 | 인증 | 레이트리밋 | 라우트 파일 |
+|---|---|---|---|---|
+| `/api/v1/proxy` | GET·POST | **모드별** (§5) | 모드별 (§5) | `src/app/api/v1/proxy/route.ts` |
+| `/site/:slug` | GET | 공개 | 없음 | `src/app/site/[slug]/route.ts` |
+| `/api/v1/health` | GET | 공개 / `?detailed=true`는 관리자 | detailed 요청만 IP 60회/분 | `src/app/api/v1/health/route.ts` |
+| `/api/v1/popular-services` | GET | 세션 | 없음 | `src/app/api/v1/popular-services/route.ts` |
+
+**`/site/:slug`** — 서브도메인 rewrite의 착지점. 미게시 상태는 404가 아니라 **HTTP 200 + "준비 중" 안내 페이지**다
+(존재하지 않는 slug만 404). 헤더는 `Cache-Control: public, s-maxage=60, stale-while-revalidate=300` + CSP + `X-Frame-Options: DENY`.
+CSP 문자열의 소유자는 이 라우트가 아니라 `src/lib/constants/cdn.ts`다.
+
+**`/api/v1/health`** — 기본은 `{status, timestamp}`만. `?detailed=true` + `ADMIN_API_KEY`면 `checks`·`usage`가 붙는다.
+`status`(상세): `healthy`(`checks.database=ok` **이고** `checks.ai=ok`) / `degraded`(AI 미설정·불가) / `unhealthy`(DB 연결 실패).
+
+> ⚠️ **한도 초과는 `429` + `status: "rate_limited"`이고, 공개 응답(`status: "ok"`)으로 폴백하지 않는다.**
+> 폴백시키면 올바른 키를 가진 관리자가 한도 초과를 "정상"으로 오인한다 — 인시던트 런북이
+> `?detailed=true`를 반복 호출하는 경로라 실제 위험이다. `checkAdminAuth()`가 `rate_limited`를
+> `unauthorized`와 구분해 반환하는 이유가 이것이다(`src/lib/utils/adminAuth.ts`).
+
+### 1.6 관리자 (전부 `Authorization: Bearer {ADMIN_API_KEY}` + per-IP 60회/분)
+
+per-IP 한도는 `verifyAdminKey`가 **키 검사보다 먼저** 적용한다(브루트포스 방어). 전 라우트에 `OPTIONS` 프리플라이트 있음.
+
+| 경로 | 메서드 | 라우트 파일 |
+|---|---|---|
+| `/api/v1/admin/qc-stats` | GET | `src/app/api/v1/admin/qc-stats/route.ts` |
+| `/api/v1/admin/trigger-qc` | POST | `src/app/api/v1/admin/trigger-qc/route.ts` |
+| `/api/v1/admin/test-generation` | POST | `src/app/api/v1/admin/test-generation/route.ts` |
+| `/api/v1/admin/backup/latest` | GET | `src/app/api/v1/admin/backup/latest/route.ts` |
+| `/api/v1/admin/debug` | GET | `src/app/api/v1/admin/debug/route.ts` |
+| `/api/v1/admin/keys-verify` | GET | `src/app/api/v1/admin/keys-verify/route.ts` |
+| `/api/v1/admin/catalog/activate` | POST | `src/app/api/v1/admin/catalog/activate/route.ts` |
+| `/api/v1/admin/catalog/deactivate` | POST | `src/app/api/v1/admin/catalog/deactivate/route.ts` |
+| `/api/v1/admin/catalog-dump` | GET | `src/app/api/v1/admin/catalog-dump/route.ts` |
+| `/api/v1/admin/verify-catalog` | POST | `src/app/api/v1/admin/verify-catalog/route.ts` |
+| `/api/v1/admin/feature-flags` | GET·POST | `src/app/api/v1/admin/feature-flags/route.ts` |
+| `/api/v1/admin/site-proxy-stats` | GET | `src/app/api/v1/admin/site-proxy-stats/route.ts` |
+
+각 엔드포인트가 **왜 있는지·무엇을 착각하면 안 되는지**는 §6.
 
 ---
 
-## 3. 코드 생성 (Generate)
+## 2. 요청 본문 스키마 — 어디를 보나
 
-### POST /api/v1/generate
-웹서비스 코드 생성 요청
+**`src/types/schemas.ts` 가 요청 본문 Zod 스키마의 단일 출처다.** 이름이 엔드포인트와 1:1로 대응한다
+(`createProjectSchema`·`generateSchema`·`regenerateSchema`·`slugCheckSchema`·`rollbackSchema`·`saveKeySchema`·
+`suggest*Schema`·`signupSchema`·`forgotPasswordSchema`·`verifyEmailSchema`·`resetPasswordSchema`·
+`triggerQcSchema`·`setFeatureFlagSchema`·`activateCatalogSchema`·`deactivateCatalogSchema`).
+필드·길이 제한을 이 문서에 복제하지 않는다 — 스키마가 바뀌면 문서만 남고 거짓이 된다.
 
-**Request Body:**
-```json
-{
-    "projectId": "project-uuid",
-    "templateId": "dashboard"
-}
-```
+> ⚠️ **예외 2개는 `schemas.ts`에 없다.** grep해도 안 나오니 라우트 파일을 직접 열 것.
+> - 계정 삭제 `{ password }` → `src/app/api/v1/auth/account/route.ts` 내 인라인 `deleteAccountSchema`
+> - 관리자 생성 테스트 → `src/app/api/v1/admin/test-generation/route.ts` 내 인라인 `bodySchema`
 
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `projectId` | string | Y | 생성 대상 프로젝트 UUID |
-| `templateId` | string | N | 템플릿 ID (없으면 기존 categoryDesignMap 동작 유지) |
-
-**templateId 값:** `dashboard` \| `calculator` \| `gallery` \| `info-lookup` \| `map-service` \| `content-feed` \| `comparison` \| `timeline` \| `news-curator` \| `quiz` \| `profile`
-
-**Response (SSE - Server-Sent Events):**
-```
-event: progress
-data: {"progress": 10, "message": "API 분석 중..."}
-
-event: progress
-data: {"progress": 30, "message": "코드 생성 중..."}
-
-event: progress
-data: {"progress": 70, "message": "코드 파싱 중..."}
-
-event: progress
-data: {"progress": 90, "message": "코드 검증 중..."}
-
-event: complete
-data: {"projectId": "uuid", "version": 1, "previewUrl": "/api/v1/preview/uuid"}
-
-event: error
-data: {"message": "코드 생성에 실패했습니다."}
-```
-
-| 상태코드 | 코드 | 설명 |
-|---------|------|------|
-| 409 | `GENERATION_IN_PROGRESS` | 동일 프로젝트에 DB 생성 락이 이미 잡혀 있음 (`acquireGenerationLock` 실패). 일일 한도 차감분은 환불 |
-| 503 | `GENERATION_DISABLED` | `enable_generation` 킬스위치 off. 일일 한도 차감 **이전**에 반환 |
-
-### GET /api/v1/generate/status/:projectId
-생성 진행 상태 조회 (모바일 백그라운드 폴링용)
-
-**Auth:** 필수
-
-> SSE 스트림이 끊겼을 때(모바일 탭 전환 등) 클라이언트가 1초 간격으로 폴링하여 생성 완료를 확인합니다.
-
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "status": "generating",
-        "progress": 45,
-        "message": "Stage 2 기능 검증 중..."
-    }
-}
-```
-
-완료 시:
-```json
-{
-    "success": true,
-    "data": {
-        "status": "completed",
-        "result": { "projectId": "uuid", "version": 1 }
-    }
-}
-```
-
-| `status` 값 | 설명 |
-|-------------|------|
-| `generating` | 진행 중 (progress, message 포함) |
-| `completed` | 완료 (result.version 포함, 또는 tracker miss 시 DB에서 코드 존재 확인) |
-| `failed` | 실패 (error 메시지 포함) |
-| `not_found` | 해당 프로젝트 생성 기록 없음 (tracker + DB 모두 미존재). **소유권 불일치 시에도 `not_found` 반환** — 보안 목적 정보 노출 방지 |
-
-| 상태코드 | 설명 |
-|---------|------|
-| 200 | 성공 |
-| 401 | 인증 필요 |
+`templateId`의 허용값 union은 `src/types/project.ts`. 프록시 쿼리(`apiId`·`proxyPath`·`projectId`)는 `src/app/api/v1/proxy/route.ts`에서 검증한다.
 
 ---
 
-### POST /api/v1/generate/regenerate
-코드 재생성 (수정 요청)
+## 3. 계약상 함정 — 착각하면 조용히 잘못 동작한다
 
-**Auth:** 필수
-
-**Request Body:**
-```json
-{
-    "projectId": "project-uuid",
-    "feedback": "색상을 더 밝게 해주세요. 그래프도 추가해주세요."
-}
-```
-
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `projectId` | string | Y | 재생성 대상 프로젝트 UUID |
-| `feedback` | string | Y | 수정 요청 내용 (1~5,000자) |
-
-**Response (SSE):**
-```
-event: progress
-data: {"progress": 10, "message": "피드백 분석 중..."}
-
-event: progress
-data: {"progress": 30, "message": "코드 수정 중..."}
-
-event: complete
-data: {"projectId": "uuid", "version": 2, "previewUrl": "/api/v1/preview/uuid"}
-
-event: error
-data: {"message": "재생성에 실패했습니다."}
-```
-
-| 상태코드 | 코드 | 설명 |
-|---------|------|------|
-| 409 | `GENERATION_IN_PROGRESS` | 동일 프로젝트에 DB 생성 락이 이미 잡혀 있음 (`acquireGenerationLock` 실패). 일일 한도 차감분은 환불 |
-| 503 | `GENERATION_DISABLED` | `enable_generation` 킬스위치 off. 일일 한도 차감 **이전**에 반환 |
-
-> 프로젝트당 최대 `maxRegenerationsPerProject`(기본 5회) 재생성 가능. 재생성도 일일 생성 횟수에 포함됩니다.
-
-### POST /api/v1/suggest-context
-선택된 API 기반 AI 서비스 아이디어 추천
-
-> 빌더 스텝 1(API 선택) → 스텝 2(서비스 설명) 전환 시 자동 호출
-
-**Auth:** 필수
-
-**Request Body:**
-```json
-{
-    "apis": [
-        {
-            "name": "OpenWeatherMap",
-            "description": "현재 날씨, 5일 예보, 대기질",
-            "category": "weather"
-        }
-    ]
-}
-```
-
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "suggestions": [
-            "실시간 날씨 대시보드를 만들고 싶어요. 현재 기온, 습도, 풍속을 시각적으로 보여주고...",
-            "여행지별 날씨를 한눈에 비교할 수 있는 앱을 만들어 주세요...",
-            "미세먼지와 자외선 지수를 함께 보여주는 오늘의 외출 도우미..."
-        ]
-    }
-}
-```
-
-| 상태코드 | 설명 |
-|---------|------|
-| 200 | 성공 (파싱 실패 시에도 200 + suggestions: []) |
-| 400 | apis 누락 또는 잘못된 형식 |
-| 401 | 인증 필요 |
+| 함정 | 실제 동작 |
+|---|---|
+| **`data`가 객체냐 배열이냐** | `GET /catalog` 은 **`data: { items, total, page, totalPages }`**(페이지네이션 객체). 반면 `GET /catalog/categories`·`GET /projects`는 **`data: [...]`**(맨 배열). `data`를 배열로 가정한 코드는 카탈로그에서 조용히 빈 배열을 얻는다 |
+| **`/countries`에는 래퍼가 없다** | `{success,data}` 없이 `Country[]` / `Country`를 그대로 반환한다. 404도 `{ error: "..." }` 형태로 표준 코드가 아니다 |
+| **`qcWarnings`는 조건부 필드** | `POST /projects/:id/publish` 응답의 `qcWarnings`는 렌더링 QC(`ENABLE_RENDERING_QC=true`)에서 경고가 났을 때**만** 붙는다. 경고가 없으면 **필드 자체가 없다** — `length === 0` 검사로 판단하면 안 된다 |
+| **알 수 없는 `templateId`는 400이 아니다** | `generateSchema`의 `templateId`는 enum이 아니라 `z.string()`이고, 라우트는 `templateRegistry.get(templateId)?.generate(...)`로 옵셔널 체이닝한다. 오타는 **에러 없이 무시**되고 템플릿 힌트만 사라진다 |
+| **`generate/status`의 `not_found`** | 미존재와 **소유권 불일치**가 같은 값이다. 403이 아니라 `not_found`인 것이 의도(존재 여부 누출 방지) |
+| **미게시 사이트는 200이다** | `/site/:slug`는 미게시일 때 404가 아니라 200 + 안내 페이지. "200이니 게시됐다"로 판단 금지 |
+| **`health` 429는 `ok`로 폴백하지 않는다** | §1.5 참조 |
+| **레거시 `{ error: "문자열" }` 패턴** | 일부 수동 catch가 `error`를 문자열로 반환하던 시절이 있다. 신규 라우트는 반드시 `handleApiError()` — 상세는 [error-codes.md](error-codes.md) |
 
 ---
 
-## 4. 미리보기 (Preview)
+## 4. 라우트 로컬 에러 코드 (error-codes.md 미등재분)
 
-### GET /api/v1/preview/:projectId
-생성된 코드 미리보기용 HTML 반환
+**공통 에러 코드·클래스·HTTP 매핑의 진실원은 [error-codes.md](error-codes.md)다.** 아래 2개는 그 문서에 아직 없다.
 
-**Query Parameters:**
-| 파라미터 | 타입 | 필수 | 설명 |
-|---------|------|------|------|
-| version | number | N | 코드 버전 (기본 최신, 1 이상의 정수) |
+| 코드 | HTTP | 발생 위치 | 설명 |
+|---|---|---|---|
+| `GENERATION_IN_PROGRESS` | 409 | `generate`, `regenerate` | DB 생성 락 획득 실패. **일일 한도 차감분 환불됨** |
+| `SERVICE_UNAVAILABLE` | 503 | `admin/backup/latest` | 백업 디렉터리 읽기 실패 (백업 파일 부재는 404 `NOT_FOUND`) |
 
-| 상태코드 | 설명 |
-|---------|------|
-| 200 | 성공 (text/html) |
-| 400 | version 파라미터가 1 미만이거나 정수가 아님 |
-| 401 | 인증 필요 |
-| 404 | 프로젝트 또는 코드 없음 |
+> **판단 필요**: 위 2개를 [error-codes.md](error-codes.md)로 옮기는 편이 옳지만, 그 파일은 이번 작업 범위 밖이라 손대지 않았다.
 
 ---
 
-## 5. 배포 (Deploy) — 제거됨
+## 5. 프록시 — 모드 · 한도 · 캐시 키
 
-> **2026-08-01**: 외부 배포 스택(`POST /api/v1/deploy`, GitHub org 레포 / Railway·GitHub Pages export)을 **제거**했다.
-> 제품의 배포 스토리는 **게시(publish) → `slug.xzawed.xyz`** 다 (`POST/DELETE /api/v1/projects/:id/publish`, 서브도메인 서빙).
-> 상세: [ADR 2026-08-01-remove-external-deploy-stack](../decisions/2026-08-01-remove-external-deploy-stack.md)
+### 5.1 인가 모드 (단일 진입점)
 
----
-
-## 6. 공개 사이트 서빙 (Public Site)
-
-### GET /site/:slug
-게시된 서비스를 공개 URL로 서빙
-
-> **인증 불필요** — 누구나 접근 가능한 공개 엔드포인트
-
-**URL 구조:** `https://<app-domain>/site/<slug>`
-
-**동작:**
-- slug 유효성 검사 → 예약어 차단
-- 프로젝트 조회 → `published` 상태 확인
-- 최신 생성 코드를 완성된 HTML로 조합하여 반환
-- 미게시 상태면 "준비 중" 안내 페이지 반환 (HTTP 200)
-- 존재하지 않는 slug는 404 페이지 반환
-
-| 상태코드 | 설명 |
-|---------|------|
-| 200 | 성공 (게시된 사이트 HTML) |
-| 200 | 미게시 상태 ("준비 중" 안내 페이지) |
-| 400 | 잘못된 slug 형식 (예약어·빈 slug 등) |
-| 404 | 해당 slug의 프로젝트 없음 |
-
-**Response:** `text/html` (완성된 웹 애플리케이션)
-
-**Response Headers:**
-```
-Content-Type: text/html; charset=utf-8
-Cache-Control: public, s-maxage=60, stale-while-revalidate=300
-Content-Security-Policy: (허용된 외부 스크립트/스타일만)
-X-Frame-Options: DENY
-```
-
----
-
-## 7. 헬스체크 (Health)
-
-### GET /api/v1/health
-서비스 상태 및 한도 사용률 조회
-
-> **인증 불필요** — 기본 상태(`status`, `timestamp`)는 누구나 조회 가능  
-> **상세 정보** — `?detailed=true` + `Authorization: Bearer {ADMIN_API_KEY}` 헤더 필요
-
-**기본 응답 (인증 없거나 `detailed` 미지정):**
-```json
-{
-    "status": "ok",
-    "timestamp": "2026-03-28T00:00:00Z"
-}
-```
-
-**상세 응답 (`?detailed=true` + `ADMIN_API_KEY` 인증 시):**
-```json
-{
-    "status": "healthy",
-    "timestamp": "2026-03-28T00:00:00Z",
-    "checks": {
-        "database": "ok",
-        "aiProvider": "claude",
-        "ai": "ok"
-    },
-    "usage": {
-        "todayGenerations": 42,
-        "totalProjects": 150,
-        "totalUsers": 30,
-        "limits": {
-            "maxDailyGenerationsPerUser": 10,
-            "maxApisPerProject": 5,
-            "maxProjectsPerUser": 20
-        }
-    }
-}
-```
-
-> 상세 응답 필드는 `status` / `timestamp` / `checks` / `usage` 네 가지다. (`failover` 필드는 SQLite 컷오버로 제거됨.)
-
-**status 값 (상세):**
-- `healthy`: 검사 대상 정상 (`checks.database=ok` 이고 `checks.ai=ok`)
-- `degraded`: AI 미설정·불가 (`checks.ai`가 `ok`가 아님). **배포(deploy) 서비스 검사는 없음** — 외부 deploy 스택 제거(2026-08-01)
-- `unhealthy`: 데이터베이스 연결 실패
-
-**레이트리밋 응답 (`?detailed=true` + 관리자 키 있으나 per-IP 한도 초과):**
-```json
-{
-    "status": "rate_limited",
-    "timestamp": "2026-03-28T00:00:00Z"
-}
-```
-- HTTP **429**, `Retry-After: 60`
-- 공개 응답(`status: "ok"`)으로 폴백하지 않는다 — 올바른 키를 가진 관리자가 한도 초과를 정상 상태로 오인하지 않도록 함
-
----
-
-## 8. 인증 (Auth)
-
-Auth.js Credentials + JWT. 세션 쿠키 필요(공개 엔드포인트 제외). 가입·인증·재설정 라우트는 `/api/v1/auth/*` 및 `/api/auth/*`(Auth.js 핸들러).
-
-### POST /api/v1/auth/signup
-공개 회원가입. 이메일 인증 링크 발송 후 미인증 상태로 가입 완료.
-
-**Auth:** 불필요 (공개)
-
-**레이트리밋:** IP당 5회/시간 (`signup`)
-
-**Request Body:**
-```json
-{ "email": "user@example.com", "password": "min-8-chars" }
-```
-
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `email` | string | Y | 이메일 |
-| `password` | string | Y | 8자 이상 |
-
-| 상태 | 코드 | 설명 |
-|------|------|------|
-| 201 | — | `{ "message": "가입이 완료되었습니다. 이메일 인증 링크를 확인해주세요." }` |
-| 400 | `INVALID_INPUT` | Zod 검증 실패 |
-| 409 | `CONFLICT` | 이메일 중복 |
-| 429 | `RATE_LIMITED` | 시간당 한도 초과 |
-| 503 | `SIGNUP_DISABLED` | `enable_signup` 킬스위치 off. 신규 가입만 차단(기존 사용자 로그인·이용 무영향). 레이트리밋 **이전**에 반환 |
-
-### POST /api/v1/auth/verify-email
-이메일 인증 토큰 소비.
-
-**Auth:** 불필요 (공개, 토큰 자체로 인가)
-
-**Request Body:**
-```json
-{ "token": "…" }
-```
-
-| 상태 | 코드 | 설명 |
-|------|------|------|
-| 200 | — | `{ "message": "이메일 인증이 완료되었습니다." }` |
-| 400 | `INVALID_INPUT` | 토큰 누락·형식 오류 / 무효·만료 토큰 |
-
-### POST /api/v1/auth/resend-verification
-인증 메일 재발송.
-
-**Auth:** 필요 (`getAuthUser`)
-
-**레이트리밋:** 사용자당 3회/시간 (`resend:{userId}` + IP)
-
-**Body:** 없음
-
-| 상태 | 코드 | 설명 |
-|------|------|------|
-| 200 | — | `{ "message": "인증 메일을 다시 보냈습니다." }` |
-| 401 | `AUTH_REQUIRED` | 미인증 |
-| 429 | `RATE_LIMITED` | 시간당 한도 초과 |
-
-### POST /api/v1/auth/forgot-password
-비밀번호 재설정 메일 발송. **계정 존재 여부와 무관하게 동일 응답** (enumeration 방지).
-
-**Auth:** 불필요 (공개)
-
-**레이트리밋:** IP당 5회/시간 (`forgot`)
-
-**Request Body:**
-```json
-{ "email": "user@example.com" }
-```
-
-| 상태 | 코드 | 설명 |
-|------|------|------|
-| 200 | — | `{ "message": "재설정 링크를 이메일로 보냈습니다(가입된 경우)." }` |
-| 400 | `INVALID_INPUT` | 이메일 형식 오류 |
-| 429 | `RATE_LIMITED` | 시간당 한도 초과 |
-
-### POST /api/v1/auth/reset-password
-비밀번호 재설정 토큰 소비.
-
-**Auth:** 불필요 (공개, 토큰 자체로 인가)
-
-**Request Body:**
-```json
-{ "token": "…", "password": "min-8-chars" }
-```
-
-| 상태 | 코드 | 설명 |
-|------|------|------|
-| 200 | — | `{ "message": "비밀번호가 변경되었습니다. 다시 로그인해주세요." }` |
-| 400 | `INVALID_INPUT` | 토큰/비밀번호 검증 실패 |
-
-### GET /api/v1/auth/status
-현재 세션 사용자의 이메일 인증 여부.
-
-**Auth:** 필요
-
-**Response:**
-```json
-{ "success": true, "data": { "verified": true } }
-```
-
-| 상태 | 코드 | 설명 |
-|------|------|------|
-| 200 | — | `verified` boolean |
-| 401 | `AUTH_REQUIRED` | 미인증 |
-
-### GET /api/v1/auth/export
-현재 로그인 사용자의 계정 데이터를 JSON으로 내보낸다 (`#221`).
-
-**인증:** 필요 (`getAuthUser` — DB 행 존재 확인). **이메일 인증은 요구하지 않음.**
-
-**레이트리밋:** 사용자당 3회/시간 (`export:{userId}` + 클라이언트 IP, auth 인메모리 리미터).
-
-**Response headers:**
-- `Content-Disposition: attachment; filename="customwebservice-export-YYYY-MM-DD.json"` (UTC 날짜)
-
-**Response body (`data`):**
-```json
-{
-  "schemaVersion": 1,
-  "exportedAt": "2026-07-30T12:00:00.000Z",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "name": null,
-    "avatarUrl": null,
-    "preferences": {},
-    "emailVerified": "2026-06-01T00:00:00.000Z",
-    "createdAt": "…",
-    "updatedAt": "…"
-  },
-  "projects": [
-    {
-      "id": "uuid",
-      "userId": "uuid",
-      "name": "…",
-      "context": "…",
-      "status": "generated",
-      "…": "프로젝트 메타 전체",
-      "projectApis": [{ "apiId": "uuid", "config": {} }],
-      "generatedCodes": [
-        {
-          "version": 1,
-          "codeHtml": "…",
-          "codeCss": "…",
-          "codeJs": "…",
-          "framework": "vanilla",
-          "aiModel": "…",
-          "aiPromptUsed": "…",
-          "tokenUsage": { "input": 0, "output": 0 },
-          "dependencies": [],
-          "metadata": {}
-        }
-      ]
-    }
-  ],
-  "userApiKeys": [
-    { "apiId": "uuid", "isVerified": true, "createdAt": "…" }
-  ]
-}
-```
-
-**포함하지 않음:** `passwordHash`, `auth_tokens`, `generation_locks`, `user_daily_limits`, API 키 ciphertext/평문(`encryptedKey` 등). `userApiKeys`는 메타데이터만.
-
-| 상태 | 코드 | 설명 |
-|------|------|------|
-| 200 | — | 내보내기 JSON |
-| 401 | `AUTH_REQUIRED` | 미인증·삭제된 세션 |
-| 429 | `RATE_LIMITED` | 시간당 한도 초과 |
-
-### DELETE /api/v1/auth/account
-계정 삭제. 자식 데이터를 **단일 SQLite 트랜잭션**으로 정리하고(`cascadeDeleteUser`), 감사 로그(`platform_events`)는 행을 보존한 채 `user_id` 분리 + payload 익명화. 게시 사이트·생성 코드·키·토큰·일일 한도 포함 연쇄 삭제 (`#221`).
-
-**인증:** 필요 (`getAuthUser` — DB 행 존재 확인).
-
-**Body:**
-```json
-{ "password": "current-password" }
-```
-비밀번호 재인증 필수. 틀리거나 누락되면 **삭제를 시작하지 않는다.**
-
-**레이트리밋:** 사용자당 5회/시간 (`delete-account:{userId}` + IP).
-
-**부수 효과:**
-- Auth.js 세션 쿠키 `Max-Age=0` 만료
-- `USER_DELETED` 이벤트 payload `{ deletedUserId }` (커밋 **이후**; `userId` 키 금지 — persist FK 함정)
-- 외부 GitHub/Railway 배포 스택은 제거됨(2026-08-01) — 고아 레포 TODO 없음
-
-| 상태 | 코드 | 설명 |
-|------|------|------|
-| 200 | — | `{ "deleted": true }` |
-| 400 | `INVALID_INPUT` | 비밀번호 누락·형식 오류 |
-| 401 | `AUTH_REQUIRED` | 미인증·잘못된 비밀번호·삭제된 세션 |
-| 429 | `RATE_LIMITED` | 시간당 한도 초과 |
-
----
-
-## 8-1. 국가 데이터 (Countries, 공개·키리스)
-
-자체 호스팅 mledoze 기반 국가 데이터. 생성 사이트가 프록시 없이 직접 호출할 수 있도록 CORS `*` + `Cache-Control: public, max-age=86400`.
-
-### GET /api/v1/countries
-전체 목록 (+ 선택 필터).
-
-**Auth:** 불필요 (공개)
-
-**Query Parameters:**
-
-| 파라미터 | 타입 | 필수 | 설명 |
-|---------|------|------|------|
-| `region` | string | N | 지역 필터 |
-| `search` | string | N | 이름 검색 |
-
-**Response:** `Country[]` JSON 배열 (표준 `{success,data}` 래퍼 없음)
-
-### GET /api/v1/countries/[code]
-cca2/cca3 코드(대소문자 무시) 단건 조회.
-
-**Auth:** 불필요 (공개)
-
-| 상태 | 설명 |
-|------|------|
-| 200 | `Country` 객체 |
-| 404 | `{ "error": "Country not found: {code}" }` |
-
----
-
-## 9. 에러 코드
-
-| 코드 | HTTP Status | 설명 |
-|------|-------------|------|
-| AUTH_REQUIRED | 401 | 인증 필요 |
-| FORBIDDEN | 403 | 권한 없음 |
-| EMAIL_NOT_VERIFIED | 403 | 이메일 미인증 (생성·배포 등) |
-| NOT_FOUND | 404 | 리소스 없음 |
-| INVALID_INPUT | 400 | 입력값 오류 (Zod 스키마 검증 실패 포함) |
-| CONTEXT_TOO_SHORT | 400 | 컨텍스트 50자 미만 |
-| CONTEXT_TOO_LONG | 400 | 컨텍스트 2000자 초과 |
-| MAX_APIS_EXCEEDED | 400 | API 최대 선택 수 초과 |
-| CONFLICT | 409 | 리소스 충돌 (예: 이메일 중복) |
-| GENERATION_IN_PROGRESS | 409 | 동일 프로젝트 생성/재생성 진행 중 (DB 락) |
-| GENERATION_DISABLED | 503 | `enable_generation` 킬스위치 off (생성·재생성) |
-| GENERATION_FAILED | 500 | 코드 생성 실패 |
-| SIGNUP_DISABLED | 503 | `enable_signup` 킬스위치 off (신규 가입만) |
-| DEPLOY_FAILED | 500 | 배포 실패 |
-| RATE_LIMITED | 429 | 요청 횟수 초과 |
-| INTERNAL_ERROR | 500 | 처리되지 않은 서버 오류 |
-
-> **참고**: Zod 스키마 검증 실패(`ZodError`)는 `INVALID_INPUT` 코드로 400 응답을 반환합니다.
-> `handleApiError()` 유틸리티가 `AppError`, `ZodError`, 일반 `Error` 모두를 표준 형식으로 변환합니다.
-
----
-
-## 10. AI 추천 (Suggest)
-
-### POST /api/v1/suggest-apis
-서비스 설명 기반 API 추천
-
-**Auth required**: Yes
-
-**Request Body:**
-```json
-{
-    "context": "만들고 싶은 서비스 설명 (50~2000자)"
-}
-```
-
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "recommendations": [
-            {
-                "api": { "id": "uuid", "name": "OpenWeatherMap", ... },
-                "reason": "날씨 데이터 제공에 최적"
-            }
-        ]
-    }
-}
-```
-
-| 상태코드 | 설명 |
-|---------|------|
-| 200 | 성공 (파싱 실패 시에도 200 + recommendations: []) |
-| 400 | context 누락 또는 길이 제한 위반 |
-| 401 | 인증 필요 |
-| 429 | 일일 한도 초과 |
-
-### POST /api/v1/suggest-modification
-기존 프로젝트 수정 아이디어 추천
-
-**Auth required**: Yes
-
-**Request Body:**
-```json
-{
-    "projectId": "project-uuid",
-    "prompt": "부분적인 수정 방향 힌트 (선택, 최대 500자)"
-}
-```
-
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "suggestions": [
-            "UI 개선 제안...",
-            "기능 추가 제안...",
-            "데이터 시각화 제안..."
-        ]
-    }
-}
-```
-
-### POST /api/v1/suggest-preferences
-선택된 API와 컨텍스트 기반 UI 디자인 선호도 추천
-
-> 빌더 스텝 2(서비스 설명 입력) 완료 후 자동 호출. API-컨텍스트 연관성 분석 + 최적 레이아웃/색상/컴포넌트 패턴 추천
-
-**Auth required**: Yes
-
-**Request Body:**
-```json
-{
-    "context": "서비스 설명 (50~2000자)",
-    "apiIds": ["uuid1", "uuid2"]
-}
-```
-
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `context` | string | Y | 서비스 설명 (50~2000자) |
-| `apiIds` | string[] | Y | 선택된 API UUID 목록 |
-
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "relevanceScore": 85,
-        "templateId": "dashboard",
-        "designMood": "modern",
-        "designAudience": "general",
-        "designLayout": "data-dashboard",
-        "resolutionOptions": []
-    }
-}
-```
-
-| 상태코드 | 설명 |
-|---------|------|
-| 200 | 성공 |
-| 400 | context/apiIds 누락 또는 길이 제한 위반 |
-| 401 | 인증 필요 |
-| 429 | 일일 한도 초과 |
-
----
-
-## 11. 인기 서비스 (Popular Services)
-
-### GET /api/v1/popular-services
-인기 서비스 템플릿 목록 조회 (실사용 데이터 기반 + 큐레이션 폴백)
-
-**Auth required**: Yes
-
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "services": [
-            {
-                "id": "popular-uuid",
-                "title": "실시간 날씨 대시보드",
-                "description": "...",
-                "context": "...",
-                "apiNames": ["OpenWeatherMap"],
-                "apiIds": ["uuid"],
-                "category": "weather",
-                "usageCount": 42
-            }
-        ],
-        "source": "usage"
-    }
-}
-```
-
-`source` 값: `usage` (실사용 데이터) | `mixed` (실사용 + 큐레이션 혼합)
-
----
-
-## 12. 사용자 API 키 (User API Keys)
-
-### GET /api/v1/user-api-keys
-내 API 키 목록 조회 (마스킹 처리)
-
-**Auth required**: Yes
-
-### POST /api/v1/user-api-keys
-API 키 저장 (신규 등록 또는 업데이트)
-
-**Auth required**: Yes
-
-**Request Body:**
-```json
-{
-    "apiId": "uuid",
-    "apiKey": "your-api-key"
-}
-```
-
-### DELETE /api/v1/user-api-keys?apiId=:apiId
-API 키 삭제
-
-**Auth required**: Yes
-
----
-
-## 13. 외부 API 프록시 (Proxy)
-
-### GET /api/v1/proxy
-### POST /api/v1/proxy
-
-생성된 웹서비스가 외부 API를 호출할 때 CORS 우회 및 API 키 주입을 위한 서버사이드 프록시
-
-> **보안:** SSRF 방지를 위해 등록된 `baseUrl` 범위 내에서만 요청 허용. 사설 IP 및 루프백 주소 차단.
-
-**Auth required**: **모드에 따라 다르다.** 인가 판정은 `resolveProxyContext()`(`src/lib/proxy/resolveProxyContext.ts`) 단일 진입점에 있다.
+인가 판정은 `resolveProxyContext()`(`src/lib/proxy/resolveProxyContext.ts`) **한 곳**에 있다.
+라우트에 인가 분기를 새로 만들지 말 것 — 판단이 흩어져 개인 키 해석부가 소유권을 확인하지 않던 것이 H-1이었다.
 
 | 모드 | 판정 조건 | 인증 | 키 주입 |
-|------|----------|------|---------|
-| **site** (게시 사이트) | 요청 Host가 게시된 서브도메인(`slug.xzawed.xyz`)으로 해석됨 | **익명 허용** — 방문자는 로그인하지 않는다 | **프로젝트 오너의 개인 키**를 서버가 주입해 업스트림 호출 |
-| **app** (대시보드·미리보기) | 그 외 (apex 도메인) | 세션 필수(`getAuthUser()`, 미인증 401) + **소유권 강제**(`assertOwner`) | 요청자 본인 키 |
+|---|---|---|---|
+| **site** (게시 사이트) | 요청 Host가 게시된 서브도메인(`slug.xzawed.xyz`)으로 해석됨 | **익명 허용** — 방문자는 로그인하지 않는다 | **프로젝트 오너의 개인 키**를 서버가 주입 |
+| **app** (대시보드·미리보기) | 그 외 (apex 도메인) | 세션 필수(미인증 401) + **소유권 강제**(`assertOwner`) | 요청자 본인 키 |
 
-> **site 모드에서 Host가 프로젝트를 확정하면 클라이언트가 보낸 `projectId`는 무시된다.**
-> 조회 실패는 404로 fail-closed. 익명 요청이 오너의 키로 업스트림을 호출하므로,
-> 캐시 키에 키 신원이 반드시 들어가야 한다(아래 참조).
+> **site 모드에서 Host가 프로젝트를 확정하면 클라이언트가 보낸 `projectId`는 무시된다.** 조회 실패는 404로 fail-closed.
+> 익명 요청이 오너의 키로 업스트림을 호출하므로 캐시 키에 키 신원이 반드시 들어가야 한다(§5.3).
 > 배경: [게시 사이트 프록시 인가 ADR](../decisions/2026-07-28-published-site-proxy-authz.md)
 
-**Rate Limit**: 모드별로 다르다 (`src/lib/config/rateLimit.ts`, 분기는 `proxy/route.ts`).
+SSRF 방지: 등록된 `baseUrl` 범위 내에서만 요청 허용, 사설 IP·루프백 차단.
+키 prefix(`auth_config.prefix`/`header_prefix`)는 `resolveApiKey`가 주입 시 적용한다(이중 적용 가드 있음).
+
+### 5.2 레이트리밋
 
 | 모드 | 한도 | 비고 |
-|------|------|------|
+|---|---|---|
 | app | 사용자당 분당 60회 | 인메모리, 초과 시 429 |
-| site | **방문자 IP당 분당 20회** + **프로젝트 전역 분당 120회** | 프로젝트 한도가 분산 IP로도 우회되지 않는 실질 상한. 도달 시 버킷당 윈도 1회 `logger.warn`. 사용량은 `GET /api/v1/admin/site-proxy-stats`로 확인 |
+| site | **방문자 IP당 분당 20회** + **프로젝트 전역 분당 120회** | 프로젝트 한도가 분산 IP로도 우회되지 않는 실질 상한 |
 
-> 인메모리라 재시작 시 초기화되며 단일 인스턴스를 전제한다.
-> 기본값 20/120은 실사용 데이터 없이 정한 값이며, 조정 기준표는
-> [오남용 모니터링 ADR](../decisions/2026-07-29-site-proxy-abuse-monitoring.md)에 고정돼 있다.
+상수는 `src/lib/config/rateLimit.ts`, site 리미터 구현은 `src/lib/proxy/siteRateLimit.ts`.
+프로젝트 전역 한도 도달 시 `logger.warn('Site proxy project limit reached')`가 **버킷당 윈도 1회**만 남는다(봇이 두드릴 때 로그 폭발 방지).
+인메모리라 재시작 시 초기화되며 단일 인스턴스를 전제한다.
 
-**응답 캐시 (서버사이드)**:
-특정 API에 `cache_ttl_seconds`가 설정된 경우 GET 응답이 서버 메모리에 캐시됩니다.
+> 기본값 20/120은 **실사용 데이터 없이 정한 값**이다. 임의로 바꾸지 말고 `GET /api/v1/admin/site-proxy-stats`
+> 지표를 근거로 바꿀 것 — 조정 판단 기준표가 [오남용 모니터링 ADR](../decisions/2026-07-29-site-proxy-abuse-monitoring.md)에 고정돼 있다.
 
-| 헤더 | 값 | 설명 |
-|------|-----|------|
-| `X-Cache` | `HIT` | 캐시에서 응답 반환 |
-| `X-Cache` | `MISS` | 업스트림에서 응답 후 캐시 저장 |
-| `Cache-Control` | `public, max-age={ttl}` | 캐시됨 (`cache_ttl_seconds` 설정된 API) |
-| `Cache-Control` | `no-store` | 캐시 미사용 |
+### 5.3 응답 캐시와 캐시 키 신원
 
-> POST 요청, 4xx/5xx 응답, `cache_ttl_seconds=null` API는 캐시하지 않습니다.
->
+`cache_ttl_seconds`가 설정된 API의 **GET** 응답만 서버 메모리에 캐시된다. POST·4xx/5xx·`cache_ttl_seconds=null`은 캐시하지 않는다.
+응답 헤더 `X-Cache: HIT|MISS`, `Cache-Control: public, max-age={ttl}` 또는 `no-store`.
+
 > **캐시 키: `apiId:proxyPath:sortedParams:keyIdentity`** — 네 번째 인자는 `buildCacheKey()`에서
 > **선택이 아니라 필수**다(`src/lib/cache/proxyCache.ts`). 서버 주입 인증 파라미터는 키에서 제외한다.
 >
@@ -1040,591 +261,128 @@ API 키 삭제
 > `cache_ttl_seconds`를 부여할 때는 별도 검토가 필요하다.
 > 배경: [프록시 캐시 키 신원 ADR](../decisions/2026-07-29-proxy-cache-key-identity.md)
 
-**Query Parameters:**
-| 파라미터 | 타입 | 필수 | 설명 |
-|---------|------|------|------|
-| apiId | string (UUID) | Y | 카탈로그 API ID |
-| proxyPath | string | Y | 대상 API 경로 (예: `/weather?q=Seoul`) |
-| projectId | string (UUID) | N | 프로젝트 ID (사용자 개인 키 조회용) |
-
 ---
 
-## 14. 관리자 API (Admin)
+## 6. 관리자 API — 왜 있는가 · 무엇을 착각하면 안 되는가
 
-> `Authorization: Bearer {ADMIN_API_KEY}` 헤더 필수. 일반 사용자 접근 불가.
+응답 스키마는 §1.6의 라우트 파일에 있다. 아래는 **파일을 읽어도 안 나오는 것**만이다.
 
-### GET /api/v1/admin/qc-stats
-QC 통계 조회
+### `GET /admin/qc-stats`
+`?days=`(기본 7). **비율의 분모가 지표마다 다르다** — `realSuccessRate`·`stage3FallbackRate`는
+**시도**(`totalGenerations + failureCount`), `stage2SkipRate`·`stage3SkipRate`는 **완료**(`totalGenerations`),
+`avgRenderingQcScore`·`qcPassRate`는 **QC를 실제로 돈 건수**(`qcCount`)다. 같은 분모로 읽으면 결론이 틀어진다.
+집계 메서드는 DB 오류를 throw하므로 **장애가 0-메트릭으로 은폐되지 않고** 500으로 드러난다.
 
-**Query Parameters:**
-| 파라미터 | 타입 | 필수 | 설명 |
-|---------|------|------|------|
-| days | number | N | 조회 기간 (기본 7일) |
+### `POST /admin/trigger-qc`
+수동 QC 실행. `ENABLE_RENDERING_QC=true` 필요(아니면 400 `QC_DISABLED`).
 
-**Response:**
-```json
-{
-    "success": true,
-    "data": {
-        "period": { "from": "2026-04-05", "to": "2026-04-12", "days": 7 },
-        "totalGenerations": 150,
-        "failureCount": 8,
-        "realSuccessRate": 0.95,
-        "avgStructuralScore": 8.5,
-        "avgMobileScore": 7.2,
-        "avgRenderingQcScore": 6.8,
-        "qcPassRate": 0.85,
-        "qualityLoopUsageRate": 0.32,
-        "deepQcFailedCount": 5,
-        "stage3FallbackCount": 3,
-        "stage3FallbackRate": 0.02,
-        "stage2SkipCount": 90,
-        "stage3SkipCount": 60,
-        "stage2SkipRate": 0.6,
-        "stage3SkipRate": 0.4,
-        "avgQualityLoopIterations": 0.45,
-        "qualityLoopImprovementRate": 0.78,
-        "commonFailures": [
-            { "check": "contrast", "failCount": 12, "rate": 0.08 }
-        ]
-    }
-}
-```
+### `POST /admin/test-generation`
+**세션 없이 `ADMIN_API_KEY`만으로 전체 생성 파이프라인을 1회 돌린다. 실제 AI 비용이 발생하고,
+일일 생성 한도·프로젝트 수 한도를 우회한다.** 일반 사용자 흐름 검증용이 아니라 안정성 측정용이다.
+파이프라인 실패는 **HTTP 200 + `success: false`**로 온다(전송 실패와 구분하기 위함) — 200을 성공으로 읽지 말 것.
+`cleanup`은 기본 `true`(완료 후 프로젝트 자동 삭제).
+반복 호출 스크립트: [scripts/runGenerationLoadTest.ts](../../scripts/runGenerationLoadTest.ts)
 
-**응답 필드:**
-| 필드 | 타입 | 설명 |
-|------|------|------|
-| `period` | object | 조회 기간 (`from`, `to`, `days`) |
-| `totalGenerations` | number | 기간 내 완료된 생성 건수 |
-| `failureCount` | number | 기간 내 생성 실패 횟수 (`CODE_GENERATION_FAILED` 이벤트 집계) |
-| `realSuccessRate` | number | 실제 성공률 = 성공 생성 / 전체 시도 (0.0 ~ 1.0) |
-| `avgStructuralScore` | number | 평균 구조 QC 점수 |
-| `avgMobileScore` | number | 평균 모바일 QC 점수 |
-| `avgRenderingQcScore` | number | 평균 렌더링 QC 점수 |
-| `qcPassRate` | number | QC 통과율 (0.0 ~ 1.0) |
-| `qualityLoopUsageRate` | number | Quality Loop 사용률 (`metadata.qualityLoopUsed` boolean 집계, 0.0 ~ 1.0) |
-| `deepQcFailedCount` | number | Deep QC 실패 건수 |
-| `stage3FallbackCount` | number | Stage 3 디자인 폴리시 실패 → Stage 2 폴백 횟수 (`STAGE3_FALLBACK_USED` 이벤트 집계) |
-| `stage3FallbackRate` | number | Stage 3 폴백 비율 = `stage3FallbackCount / (totalGenerations + failureCount)` |
-| `stage2SkipCount` | number | Stage 2 기능 검증 스킵 횟수 (Stage 1 품질 충분 시) |
-| `stage3SkipCount` | number | Stage 3 디자인 폴리시 스킵 횟수 (점수 충분 + Stage 2 불필요) |
-| `stage2SkipRate` | number | Stage 2 스킵 비율 = `stage2SkipCount / totalGenerations` |
-| `stage3SkipRate` | number | Stage 3 스킵 비율 = `stage3SkipCount / totalGenerations` |
-| `avgQualityLoopIterations` | number | Quality Loop 평균 반복 횟수 (loop 미진입 시 0 포함, `QUALITY_LOOP_COMPLETED` 이벤트 평균) |
-| `qualityLoopImprovementRate` | number | Quality Loop 개선 성공률 = `improved=true` 이벤트 수 / 전체 `QUALITY_LOOP_COMPLETED` 이벤트 수 |
-| `commonFailures` | array | 빈도 상위 실패 체크 목록 |
+### `GET /admin/backup/latest`
+가장 최근 on-volume SQLite `.backup()` 덤프를 octet-stream으로 내려받는다.
+**전체 DB**(사용자·비밀번호 해시·암호화 API 키·생성 코드)이므로 성공 시 감사 `logger.warn` + Slack info가 나간다.
+**클라이언트 파일명 파라미터를 받지 않는다**(서버가 백업 디렉터리에서 패턴 매칭으로만 선택) — 경로 조작 차단.
+볼륨 손실 대비의 **유일한 무료 오프-볼륨 경로**이고 자동화·강제 스케줄은 없다.
+계층·근거: [operations.md §3.4](../guides/operations.md) · 시임 `SQLITE_OFFSITE_BACKUP_URL`([env-vars.md](env-vars.md))
 
-### POST /api/v1/admin/trigger-qc
-특정 프로젝트에 대한 수동 QC 실행 (`ENABLE_RENDERING_QC=true` 필요)
+### `GET /admin/debug`
+모듈 로드 상태 + **AI 모델 해석 결과**.
 
-**Request Body:**
-```json
-{
-    "projectId": "project-uuid"
-}
-```
+> **`models`를 왜 보는가**: 허용목록(`ALLOWED_CLAUDE_MODELS`)에 없는 env 값은 경고 로그 한 줄만 남기고
+> **조용히 기본값으로 폴백**한다. env 값만 봐서는 실제 적용 모델을 알 수 없어, 2026-07-10에
+> `AI_MODEL_GENERATION`이 밀려 구모델로 돌던 것을 뒤늦게 발견했다.
+> **모델을 바꾼 뒤에는 이 엔드포인트로 `models.<task>.fellBack === false`를 확인할 것.**
+> `fellBack: true`면 `AiProviderFactory.ts`의 허용목록을 고쳐야 한다.
 
-**에러 응답 형식:** 표준 `{ success: false, error: { code, message } }`
+`offsiteBackup.configured`는 설정 여부만 알려준다 — **URL 원문은 응답에 절대 포함되지 않는다.**
 
-| 에러 코드 | HTTP | 설명 |
-|-----------|------|------|
-| `QC_DISABLED` | 400 | `ENABLE_RENDERING_QC`가 활성화되지 않음 |
-| `NOT_FOUND` | 404 | 해당 프로젝트의 생성된 코드 없음 |
-| `INVALID_INPUT` | 400 | `projectId` 누락 |
+### `GET /admin/keys-verify`
+"플랫폼 키 의존" API(`auth_type=api_key` + `auth_config.env_var`, `default_key` 없음)에 **실제 인증 요청을 보내** 키를 검증한다.
+검증 로직: `src/lib/catalog/keyCheck.ts`. 키 값은 응답에 노출되지 않는다.
 
-### POST /api/v1/admin/test-generation
-관리자 전용 생성 파이프라인 부하/안정성 테스트 엔드포인트. 인증된 사용자 세션 없이 `ADMIN_API_KEY`만으로 전체 코드 생성 파이프라인(Stage1·2·3 + Quality Loop)을 한 번 실행하고 결과를 JSON으로 반환합니다.
-
-> 일일 생성 한도(`MAX_DAILY_GENERATIONS`)·프로젝트 수 한도(`MAX_PROJECTS_PER_USER`)를 우회합니다. 일반 사용자 흐름 검증이 아닌, 관리자가 수동/스크립트 호출로 안정성을 측정하는 용도입니다.
-
-**Request:**
-```http
-POST /api/v1/admin/test-generation
-Authorization: Bearer <ADMIN_API_KEY>
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "userId": "11111111-...",
-  "apiIds": ["uuid1", "uuid2", "uuid3"],
-  "context": "선택 사항. 사용자 서비스 설명 (20~2000자, 기본값 있음)",
-  "projectName": "선택 사항. 기본값: [자동테스트] YYYY-MM-DD HH:MM:SS",
-  "cleanup": true
-}
-```
-
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `userId` | UUID | ✅ | 테스트 프로젝트의 소유자 (DB에 존재하는 사용자) |
-| `apiIds` | UUID[] | ✅ | 카탈로그 API ID 3~5개 |
-| `context` | string | ❌ | 서비스 설명 (20~2000자) |
-| `projectName` | string | ❌ | 프로젝트 이름 (1~100자) |
-| `cleanup` | boolean | ❌ | `true`(기본)면 파이프라인 완료 후 프로젝트 자동 삭제. `false`면 보존 |
-
-**성공 응답 (HTTP 200):**
-```json
-{
-  "success": true,
-  "data": {
-    "projectId": "uuid",
-    "cleanedUp": true,
-    "durationMs": 92345,
-    "apiIds": ["..."],
-    "complete": {
-      "projectId": "uuid",
-      "version": 1,
-      "previewUrl": "/api/v1/preview/uuid",
-      "qcResult": { "score": 82, "passed": true, "issues": [] }
-    },
-    "progressEvents": [{"step": "analyzing", "progress": 5, "message": "..."}]
-  }
-}
-```
-
-**파이프라인 실패 응답 (HTTP 200, success: false):**
-```json
-{
-  "success": false,
-  "data": {
-    "projectId": "uuid",
-    "cleanedUp": true,
-    "durationMs": 4567,
-    "apiIds": ["..."],
-    "error": { "message": "Stage 1 실패: ..." },
-    "progressEvents": [...]
-  }
-}
-```
-
-**에러 응답 형식:** 표준 `{ success: false, error: { code, message } }`
-
-| 에러 코드 | HTTP | 설명 |
-|-----------|------|------|
-| `FORBIDDEN` | 403 | `Authorization` 누락 / 잘못된 `ADMIN_API_KEY` / IP 분당 한도 초과 |
-| `INVALID_INPUT` | 400 | Zod 검증 실패 (`apiIds` 3개 미만, UUID 형식 오류, 길이 초과 등) |
-
-**연관 스크립트:** [scripts/runGenerationLoadTest.ts](../../scripts/runGenerationLoadTest.ts) — 골든셋 API 무작위 조합으로 N회 반복 호출하여 성공률·평균 응답 시간 집계.
-
-### GET /api/v1/admin/backup/latest
-가장 최근 on-volume SQLite `.backup()` 덤프(`app-YYYYMMDD-HHmmss.db`)를 **octet-stream**으로 내려받습니다. 볼륨 손실 대비의 제로 계정 완화(로컬 디스크에 사본 보관). **전체 DB**(사용자·비밀번호 해시·암호화 API 키·생성 코드)이므로 `ADMIN_API_KEY` 필수이며, 성공 시 감사 `logger.warn` + Slack info 알림이 나갑니다. 클라이언트 파일명 파라미터는 받지 않습니다(서버가 백업 디렉터리에서 패턴 매칭으로만 선택).
-
-**Request:**
-```http
-GET /api/v1/admin/backup/latest
-Authorization: Bearer <ADMIN_API_KEY>
-```
-
-**Response (성공):** `200` · `Content-Type: application/octet-stream` · `Content-Disposition: attachment; filename="app-…db"` · `Content-Length`
-
-| 에러 코드 | HTTP | 설명 |
-|-----------|------|------|
-| `FORBIDDEN` | 403 | `Authorization` 누락 또는 잘못된 `ADMIN_API_KEY` |
-| `NOT_FOUND` | 404 | 아직 백업 파일이 없음 |
-| `SERVICE_UNAVAILABLE` | 503 | 백업 디렉터리 읽기 실패 |
-
-관련: [operations.md §3.4 DR 계층](../guides/operations.md), `SQLITE_OFFSITE_BACKUP_URL` 시임([env-vars.md](env-vars.md)).
-
-### GET /api/v1/admin/debug
-주요 npm 패키지의 모듈 로드 상태와 **AI 모델 해석 결과**를 진단합니다. standalone 배포 후 500 오류 원인 규명(패키지 누락 여부)과, `AI_MODEL_*` env가 실제로 적용됐는지 확인에 사용합니다.
-
-> **`models` 필드를 왜 보는가**: 허용목록(`ALLOWED_CLAUDE_MODELS`)에 없는 env 값은 경고 로그 한 줄만 남기고 **조용히 기본값으로 폴백**한다. env 값만 봐서는 실제 적용 모델을 알 수 없어, 2026-07-10에 `AI_MODEL_GENERATION`이 밀려 구모델로 돌던 것을 뒤늦게 발견한 적이 있다. **모델을 바꾼 뒤에는 이 엔드포인트로 `fellBack: false`를 확인할 것.**
-
-**Request:**
-```http
-GET /api/v1/admin/debug
-Authorization: Bearer <ADMIN_API_KEY>
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "nodeVersion": "v20.x.x",
-    "platform": "linux",
-    "arch": "x64",
-    "nodeEnv": "production",
-    "models": {
-      "generation": { "env": "claude-opus-5", "resolved": "claude-opus-5", "fellBack": false },
-      "suggestion": { "env": "claude-haiku-4-5", "resolved": "claude-haiku-4-5", "fellBack": false }
-    },
-    "email": {
-      "configured": true,
-      "fromSet": true,
-      "fromDomain": "xzawed.xyz"
-    },
-    "offsiteBackup": {
-      "configured": false,
-      "lastResult": null,
-      "lastAt": null
-    },
-    "modules": {
-      "playwright-core": "ok",
-      "@anthropic-ai/sdk": "ok",
-      "better-sqlite3": "ok",
-      "drizzle-orm": "ok"
-    }
-  }
-}
-```
-
-| `offsiteBackup` 필드 | 의미 |
-|---|---|
-| `configured` | `SQLITE_OFFSITE_BACKUP_URL` 설정 여부. **URL 원문은 절대 없음** |
-| `lastResult` | 최근 오프사이트 업로드 `ok` / `failed` / `null`(아직 없음 또는 no-op) |
-| `lastAt` | 최근 시도 시각 ISO 또는 `null` |
-
-| `models.<task>` 필드 | 의미 |
-|---|---|
-| `env` | `AI_MODEL_*` env 원본 값. 미설정이면 `null` |
-| `resolved` | **실제로 적용되는 모델** |
-| `fellBack` | `true`면 env를 지정했는데 허용목록에 없어 무시되고 기본값이 쓰이는 중 — `AiProviderFactory.ts`의 `ALLOWED_CLAUDE_MODELS`를 고쳐야 한다 |
-
-모듈 로드 실패 시 해당 모듈 값이 `"FAIL: Cannot find module '...'"` 형태로 반환됩니다.
-
-| 에러 코드 | HTTP | 설명 |
-|-----------|------|------|
-| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
-
-### GET /api/v1/admin/keys-verify
-"플랫폼 키 의존" API(`auth_type=api_key` + `auth_config.env_var`, `default_key` 없음)의 키 유효성을 **배포 런타임의 env 키로 실제 인증 요청을 보내** 검증합니다. Railway sealed 변수는 배포 런타임에만 주입되므로 이 진단은 **반드시 배포 환경에서** 실행돼야 합니다(로컬 `railway run`은 sealed 미주입). 키 값은 응답에 노출되지 않습니다. 검증 로직은 [src/lib/catalog/keyCheck.ts](../../src/lib/catalog/keyCheck.ts).
-
-> **왜 있는가:** 플랫폼 키가 실제로 먹히는지 배포 런타임에서 확인. 기본은 활성 API만 보므로, 활성화 **전**에 키를 검사하려면 `includeInactive=true`가 필요하다.
-
-**Request:**
-```http
-GET /api/v1/admin/keys-verify
-GET /api/v1/admin/keys-verify?includeInactive=true
-Authorization: Bearer <ADMIN_API_KEY>
-```
-
-| 쿼리 | 기본값 | 설명 |
-|------|--------|------|
-| `includeInactive` | (없음=활성만) | `true`면 비활성 API도 포함. 활성화 전 키 검증·`activatable` 목록에 필요 |
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "generatedAt": "2026-06-21T...",
-    "includeInactive": false,
-    "summary": {
-      "total": 6,
-      "valid": 6,
-      "invalid": 0,
-      "missing": 0,
-      "rateLimited": 0,
-      "needsPrefixFix": [],
-      "activatable": []
-    },
-    "results": [
-      {
-        "name": "카카오 로컬 (지도·장소 검색)",
-        "envVar": "API_KEY_F1EC6F97",
-        "verdict": "VALID",
-        "httpStatus": 200,
-        "detail": "인증 성공",
-        "apiId": "uuid",
-        "isActive": true
-      }
-    ]
-  }
-}
-```
+> **Railway sealed 변수는 배포 런타임에만 주입된다 — 이 진단은 반드시 배포 환경에서 실행돼야 한다**
+> (로컬 `railway run`은 sealed 미주입). 기본은 **활성 API만** 보므로, 활성화 **전**에 키를 검사하려면
+> `?includeInactive=true`가 필요하다.
+>
+> ⚠️ **`VALID`는 "동작한다"가 아니다.** 키가 주입되고 인증이 하드 실패하지 않았다는 뜻뿐이다.
+> 기능 정상성 판정은 `looksLikeErrorBody`를 포함하는 `src/lib/catalog/healthCheck.ts` 쪽이다.
+> 이 혼동으로 두 번 사고가 났다(REST Countries 2026-06-21, data.go.kr 4종 2026-08-05).
+> [카탈로그 헬스 모니터링 ADR](../decisions/2026-06-21-api-catalog-health-monitoring.md)
 
 - `verdict`: `VALID` / `INVALID`(키 거부·만료) / `MISSING`(env 미설정) / `RATE_LIMITED` / `ERROR` / `NO_ENDPOINT`
-- `apiId` / `isActive`: 각 결과 행에 포함. activate 대상 식별·활성 여부 구분용
-- `summary.activatable`: 비활성이면서 `verdict=VALID`인 `apiId` 목록 — `POST /admin/catalog/activate`에 그대로 넘길 수 있음
-- `needsPrefixFix`: raw 주입은 401이지만 prefix(`KakaoAK `/`Client-ID `) 적용 시 성공한 API 목록 — 프록시가 prefix를 적용해야 함을 의미
+- `summary.activatable`: 비활성 + `VALID`인 `apiId` 목록 — `POST /admin/catalog/activate`에 그대로 넘길 수 있다
+- `summary.needsPrefixFix`: raw 주입은 401인데 prefix(`KakaoAK `·`Client-ID `) 적용 시 성공한 API — **프록시가 prefix를 적용해야 한다는 뜻**
 
-| 에러 코드 | HTTP | 설명 |
-|-----------|------|------|
-| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
+### `POST /admin/catalog/activate`
+비활성 "플랫폼 키 의존" API를 **라이브 키 검증이 `VALID`인 것만** 켠다.
+검증 없이 `is_active`를 올리면 키 오류 API가 사용자에게 노출되므로, **활성화 전제를 검증 통과로 못박은 것**이다.
+`apiIds` 생략·빈 배열이면 비활성 키 의존 API 전부가 대상. `dryRun: true`로 먼저 후보를 확인하고 켠다.
+성공 시 `isActive=true` + `verificationStatus='verified'` + `CATALOG_API_ACTIVATED` 이벤트.
 
-### POST /api/v1/admin/catalog/activate
-비활성 상태인 "플랫폼 키 의존" API를, **라이브 키 검증이 `VALID`인 것만** 활성화합니다. 검증 통과 없이 `is_active`를 올리면 키 오류 API가 사용자에게 노출되므로, 활성화 전제를 검증 통과로 못박습니다. 검증 로직은 keys-verify와 동일(`keyCheck.ts`).
+### `POST /admin/catalog/deactivate`
+**activate와 대칭이 아니다 — 의도적이다.**
 
-> **왜 있는가:** 키가 등록된 비활성 API를 카탈로그·추천·프록시에 노출하는 유일한 쓰기 경로. `dryRun`으로 먼저 후보를 확인한 뒤 켠다.
+- `apiIds` **필수**(생략·빈 배열 불가). "omit=전부 끔"은 구현하지 않았다 — 실수로 카탈로그 전체를 끄는 동작이 없어야 한다
+- **라이브 키 검증을 하지 않는다.** 업스트림 장애·키 만료 상황에서도 즉시 꺼야 하기 때문
+- 성공 시 `isActive=false` **만** 쓴다. `verificationStatus`는 **보존** — "왜 껐는지" 증거를 남긴다
+- 미존재 ID·이미 비활성은 예외가 아니라 `deactivated: false` + 사유로 돌아온다
 
-**Request:**
-```http
-POST /api/v1/admin/catalog/activate
-Authorization: Bearer <ADMIN_API_KEY>
-Content-Type: application/json
-```
+> **주의**: `CORRECTIONS`(Dog API·Lorem Picsum) 2건은 매 부팅 `ensureCatalog`가 `is_active=true`로 되돌린다.
+> **이 둘만은 deactivate가 유지되지 않는다.**
 
-**Request Body:**
-```json
-{
-  "apiIds": ["uuid-1", "uuid-2"],
-  "dryRun": false
-}
-```
+### `POST /admin/verify-catalog`
+활성 카탈로그의 GET 엔드포인트를 배포 런타임에서 실제 호출해 `verification_status`를 갱신한다
+(컷오버로 제거된 CI cron의 대체). 로직: `src/lib/catalog/verifyRunner.ts`.
 
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `apiIds` | string[] | N | 대상 ID. **생략·빈 배열이면** 비활성 키 의존 API 전부 |
-| `dryRun` | boolean | N | `true`면 검증만 하고 DB에 쓰지 않음 (기본 `false`) |
+- `health`: `working` / `degraded`(느림·429) / `broken`(네트워크 실패·5xx·키리스 401·2xx 에러본문) / `key_gated`(키 의존 401/403) / `unknown`(예상치 못한 4xx)
+- **`key_gated`·`unknown`은 기존 값을 보존한다** — 일시 장애·키 부재로 정상 API를 `broken`으로 오판하는 것을 막기 위함. `skipped`로 집계된다
+- `working/degraded → verified`, `broken → broken`만, 그리고 **현재 값과 다를 때만** DB를 쓴다
+- 무인 스케줄러가 아니라 **관리자 트리거**다 — 플래핑·무인 outbound가 없다
 
-**동작:**
-- 대상 필터: `!isActive` + `authType=api_key` + `auth_config.env_var` 존재 + `default_key` 없음
-- `verdict !== VALID` → `activated: false` + 실패 사유 (쓰기 없음)
-- `dryRun: true` → 검증만, `activated: false`, reason `dryRun — 검증만 수행`
-- 성공 시: `isActive=true`, `verificationStatus='verified'`, `CATALOG_API_ACTIVATED` 이벤트
+`verification_status` 소비 규칙(AI 추천은 `broken` 제외·`verified` 우선, 브라우징 `search()`는 숨기지 않음):
+[소비 ADR](../decisions/2026-06-22-verification-status-consumption.md)
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "dryRun": false,
-    "candidates": 3,
-    "activated": 2,
-    "outcomes": [
-      {
-        "apiId": "uuid",
-        "name": "…",
-        "envVar": "API_KEY_…",
-        "activated": true,
-        "reason": "키 검증 통과"
-      }
-    ]
-  }
-}
-```
+### `GET /admin/catalog-dump`
+`api_catalog` **전체 행(비활성 포함)** 을 시드 diff용으로 덤프한다. 공개 `GET /api/v1/catalog`는 **활성 행만**
+주므로 파리티 검증에 쓸 수 없다. `auth_config` 등 민감 필드를 제외한 **안전 투영**만 반환하는 읽기 전용 진단.
 
-| 에러 코드 | HTTP | 설명 |
-|-----------|------|------|
-| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
-| `INVALID_INPUT` | 400 | 요청 본문 형식·Zod 검증 실패 |
+### `GET|POST /admin/feature-flags`
+env 변경(재배포)을 기다리지 않고 DB 값으로 생성·가입을 즉시 막는 킬스위치.
 
-### POST /api/v1/admin/catalog/deactivate
-지정한 **활성** 카탈로그 API를 **라이브 키 검증 없이** 비활성화합니다. 업스트림 장애·키 미설정 상태에서도 문제 API를 즉시 끌 수 있어야 하므로 activate와 달리 키 검증을 하지 않습니다.
-
-> **왜 있는가:** 잘못 시드된 키리스 API·장애 업스트림·키 만료 API를 카탈로그·추천·프록시에서 빼는 쓰기 경로. `verificationStatus`는 보존해 "왜 껐는지" 증거를 남긴다.
-
-**Request:**
-```http
-POST /api/v1/admin/catalog/deactivate
-Authorization: Bearer <ADMIN_API_KEY>
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "apiIds": ["uuid-1", "uuid-2"],
-  "dryRun": false
-}
-```
-
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `apiIds` | string[] | **Y** | 대상 ID. **생략·빈 배열 불가** (실수로 전부 끄는 동작 없음) |
-| `dryRun` | boolean | N | `true`면 쓰지 않고 결과만 반환 (기본 `false`) |
-
-**동작:**
-- 대상: `apiIds`에 나열된 **활성** 행 (플랫폼 키 의존 여부·authType 무관 — 키리스도 가능)
-- 미존재 ID → `deactivated: false`, reason `존재하지 않는 API ID` (예외 없음)
-- 이미 비활성 → `deactivated: false`, reason `이미 비활성` (쓰기 없음)
-- `dryRun: true` → 쓰기 없음, reason `dryRun — 비활성화하지 않음`
-- 성공 시: `isActive=false` **만** (`verificationStatus` 미변경), `CATALOG_API_DEACTIVATED` 이벤트
-- **`verifyApiKey` 호출 없음**
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "dryRun": false,
-    "requested": 2,
-    "deactivated": 1,
-    "outcomes": [
-      {
-        "apiId": "uuid",
-        "name": "…",
-        "envVar": "API_KEY_…",
-        "deactivated": true,
-        "reason": "비활성화 완료"
-      }
-    ]
-  }
-}
-```
-
-| 에러 코드 | HTTP | 설명 |
-|-----------|------|------|
-| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
-| `INVALID_INPUT` | 400 | `apiIds` 누락·빈 배열·요청 본문 형식·Zod 검증 실패 |
-
-### GET /api/v1/admin/feature-flags
-### POST /api/v1/admin/feature-flags
-운영 킬스위치 조회·토글. env 변경(재배포) 없이 DB 값으로 생성·가입을 즉시 막을 수 있습니다. 알려진 플래그만 허용합니다(오타로 만든 행은 아무도 읽지 않아 "껐다"는 착각만 남김).
-
-> **왜 있는가:** 비용 폭주·남용 시 재배포 없이 생성/가입을 즉시 차단. 읽기는 인프로세스 10초 캐시·fail-open.
-
-**알려진 플래그 (`flag` zod enum):**
 | 플래그 | 기본(시드) | 효과 |
-|--------|-----------|------|
+|---|---|---|
 | `enable_generation` | `true` | false → generate/regenerate `503 GENERATION_DISABLED` |
 | `enable_signup` | `true` | false → signup `503 SIGNUP_DISABLED` (기존 사용자 무영향) |
 
-**Request (GET):**
-```http
-GET /api/v1/admin/feature-flags
-Authorization: Bearer <ADMIN_API_KEY>
-```
+> **알려진 플래그만 허용한다**(`setFeatureFlagSchema`의 zod enum). 오타로 만들어진 행은 아무도 읽지 않으면서
+> **"스위치를 내렸다"는 착각만 남긴다** — 인시던트 중엔 그게 제일 위험하다.
 
-**Response (GET):**
-```json
-{
-  "success": true,
-  "data": {
-    "known": ["enable_generation", "enable_signup"],
-    "flags": [
-      { "name": "enable_generation", "enabled": true },
-      { "name": "enable_signup", "enabled": true }
-    ]
-  }
-}
-```
+읽기는 인프로세스 10초 캐시 · **fail-open**(행 없음·DB 오류 시 enabled). 쓰기 후 캐시 무효화 +
+`FEATURE_FLAG_CHANGED` 이벤트 + 감사 `logger.warn`. 절차: [operations.md §4.4](../guides/operations.md)
 
-**Request (POST):**
-```http
-POST /api/v1/admin/feature-flags
-Authorization: Bearer <ADMIN_API_KEY>
-Content-Type: application/json
-```
+### `GET /admin/site-proxy-stats`
+`?limit=`(기본 50, 0·음수·비정수는 기본값 폴백). site 모드는 익명 방문자가 **오너의 API 키로** 업스트림을
+호출하므로 레이트리밋이 유일한 방어선인데, 한도 초과가 429로만 나타나 어느 프로젝트가 소진 중인지 알 수 없었다.
 
-```json
-{ "flag": "enable_generation", "enabled": false }
-```
+| 필드 | 해석 |
+|---|---|
+| `blockedByIp` | IP+projectId 버킷(20/분). 한 방문자의 과속 — **정상 트래픽에서도 나온다** |
+| `blockedByProject` | 프로젝트 전역 버킷(120/분). 분산 IP로도 우회 불가한 실질 상한이라 **0이 아니면 오남용 또는 한도 부족** |
+| `truncated` | 추적 용량(`MAX_SITE_RATE_LIMIT_BUCKETS`) 초과로 집계에서 빠진 프로젝트가 있음 |
+| `returnedProjects` vs `trackedProjects` | 다르면 `limit`으로 잘린 상위 N개만 본 것 |
 
-| 필드 | 타입 | 필수 | 설명 |
-|------|------|------|------|
-| `flag` | string | Y | `enable_generation` \| `enable_signup` (그 외 이름 거부) |
-| `enabled` | boolean | Y | 목표 상태 |
-
-**Response (POST):**
-```json
-{
-  "success": true,
-  "data": { "flag": "enable_generation", "enabled": false }
-}
-```
-
-쓰기 후 캐시 무효화. `FEATURE_FLAG_CHANGED` 이벤트 + 감사 `logger.warn`.
-
-| 에러 코드 | HTTP | 설명 |
-|-----------|------|------|
-| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
-| `INVALID_INPUT` | 400 | 본문 형식 오류·알 수 없는 `flag`·Zod 검증 실패 |
-
-### POST /api/v1/admin/verify-catalog
-활성 카탈로그 각 API의 GET 엔드포인트를 **배포 런타임에서 실제 호출**해 라이브 검증하고 `verification_status`를 갱신합니다(P5.2 — 컷오버로 제거된 CI cron의 대체). `working/degraded → verified`, `broken → broken`만, 그리고 **현재 값과 다를 때만** DB를 갱신하며, `key_gated`(키 의존 401/403)·`unknown`(예상치 못한 4xx)은 자동 판정 불가로 **기존 값을 보존**합니다(일시 장애·키 부재로 인한 오판 방지). 무인 스케줄러가 아닌 관리자 트리거 방식이라 플래핑·무인 outbound가 없습니다. 로직: [src/lib/catalog/verifyRunner.ts](../../src/lib/catalog/verifyRunner.ts).
-
-**Request:**
-```http
-POST /api/v1/admin/verify-catalog
-Authorization: Bearer <ADMIN_API_KEY>
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "generatedAt": "2026-06-25T...",
-    "summary": { "checked": 36, "updated": 2, "unchanged": 30, "skipped": 4 },
-    "results": [
-      { "id": "...", "name": "JSONPlaceholder", "previous": "unverified", "health": "working", "next": "verified", "updated": true }
-    ]
-  }
-}
-```
-
-- `health`: `working` / `degraded`(느림·429) / `broken`(네트워크 실패·5xx·키리스 401·2xx 에러본문) / `key_gated`(키 의존 401/403) / `unknown`(예상치 못한 4xx)
-- `next`: 매핑된 `verification_status`(`verified`/`broken`) 또는 `null`(보존). `updated`: 실제 DB 변경 여부
-- `skipped`: 자동 판정 불가(`next=null` — key_gated/unknown/GET 엔드포인트 없음)
-
-| 에러 코드 | HTTP | 설명 |
-|-----------|------|------|
-| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
-
-### GET /api/v1/admin/catalog-dump
-프로덕션 `api_catalog` **전체 행(활성·비활성 포함)** 을 시드 동기화 diff용으로 덤프합니다. 공개 `GET /api/v1/catalog`는 활성 행만 반환하므로, 비활성(키 의존) 행까지 포함한 전체 파리티 검증에 사용합니다. `auth_config` 등 민감 필드는 제외한 **안전 투영**(id·name·category·authType·isActive·verificationStatus·verifiedAt·deprecatedAt·successorId·requiresProxy·apiVersion)만 반환하는 **읽기 전용** 진단입니다. 배포 런타임 전용(프로덕션 SQLite 읽기).
-
-**Request:**
-```http
-GET /api/v1/admin/catalog-dump
-Authorization: Bearer <ADMIN_API_KEY>
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "generatedAt": "2026-06-29T...",
-    "summary": { "total": 61, "active": 36, "inactive": 25, "byVerificationStatus": { "verified": 30, "broken": 1, "key_gated": 24 } },
-    "items": [
-      { "id": "...", "name": "Countries (Self-hosted)", "category": "data", "authType": "none", "isActive": true, "verificationStatus": "verified", "verifiedAt": "2026-06-22T...", "deprecatedAt": null, "successorId": null, "requiresProxy": false, "apiVersion": "v1" }
-    ]
-  }
-}
-```
-
-| 에러 코드 | HTTP | 설명 |
-|-----------|------|------|
-| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
+집계는 인메모리라 **프로세스 재시작 시 초기화**된다. `since`가 집계 시작 시각이다.
 
 ---
 
-### GET /api/v1/admin/site-proxy-stats
-게시 사이트 프록시(익명 site 모드)의 **프로젝트별 사용량**을 반환합니다. site 모드는 익명 방문자가 프로젝트 오너의 API 키로 업스트림을 호출하므로 레이트리밋이 유일한 방어선인데, 한도 초과가 429 응답으로만 나타나 **어느 프로젝트가 얼마나 소진되고 있는지 알 수 없었습니다.** 기본값(20/120)도 실사용 데이터 없이 정한 값이라 조정 근거가 필요합니다.
+## 7. 제거된 것 — 다시 만들지 말 것
 
-집계는 `siteRateLimit`의 **인메모리 카운터**라 프로세스 재시작 시 초기화됩니다(레이트리밋 자체와 동일한 단일 인스턴스 전제). `since`가 집계 시작 시각입니다.
-
-**Request:**
-```http
-GET /api/v1/admin/site-proxy-stats?limit=50
-Authorization: Bearer <ADMIN_API_KEY>
-```
-
-| 쿼리 | 기본값 | 설명 |
-|------|--------|------|
-| `limit` | `50` | 호출량 상위 N개 프로젝트만 반환. 0·음수·비정수는 기본값 폴백 |
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "since": "2026-07-29T10:00:00.000Z",
-    "limits": { "perIpPerMin": 20, "perProjectPerMin": 120 },
-    "trackedProjects": 3,
-    "returnedProjects": 3,
-    "truncated": false,
-    "projects": [
-      { "projectId": "...", "allowed": 842, "blockedByIp": 12, "blockedByProject": 0 }
-    ],
-    "note": "인메모리 집계 — 프로세스 재시작 시 초기화된다(단일 인스턴스 전제)."
-  }
-}
-```
-
-| 필드 | 의미 |
-|------|------|
-| `blockedByIp` | IP+projectId 버킷(20/분)에 걸린 횟수. 한 방문자의 과속 — 정상 트래픽에서도 나올 수 있음 |
-| `blockedByProject` | **프로젝트 전역 버킷(120/분)** 에 걸린 횟수. 분산 IP로도 우회되지 않는 실질 상한이므로 **0이 아니면 오남용 또는 한도 부족** 신호 |
-| `truncated` | 추적 용량(`MAX_SITE_RATE_LIMIT_BUCKETS`) 초과로 집계에서 빠진 프로젝트가 있음 |
-| `returnedProjects` vs `trackedProjects` | `limit`으로 잘린 개수와 전체 개수. 다르면 상위 N개만 본 것 |
-
-프로젝트 전역 한도에 도달하면 `logger.warn('Site proxy project limit reached')`가 **버킷당 윈도 1회** 남습니다(봇이 두드릴 때 로그 폭발 방지).
-
-| 에러 코드 | HTTP | 설명 |
-|-----------|------|------|
-| `FORBIDDEN` | 403 | `Authorization` 헤더 누락 또는 잘못된 `ADMIN_API_KEY` |
+- **`POST /api/v1/deploy`** 및 외부 배포 스택(GitHub org 레포 / Railway·GitHub Pages export)은 2026-08-01 제거됐다.
+  제품의 배포 스토리는 **게시(publish) → `slug.xzawed.xyz`** 다.
+  [ADR](../decisions/2026-08-01-remove-external-deploy-stack.md)
+- `health` 상세 응답의 `failover` 필드는 SQLite 컷오버로 제거됐다. **배포 서비스 검사도 없다.**

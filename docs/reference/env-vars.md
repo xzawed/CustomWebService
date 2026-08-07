@@ -4,7 +4,14 @@
 
 > **주의:** 실제 값은 절대 커밋하지 말 것. `.env.local`(로컬) 또는 Railway Variables(프로덕션)에서 관리.
 >
-> **Railway 설정 상태** 컬럼: ✅ 설정됨 / ❌ 미설정 / ➖ 해당 없음 (선택 변수)
+> **Railway 컬럼(✅설정 / ❌미설정 / ➖해당없음)은 수동 동기화된 관측 스냅샷이다 — 최종 관측 2026-08-02.**
+> 현재 상태로 읽지 말 것. 실제 상태는 Railway Variables · `GET /api/v1/admin/keys-verify`(API 키) ·
+> `GET /api/v1/admin/debug`(오프사이트 백업). ✅여도 **값이 빈 문자열이면 미설정과 같다** —
+> 2026-08-05에 `API_KEY_*` 24개 중 14개가 빈 문자열인데 표는 설정된 것처럼 보였다. **값 길이를 볼 것.**
+>
+> **공통 규칙 — 숫자형 변수의 잘못된 값(빈 문자열·숫자 아님·비정수·범위 밖)은 표의 기본값으로 폴백한다.**
+> 행마다 유효 경계가 다를 수 있으니 정확한 경계는 코드에서 확인한다. 예외만 해당 행에 적는다
+> (예: `GENERATION_LOCK_STALE_MS`는 폴백이 아니라 `heartbeat × 2`로 **교정** + `logger.warn`).
 >
 > **아키텍처(2026-06-23 컷오버 + 2026-06-24 다중 사용자 전환):** DB는 **임베디드 SQLite**(better-sqlite3, WAL, Railway 영속 볼륨 단일 인스턴스), 인증은 **Auth.js v5 Credentials + JWT 무상태**. 공개 셀프서비스 회원가입, DB 사용자별 scrypt 인증, 이메일 인증 게이트(Resend). Supabase·온프레미스 Postgres·OAuth(Google/GitHub)·**`AUTH_PROVIDER` 다중 분기**·env 단일 관리자(`ADMIN_EMAIL`/`ADMIN_PASSWORD_HASH`/`ADMIN_USER_ID`)는 제거됨. **`DB_PROVIDER` 환경변수는 남아 있으나 2026-08-01부터 필수가 아니다** — 미설정이면 sqlite로 동작하고(경고 1회), `'sqlite'` 외의 값만 throw한다(`assertSqliteEnv()`). 단일 스택에서 env 문자열 하나를 잃었다고 전면 장애가 나던 것을 없앤 조치다: [ADR](../decisions/2026-08-01-db-provider-boot-gate.md). 컷오버 배경: [docs/decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md](../decisions/2026-06-23-sqlite-cutover-and-supabase-removal.md). 다중 사용자 전환: [docs/decisions/2026-06-24-public-signup-multi-user-auth.md](../decisions/2026-06-24-public-signup-multi-user-auth.md).
 
@@ -26,8 +33,8 @@
 | 변수 | 기본값 | Railway | 설명 |
 |------|--------|---------|------|
 | `SQLITE_BACKUP_ENABLED` | `true` | ➖ | `false`로 설정 시 자동 백업 비활성화 |
-| `SQLITE_BACKUP_INTERVAL_MS` | `86400000` (24h) | ➖ | 백업 주기(ms). 잘못된 값은 기본값으로 폴백 |
-| `SQLITE_BACKUP_RETENTION` | `7` | ➖ | 보관할 백업 개수(가장 최근 N개 유지, 나머지 삭제). 1 미만/비정수는 기본값으로 폴백 |
+| `SQLITE_BACKUP_INTERVAL_MS` | `86400000` (24h) | ➖ | 백업 주기(ms) |
+| `SQLITE_BACKUP_RETENTION` | `7` | ➖ | 보관할 백업 개수(가장 최근 N개 유지, 나머지 삭제) |
 | `SQLITE_BACKUP_DIR` | `<SQLITE_PATH 디렉터리>/backups` | ➖ | 백업 파일 디렉터리. 미설정 시 DB 파일과 같은 볼륨 하위 `backups/` |
 | `SQLITE_OFFSITE_BACKUP_URL` | _(미설정)_ | ➖ | **선택·기본 미설정 권장.** 로컬 덤프 성공 후 해당 URL로 **HTTPS PUT**(원시 바이트 + `X-Backup-Sha256`·`X-Backup-Taken-At`). 미설정 = `NoopOffsiteSink`(로그 없음) — 정상 운영 상태다. **프로젝트가 수신기를 제공하거나 권장하지 않는다.** 이미 자체 HTTPS PUT 엔드포인트를 운영 중인 오너만 의미가 있다. “나중에 어딘가에 꽂아라”·무료 티어 오브젝트 스토리지·GitHub 레포를 수신기로 안내하지 말 것(덤프 = 전체 사용자 행·scrypt 해시·암호화 API 키). **시크릿으로 취급**. 실패해도 로컬 백업·prune은 성공으로 남음. 상태: `GET /api/v1/admin/debug` → `offsiteBackup`(URL 미노출)<br>⚠️ **반드시 `https://`.** `http://`·기타 스킴은 **fail-closed 거부** + `logger.error` + `offsiteBackup.invalidUrl=true` |
 
@@ -79,7 +86,7 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 | `AI_PROVIDER` | 선택 | ➖ | AI Provider 선택. 현재 허용값은 `claude` 하나뿐 (기본). 그 외 값 설정 시 `AiProviderFactory.create()`가 `Unknown AI provider` 에러를 던짐. 코드 위치: `src/providers/ai/AiProviderFactory.ts` |
 | `AI_MODEL_SUGGESTION` | 선택 | ✅ `claude-haiku-4-5` | 컨텍스트 추천용 모델 (기본: `claude-haiku-4-5` — 4.5가 최신 Haiku이므로 상향 대상 아님). 허용값: `claude-haiku-4-5` · `claude-sonnet-4-6` · `claude-sonnet-5` · `claude-opus-4-6` · `claude-opus-4-7` · `claude-opus-4-8` · `claude-opus-5` |
 | `AI_MODEL_GENERATION` | 선택 | ✅ `claude-opus-5` | 코드 생성용 모델 (기본: `claude-opus-5`). 허용값 동일. **허용목록(`ALLOWED_CLAUDE_MODELS`)에 없는 값은 경고 로그만 남기고 조용히 기본값으로 폴백**하므로 모델 추가 시 `src/providers/ai/AiProviderFactory.ts`를 함께 수정할 것. **구세대 ID를 목록에서 지우면 env 롤백이 무시된다.** 주의: 날짜 suffix 포함 ID는 허용목록에 없어 폴백됨 |
-| `ET_COMPLEXITY_THRESHOLD` | 선택 | ➖ | Extended Thinking 활성화 복잡도 임계값 (기본: `35`). 0-100 점수 중 이 값 이상이면 ET 활성화. **빈 문자열 또는 0 이하 값 설정 시 기본값 35로 폴백** |
+| `ET_COMPLEXITY_THRESHOLD` | 선택 | ➖ | Extended Thinking 활성화 복잡도 임계값 (기본: `35`). 0-100 점수 중 이 값 이상이면 ET 활성화 |
 
 ---
 
@@ -106,17 +113,14 @@ for (const r of c) if (r.auth_config?.env_var)
 
 배포 런타임에서는 `GET /api/v1/admin/keys-verify`(ADMIN_API_KEY)로 **실제 유효성**까지 확인한다.
 
-2026-07-31 기준 `env_var`는 **24종**이며 전부 `API_KEY_*` 형식이다. 주요 항목:
+**개별 키 이름·개수·대상 API 목록은 여기에 적지 않는다** — 위 명령이 시드에서 그대로 뽑아준다.
+이 자리에 있던 "2026-07-31 기준 24종" 표는 2026-08-07 실측에서 **25종**이었다. 명령 출력으로
+드러나지 않는 두 가지만 남긴다.
 
-| 변수 | Railway | 대상 API |
-|------|---------|----------|
-| `API_KEY_NASA` | ✅ (`DEMO_KEY`) | NASA 오늘의 천문 사진 — **활성 API 중 유일한 키 의존 항목** |
-| `API_KEY_15B51435` | ❌ | 공휴일 정보 (한국천문연구원) · data.go.kr |
-| `API_KEY_7CB8F428` / `API_KEY_00412C2B` | ❌ | 기상청 단기예보 / 중기예보 · data.go.kr |
-| `API_KEY_BDA9BE95` / `API_KEY_MOLIT` | ❌ | 아파트 실거래가 / 전월세 · data.go.kr |
-| `API_KEY_F1EC6F97` | ❌ | 카카오 로컬·카카오 검색 (2개 API가 **한 변수를 공유**) |
-| `API_KEY_UNSPLASH` | ❌ | Unsplash — Demo 50건/시간, Production 심사 후 1,000건/시간. **사진가 Attribution 자동 삽입 필수** |
-| 그 외 17종 | ❌ | OpenWeatherMap·TMDB·RAWG·TourAPI·NEIS·ECOS·HIRA·KOPIS·MFDS·TAGO·서울시 3종 등 |
+- **한 변수를 2개 API가 공유할 수 있다** — `API_KEY_F1EC6F97`(카카오 로컬 + 카카오 검색). 한쪽만 보고
+  지우면 다른 쪽이 조용히 401이 된다. 출력에서 **같은 `env_var`가 두 줄에 나오면 그 경우다.**
+- **Unsplash는 사진가 Attribution 삽입이 의무**다 — 카탈로그 `credit_required`에는 없고
+  `injectUnsplashAttribution()`(`src/lib/ai/codeParser.ts`)이 구현이다. 등급별 한도는 카탈로그 `rate_limit`.
 
 > **prefix가 필요한 API는 raw 값으로 넣는다.** 카카오(`KakaoAK `)·Unsplash(`Client-ID `)의 prefix는
 > 프록시의 `resolveApiKey`가 `auth_config.prefix ?? header_prefix`로 자동 적용하며,
@@ -229,7 +233,7 @@ for (const r of c) if (r.auth_config?.env_var)
 | `LOGIN_ACCOUNT_WINDOW_MS` | `300000` (5분) | ➖ | 로그인 실패 per-account 윈도우(ms). 분산 stuffing 상한. 만료 후 자동 회복 |
 | `MAX_AUTH_RATE_LIMIT_BUCKETS` | `10000` | ➖ | auth 인메모리 리미터(`src/lib/auth/rateLimit.ts`) 최대 버킷 수. signup·forgot-password·resend·login이 **동일 Map**을 쓴다. 초과 시 만료분만 정리하고 자리가 없으면 **신규 키 거부(과차단)** — 활성 윈도 LRU eviction 금지. 키 플러드 시 signup/forgot도 fail-closed되는 것이 의도(우회보다 안전). 용량 소진 시 `logger.warn('Auth rate limit capacity exhausted…')`가 분당 1회 |
 | `RATE_LIMIT_BYPASS_USER_IDS` | `` (빈 문자열) | ➖ | 쉼표 구분 userId 목록. 포함된 계정은 일일 생성 한도(`MAX_DAILY_GENERATIONS`) 검사 스킵. 관리자·개발자 계정 우회용. 코드 위치: `src/services/rateLimitService.ts` `checkAndIncrementDailyLimit()` |
-| `PROXY_CACHE_MAX_ENTRIES` | `500` | ➖ | 프록시 응답 캐시(`proxyCache`)의 LRU 최대 항목 수. 빈 문자열·숫자 아님·0 이하 값 설정 시 기본값 500으로 폴백. 인메모리·per-instance — 서버 재시작 시 초기화. 코드 위치: `src/lib/cache/proxyCache.ts` |
+| `PROXY_CACHE_MAX_ENTRIES` | `500` | ➖ | 프록시 응답 캐시(`proxyCache`)의 LRU 최대 항목 수. 인메모리·per-instance — 서버 재시작 시 초기화. 코드 위치: `src/lib/cache/proxyCache.ts` |
 
 ---
 
@@ -239,12 +243,12 @@ for (const r of c) if (r.auth_config?.env_var)
 |------|--------|---------|------|
 | `ENABLE_RENDERING_QC` | `false` | ✅ **`true` 운영 중** | Playwright 렌더링 QC 활성화. Alpine 시스템 Chromium 사용 (`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`, PR #94에서 `browserPool.ts`에 executablePath 명시 전달 수정 완료) |
 | `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` | `/usr/bin/chromium` | ✅ **설정됨** | Alpine 이미지 내 Chromium 실행 파일 경로. `playwright-core`는 이 환경변수를 자동으로 읽지 않으므로 `browserPool.ts`에서 `chromium.launch({ executablePath: ... })`로 명시적 전달. |
-| `QUALITY_LOOP_ITERATION_TIMEOUT_MS` | `120000` | ✅ **`150000` 운영 중** | 품질 루프 반복당 타임아웃 (ms). ET 비활성 생성에 적용. 빈 문자열 또는 0 이하 값 설정 시 기본값 120000으로 폴백 |
+| `QUALITY_LOOP_ITERATION_TIMEOUT_MS` | `120000` | ✅ **`150000` 운영 중** | 품질 루프 반복당 타임아웃 (ms). ET 비활성 생성에 적용 |
 | `QUALITY_LOOP_ET_ITERATION_TIMEOUT_MS` | `200000` | ✅ **`200000` 운영 중** | Extended Thinking 활성 시 품질 루프 반복당 타임아웃 (ms). ET 활성 조건은 `evaluateComplexityScore() >= ET_COMPLEXITY_THRESHOLD`(기본 35)이며, "API 3개" 또는 "컨텍스트 500자" 단독으로는 임계에 도달하지 않는다(각각 5pt·15pt). 미설정 시 기본값 200000(200초). ET 응답은 90~150초 소요되므로 `QUALITY_LOOP_ITERATION_TIMEOUT_MS`와 별도 관리 |
 | `QUALITY_LOOP_MAX_ITERATIONS` | `2` | ✅ **`2` 운영 중** | 품질 루프 최대 반복 횟수. 기본 2회 (최대 3회 상한). **현재 2회 운영 중.** 낮출수록 총 생성 시간 단축 — Railway 300초 타임아웃 초과 방지용 |
 | `QUALITY_LOOP_STRICT_ADOPTION` | `true` | ➖ | 채택 가드: `true`(기본)는 한 점수 향상 + 다른 점수 동등 이상일 때만 retry 채택(시소 진동 방지). `false`로 설정 시 기존 OR 로직(한쪽 향상) 복원 — 운영 데이터 비교용 롤백 스위치 |
 | `PIPELINE_MAX_DURATION_MS` | `290000` | ➖ | 파이프라인 총 허용 시간(ms). Quality Loop 시작 전 `경과 시간 + iterationTimeout > 이 값`이면 반복 스킵. Railway 300초 한도를 고려해 기본값 290초(10초 여유). 미설정 시 290000 자동 사용 |
-| `GENERATION_LOCK_HEARTBEAT_MS` | `30000` | ➖ | 생성 락(`generation_locks`) 생존 신호 주기(ms). 파이프라인이 도는 동안 이 간격으로 `heartbeat_at`을 갱신한다. 0·음수·비정수는 기본값 폴백 |
+| `GENERATION_LOCK_HEARTBEAT_MS` | `30000` | ➖ | 생성 락(`generation_locks`) 생존 신호 주기(ms). 파이프라인이 도는 동안 이 간격으로 `heartbeat_at`을 갱신한다 |
 | `GENERATION_LOCK_STALE_MS` | `300000` | ➖ | 이 시간 동안 heartbeat가 없으면 죽은 락으로 보고 다른 요청이 탈취한다(ms). 크래시된 파이프라인이 프로젝트를 영구히 잠그지 않게 하는 안전장치. **heartbeat 주기보다 커야 하며**, 작거나 같으면 `heartbeat × 2`로 교정하고 `logger.warn`을 남긴다 |
 | `QC_QUALITY_THRESHOLD` | `60` | ➖ | 정적 QC 구조 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
 | `QC_MOBILE_THRESHOLD` | `60` | ➖ | 정적 QC 모바일 점수 재시도 트리거 임계값. 이 값 미만이면 Quality Loop 재시도 수행 |
@@ -260,7 +264,7 @@ for (const r of c) if (r.auth_config?.env_var)
 
 ---
 
-> **Railway 상태 업데이트 방법:** Railway 대시보드 → Variables 탭에서 실제 설정 여부 확인 후 이 파일을 갱신한다.
-> Railway 상태가 변경될 때마다 이 표를 최신화하여 디버깅 시 추측을 없앤다.
->
-> **최종 업데이트:** 2026-08-01 (`DB_PROVIDER` 필수 게이트 문서 정정 — 이중 스택 분기는 제거됐으나 env 검사는 현행 코드에 존재. 외부 deploy/Sentry 변수 removed 표기. 본문 2026-07 백업·레이트리밋·QC 변수 반영)
+> **이 문서가 소유하는 것은 "어떤 변수가 있고 무엇을 하는가"다.** 변수 행은 지우지 말 것 —
+> 여기가 유일한 진실원이다. 반대로 **"지금 Railway에 무엇이 들어 있는가"는 이 문서가 소유하지 않는다.**
+> 그건 Railway Variables와 `admin/keys-verify`·`admin/debug`가 소유하며, 이 파일의 Railway 컬럼은
+> 그 관측을 옮겨 적은 사본일 뿐이다(관측 날짜는 문서 상단에).

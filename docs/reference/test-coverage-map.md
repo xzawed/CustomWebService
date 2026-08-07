@@ -2,45 +2,56 @@
 
 > **언제 읽나**: 테스트를 추가한 뒤 `vitest.config.ts` 의 `coverage.include`·`codecov.yml`·`sonar-project.properties` 를 손댈 때. 괄호가 들어간 경로는 glob이 조용히 죽는다
 
-> **이 문서의 역할**: 어디가 검증되고 어디가 비어 있는지의 **현황 스냅샷**이다.
+> **이 문서의 역할**: 어디가 검증되고 어디가 비어 있는지의 **지도**다.
 > 테스트 작성 방법·전략은 [testing.md](../guides/testing.md)에 있고 여기서는 반복하지 않는다.
 >
-> **기준일**: 2026-07-31 (`pnpm test` · `pnpm test:coverage` 실측)
+> ⚠️ **개수·퍼센트를 박지 않는다.** 이전 판의 "186 / 2291"·"레이어별 82/76"·"builder 862줄, 테스트 0"은
+> 2026-07-31 관측치였고 **2026-08-07에 셋 다 틀렸다**(builder에는 그 사이 테스트가 생겼다).
+> 수치는 **1절의 명령으로 그 자리에서 구한다.**
+>
 > **갱신 규칙**: 테스트를 추가하거나 `coverage.include`를 바꾸는 PR에서 함께 갱신한다.
 
 ---
 
-## 1. 현재 수치
+## 1. 수치는 명령으로 구한다
 
-| 지표 | 값 | 출처 |
-|------|-----|------|
-| 테스트 파일 / 테스트 | **186 / 2291** (전부 통과) | `pnpm test` (E9/P4 후) |
-| lcov 수록 파일 | **222+** | `coverage/lcov.info` |
-| Statements / Branches | **93.03% / 83.39%** | `pnpm test:coverage` |
-| Functions / Lines | **90.18% / 94.41%** | 〃 |
-| 임계값 (`vitest.config.ts`) | branches 40 · functions 30 · lines 45 · statements 43 | 전부 여유 있게 통과 |
-| SonarCloud 전체 커버리지 | **86.9%** (신규 코드 92.1%) | `sonar.sources=src` 전체 기준 |
+| 알고 싶은 것 | 구하는 법 |
+|------|-----|
+| 테스트 파일 / 테스트 수 · 통과 여부 | `pnpm test` |
+| Statements / Branches / Functions / Lines % | `pnpm test:coverage` |
+| lcov에 **실제로 수록된** 파일 | `grep -c "^SF:" coverage/lcov.info` |
+| 커버리지 임계값 | `vitest.config.ts` 의 `coverage.thresholds` (문서에 복제하지 말 것) |
+| SonarCloud 전체·신규 커버리지 | SonarCloud 프로젝트 `xzawed_CustomWebService` |
 
 > **두 숫자가 다른 것은 정상이다.** Codecov/Vitest는 `coverage.include` 범위만,
-> SonarCloud는 `src` 전체를 측정한다. 구조적 차이이며 설정 오류가 아니다.
+> SonarCloud는 `sonar.sources=src` 전체를 측정한다. 구조적 차이이며 설정 오류가 아니다
+> — 안 맞는다고 설정을 "고치지" 말 것.
 
 ---
 
 ## 2. 레이어별 커버 상태
 
-| 레이어 | 구현 | 테스트 | 상태 |
-|--------|------|--------|------|
-| `src/lib/**` | 82 | 76 | ✅ 가장 두껍다. fail-closed·원자적 test-and-set·경보 전이가 테스트로 고정됨 |
-| `src/services/**` | 6 | 6 | ✅ 1:1 |
-| `src/providers/**` | 8 | 5 | ✅ 핵심 커버 |
-| `src/repositories/**` | 29 | 13 | 🟡 Sqlite 구현 위주 커버, 유틸 일부 공백 |
-| `src/components/**` | 36 | 30 | 🟡 정상 경로 위주. 실패 분기 공백 있음 |
-| `src/app/api/v1/**` | 40 | 32 (`src/__tests__/api`) | 🟡 아래 3절 참조 |
-| `src/stores/**` | 6 | **6** | ✅ 2026-07-31 신규 (직전까지 0건) |
-| `src/hooks/**` | — | +1 (`usePublish`) | 🟡 나머지 훅 공백 |
-| `src/app/(main)/**` 페이지 | 4 | 0 | 🔴 `builder/page.tsx` 862줄 포함 |
-| `src/templates/**` | 13 | 1 (레지스트리) | 🔴 개별 템플릿 계약 미검증 |
-| `e2e/` | — | pages 3 device × 기존 UI + **serving 1회** (setup·A–D) | 🟢 E6: 유령 세션·서빙 동등성·CSP 단일·서브도메인 패스스루 고정 |
+> **파일 수는 적지 않는다.** 세고 싶으면 아래로 센다. 이 표가 담는 것은 숫자가 아니라
+> **어디가 얇은가**다.
+>
+> ```bash
+> find src/lib -name '*.ts' ! -name '*.test.ts' | wc -l   # 레이어별 구현 수(경로만 바꿔 반복)
+> find src -name '*.test.ts*' | wc -l                     # 전체 테스트 파일 수
+> ```
+
+| 레이어 | 상태 |
+|--------|------|
+| `src/lib/**` | ✅ 가장 두껍다. fail-closed·원자적 test-and-set·경보 전이가 테스트로 고정됨 |
+| `src/services/**` | ✅ 1:1 |
+| `src/providers/**` | ✅ 핵심 커버 |
+| `src/repositories/**` | 🟡 Sqlite 구현 위주 커버, 유틸 일부 공백 |
+| `src/components/**` | 🟡 정상 경로 위주. 실패 분기 공백 있음 |
+| `src/app/api/v1/**` | 🟡 라우트 테스트는 `src/__tests__/api`. 아래 3절 참조 |
+| `src/stores/**` | ✅ 2026-07-31 신규 (직전까지 0건) |
+| `src/hooks/**` | ✅ `useAuth`·`usePublish` 양쪽 커버 |
+| `src/app/(main)/**` 페이지 | 🟡 builder·settings/api-keys만 테스트. 나머지 페이지 공백 |
+| `src/templates/**` | ✅ 2026-08-04(E5) `templateContract.test.ts` 가 레지스트리 전 항목을 자동 구동 |
+| `e2e/` | 🟢 E6: 유령 세션·서빙 동등성·CSP 단일·서브도메인 패스스루 고정 |
 
 ---
 
@@ -94,11 +105,11 @@ grep "^SF:" coverage/lcov.info | tr '\\' '/' | grep '패턴'   # lcov는 백슬�
 > **교훈**: 게이트 설정의 비대칭은 "언젠가 문제가 될 것"이 아니라 **다음 PR에서 터진다.**
 > 발견했을 때 미루지 말 것. 페이지를 측정하고 싶어지면 sonar·codecov·vitest **세 곳을 함께** 바꾼다.
 
-### 3.4 `src/templates/**`는 아직 include에 없다
+### 3.4 `src/templates/**` — 해소됨 (2026-08-04, E5)
 
-13파일 중 레지스트리만 테스트돼 있어, 편입하면 커버리지 지표가 내려간다.
-**개별 템플릿 계약 테스트(T5)를 먼저 붙인 뒤 함께 편입**하는 것이 순서다.
-그 전까지는 템플릿 파일 수정 시 patch 0% 위험이 있다는 것을 알고 있을 것.
+계약 테스트(T5)를 붙인 뒤 `coverage.include`에 편입했다. **편입 전에 `TemplateRegistry.list()`
+한 줄을 고쳤다가 lcov 데이터가 없어 new_coverage 0%로 게이트가 떨어진 적이 있다(PR #263 실측)**
+— 3.1의 일반 규칙이 실제로 터진 사례다. 경위는 `vitest.config.ts` 해당 항목 주석에 있다.
 
 ---
 
@@ -108,14 +119,14 @@ grep "^SF:" coverage/lcov.info | tr '\\' '/' | grep '패턴'   # lcov는 백슬�
 
 | ID | 대상 | 왜 위험한가 | 최소 케이스 |
 |----|------|------------|------------|
-| **T1** | `src/app/(main)/builder/page.tsx` (862줄, 테스트 0) | 프로젝트 생성 → 생성 트리거 → SSE 리더 → 폴백 폴링 **오케스트레이션 전체가 이 파일에만** 있다. 폴링 함수 자체(`pollGenerationStatus`)는 테스트되지만 **조합**은 미검증 | 핸들러를 훅/순수함수로 추출 후 fetch·SSE·poll 주입형으로: ① SSE 성공 시 폴링 중단 ② SSE error → 폴백 전환 ③ 스트림 중도 종료 시 상태 확정 |
-| **T2** | ~~`src/app/api/v1/projects/[id]/route.ts`~~ + `popular-services` | ~~DELETE가 프로젝트 영구 삭제 진입점~~ | ✅ **완료(E4, 2026-08-04)** — `projects-detail.test.ts`(GET·DELETE 미인증/미존재/성공, 타인 소유는 `ownership-isolation.test.ts`가 이미 커버) + `popular-services.test.ts`(usage≥5 / 병합 / 빈 usage / dedup 가드). **`vitest.config.ts` `coverage.include`에 `popular-services` 편입 필수**였다 |
+| **T1** | `src/app/(main)/builder/page.tsx` — **생성 오케스트레이션 구간** | 프로젝트 생성 → 생성 트리거 → SSE 리더 → 폴백 폴링 **오케스트레이션 전체가 이 파일에만** 있다. 폴링 함수 자체(`pollGenerationStatus`)는 테스트되지만 **조합**은 미검증. (2026-08-07 확인: `page.test.tsx`·`page.regen-version.test.tsx`가 생겨 모드 선택·카탈로그·추천 경합은 덮였다. **SSE→폴백 전환은 여전히 공백**) | 핸들러를 훅/순수함수로 추출 후 fetch·SSE·poll 주입형으로: ① SSE 성공 시 폴링 중단 ② SSE error → 폴백 전환 ③ 스트림 중도 종료 시 상태 확정 |
+| **T2** | ~~`src/app/api/v1/projects/[id]/route.ts`~~ + `popular-services` | ~~DELETE가 프로젝트 영구 삭제 진입점~~ | ✅ **완료(E4, 2026-08-04)** — `projects-detail.test.ts` + `popular-services.test.ts`(케이스는 파일 참조). **`vitest.config.ts` `coverage.include`에 `popular-services` 편입이 필수**였다 — 3.1이 실제로 걸린 자리다 |
 | **T3** | ~~E2E 전반~~ → ✅ **E6 완료** | 단위 테스트가 구조적으로 못 잡는 4종(§5)을 request-level E2E로 고정. `e2e/seed.mjs`가 SQLite 픽스처를 서버 기동 전 시드. CI는 **Build + E2E 양쪽**에 `NEXT_PUBLIC_ROOT_DOMAIN=xzawed.xyz` (빌드타임 인라인). Host는 `127.0.0.1` + `e2e/helpers/httpHost.ts`로 명시 주입(`slug.localhost` 불가) | `e2e/serving/*` 1회 프로젝트(setup storageState 의존). A 패스스루 · B 마커 동등성 · C CSP `headersArray` 1회 · D 유령 세션 401. pages/* 는 기존 device matrix 유지 |
-| **T4** | ~~`PublishDialog` 실패 분기~~ | ~~기존 7개 테스트가 전부 정상 경로~~ | ✅ **완료(E5, 2026-08-04)** — 7 → **17케이스**. reason 3종 + 미지 reason fail-closed + 검사 실패 idle + AbortError 무시 + publish reject(Error/비-Error) + **실패 시 다이얼로그 미종료** + 재시도 성공. 마지막 항목이 핵심 계약이라 뮤테이션(`finally`에 `onClose` 주입)으로 이빨을 확인했다 |
-| **T5** | ~~`src/templates/` 개별 11종~~ | ~~레지스트리는 "등록됨"만 검증~~ | ✅ **완료(E5, 2026-08-04)** — `templateContract.test.ts`가 `templateRegistry.list()`로 **11종 자동 구동**(하드코딩 id 목록 아님). 메타데이터·id 유일성·`matchScore` 0~1·`generate` 6컨텍스트 무예외·출력 형태·**플레이스홀더 누수 부재**. 누수 탐지기는 `${undefined}` 주입 뮤테이션으로 검증 |
-| **T6** | `PopularServiceSuggestions.tsx` (143줄) | useEffect가 자동 fetch하는데 MSW 핸들러가 없고 `onUnhandledRequest:'error'`라 **핸들러부터 추가하지 않으면 테스트 작성 자체가 막힌다** | `handlers.ts`에 엔드포인트 추가 → 로딩 / 빈 목록 / fetch 실패 3케이스 |
-| **T7** | ~~`RePromptPanel.tsx`~~ | ~~재생성 진입 UI 전체~~ | ✅ **완료(E9/P4)** — `RePromptPanel.test.tsx`(제출·중복 차단·서버 오류·언마운트 abort) + `runClientRegeneration.test.ts`(SSE/poll/abort/not_found). vitest·codecov·sonar exclude 3곳 제거 |
-| **T8** | 나머지 페이지 4종·`src/components/auth/` | 페이지 테스트로 간접 커버 중이라 우선순위 낮음 | — |
+| **T4** | ~~`PublishDialog` 실패 분기~~ | ~~기존 테스트가 전부 정상 경로~~ | ✅ **완료(E5, 2026-08-04)** — 케이스 목록은 `PublishDialog.test.tsx`. **핵심 계약은 "실패 시 다이얼로그가 닫히지 않는다"이고, 뮤테이션(`finally`에 `onClose` 주입)으로 그 단언에 이빨이 있는지 확인했다** |
+| **T5** | ~~`src/templates/` 개별 템플릿~~ | ~~레지스트리는 "등록됨"만 검증~~ | ✅ **완료(E5, 2026-08-04)** — `templateContract.test.ts`가 `templateRegistry.list()`로 **자동 구동한다(하드코딩 id 목록 아님 — 템플릿을 추가하면 자동으로 대상이 된다)**. 플레이스홀더 누수 탐지기는 `${undefined}` 주입 뮤테이션으로 검증 |
+| **T6** | `PopularServiceSuggestions.tsx` | useEffect가 자동 fetch하는데 MSW 핸들러가 없어, **핸들러부터 추가하지 않으면 테스트 작성 자체가 막힌다**(미처리 요청은 아래 E7 단언이 실패로 올린다) | `handlers.ts`에 엔드포인트 추가 → 로딩 / 빈 목록 / fetch 실패 3케이스 |
+| **T7** | ~~`RePromptPanel.tsx`~~ | ~~재생성 진입 UI 전체~~ | ✅ **완료(E9/P4)** — `RePromptPanel.test.tsx` + `runClientRegeneration.test.ts`. **vitest·codecov·sonar exclude를 3곳 모두 제거해야 했다**(한 곳만 지우면 게이트가 어긋난다 — 3.3 참조) |
+| **T8** | 테스트 없는 나머지 `src/app/(main)/**` 페이지·`src/components/auth/` | 페이지 테스트로 간접 커버 중이라 우선순위 낮음 | — |
 
 ### MSW 관련 주의
 

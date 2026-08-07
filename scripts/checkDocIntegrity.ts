@@ -1,7 +1,7 @@
 // scripts/checkDocIntegrity.ts
 // Run: pnpm docs:check
 //
-// 문서 정합성 검사 7종. 트리거·경로·명령어는 **테스트도 lint도 안 잡는** 유일한
+// 문서 정합성 검사 8종. 트리거·경로·명령어는 **테스트도 lint도 안 잡는** 유일한
 // 문서 요소이고, 실제로 죽어 있던 것이 이미 2건 나왔다
 // (ENV_VAR_DENYLIST — 보안 ADR / isNotFound — SQLite 컷오버 때 제거).
 //
@@ -314,6 +314,41 @@ for (const b of BUDGETS) {
   }
 }
 
+// ── ⑥-b 현재 시제 문서군의 총량 예산 ──────────────────────────────────────
+// ⑥이 항상 로드되는 2개 파일을 지킨다면, 이건 **그 2개가 가리키는 곳**을 지킨다.
+// 2026-08-07에 CLAUDE.md를 449→203줄로 줄였는데, 그건 **축소가 아니라 이동**이었다
+// (235줄이 docs/로 갔을 뿐 총량은 그대로였다). 오너 지적이 정확했다.
+//
+// 왜 총량이 오류를 만드나: 문서가 코드를 다시 서술하는 만큼 유지보수 부담이 곱해지고,
+// 놓친 곳이 드리프트가 되고, 그 드리프트를 읽고 거짓보고가 나온다. 실측(2026-08-07):
+//   · `api-endpoints.md` 1,630줄 중 **44%가 JSON 예시** — 코드에서 파생 가능하고 아무도 검증 안 함
+//   · `architecture/overview.md`의 절반이 **디렉터리 트리를 코드에서 베낀 것**
+//   · 문서 간 중복은 33줄뿐, 고아 문서는 215줄뿐 → **부피는 재서술에 있었다**
+//
+// **`docs/decisions/`는 대상이 아니다** — ADR은 사고 기록이고 append-only로 자라는 것이 정상이다.
+// 여기서 지키는 것은 "지금도 참이어야 하는" 현재 시제 문서군뿐이다.
+//
+// 예산을 올리려면 **왜 올리는지를 여기 적고** 올릴 것. 숫자만 바꾸면 다시 불어난다.
+const CURRENT_TENSE_DIRS = ['docs/guides', 'docs/architecture', 'docs/reference', 'docs/security'];
+const CURRENT_TENSE_BUDGET = 6500; // 2026-08-07 축소 직후 5,928줄 + 약 10% 여유
+
+const currentTenseFiles = allMd.filter((f) =>
+  CURRENT_TENSE_DIRS.some((d) => rel(f).startsWith(`${d}/`)),
+);
+const currentTenseLines = currentTenseFiles.reduce(
+  (a, f) => a + fs.readFileSync(f, 'utf8').split(/\r?\n/).length,
+  0,
+);
+if (currentTenseLines > CURRENT_TENSE_BUDGET) {
+  add(
+    '⑥-b 현재 시제 총량 예산',
+    `${CURRENT_TENSE_DIRS.join(' + ')}:${currentTenseLines}`,
+    `${currentTenseLines}줄 > 예산 ${CURRENT_TENSE_BUDGET}줄 (파일 ${currentTenseFiles.length}개). ` +
+      `늘리기 전에 물을 것 — **이 내용이 코드에서 파생 가능한가?** 가능하면 소스 포인터로 대체하라. ` +
+      `예산을 올려야 하면 근거를 scripts/checkDocIntegrity.ts의 CURRENT_TENSE_BUDGET 주석에 적을 것`,
+  );
+}
+
 // ── ⑦ `파일:행` 참조가 실제 행 수 안에 있는가 ─────────────────────────────
 // ②는 파일 **존재**만 본다. 행 번호는 코드가 자라면 조용히 어긋나고, 어긋난 채로
 // "config/generation.ts:32를 보라"고 하면 다음 사람이 엉뚱한 줄을 읽는다.
@@ -350,7 +385,7 @@ console.log(`문서 정합성 검사 — md ${allMd.length}개 · ADR ${adrs.len
 
 // 검사 개수는 세어서 출력한다 — 상수로 박으면 검사를 추가할 때 조용히 어긋난다
 // (실제로 헤더가 "4종"인데 출력이 "5/5"인 드리프트가 있었다).
-const TOTAL_CHECKS = 7;
+const TOTAL_CHECKS = 8;
 
 if (violations.length === 0) {
   console.log(`위반 없음 (${TOTAL_CHECKS}/${TOTAL_CHECKS} 통과)`);
