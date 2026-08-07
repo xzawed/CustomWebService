@@ -292,9 +292,14 @@ CSP를 만질 때는 `middleware.ts` · `site/[slug]/route.ts` · `preview/[proj
   복구 경보를 빼면 억제가 정보를 삼킨다
 - 상태는 **클로저 로컬**(모듈 레벨 플래그 금지) — 인스턴스 독립이라 테스트가 `vi.resetModules()`를 안 써도 된다
 
-> `errorRateMonitor`가 `await sendSlackAlert`를 해도 되는 이유는 `EventBus.emit`이 핸들러를
-> `.catch`로 감싸기 때문이다. **스케줄러에는 그 래퍼가 없다** — EventBus 소비자 코드를 그대로
-> 복사하면 안 된다.
+> `errorRateMonitor`가 `await sendSlackAlert`를 해도 되는 이유는 `EventBus.emit`이 핸들러 실패를
+> **비동기 거부(`.catch`)와 동기 throw(`try`) 양쪽 다** 삼키기 때문이다.
+> **스케줄러에는 그 래퍼가 없다** — EventBus 소비자 코드를 그대로 복사하면 안 된다.
+>
+> ⚠️ `try`가 없으면 `.catch`만으로는 부족하다: `Promise.resolve(handler(event))`는 핸들러를
+> **먼저 평가**하므로 동기 throw는 `.catch`가 붙기 전에 새어 나가 **emit 호출부(계정 삭제·
+> 생성 파이프라인·카탈로그 활성화)를 통째로 실패시킨다.** 2026-08-07에 실측으로 확인하고 막았다.
+> 회귀 테스트: `eventBus.test.ts`의 「동기적으로 throw 하는 핸들러가 emit 호출부를 깨뜨리지 않는다」.
 >
 > 클로저 로컬이라는 성질의 귀결: **재배포를 넘으면 복구 경보를 검증할 수 없다**
 > (`null → true`는 첫 성공이지 복구가 아니다). 2026-07-31 프로덕션에서 실증됨.
