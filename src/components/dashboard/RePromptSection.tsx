@@ -24,7 +24,10 @@ export function RePromptSection({ projectId, currentVersion }: RePromptSectionPr
       <RePromptPanel
         projectId={projectId}
         onRegenerationComplete={(version) => {
-          setLatestVersion(version);
+          // 미상이면 표시값을 건드리지 않는다 — 헤더의 "현재 v{N}" 은 사람이 읽는 라벨이라
+          // 빈 값이나 잘못된 숫자를 보이느니 직전 값을 유지하는 편이 낫다.
+          // (`router.refresh()` 가 서버에서 실제 최신값을 다시 가져온다.)
+          if (version !== undefined) setLatestVersion(version);
           router.refresh();
         }}
       />

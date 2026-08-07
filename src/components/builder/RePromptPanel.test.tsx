@@ -312,7 +312,14 @@ describe('RePromptPanel', () => {
     expect(onRegenerationComplete).toHaveBeenCalledTimes(1);
   });
 
-  it('version undefined 시 1 로 onRegenerationComplete', async () => {
+  // 이 테스트는 원래 `toHaveBeenCalledWith(1)` 이었다 — 즉 **"버전 미상"을 1번 버전으로**
+  // 바꾸는 동작을 고정하고 있었다. 1번은 가장 오래된 버전이라, 계약이 깨지는 날 사용자는
+  // **최신본 대신 최초 생성본**을 보게 된다(미리보기 URL 이 `&version=1` 로 붙는다).
+  //
+  // 미상일 때의 안전한 기본값은 "버전을 지정하지 않는 것"이다:
+  // `codeRepo.findByProject(projectId, undefined)` 가 `orderBy(desc(version))` 로 최신 1건을
+  // 돌려주므로, undefined 를 그대로 흘리면 자동으로 최신본이 된다(2026-08-07 코드 확인).
+  it('version 이 undefined 면 그대로 undefined 로 통지한다 (1로 메우지 않는다)', async () => {
     runClientRegeneration.mockImplementation(async (_input, deps) => {
       deps.completeRegeneration(undefined);
     });
@@ -331,7 +338,7 @@ describe('RePromptPanel', () => {
     });
 
     await waitFor(() => {
-      expect(onRegenerationComplete).toHaveBeenCalledWith(1);
+      expect(onRegenerationComplete).toHaveBeenCalledWith(undefined);
     });
   });
 
