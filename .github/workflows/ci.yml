@@ -5,6 +5,19 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # 수동 실행 — 웹훅이 죽었을 때의 **유일한 복구 수단**이다.
+  #
+  # 2026-08-06 GitHub Actions 장애(major_outage)에서 웹훅의 15%만 처리돼
+  # main 머지 3건 중 **CI 런이 1건만 생성**됐다. `FAILED`도 `SKIPPED`도 아닌
+  # **"런 부재"** 라 배포 목록에는 아무 흔적이 없었고, 그 결과 코드 PR 2건이
+  # **CI를 한 번도 통과하지 않은 채 병합·배포**됐다(그중 하나에 Linux에서
+  # 실패하는 테스트가 있었고, 다음 PR에 CI가 붙고 나서야 발견됐다).
+  #
+  # 그때 `gh workflow run` 은 422로 거부됐다 — 이 트리거가 없었기 때문이다.
+  # 웹훅은 우회할 수 없지만 dispatch 는 API 직접 호출이라 살아 있다.
+  #
+  # 사용: `gh workflow run "CI / CD" --ref <branch>`
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
