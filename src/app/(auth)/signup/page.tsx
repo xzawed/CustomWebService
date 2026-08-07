@@ -17,18 +17,28 @@ export default function SignupPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const res = await fetch('/api/v1/auth/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    setLoading(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => null);
-      setError(data?.error?.message ?? '가입 중 오류가 발생했습니다.');
-      return;
+    // `finally`는 **무조건** 실행되어야 한다. 조건부로 만들면(예: `if (!aborted)`) 취소·거부
+    // 경로에서 loading이 true로 굳어 버튼이 '가입 중...'으로 영구 비활성화된다.
+    // 여기는 성공해도 페이지를 떠나지 않으므로(`done` 화면으로 전환) 일괄 해제가 안전하다.
+    try {
+      const res = await fetch('/api/v1/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.error?.message ?? '가입 중 오류가 발생했습니다.');
+        return;
+      }
+      setDone(true);
+    } catch {
+      // fetch는 네트워크 도달 실패 시 throw한다. 이 catch가 없으면 아래 setLoading(false)가
+      // 실행되지 않아 버튼이 영구 비활성화되고 에러 문구도 뜨지 않는다.
+      setError('가입 요청에 실패했습니다. 네트워크 상태를 확인하고 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setLoading(false);
     }
-    setDone(true);
   };
 
   return (

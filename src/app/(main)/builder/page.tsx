@@ -49,7 +49,18 @@ export default function BuilderPage() {
   const [apis, setApis] = useState<ApiCatalogItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
-  const [regenVersion, setRegenVersion] = useState<number | undefined>(undefined);
+  /**
+   * 재생성 결과 버전은 **그 버전이 속한 프로젝트와 한 쌍으로만** 의미가 있다.
+   *
+   * `number` 하나로 들면 「새로 생성하기」→「생성하기」로 만든 **다음 프로젝트에도 살아남아**
+   * 미리보기가 존재하지 않는 버전을 요구한다. preview 라우트는 최신본 폴백을 하지 않고
+   * `NotFoundError`(404)를 던지며, 그 본문은 `application/json`이라 iframe에 **원본 JSON
+   * 에러 텍스트가 그대로 보인다**(실측).
+   *
+   * 신원을 값 안에 담으면 `setRegen(null)`을 **어디서도 부를 필요가 없다** — 즉 리셋 누락이
+   * 버그가 될 수 없다. 이전 구현은 `setRegenVersion(undefined)` 호출이 저장소 전체에 0건이었다.
+   */
+  const [regen, setRegen] = useState<{ projectId: string; version: number } | null>(null);
 
   /**
    * 비행 중인 AI 제안 요청(suggest-context · suggest-apis)의 취소 핸들.
@@ -60,6 +71,27 @@ export default function BuilderPage() {
    * 새 세션 선택을 지우고 이전 컨텍스트의 추천을 채워 넣는다.
    */
   const aiRequestAbortRef = useRef<AbortController | null>(null);
+
+  /**
+   * 로딩 플래그 **소유권 토큰**.
+   *
+   * 해제 조건은 "내 요청이 취소됐나"가 아니라 **"내가 아직 이 플래그의 최신 소유자인가"**다.
+   * `signal.aborted`는 (a) 후속 요청의 선점과 (b) 리셋·이펙트 정리에 의한 폐기를 구분하지
+   * 못하는데, (a)에서는 선점자가 이미 true를 다시 썼으니 내가 끄면 안 되고 (b)에서는
+   * 후속자가 없으니 **반드시 내가 꺼야 한다**. 한 비트로 두 질문에 답하려던 것이 결함이었다.
+   *
+   * 요점: 리셋 핸들러(`handleModeSelect`·`handleResetMode`)와 이펙트 조기반환 분기는
+   * **로딩 플래그의 존재를 알 필요가 없다.** 새 abort 지점이 생겨도 자동으로 옳다.
+   * (abort 지점마다 해제 코드를 추가하는 방식은 그 곱셈을 절반만 채우다 #289에서 재도입됐다.)
+   *
+   * ⚠️ 불변조건: `++xxxReqIdRef.current` 다음 줄이 `setIsXLoading(true)`여야 하고 그 직후가
+   * 대응하는 `finally`를 가진 `try`여야 한다. 사이에 `await`나 조기 return을 넣으면
+   * "true를 쓴 실행에는 반드시 대응하는 finally가 있다"가 깨져 고착이 그대로 돌아온다.
+   * 정적으로 강제되지 않는다 — `page.test.tsx`의 **선점 음성대조 테스트가 유일한 방어**다.
+   */
+  const suggestionsReqIdRef = useRef(0);
+  const recommendationsReqIdRef = useRef(0);
+  const preferenceReqIdRef = useRef(0);
 
   // Context suggestion state (for api-first mode)
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -235,6 +267,7 @@ export default function BuilderPage() {
 
     const abortCtrl = new AbortController();
     const timer = setTimeout(async () => {
+      const reqId = ++preferenceReqIdRef.current;
       setIsPreferenceLoading(true);
       try {
         const res = await fetch('/api/v1/suggest-preferences', {
@@ -266,7 +299,7 @@ export default function BuilderPage() {
           // 폴백: 현재 UX 유지
         }
       } finally {
-        if (!abortCtrl.signal.aborted) setIsPreferenceLoading(false);
+        if (preferenceReqIdRef.current === reqId) setIsPreferenceLoading(false);
       }
     }, 600);
 
@@ -287,6 +320,7 @@ export default function BuilderPage() {
     const abortCtrl = new AbortController();
     aiRequestAbortRef.current = abortCtrl;
 
+    const reqId = ++suggestionsReqIdRef.current;
     setIsSuggestionsLoading(true);
     setSuggestions([]);
     setActiveSuggestionIndex(null);
@@ -316,7 +350,7 @@ export default function BuilderPage() {
       console.error('[suggest-context] failed:', err instanceof Error ? err.message : err);
       setSuggestions([]);
     } finally {
-      if (!abortCtrl.signal.aborted) {
+      if (suggestionsReqIdRef.current === reqId) {
         setIsSuggestionsLoading(false);
       }
     }
@@ -333,6 +367,7 @@ export default function BuilderPage() {
     const abortCtrl = new AbortController();
     aiRequestAbortRef.current = abortCtrl;
 
+    const reqId = ++recommendationsReqIdRef.current;
     setIsRecommendationsLoading(true);
     setApiRecommendations([]);
     setRecommendationsError(false);
@@ -362,7 +397,7 @@ export default function BuilderPage() {
       setRecommendationsError(true);
       setLastRecommendedContext(null);
     } finally {
-      if (!abortCtrl.signal.aborted) {
+      if (recommendationsReqIdRef.current === reqId) {
         setIsRecommendationsLoading(false);
       }
     }
@@ -622,12 +657,19 @@ export default function BuilderPage() {
               />
 
               {genStatus === 'completed' && projectId && (
-                <PreviewFrame projectId={projectId} version={regenVersion ?? version ?? undefined} />
+                <PreviewFrame
+                  projectId={projectId}
+                  version={
+                    regen !== null && regen.projectId === projectId
+                      ? regen.version
+                      : (version ?? undefined)
+                  }
+                />
               )}
               {genStatus === 'completed' && projectId && (
                 <RePromptPanel
                   projectId={projectId}
-                  onRegenerationComplete={(v) => setRegenVersion(v)}
+                  onRegenerationComplete={(v) => setRegen({ projectId, version: v })}
                 />
               )}
             </div>
@@ -742,12 +784,19 @@ export default function BuilderPage() {
               />
 
               {genStatus === 'completed' && projectId && (
-                <PreviewFrame projectId={projectId} version={regenVersion ?? version ?? undefined} />
+                <PreviewFrame
+                  projectId={projectId}
+                  version={
+                    regen !== null && regen.projectId === projectId
+                      ? regen.version
+                      : (version ?? undefined)
+                  }
+                />
               )}
               {genStatus === 'completed' && projectId && (
                 <RePromptPanel
                   projectId={projectId}
-                  onRegenerationComplete={(v) => setRegenVersion(v)}
+                  onRegenerationComplete={(v) => setRegen({ projectId, version: v })}
                 />
               )}
             </div>

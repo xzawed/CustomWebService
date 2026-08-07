@@ -63,7 +63,7 @@
 | [`.claude/commands/`](../.claude/commands/) | 슬래시 커맨드 체크리스트 5종 |
 | [`.claude/rules/`](../.claude/rules/) | **경로 스코프 규칙** — `paths` 프론트매터가 매칭하는 파일을 **읽을 때만** 로드된다(신규 파일 Write 시엔 안 뜬다) |
 | [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) | PR 템플릿 |
-| [`.scamanager/`](../.scamanager/) | pre-push 자동 코드리뷰 훅 (`install-hook.sh`로 설치) |
+| [`.scamanager/`](../.scamanager/) | **설치하지 말 것** — `install-hook.sh`는 토큰을 **평문 HTTP의 URL 쿼리스트링**으로 보낸다(`?token=…`). 현재 훅은 **미설치**이며 `config.json`은 추적 대상에서 제외됐다 ([인시던트](security/incident-response.md)) |
 
 ---
 
@@ -88,7 +88,7 @@
 | [deployment.md](guides/deployment.md) | CI/CD·Railway·도메인·관리자 검증 API |
 | [operations.md](guides/operations.md) | 일상 운영·모니터링·백업·장애 대응 |
 | [agent-working-rules.md](guides/agent-working-rules.md) | **CLAUDE.md 작업 게이트 G1~G6의 근거** — 거짓보고 원인 전수 분석(2026-08-05) |
-| [railway-deploy-troubleshooting.md](guides/railway-deploy-troubleshooting.md) | **병합했는데 반영이 안 될 때** — 조용한 미배포 2종(patch/railway.toml, CI 실패 SKIPPED) |
+| [railway-deploy-troubleshooting.md](guides/railway-deploy-troubleshooting.md) | **병합했는데 반영이 안 될 때** — 조용한 미배포 **3종**(patch/railway.toml · CI 실패 SKIPPED · **워크플로 미트리거**) + 판별표 |
 | [qc-process.md](guides/qc-process.md) | 생성/재생성 QC 8단계 |
 | [sqlite-restore-runbook.md](guides/sqlite-restore-runbook.md) | DB 손상·오염 시 백업 복구 |
 | [monitoring-sink-setup.md](guides/monitoring-sink-setup.md) | Slack 알림 sink 등록·검증 |

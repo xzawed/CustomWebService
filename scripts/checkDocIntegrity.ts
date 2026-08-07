@@ -1,9 +1,14 @@
 // scripts/checkDocIntegrity.ts
 // Run: pnpm docs:check
 //
-// 문서 정합성 검사 4종. 트리거·경로·명령어는 **테스트도 lint도 안 잡는** 유일한
+// 문서 정합성 검사 7종. 트리거·경로·명령어는 **테스트도 lint도 안 잡는** 유일한
 // 문서 요소이고, 실제로 죽어 있던 것이 이미 2건 나왔다
 // (ENV_VAR_DENYLIST — 보안 ADR / isNotFound — SQLite 컷오버 때 제거).
+//
+// ⑥⑦은 2026-08-07에 추가됐다. 계기: CLAUDE.md가 449줄까지 자랐고 오너가 "문서가
+// 너무 많다"고 지적했다. 그때 실측한 것이 이 두 검사의 존재 이유다 —
+// **기계로 검증 가능한 층(①~⑤)은 위반 0건이었다.** 즉 부패는 링크가 아니라
+// (a) 아무도 안 세던 **총량**과 (b) 검증할 수 없는 **행 참조**에 있었다.
 //
 // exit 0 — 위반 없음
 // exit 1 — 위반 발견
@@ -278,6 +283,61 @@ if (fs.existsSync(RULES_DIR)) {
   }
 }
 
+// ── ⑥ 항상 로드되는 문서의 총량 예산 ──────────────────────────────────────
+// **이 검사만이 "문서가 너무 많다"를 기계적으로 잡는다.**
+//
+// CLAUDE.md·AGENTS.md는 모든 세션에 무조건 로드된다. 개별 줄은 전부 타당해 보이는데
+// 총량은 아무도 안 센다 — 그래서 449줄(19,909토큰)까지 자랐다. 2026-08-07 축소 시점의
+// 실측 근거:
+//   · Anthropic 공식 권고는 CLAUDE.md ~200줄
+//   · 이 세션 오류 8건 중 3건이 "문서를 믿고 측정하지 않아서" 발생했다
+//   · ①~⑤(기계 검증 가능 층)는 위반 0건 — 즉 링크는 멀쩡한데 **단정이 썩어 있었다**
+//
+// 예산을 올리려면 **왜 올려야 하는지를 이 주석에 적고** 올려라. 숫자만 바꾸면
+// 다음 사람이 같은 이유로 또 올리고, 1년 뒤 다시 449줄이 된다.
+const BUDGETS: { file: string; maxLines: number; why: string }[] = [
+  { file: 'CLAUDE.md', maxLines: 220, why: '목표 200줄 + 통상 편집 여유 10%' },
+  { file: 'AGENTS.md', maxLines: 80, why: '포인터 전용 — 규칙 본문 금지' },
+];
+
+for (const b of BUDGETS) {
+  const p = path.join(ROOT, b.file);
+  if (!fs.existsSync(p)) continue;
+  const n = fs.readFileSync(p, 'utf8').split(/\r?\n/).length;
+  if (n > b.maxLines) {
+    add(
+      '⑥ 항상 로드 예산',
+      `${b.file}:${n}`,
+      `${n}줄 > 예산 ${b.maxLines}줄 (${b.why}). ` +
+        `줄이거나, 예산을 올려야 할 근거를 scripts/checkDocIntegrity.ts의 BUDGETS 주석에 적고 올릴 것`,
+    );
+  }
+}
+
+// ── ⑦ `파일:행` 참조가 실제 행 수 안에 있는가 ─────────────────────────────
+// ②는 파일 **존재**만 본다. 행 번호는 코드가 자라면 조용히 어긋나고, 어긋난 채로
+// "config/generation.ts:32를 보라"고 하면 다음 사람이 엉뚱한 줄을 읽는다.
+// 실제로 이 저장소에서 WBS의 `574·694행`이 `625·745행`으로 드리프트해 있었다.
+for (const f of allMd) {
+  if (isHistory(f)) continue;
+  const lines = stripFences(fs.readFileSync(f, 'utf8')).split(/\r?\n/);
+  lines.forEach((line, i) => {
+    if (isGuardrail(lines, i)) return;
+    for (const m of line.matchAll(/`((?:src|scripts)\/[A-Za-z0-9_@./[\]-]+?\.[a-z]{2,4}):(\d+)`/g)) {
+      const target = path.join(ROOT, m[1]);
+      if (!fs.existsSync(target)) continue; // ②가 이미 잡는다 — 중복 보고 금지
+      const total = fs.readFileSync(target, 'utf8').split(/\r?\n/).length;
+      if (Number(m[2]) > total) {
+        add(
+          '⑦ 행 참조',
+          `${rel(f)}:${i + 1}`,
+          `\`${m[1]}:${m[2]}\` — 그 파일은 ${total}행뿐이다 (행 번호가 드리프트했다)`,
+        );
+      }
+    }
+  });
+}
+
 // ── 보고 ──────────────────────────────────────────────────────────────────
 const byCheck = new Map<string, Violation[]>();
 for (const v of violations) {
@@ -288,8 +348,12 @@ for (const v of violations) {
 
 console.log(`문서 정합성 검사 — md ${allMd.length}개 · ADR ${adrs.length}개\n`);
 
+// 검사 개수는 세어서 출력한다 — 상수로 박으면 검사를 추가할 때 조용히 어긋난다
+// (실제로 헤더가 "4종"인데 출력이 "5/5"인 드리프트가 있었다).
+const TOTAL_CHECKS = 7;
+
 if (violations.length === 0) {
-  console.log('위반 없음 (5/5 통과)');
+  console.log(`위반 없음 (${TOTAL_CHECKS}/${TOTAL_CHECKS} 통과)`);
   process.exit(0);
 }
 
