@@ -41,6 +41,10 @@ GET https://testprobe.xzawed.xyz/api/v1/proxy?…  → 404   (rewrite되어 라�
 `SUBDOMAIN_PASSTHROUGH_PREFIXES = ['/api/v1/proxy']`. 패스스루는 rewrite를 건너뛰고
 일반 응답 경로로 흘러가 보안 헤더가 적용되고 `isApi` 판정으로 CSP는 건너뛴다(이중 적용 방지).
 
+> **구현 주의**: 패스스루를 서브도메인 분기에서 **조기 `return`으로 처리하면 안 된다.**
+> 그러면 아래쪽 보안 헤더 설정 블록(`X-Content-Type-Options`·HSTS 등)을 통째로 건너뛴다.
+> rewrite만 생략하고 **반드시 일반 응답 경로로 흘려보낼 것.**
+
 `/api/*` 전체를 열지 않은 이유: 세션 쿠키가 `__Host-` 프리픽스라 호스트 전용이므로
 생성 사이트가 방문자 세션을 탈취할 수는 없지만(실측 확인), 불필요한 엔드포인트를
 서브도메인에 노출할 이유가 없다.
@@ -220,6 +224,5 @@ eviction 리셋 · M-7 IPv4-mapped IPv6 SSRF 우회 · M-8 `x-real-ip` 신뢰.
 
 ## 관련 문서
 
-- [설계 spec](../superpowers/specs/2026-07-28-published-site-proxy-authz-design.md)
-- 구현 계획서(`docs/superpowers/plans/2026-07-28-published-site-proxy-authz.md`) — 기능 출하 후 삭제됨. 결정은 본 ADR·[설계 spec](../superpowers/specs/2026-07-28-published-site-proxy-authz-design.md)이 진실원
+- 구현 계획서 및 설계 spec(`docs/superpowers/plans/`·`docs/superpowers/specs/`의 2026-07-28 문서) — 각각 기능 출하 후·2026-08-07에 삭제됨. **결정은 본 ADR이 진실원**이다
 - [의존성 감사 면제 목록](../security/audit-waivers.md)

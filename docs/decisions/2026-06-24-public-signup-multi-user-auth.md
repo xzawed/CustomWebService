@@ -4,7 +4,7 @@
 
 - **날짜:** 2026-06-24
 - **상태:** 채택됨 (구현 완료)
-- **관련 스펙:** [docs/superpowers/specs/2026-06-24-public-signup-multi-user-auth-design.md](../superpowers/specs/2026-06-24-public-signup-multi-user-auth-design.md)
+- **현재 시제 흐름도:** [docs/architecture/auth.md](../architecture/auth.md) (설계 spec은 본 ADR에 흡수 후 삭제 — 2026-08-07)
 
 ---
 
@@ -70,6 +70,7 @@ SQLite 컷오버(P8.2, 2026-06-23)로 인증 방식이 "셀프호스트 단일 �
 - **비밀번호 재설정 후 세션**: 무상태 JWT라 기존 세션 즉시 무효화 불가. V1은 reset 토큰 일회성 처리만 하고 타 세션 강제 로그아웃 미지원.
 - **인메모리 per-IP 레이트리밋**: 서버 재시작 시 초기화. 단일 인스턴스 전제 — 멀티 인스턴스 전환 시 Redis 등 외부 저장소 필요.
 - **인증 신선도 비용**: `assertEmailVerified`가 매 생성 요청마다 DB 1회 read. 고빈도 아닌 생성 연산에서 무방.
+- **이메일 enumeration — 의도된 비대칭**: `forgot-password`는 존재 여부와 무관하게 **항상 generic 200**(노출 방지)이지만, `signup` 중복은 **명시적 409**("이미 가입된 이메일")를 반환한다. 가입 UX를 우선하고 signup 쪽 enumeration 위험은 낮다고 판단한 트레이드오프다. **"일관성"을 이유로 둘을 같은 정책으로 통일하지 말 것** — 한쪽만 보고 고치면 의도가 사라진다.
 
 ### 프로덕션 초기화 절차
 

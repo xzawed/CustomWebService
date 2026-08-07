@@ -29,7 +29,7 @@
 
 ---
 
-## 검증된 API 목록
+## 그날 고른 10개 (2026-05-01)
 
 | # | 이름 | UUID | 카테고리 | 검증 엔드포인트 |
 |---|------|------|----------|----------------|
@@ -46,164 +46,24 @@
 
 ---
 
-## 상세 정보
+## 호출 상세는 카탈로그에 있다 (사본 삭제, 2026-08-07)
 
-### 1. Random User
+`baseUrl`·`requiresProxy`·`corsSupported`·rate limit·응답 데이터 경로·fetch 예시는
+**전부 `src/data/apiCatalog.json` 안에 있다** — 예시 코드는 `endpoints[].exampleCall`,
+데이터 경로는 `endpoints[].responseDataPath` 필드다. 여기 있던 사본은 2026-05-01 시점 값이라
+카탈로그와 어긋나기만 했고, **AI 생성이 실제로 읽는 것도 카탈로그이지 이 문서가 아니다.**
 
-- **baseUrl**: `https://randomuser.me`
-- **requiresProxy**: false
-- **검증 엔드포인트**: `GET /api/`
-- **responseDataPath**: `results`
-- **응답 구조**: `{ results: [{name, email, picture, location, ...}], info: {...} }`
-
-```js
-const res = await fetch('/api/v1/proxy?apiId=6890346f-fa79-483c-bce2-f841ad3420fd&proxyPath=%2Fapi%2F');
-const data = await res.json();
-const items = data.results; // [{name, email, picture, location, ...}]
+```bash
+node -e "const c=require('./src/data/apiCatalog.json');
+console.log(JSON.stringify(c.find(x => x.id === '위 표의 UUID'), null, 2))"
 ```
 
----
+명령으로 복원되지 않는 두 가지만 남긴다.
 
-### 2. JSONPlaceholder
-
-- **baseUrl**: `https://jsonplaceholder.typicode.com`
-- **requiresProxy**: false
-- **검증 엔드포인트**: `GET /posts`, `GET /todos`, `GET /users`
-- **responseDataPath**: 없음 (direct array)
-
-```js
-const res = await fetch('/api/v1/proxy?apiId=04e79764-c27c-46d8-b63c-2794fbe5a3f7&proxyPath=%2Fposts');
-const items = await res.json(); // [{id, userId, title, body}]
-```
-
----
-
-### 3. PokéAPI
-
-- **baseUrl**: `https://pokeapi.co`
-- **requiresProxy**: false
-- **검증 엔드포인트**: `GET /api/v2/pokemon`
-- **responseDataPath**: `results`
-- **응답 구조**: `{ count, next, previous, results: [{name, url}] }`
-
-```js
-const res = await fetch('/api/v1/proxy?apiId=02cea7ab-d89a-4e51-b9c5-32ed0fd00338&proxyPath=%2Fapi%2Fv2%2Fpokemon');
-const data = await res.json();
-const items = data.results; // [{name, url}]
-```
-
----
-
-### 4. wheretheiss.at (구: Open Notify)
-
-- **baseUrl**: `https://api.wheretheiss.at`
-- **requiresProxy**: true (CORS 미지원)
-- **검증 엔드포인트**: `GET /v1/satellites/25544`
-- **응답 구조**: `{ latitude, longitude, altitude, velocity, timestamp, ... }`
-
-> Open Notify는 2024년 서비스 종료. 동일 UUID로 wheretheiss.at으로 교체됨.
-
-```js
-// ISS 현재 위치
-const res = await fetch('/api/v1/proxy?apiId=9a04cd18-15bb-4424-a4f1-10ddf728749b&proxyPath=%2Fv1%2Fsatellites%2F25544');
-const data = await res.json();
-// data.latitude, data.longitude, data.altitude, data.velocity
-```
-
----
-
-### 5. Hacker News API
-
-- **baseUrl**: `https://hacker-news.firebaseio.com`
-- **requiresProxy**: false
-- **검증 엔드포인트**: `GET /v0/topstories.json`
-- **responseDataPath**: 없음 (integer ID 배열 직접 반환)
-
-```js
-const res = await fetch('/api/v1/proxy?apiId=de8f5375-22dc-4573-9a64-2903c150fece&proxyPath=%2Fv0%2Ftopstories.json');
-const storyIds = await res.json(); // [integer IDs]
-// 개별 기사: /api/v1/proxy?apiId=...&proxyPath=/v0/item/STORY_ID.json
-```
-
----
-
-### 6. Spaceflight News API
-
-- **baseUrl**: `https://api.spaceflightnewsapi.net`
-- **requiresProxy**: false
-- **검증 엔드포인트**: `GET /v4/articles/`
-- **responseDataPath**: `results`
-- **응답 구조**: `{ count, next, previous, results: [{id, title, url, imageUrl, newsSite, summary, publishedAt}] }`
-
-```js
-const res = await fetch('/api/v1/proxy?apiId=8461e4de-ba6d-4a4d-ae24-35bd7c47c0c7&proxyPath=%2Fv4%2Farticles%2F');
-const data = await res.json();
-const items = data.results;
-```
-
----
-
-### 7. The Cat API
-
-- **baseUrl**: `https://api.thecatapi.com`
-- **authType**: none (키 없이 기본 호출 가능 — 2026-05-01 실측 확인)
-- **requiresProxy**: false, **corsSupported**: true
-- **rate limit**: 10건/분 (키 없이)
-- **검증 엔드포인트**: `GET /v1/images/search`
-- **응답 구조**: `[{id, url, width, height}]` (배열 직접 반환)
-
-```js
-const res = await fetch('/api/v1/proxy?apiId=f1b6d26f-4cb4-4ea7-844b-8c6ba3b29a8a&proxyPath=%2Fv1%2Fimages%2Fsearch&limit=10');
-const images = await res.json(); // [{id, url, width, height}]
-```
-
----
-
-### 8. TheMealDB
-
-- **baseUrl**: `https://www.themealdb.com/api/json/v1/1`
-- **authType**: none (키 "1"은 공개 테스트 키)
-- **requiresProxy**: false, **corsSupported**: true
-- **주의**: 무료 키(v1/1)는 100건 이하·단일 재료 필터·기본 기능만. v2 기능은 Patreon 키 필요.
-
-```js
-const res = await fetch('/api/v1/proxy?apiId=da2e14a4-e8c6-4164-835e-6ce8b212d59b&proxyPath=%2Frandom.php');
-const data = await res.json();
-const meal = data.meals[0]; // {strMeal, strCategory, strInstructions, strMealThumb}
-```
-
----
-
-### 9. The Color API
-
-- **baseUrl**: `https://www.thecolorapi.com`
-- **authType**: none
-- **requiresProxy**: false, **corsSupported**: true
-- **rate limit**: 없음 (공식 명시 없음, 사실상 무제한)
-
-```js
-const res = await fetch('/api/v1/proxy?apiId=522f7158-7de0-4447-80bb-ea71a8e56b50&proxyPath=%2Fid&hex=FF5733');
-const data = await res.json();
-// data.name.value, data.rgb, data.hsl
-```
-
----
-
-### 10. NASA 오늘의 천문 사진
-
-- **baseUrl**: `https://api.nasa.gov`
-- **authType**: api_key — **DEMO_KEY 공개 키 사용 (계정 등록 불필요)**
-- **requiresProxy**: false, **corsSupported**: true
-- **rate limit**: 시간당 30건/IP, 일 50건/IP (DEMO_KEY 기준)
-- **검증 엔드포인트**: `GET /planetary/apod`
-- **응답 구조**: `{ date, title, explanation, url, hdurl, media_type }`
-- **주의**: DEMO_KEY는 auth_config의 default_key로 자동 삽입됨. 신용카드·가입 불필요.
-
-```js
-const res = await fetch('/api/v1/proxy?apiId=7b66ab19-4d00-4d39-a4f9-2c2b6c6367a4&proxyPath=%2Fplanetary%2Fapod');
-const data = await res.json();
-// data.title, data.explanation, data.url (이미지 URL), data.date
-```
+- **wheretheiss.at은 Open Notify의 UUID를 물려받았다.** Open Notify가 2024년 종료되어
+  `9a04cd18-…` **행의 내용만 교체**했다. UUID가 같다고 같은 업스트림이라고 단정하지 말 것.
+- **NASA DEMO_KEY 한도**(2026-05-01 문서 기준): 시간당 30건/IP · **일 50건/IP**.
+  카탈로그 `rate_limit` 에는 `"30"` 만 들어 있어 **일 한도는 이 줄에만 있다.**
 
 ---
 
