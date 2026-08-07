@@ -1,7 +1,7 @@
 // scripts/checkDocIntegrity.ts
 // Run: pnpm docs:check
 //
-// 문서 정합성 검사 8종. 트리거·경로·명령어는 **테스트도 lint도 안 잡는** 유일한
+// 문서 정합성 검사 9종. 트리거·경로·명령어는 **테스트도 lint도 안 잡는** 유일한
 // 문서 요소이고, 실제로 죽어 있던 것이 이미 2건 나왔다
 // (ENV_VAR_DENYLIST — 보안 ADR / isNotFound — SQLite 컷오버 때 제거).
 //
@@ -352,7 +352,14 @@ if (currentTenseLines > CURRENT_TENSE_BUDGET) {
 // ── ⑦ `파일:행` 참조가 실제 행 수 안에 있는가 ─────────────────────────────
 // ②는 파일 **존재**만 본다. 행 번호는 코드가 자라면 조용히 어긋나고, 어긋난 채로
 // "config/generation.ts:32를 보라"고 하면 다음 사람이 엉뚱한 줄을 읽는다.
-// 실제로 이 저장소에서 WBS의 `574·694행`이 `625·745행`으로 드리프트해 있었다.
+//
+// ⚠️ **범위 한계를 알고 쓸 것 (2026-08-07 재검증에서 지적됨).**
+//  (a) `` `path/file.ts:NNN` `` 형태만 본다. WBS의 "625·745행이 …" 처럼 **파일명이 같은 줄에
+//      없는 산문 참조**는 못 잡는다 — 이 검사의 동기가 된 바로 그 드리프트가 그 형태였다.
+//      "가장 가까운 파일 언급과 묶는" 휴리스틱은 오탐을 만들어 검사 신뢰를 깎으므로 넣지 않는다.
+//  (b) **총 행수 초과만** 잡는다. 파일 범위 *안*에서 어긋난 참조(더 흔한 드리프트)는
+//      구조적으로 못 잡는다 — 그 줄에 무엇이 있어야 하는지를 모르기 때문이다.
+// 즉 ⑦은 "명백히 죽은 참조"만 거른다. 행 참조를 쓸 때는 그 사실을 감안할 것.
 for (const f of allMd) {
   if (isHistory(f)) continue;
   const lines = stripFences(fs.readFileSync(f, 'utf8')).split(/\r?\n/);
@@ -373,6 +380,63 @@ for (const f of allMd) {
   });
 }
 
+// ── ⑧ `system-spec §N.N` 절 포인터가 실재하는가 ────────────────────────────
+// ⑦이 **행** 참조 드리프트를 잡는다면 이건 **절** 참조 드리프트를 잡는다. 같은 부류다 —
+// 대상 문서가 개편되면 번호가 조용히 어긋나고, 포인터를 따라간 사람은 엉뚱한 규칙을 읽는다.
+//
+// 2026-08-07 실측: CLAUDE.md가 AI 타임아웃 규칙을 `system-spec §4.3`으로 가리켰는데
+// §4.3은 **CSP 규칙**이었다(실제 위치는 §3.3). 링크 자체는 유효해서 ③이 못 잡았고,
+// 행 번호가 아니라 절 번호라 ⑦도 못 잡았다 — **어느 검사에도 안 걸리는 사각지대**였다.
+//
+// ⚠️ **이 검사의 한계를 알고 쓸 것.** 번호만 적힌 포인터는 *존재 여부*만 본다 —
+// 위의 §4.3처럼 **실재하지만 엉뚱한 절**을 가리키는 것은 못 잡는다(오늘의 그 버그다).
+// 그래서 **제목 힌트**를 함께 적으면 그것까지 검증한다:
+//     `system-spec §3.3 (AI 호출 타임아웃)`   ← 괄호 안이 실제 제목에 포함되는지 확인
+// 힌트를 붙이는 것이 권장이고, 붙이지 않으면 약한 검사만 걸린다.
+{
+  const specPath = path.join(ROOT, 'docs/architecture/system-spec.md');
+  if (fs.existsSync(specPath)) {
+    const sections = new Map<string, string>();
+    for (const line of fs.readFileSync(specPath, 'utf8').split(/\r?\n/)) {
+      const m = /^#{2,4}\s+([0-9]+(?:\.[0-9]+)*)\s+(.*)$/.exec(line);
+      if (m) sections.set(m[1], m[2]);
+    }
+    for (const f of allMd) {
+      if (isHistory(f)) continue;
+      const lines = stripFences(fs.readFileSync(f, 'utf8')).split(/\r?\n/);
+      lines.forEach((line, i) => {
+        if (isGuardrail(lines, i)) return;
+        // `system-spec §3.3` 또는 `system-spec §3.3 (제목 힌트)`
+        for (const m of line.matchAll(/system-spec §([0-9]+(?:\.[0-9]+)*)(?:\s*\(([^)]{2,40})\))?/g)) {
+          const [, num, hint] = m;
+          const title = sections.get(num);
+          if (title === undefined) {
+            add(
+              '⑧ 절 포인터',
+              `${rel(f)}:${i + 1}`,
+              `\`system-spec §${num}\` — system-spec.md에 그런 절이 없다 ` +
+                `(실재: ${[...sections.keys()].sort().join(' · ')})`,
+            );
+            continue;
+          }
+          // 힌트가 있으면 **가리키는 절이 맞는지**까지 본다 — 번호만으로는 못 잡는 층이다.
+          if (hint) {
+            const norm = (s: string): string => s.replace(/[\s`*🔇]/g, '');
+            if (!norm(title).includes(norm(hint))) {
+              add(
+                '⑧ 절 포인터',
+                `${rel(f)}:${i + 1}`,
+                `\`system-spec §${num} (${hint})\` — §${num}의 실제 제목은 "${title}"이다. ` +
+                  `번호나 힌트 중 하나가 틀렸다`,
+              );
+            }
+          }
+        }
+      });
+    }
+  }
+}
+
 // ── 보고 ──────────────────────────────────────────────────────────────────
 const byCheck = new Map<string, Violation[]>();
 for (const v of violations) {
@@ -385,7 +449,7 @@ console.log(`문서 정합성 검사 — md ${allMd.length}개 · ADR ${adrs.len
 
 // 검사 개수는 세어서 출력한다 — 상수로 박으면 검사를 추가할 때 조용히 어긋난다
 // (실제로 헤더가 "4종"인데 출력이 "5/5"인 드리프트가 있었다).
-const TOTAL_CHECKS = 8;
+const TOTAL_CHECKS = 9;
 
 if (violations.length === 0) {
   console.log(`위반 없음 (${TOTAL_CHECKS}/${TOTAL_CHECKS} 통과)`);

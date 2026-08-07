@@ -153,6 +153,37 @@ describe('EventBus', () => {
       unsubscribe();
     });
 
+    // ⚠️ **비동기 거부와 동기 throw 는 다른 경로다.**
+    // `Promise.resolve(handler(event))` 는 `handler(event)` 를 **먼저 평가**하므로,
+    // 핸들러가 동기적으로 던지면 `.catch` 가 붙기 전에 예외가 나간다.
+    // 그러면 emit 호출부 — 계정 삭제·생성 파이프라인·카탈로그 활성화 — 가 통째로 실패한다.
+    // 이벤트는 감사·부가 기록이지 본 작업의 성공 조건이 아니므로 **절대 전파되면 안 된다.**
+    // (2026-08-07 실측으로 전파를 확인하고 `try` 로 막았다.)
+    it('동기적으로 throw 하는 핸들러가 emit 호출부를 깨뜨리지 않는다', async () => {
+      const { logger } = await import('@/lib/utils/logger');
+      const syncThrower = vi.fn(() => {
+        throw new Error('동기 throw');
+      });
+      const normalHandler = vi.fn();
+
+      const unsub1 = eventBus.on(syncThrower);
+      const unsub2 = eventBus.on(normalHandler);
+
+      // 호출부가 깨지지 않는다 — 이게 핵심 단언이다
+      expect(() => eventBus.emit(TEST_EVENT)).not.toThrow();
+      await new Promise((r) => setTimeout(r, 10));
+
+      // 그리고 뒤 핸들러도 계속 호출된다
+      expect(normalHandler).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        'EventBus handler threw synchronously',
+        expect.objectContaining({ type: 'USER_SIGNED_UP' }),
+      );
+
+      unsub1();
+      unsub2();
+    });
+
     it('async 에러 핸들러가 여러 개여도 모두 logger.warn을 호출한다', async () => {
       const { logger } = await import('@/lib/utils/logger');
       const errorHandler1 = vi.fn().mockRejectedValue(new Error('에러1'));

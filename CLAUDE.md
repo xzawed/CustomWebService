@@ -105,7 +105,7 @@ ADR은 "왜 이렇게 됐는지"이고 **대부분 이미 한 번 사고가 난 
 - **`x-forwarded-for`는 최우측만 신뢰**하고 `x-real-ip`는 신뢰하지 않는다. 최좌측·`x-real-ip`는
   클라이언트가 위조할 수 있어 per-IP 리밋이 무력화된다. 식별 불가 시 `'unknown'` 단일 버킷(fail-closed)
 - **인메모리 레이트리밋은 활성 윈도를 evict하지 않는다.** 우회보다 과차단이 안전하다 ·
-  [system-spec §4.1](docs/architecture/system-spec.md)
+  [system-spec §4.1 (인메모리 레이트리밋)](docs/architecture/system-spec.md)
 - **`railway.toml`에 `startCommand`를 넣지 말 것.** Dockerfile 배포에서 이미지 `ENTRYPOINT`를
   덮어써 `chown /data` + `su-exec`가 실행되지 않고 **컨테이너가 root로 뜬다** ·
   [트러블슈팅](docs/guides/railway-deploy-troubleshooting.md)
@@ -113,12 +113,15 @@ ADR은 "왜 이렇게 됐는지"이고 **대부분 이미 한 번 사고가 난 
   인증은 `@/lib/auth/local-auth-edge`를 **동적 import로만** — `local-auth-config`(scrypt) 정적 import 금지.
   임포트 추가 시 체인 전체를 역추적하고 `pnpm test:prod`로 확인
 - **AI 호출 타임아웃은 `Promise.race`만으로 끝내지 말고 `AbortSignal`을 함께 넘길 것.**
-  race가 이겨도 업스트림은 살아 있어 **토큰 비용이 이중 청구**된다 · [system-spec §4.3](docs/architecture/system-spec.md)
+  race가 이겨도 업스트림은 살아 있어 **토큰 비용이 이중 청구**된다 · [system-spec §3.3 (AI 호출 타임아웃)](docs/architecture/system-spec.md)
 - **병합했으면 배포가 실제로 됐는지 확인한다.** 조용한 미배포가 **3종** 있고 전부 health 200이라
   드러나지 않는다. 세 번째(**런 자체가 생성되지 않음**)는 배포 목록이 아니라 **런 목록**을 봐야
   보인다 · [트러블슈팅](docs/guides/railway-deploy-troubleshooting.md)
-- **추천 라우트(`suggest-*`)는 전부 `createForTask('suggestion')`(Haiku).** `create()` 기본(Sonnet 5)을
-  쓰면 **조용히 3배 단가** — 테스트도 CI도 비용은 안 잡는다
+- **모델 ID를 어디에도 하드코딩하지 말 것.** `createForTask('suggestion')`(Haiku) 또는 —
+  tool use가 필요해 `IAiProvider`를 못 쓰면 — `resolveTaskModel('suggestion')`을 거친다.
+  `create()` 기본(Sonnet 5)을 쓰면 **조용히 3배 단가**이고, 하드코딩하면 **`AI_MODEL_*` env가
+  그 경로에만 닿지 않는다**(허용목록 검증·경고도 건너뛴다). 실제로 `preferencesRecommender`·
+  `featureExtractor` 2곳이 그랬다(2026-08-07 발견·수정). **테스트도 CI도 비용은 안 잡는다**
 - **`RATE_LIMIT_BYPASS_USER_IDS` 적용 시 `logger.info('Rate limit bypass applied', ...)` 필수.**
   무로깅 우회는 감사 흔적이 사라진다 — 어떤 게이트도 이걸 검출하지 않는다
 

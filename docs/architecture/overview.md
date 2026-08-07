@@ -176,7 +176,7 @@
 
 | 이벤트 | 발행 위치 |
 |--------|----------|
-| `USER_SIGNED_UP` | `authService.signup()` — 회원가입 완료 시 |
+| `USER_SIGNED_UP` | `api/v1/auth/signup/route.ts` — 가입 성공 직후. **서비스가 아니라 라우트가 발행한다**(`USER_DELETED`와 같은 자리) |
 | `USER_DELETED` | `DELETE /api/v1/auth/account` — 계정 삭제 커밋 **이후** |
 | `PROJECT_CREATED` / `PROJECT_DELETED` / `PROJECT_PUBLISHED` / `PROJECT_UNPUBLISHED` | `projectService.ts` |
 | `CODE_GENERATED` | `generationSaver.ts` |

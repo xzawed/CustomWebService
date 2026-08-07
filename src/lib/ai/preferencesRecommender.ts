@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { resolveTaskModel } from '@/providers/ai/AiProviderFactory';
 import type {
   RelevanceGateResult,
   PreferenceSuggestion,
@@ -127,7 +128,9 @@ export async function recommendPreferences(input: RecommendInput): Promise<Relev
       .join('\n');
 
     const response = await client.messages.create({
-      model: 'claude-haiku-4-5',
+      // tool use 가 필요해 `IAiProvider` 를 못 쓴다. 모델 해석만 팩토리와 공유한다 —
+      // 하드코딩하면 `AI_MODEL_SUGGESTION` 이 이 경로에만 닿지 않는다.
+      model: resolveTaskModel('suggestion'),
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       tools: [RECOMMEND_PREFERENCES_TOOL],
