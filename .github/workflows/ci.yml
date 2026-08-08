@@ -42,16 +42,23 @@ jobs:
   #
   # ⚠️ needs 체인에 넣지 않는다(독립 잡).
   #
-  # **PR 에서는 차단하고, main push 에서는 차단하지 않는다.**
+  # **PR 에서는 red 가 되고, main push 에서는 red 가 되지 않는다.**
   #   · main push 를 red 로 만들면 Railway 의 Wait for CI 가 **다음 코드 배포를 SKIPPED** 로
   #     만들고, SKIPPED 는 CI 를 다시 green 으로 만들어도 되살아나지 않는다.
-  #     (main 에 브랜치 보호가 없어 이 경로가 실재한다 — 2026-08-07 실측: protection 404)
   #   · 반면 **Railway 는 PR 런을 보지 않는다**(배포 대상 브랜치의 체크만 본다).
-  #     따라서 PR 에서 차단해도 배포 위험이 없고, **머지 전에 실제로 막힌다.**
+  #     따라서 PR 에서 red 가 돼도 배포 위험이 없다.
   #
-  # 2026-08-07 이전에는 무조건 `true` 였다. 그 결과 ⑥ 총량 예산·⑦ 행 참조·⑧ 절 포인터
-  # 위반이 전부 "보이지만 아무것도 막지 않는" 자문 층에 있었다 —
-  # 오너가 지적한 "계속되는 실수"의 구조가 정확히 그것이었다.
+  # ⚠️ **"머지를 막는다"고 읽지 말 것 — 막지 않는다.**
+  # 2026-08-08 실측: main 에는 활성 ruleset `PRIMARY` 가 있고(deletion · non_fast_forward ·
+  # pull_request), 그 안에 **`required_status_checks` 규칙이 0개**다. 즉 이 잡이 red 여도
+  # 머지 버튼도 `gh pr merge` 도 막히지 않는다. 이 설정이 하는 일은 **위반을 PR 에서 빨갛게
+  # 보이게 하는 것**까지다.
+  #
+  # 그 전 커밋(#303)은 "PR 에서 차단하게 한다"고 적었는데, 근거로 든 것이
+  # `/branches/main/protection` 의 404 였다. **그 404 는 레거시 API 가 ruleset 을 모를 뿐**이고
+  # 보호가 없다는 뜻이 아니었다 — CLAUDE.md G2 가 경고하는 프록시 지표 오독 그 자체다.
+  # 실제로 머지를 막으려면 ruleset `PRIMARY` 에 `required_status_checks` 로 이 잡을 추가해야
+  # 한다(**오너 액션** — WBS H2).
   docs-integrity:
     name: Docs Integrity
     runs-on: ubuntu-latest

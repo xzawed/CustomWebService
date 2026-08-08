@@ -110,6 +110,28 @@ describe('guardAlwaysLoadedBudget — 예산 초과 차단', () => {
     expect(runHook(write(lower, linesOf(300))).decision).toBe('deny');
   });
 
+  // ⚠️ 이 축이 18건 중 **0건**이었다. #304 는 `./` · `../` · `//` 같은 훨씬 드문 형태를
+  // 막으면서, **오타 한 글자로 나는** 파일명 대소문자는 통째로 통과시켰다.
+  // 2026-08-08 실측: `claude.md` · `Claude.md` · `CLAUDE.MD` · `agents.md` 로 400줄 Write 가 전부 ALLOW.
+  //
+  // 플랫폼에 따라 **정답이 다르다.** Windows/macOS 는 대소문자를 무시하므로 `agents.md` 는
+  // AGENTS.md 와 같은 파일이고 막아야 한다. Linux 는 구분하므로 진짜 다른 파일이고 막으면 오탐이다.
+  // 그래서 이름이 아니라 **파일시스템에 실제로 물어본** 결과를 기대값으로 쓴다.
+  const caseInsensitiveFs =
+    !fs.readdirSync(ROOT).includes('agents.md') && fs.existsSync(path.join(ROOT, 'agents.md'));
+
+  it.each(['agents.md', 'Agents.md', 'AGENTS.MD'])(
+    '파일명 대소문자 변형 %s — 대소문자 무시 FS 에서는 같은 파일이므로 차단한다',
+    (name) => {
+      const r = runHook(write(path.join(ROOT, name), linesOf(300)));
+      expect(r.decision).toBe(caseInsensitiveFs ? 'deny' : 'allow');
+    },
+  );
+
+  it('대소문자가 정확히 일치하는 정상 경로는 어느 플랫폼에서든 차단한다 (위 단언의 통제군)', () => {
+    expect(runHook(write(agents, linesOf(300))).decision).toBe('deny');
+  });
+
   it('Edit로 예산을 넘기는 것도 차단한다 (Write만 막으면 우회된다)', () => {
     const first = fs.readFileSync(agents, 'utf8').split(/\r?\n/)[0];
     const r = runHook({
