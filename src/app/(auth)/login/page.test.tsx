@@ -99,11 +99,28 @@ describe('LoginPage local(Credentials) mode', () => {
   // 그래서 reject를 목킹한 테스트는 초록이었지만 **프로덕션 시나리오는 재현하지 못했다.**
   // undefined를 성공으로 읽으면 `/dashboard`로 갔다가 세션이 없어 로그인으로 되돌아온다 —
   // 원인 표시가 없는 왕복이 된다. `AUTH_TRUST_HOST` 누락으로 `/api/auth/*`가 500일 때도 같다.
-  it('signIn이 undefined로 resolve하면(네트워크·서버 도달 실패) 에러를 표시하고 버튼을 되살린다', async () => {
-    mocks.signIn.mockResolvedValue(undefined);
-    renderComponent(<LoginPage />);
-    submit();
-    await expectRecoverableError();
+  //
+  // ⚠️ **이 단언을 "사용자가 에러 문구를 본다"로 읽지 말 것**(2026-08-08 감사 지적).
+  // `res === undefined`는 **항상** signIn이 `location.href='/api/auth/error'`를 이미 쓴 뒤다.
+  // happy-dom은 실제 이동을 하지 않아 여기서는 문구가 보이지만, 실제 브라우저는 그 페이지로 간다.
+  //
+  // 그래서 이 수정의 **실제 프로덕션 효과**는 문구 노출이 아니라 이것이다:
+  //   수정 전: signIn의 이동을 `location.assign('/dashboard')`가 덮어씀 → 세션 없어 로그인으로
+  //            되돌아옴 = **원인 없는 왕복**
+  //   수정 후: 덮어쓰지 않음 → **`/api/auth/error`에 착지**(무슨 일이 났는지는 최소한 드러난다)
+  // 단언이 지키는 것은 **그 fall-through가 없다는 것**이다. 문구 노출은 목의 부산물이다.
+  it('signIn이 undefined로 resolve하면 성공 경로로 빠지지 않는다 (에러 상태로 전이 + 버튼 복구)', async () => {
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => {});
+    try {
+      mocks.signIn.mockResolvedValue(undefined);
+      renderComponent(<LoginPage />);
+      submit();
+      await expectRecoverableError();
+      // 핵심 단언 — 성공 경로(`/dashboard` 이동)로 빠지지 않았다. **이것이 실제로 고쳐진 것이다.**
+      expect(assign).not.toHaveBeenCalled();
+    } finally {
+      assign.mockRestore();
+    }
   });
 
   // 좁지만 실재하는 경로: providers·csrf는 성공하고 **callback만 실패**하면
