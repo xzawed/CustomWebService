@@ -37,6 +37,9 @@ const BUDGETS = (() => {
   }
 })();
 
+/** 저장소 루트. 예산 조회(대소문자 판정)보다 **먼저** 필요하므로 여기서 선언한다. */
+const ROOT = path.resolve(import.meta.dirname, '..', '..');
+
 const countLines = (s) => s.split(/\r?\n/).length;
 
 function readStdin() {
@@ -79,9 +82,35 @@ const input = payload?.tool_input ?? payload?.toolInput ?? {};
 const filePath = input.file_path ?? input.filePath;
 if (!filePath) allow();
 
-const base = path.basename(String(filePath));
+const rawBase = path.basename(String(filePath));
+
+// ⚠️ 예산 조회는 **대소문자를 무시해야 한다.**
+//
+// 2026-08-08 실측: `claude.md` 로 400줄 Write 를 보내면 **ALLOW** 됐다.
+// `BUDGETS['claude.md']` 가 undefined 라 경로 비교에 **도달하기도 전에** 통과했기 때문이다.
+// Windows(NTFS)·macOS(APFS 기본)는 대소문자를 무시하므로 그 Write 는 **진짜 CLAUDE.md 를 덮어쓴다.**
+// #304 가 `./` · `../` 같은 훨씬 드문 형태를 막으면서 정작 **오타 한 글자로 나는 이 구멍**은 남겼다.
+//
+// 다만 Linux 는 대소문자를 구분하므로 `claude.md` 가 **진짜 다른 파일**일 수 있고,
+// 그때 막으면 오탐이다. 그래서 이름만 보지 않고 **파일시스템에 같은 파일인지 물어본다.**
+const budgetName = Object.keys(BUDGETS).find((k) => k.toLowerCase() === rawBase.toLowerCase());
+if (budgetName === undefined) allow();
+
+if (rawBase !== budgetName) {
+  let entries;
+  try {
+    entries = fs.readdirSync(ROOT);
+  } catch {
+    allow(); // 루트를 못 읽으면 판정하지 않는다(fail-open)
+  }
+  // 그 이름의 엔트리가 **실재**하면 별개 파일이다(대소문자 구분 FS) → 예산 대상이 아니다
+  if (entries.includes(rawBase)) allow();
+  // 엔트리에 없는데 존재한다면 대소문자 무시 FS → **같은 파일**이다 → 계속 진행
+  if (!fs.existsSync(path.join(ROOT, rawBase))) allow();
+}
+
+const base = budgetName; // 이후 비교·읽기·메시지는 **정규 이름**으로만 한다
 const budget = BUDGETS[base];
-if (budget === undefined) allow();
 
 // 저장소 루트의 그 파일인지 확인 — 하위 디렉터리의 동명 파일은 대상이 아니다.
 //
@@ -104,7 +133,6 @@ function canonical(p) {
   return s.replace(/^([A-Za-z]):/, (_, d) => `${d.toLowerCase()}:`).toLowerCase().replace(/\/+$/, '');
 }
 
-const ROOT = path.resolve(import.meta.dirname, '..', '..');
 const abs = String(filePath).replace(/\\/g, '/');
 if (canonical(abs) !== `${canonical(ROOT)}/${base.toLowerCase()}`) allow();
 
@@ -141,8 +169,8 @@ deny(
     `  1) 이 내용을 docs/ 아래 해당 주제 문서로 옮기고 여기엔 한 줄 포인터만 남긴다\n` +
     `     (판단 기준: **CI·테스트가 잡아주면 옮기고, 조용히 프로덕션이 깨지면 남긴다**)\n` +
     `  2) 같은 편집에서 다른 곳을 그만큼 줄인다\n` +
-    `  3) 예산을 올려야 한다면 **왜 올리는지를 scripts/checkDocIntegrity.ts의 BUDGETS 주석과 ` +
-    `이 파일의 BUDGETS 양쪽에 적고** 올린다. 숫자만 바꾸면 1년 뒤 다시 449줄이 된다.\n` +
+    `  3) 예산을 올려야 한다면 **scripts/doc-budgets.json 한 곳만** 고치고, ` +
+    `왜 올리는지를 그 파일의 _rationale 에 적는다. 숫자만 바꾸면 1년 뒤 다시 449줄이 된다.\n` +
     `\n` +
     `근거: docs/guides/agent-working-rules.md`,
 );
