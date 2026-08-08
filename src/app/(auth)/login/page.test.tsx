@@ -101,8 +101,15 @@ describe('LoginPage local(Credentials) mode', () => {
   // 원인 표시가 없는 왕복이 된다. `AUTH_TRUST_HOST` 누락으로 `/api/auth/*`가 500일 때도 같다.
   //
   // ⚠️ **이 단언을 "사용자가 에러 문구를 본다"로 읽지 말 것**(2026-08-08 감사 지적).
-  // `res === undefined`는 **항상** signIn이 `location.href='/api/auth/error'`를 이미 쓴 뒤다.
+  // `res === undefined`는 signIn이 `location.href`를 **이미 쓴 뒤**다.
   // happy-dom은 실제 이동을 하지 않아 여기서는 문구가 보이지만, 실제 브라우저는 그 페이지로 간다.
+  //
+  // 목적지는 **한 곳이 아니다.** `next-auth/react.js`의 signIn에 `return;`이 둘 있다:
+  //   · `if (!providers)`                       → `/api/auth/error`   (도달 실패·서버 500)
+  //   · `if (!provider || !providers[provider])` → `/api/auth/signin`  (provider 미등록)
+  // 이 주석은 처음에 "**항상** /api/auth/error"라고 적었는데 거짓이었다 — 반례가 같은 함수
+  // 6줄 아래 있었다. 진단하는 사람이 `/api/auth/signin` 착지 보고를 "그럴 리 없다"로
+  // 기각하게 만드는 종류의 오류다(G1: 전칭 단정은 전수 확인 뒤에만).
   //
   // 그래서 이 수정의 **실제 프로덕션 효과**는 문구 노출이 아니라 이것이다:
   //   수정 전: signIn의 이동을 `location.assign('/dashboard')`가 덮어씀 → 세션 없어 로그인으로

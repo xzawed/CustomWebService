@@ -7,6 +7,12 @@
 //
 // 규약: 페이로드는 반드시 `JSON.stringify`로 만든다. 쉘 문자열로 손 이스케이프하지 말 것 —
 // 훅을 짜는 동안 시험 하네스 버그가 **3번 연속** 같은 원인(쉘→node→JSON 3중 이스케이프)으로 났다.
+//
+// ⚠️ **이 파일만으로는 부족하다 — 판정이 실행 플랫폼의 파일시스템에 묶인다.**
+// 여기 단언은 훅을 서브프로세스로 돌리므로, 대소문자 축은 Windows/macOS 에서만 의미가 있고
+// CI(전 잡 `ubuntu-latest`)에서는 수정 전 훅으로도 통과한다(2026-08-08 감사 실측).
+// **경로 판정의 실질 검증은 `budgetPath.test.ts`** 에 있다 — 파일시스템을 주입해
+// 두 의미론을 어느 플랫폼에서나 시험한다. 이 파일은 **배선(도구·페이로드 처리)** 을 본다.
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';

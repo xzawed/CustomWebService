@@ -20,6 +20,7 @@
 // 차단은 stdout의 JSON `permissionDecision: "deny"` 로만 표현한다.
 import fs from 'node:fs';
 import path from 'node:path';
+import { canonical, resolveBudgetName } from './budgetPath.mjs';
 
 /**
  * 예산은 **`scripts/doc-budgets.json` 단일 출처**에서 읽는다.
@@ -93,48 +94,19 @@ const rawBase = path.basename(String(filePath));
 //
 // 다만 Linux 는 대소문자를 구분하므로 `claude.md` 가 **진짜 다른 파일**일 수 있고,
 // 그때 막으면 오탐이다. 그래서 이름만 보지 않고 **파일시스템에 같은 파일인지 물어본다.**
-const budgetName = Object.keys(BUDGETS).find((k) => k.toLowerCase() === rawBase.toLowerCase());
-if (budgetName === undefined) allow();
+// 판정 자체는 `budgetPath.mjs` 의 **순수 함수**에 있다 — 파일시스템을 주입받으므로
+// 두 FS 의미론(대소문자 무시/구분)을 **어느 플랫폼에서나** 단위 테스트할 수 있다.
+// 그렇게 나눈 이유는 `budgetPath.mjs` 헤더에 있다(CI 가 Linux 전용이라 생긴 사각지대).
+const base = resolveBudgetName(rawBase, Object.keys(BUDGETS), {
+  listDir: () => fs.readdirSync(ROOT),
+  exists: (name) => fs.existsSync(path.join(ROOT, name)),
+});
+if (base === null) allow();
 
-if (rawBase !== budgetName) {
-  let entries;
-  try {
-    entries = fs.readdirSync(ROOT);
-  } catch {
-    allow(); // 루트를 못 읽으면 판정하지 않는다(fail-open)
-  }
-  // 그 이름의 엔트리가 **실재**하면 별개 파일이다(대소문자 구분 FS) → 예산 대상이 아니다
-  if (entries.includes(rawBase)) allow();
-  // 엔트리에 없는데 존재한다면 대소문자 무시 FS → **같은 파일**이다 → 계속 진행
-  if (!fs.existsSync(path.join(ROOT, rawBase))) allow();
-}
-
-const base = budgetName; // 이후 비교·읽기·메시지는 **정규 이름**으로만 한다
 const budget = BUDGETS[base];
 
 // 저장소 루트의 그 파일인지 확인 — 하위 디렉터리의 동명 파일은 대상이 아니다.
-//
-// ⚠️ 경로 형식이 **한 가지가 아니다.** 실측(2026-08-07): Git Bash는 `/f/DEVELOPMENT/...`
-// (MSYS 형식)를 주는데 Windows Node의 `path.resolve`는 그걸 현재 드라이브 기준으로 해석해
-// `F:\f\DEVELOPMENT\...` 로 만든다. 그래서 단순 문자열 비교는 **항상 불일치 → 항상 통과**했다.
-// 시험하지 않았으면 아무것도 막지 못하는 훅을 배선할 뻔했다.
-/**
- * `F:\a\b` · `f:/a/b` · `/f/a/b` 를 전부 `f:/a/b` 로 정규화한다(Windows FS는 대소문자 무시).
- *
- * ⚠️ **`path.posix.normalize` 가 필수다.** 없으면 `./` · `../` · 중복 슬래시가 전부 훅을
- * 통과한다 — 2026-08-07 실측: `<root>/docs/../AGENTS.md` 로 300줄 Write 가 ALLOW 됐다.
- * 실수로 발생할 형태는 아니지만, **강제 게이트에 뚫린 구멍은 게이트가 아니다.**
- */
-function canonical(p) {
-  let s = String(p).replace(/\\/g, '/');
-  const msys = /^\/([A-Za-z])\/(.*)$/.exec(s); // /f/DEVELOPMENT/... → f:/DEVELOPMENT/...
-  if (msys) s = `${msys[1]}:/${msys[2]}`;
-  s = path.posix.normalize(s); // ./ · ../ · // 를 접는다
-  return s.replace(/^([A-Za-z]):/, (_, d) => `${d.toLowerCase()}:`).toLowerCase().replace(/\/+$/, '');
-}
-
-const abs = String(filePath).replace(/\\/g, '/');
-if (canonical(abs) !== `${canonical(ROOT)}/${base.toLowerCase()}`) allow();
+if (canonical(String(filePath)) !== `${canonical(ROOT)}/${base.toLowerCase()}`) allow();
 
 const real = path.join(ROOT, base); // 읽기는 항상 저장소 루트 기준으로 — 위 비교가 동일성을 보장한다
 const before = fs.existsSync(real) ? countLines(fs.readFileSync(real, 'utf8')) : 0;
