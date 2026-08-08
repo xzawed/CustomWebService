@@ -64,7 +64,7 @@ Railway 변수 **67 → 61개**. 살아 있어야 하는 9개(`NEXT_PUBLIC_AUTH_
 
 ## 사례 기록 — 2026-08-07 `.scamanager` 토큰 공개 노출 (⏳ 오너 회전 대기)
 
-근본원인 분석 중 발견됐다. **이 저장소 하나의 문제가 아니다.**
+근본원인 분석 중 발견됐다.
 
 | 항목 | 실측 |
 |---|---|
@@ -74,40 +74,10 @@ Railway 변수 **67 → 61개**. 살아 있어야 하는 9개(`NEXT_PUBLIC_AUTH_
 | 전송 | **평문 HTTP** + **URL 쿼리스트링**(`?token=…`) — 프록시·서버 액세스 로그에 남는다 |
 | 토큰 권한(스크립트 기준) | `GET /api/hook/verify` · `POST /api/hook/result`(리뷰 결과 **위조** 가능) |
 
-### 범위 — 워크스페이스 8개 저장소, 토큰은 저장소마다 다르다
-
-sha256 지문 대조 결과 **고유 토큰 8개**(공유 아님) → **회전은 저장소별로 각각** 필요하다.
-
-| 저장소 | 공개 | config 추적 | 전송 |
-|---|---|---|---|
-| **CustomWebService** | **PUBLIC** | 추적됨 → 이번에 해제 | HTTP |
-| **LangTrans** | **PUBLIC** | **추적 중** | **HTTP** |
-| **claude-grok-build-plugin** | **PUBLIC** | **추적 중** | HTTPS |
-| **xzawed-pais** | **PUBLIC** | **추적 중** | HTTPS |
-| SCAManager-test-samples | PRIVATE | 추적됨 | HTTP |
-| Noble-Watcher | PRIVATE | 미추적 ✔ | HTTP |
-| GoldCalc · TravellerInfo | **원격 없음**(아래) | 로컬에서 추적 중 | HTTP |
-
-**2026-08-08 재측정 — 위 표의 2건이 실제와 달랐다** (`gh api repos/.../contents/.scamanager`):
-
-- **`xzawedPAIS`는 존재하지 않는 이름이다. 실제는 `xzawed-pais`**(PUBLIC). 이 이름으로 찾으면
-  404가 나서 "이미 처리됐다"고 오인할 수 있다 — **런북이 헛다리를 짚게 하는 종류의 오류**다.
-- **GoldCalc · TravellerInfo는 GitHub에 없다**(`gh api` 404 · 소유 저장소 12개 목록에도 없음).
-  다만 로컬에 **원격추적 브랜치가 남아 있어 과거 푸시 흔적은 있다** → 삭제된 것으로 보인다.
-  **삭제 시점 이전에 공개였는지는 판정할 수 없다.** 모르는 것을 "안전"으로 적지 않는다 —
-  보수적으로 **회전 대상에 포함**한다. 로컬 `config.json`은 지금도 추적 중이고 평문 HTTP다.
-
-**비대상으로 확인된 것**(재조사 방지): `ArcanaInsight`는 `.scamanager/install-hook.sh`만 있고
-config 파일이 없다. `SCAManager` · `KeyCloakSDK` · `keycloak-sdk-php`는 `.scamanager` 자체가 없다.
-
-**현재 상태 요약**: 공개 저장소 **3곳(LangTrans · xzawed-pais · claude-grok-build-plugin)의
-HEAD에 토큰이 그대로 살아 있다.** CustomWebService만 HEAD가 정리됐고(히스토리는 남음),
-`config.example.json`의 토큰 자리는 자리표시자임을 확인했다.
-
-### 이번에 한 것 (이 저장소만)
+### 이번에 한 것
 
 - `.gitignore`에 `.scamanager/config.json` 추가 · `git rm --cached`로 추적 해제
-- `config.example.json` 추가(토큰 자리는 플레이스홀더)
+- `config.example.json` 추가(토큰 자리는 플레이스홀더 — 2026-08-08 확인)
 - 로컬 `config.json`은 남겨 훅 동작에 영향 없음
 
 ### ⚠️ 코드로는 끝나지 않는다 — 오너 액션
@@ -115,15 +85,17 @@ HEAD에 토큰이 그대로 살아 있다.** CustomWebService만 HEAD가 정리�
 **추적 해제는 앞으로의 노출만 막는다. 커밋 `b2186f4` 이하 히스토리에는 토큰이 그대로 있고,
 공개 저장소는 이미 클론·미러링됐을 수 있다. 유일한 실질 조치는 회전이다.**
 
-1. SCAManager에서 **공개 저장소 4곳의 토큰을 각각 폐기·재발급** — CustomWebService(히스토리에
-   잔존) · **LangTrans · xzawed-pais · claude-grok-build-plugin**(HEAD에 잔존, 2026-08-08 실측).
-   토큰은 저장소마다 다르므로 **한 번에 하나씩** 처리해야 한다
-2. 나머지 4곳(비공개 2 · 원격 삭제 2)도 같은 처리 권장 — 평문 HTTP 구간이 남아 있고,
-   삭제된 2곳은 **삭제 전 공개 여부를 판정할 수 없다**
-3. 각 저장소에서 `.gitignore` + `git rm --cached` 반복 — **CustomWebService에서 한 것과 동일**
-   (`config.example.json`으로 대체하면 훅 사용법은 유지된다)
-4. 서버를 **HTTPS 전용**으로, 토큰을 **쿼리스트링이 아니라 헤더**로 옮기는 것을 검토
+1. SCAManager에서 **이 저장소의 토큰을 폐기·재발급**한다. 토큰은 저장소마다 다르므로
+   이 조치는 **이 저장소에만** 해당한다
+2. 서버를 **HTTPS 전용**으로, 토큰을 **쿼리스트링이 아니라 헤더**로 옮기는 것을 검토
    (쿼리스트링 토큰은 액세스 로그에 영구 기록된다)
+
+> **범위 주의 — 이 문서는 이 저장소의 사건만 다룬다.**
+> `.scamanager`는 여러 저장소가 함께 쓰는 도구이므로 같은 형태의 노출이 다른 곳에도 있을 수
+> 있고, 실제로 2026-08-07~08에 워크스페이스 전수 조사를 해 **오너에게 직접 전달**했다.
+> 그 목록은 **여기에 싣지 않는다** — 공개 저장소에 "미회전 자격증명이 어디 있는지"를 적는 것은
+> 사건을 기록하는 게 아니라 **노출을 넓히는 것**이기 때문이다. 실제로 이 문서가 한때 그렇게
+> 자랐고, 2026-08-08 오너 지적으로 되돌렸다. 다른 저장소의 조치는 그 저장소에서 추적한다.
 
 > `.scamanager/pre-commit-secrets.sh`(gitleaks)가 저장소에 있는데 **`.git/hooks`에 설치돼
 > 있지 않다.** 설치돼 있었다면 최초 커밋에서 걸렸을 수 있다. 다만 그 훅은 gitleaks 바이너리가

@@ -706,7 +706,7 @@ glob 함정**을 다시 확인했다 — `'src/app/(main)/**/*.tsx'`는 매칭 0
 | 3 | ~~**F14 잔여 3개**~~ → ✅ **종결(2026-08-06)**. 조사 결과 **0종 분해** 확정 [ADR](../../decisions/2026-08-06-long-file-decomposition-scope.md). "길어서 쪼개자"로 다시 열지 말 것 |
 | 3′ | ~~**F20 — builder 결함 4건 수정**~~ | ✅ **완료(2026-08-07~08)**. 결함 1~5는 **소유권 토큰**·**신원 값** 으로 닫았고, 결함 6은 절반이 거짓 전제였음이 드러나 [#300](https://github.com/xzawed/CustomWebService/pull/300)에서 다시 닫았다(위 「결함 6 정정」) |
 | 4 | **A9** — `CORRECTIONS` 2건 동작 변경 여부 | **오너 판단.** 코드는 그대로 두고 함정만 문서화한 상태다. 지금 사고는 아니므로 급하지 않지만, `Dog API`·`Lorem Picsum`을 폐기할 일이 생기면 **선행조건**이 된다 |
-| 5 | **H1 — SCA Manager 토큰 회전** | **오너 액션(무료).** 2026-08-08 실측: **공개 저장소 3곳의 HEAD에 토큰이 살아 있다.** 이 저장소는 [#290](https://github.com/xzawed/CustomWebService/pull/290)에서 HEAD만 정리됐고 **히스토리에는 남아 있다** — 추적 해제로는 끝나지 않고 **서비스 측 회전만이 실효**다. 저장소별로 토큰이 다르므로 하나씩. 대상 목록·정정 이력은 [incident-response.md](../../security/incident-response.md) 「사례 기록 — 2026-08-07」 절 |
+| 5 | **H1 — 이 저장소의 SCA Manager 토큰 회전** | **오너 액션(무료).** [#290](https://github.com/xzawed/CustomWebService/pull/290)이 HEAD만 정리했고 **커밋 `b2186f4`(2026-04-08) 이하 히스토리에는 토큰이 남아 있다** — 추적 해제로는 끝나지 않고 **서비스 측 회전만이 실효**다. 토큰은 저장소마다 다르므로 **이 항목은 이 저장소 하나**를 가리킨다. 상세는 [incident-response.md](../../security/incident-response.md) 「사례 기록 — 2026-08-07」 절 |
 | 6 | **H2 — `required_status_checks` 추가** | **오너 액션.** main 은 **이미 보호돼 있다** — 활성 ruleset `PRIMARY`(deletion · non_fast_forward · **pull_request**). 직접 push·강제푸시·삭제는 전부 막힌다. **비어 있는 것은 `required_status_checks` 하나뿐(규칙 0개)** 이라, CI 가 red 인 PR 도 머지 버튼이 눌린다. 즉 오늘 만든 게이트는 **보이기만 하고 막지는 않는다.** 넣을 후보: `Docs Integrity` · `Lint & Type Check` · `Unit & Integration Tests` · `Build`. 대가는 체크가 끝날 때까지 머지가 대기하는 것이다(오늘 관측된 10초·43초 머지는 불가능해진다) |
 
 > **다음 세션 시작점**(2026-08-08 갱신): **코드가 단독으로 할 수 있는 일은 남아 있지 않다.**
