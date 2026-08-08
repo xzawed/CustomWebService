@@ -1,73 +1,169 @@
 // scripts/hooks/budgetPath.mjs
 //
-// **예산 훅의 경로 판정 로직 — 순수 함수로 분리했다.**
+// **예산 훅의 대상 판정 — 순수 함수. 파일시스템을 주입받는다.**
 //
-// 왜 분리했나: 훅 본체는 stdin 을 읽고 `process.exit` 하는 실행 스크립트라
-// 서브프로세스로만 시험할 수 있고, 그러면 **판정이 실행 플랫폼의 파일시스템에 묶인다.**
-// 2026-08-08 감사가 그 결과를 실측했다 — 파일명 대소문자 회귀 테스트 3건이
-// **Linux CI(전 잡 `ubuntu-latest`)에서는 수정 전 훅으로도 그대로 통과**했다.
-// 대소문자 구분 FS 에서는 기대값이 `allow` 인데 수정 전 훅도 `allow` 를 주기 때문이다.
-// 즉 **수정을 통째로 지워도 CI 는 초록이었다.**
+// ## 왜 문자열 정규화만으로는 안 되나 (2026-08-08)
 //
-// 여기 있는 함수들은 파일시스템을 **주입받으므로**, 두 가지 FS 의미론을 전부
-// 어느 플랫폼에서나 시험할 수 있다. 그것이 이 파일의 존재 이유다.
-import path from 'node:path';
+// 이 훅은 "편집 대상이 저장소 루트의 CLAUDE.md·AGENTS.md 인가" 를 판정한다.
+// 그 판정을 **경로 문자열 정규화**로만 하다가 **다섯 번 뚫렸다.** 매번 "이제 막힌다"고
+// 선언한 직후에 다음 표기법이 나왔다:
+//
+//   1. 경로 형식        MSYS `/f/…` vs `F:\…`                      (#294)
+//   2. 상대 요소        `./` · `../` · `//`                        (#304)
+//   3. 파일명 대소문자  `claude.md`                                (#306)
+//   4. 확장길이·UNC     `\\?\F:\…` · `\\localhost\F$\…` · `//./…`  (#307)
+//   5. 볼륨 GUID        `\\?\Volume{…}\…`                          (이 파일)
+//
+// 다섯 번 다 같은 구조적 이유다 — **정규화는 "아는 표기법"의 거부목록**이고,
+// Windows 는 같은 파일을 가리키는 표기법이 계속 나온다. 여섯 번째가 없다고 믿을 근거가 없다.
+//
+// ## 그래서 층을 쌓는다 — 셋이 서로 다른 것을 잡는다 (2026-08-08 실측)
+//
+//   표기                    ino/dev   realpath 문자열              문자열 정규화
+//   정상 드라이브            동일      F:\…            일치          일치
+//   볼륨 GUID               동일      F:\…            일치          ✗ (몰랐던 표기)
+//   UNC 관리공유            동일      \\localhost\F$\… **불일치**    일치
+//   MSYS `/f/…`             ENOENT    ENOENT                        일치
+//   통제군(다른 파일)        다름      다름                          다름
+//
+// 즉 **ino 는 UNC 를 잡지만 realpath 문자열은 못 잡고, 둘 다 MSYS 는 못 잡는다.**
+// 하나만 쓰면 반드시 구멍이 남는다. 셋 중 **하나라도 같다고 하면 같은 파일**로 본다 —
+// 차단 게이트에서 안전한 방향은 "더 많이 막는 쪽"이고, 오탐은 통제군 테스트가 지킨다.
 
 /**
- * `F:\a\b` · `f:/a/b` · `/f/a/b` · `\\?\F:\a\b` · `//localhost/F$/a/b` 를
- * 전부 `f:/a/b` 로 접는다.
+ * 경로를 디렉터리/파일명으로 쪼갠다. 구분자 혼용을 허용하고 플랫폼에 의존하지 않는다.
  *
- * ⚠️ **세 번 뚫린 자리다. 여기를 고칠 때는 회귀 테스트를 먼저 늘려라.**
- *  1. 경로 형식(MSYS `/f/…` vs `F:\…`) — 훅 최초 구현이 아무것도 막지 못했다
- *  2. `./` · `../` · `//` — `path.posix.normalize` 누락 (#304)
- *  3. Windows 확장길이·디바이스·UNC 접두사 — 아래 (2026-08-08)
+ * ⚠️ **원본 구분자를 보존한다.** `dir` 을 다시 파일시스템에 넘기기 때문이다 —
+ * Windows 의 `\\?\` 확장길이 경로는 **정규화를 우회해 백슬래시만 받으므로**,
+ * `/` 로 바꿔서 넘기면 realpath 가 실패한다(2026-08-08 테스트가 이걸 잡았다).
+ */
+function splitTail(p) {
+  const s = String(p);
+  const i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+  if (i === -1) return { dir: '.', base: s };
+  return { dir: s.slice(0, i) || s.slice(i, i + 1), base: s.slice(i + 1) };
+}
+
+/** 후행 슬래시를 **정규식 없이** 잘라낸다(`/\/+$/` 는 슬래시가 많은 입력에서 백트래킹한다). */
+function trimTrailingSlash(s) {
+  let end = s.length;
+  while (end > 0 && s[end - 1] === '/') end -= 1;
+  return s.slice(0, end);
+}
+
+/** 상대 요소(`.` · `..`)와 중복 슬래시를 접는다. `path.posix.normalize` 의 최소 대체물. */
+function collapse(s) {
+  const abs = s.startsWith('/');
+  const out = [];
+  for (const seg of s.split('/')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') {
+      if (out.length > 0 && out[out.length - 1] !== '..') out.pop();
+      else if (!abs) out.push('..');
+      continue;
+    }
+    out.push(seg);
+  }
+  return (abs ? '/' : '') + out.join('/');
+}
+
+/**
+ * 문자열 층 — `F:\a\b` · `f:/a/b` · `/f/a/b` · `\\?\F:\a\b` · `//host/F$/a/b` 를 `f:/a/b` 로 접는다.
  *
- * 3번은 실제 Edit 도구로 종단 실증됐다: `\\?\F:\…\AGENTS.md` 로 편집하면 훅이
- * 통과시키고 **진짜 AGENTS.md 가 94줄(예산 80)이 됐다.** 같은 편집을 정상 경로로
- * 하면 차단된다. Node 와 Write/Edit 도구가 이 표기를 그대로 받아 같은 파일에 쓰기 때문이다.
+ * ⚠️ **이것만으로는 부족하다.** 이 함수는 아는 표기법만 접는 **거부목록**이고 다섯 번 뚫렸다.
+ * `isSameFile` 의 **마지막 층**으로만 쓴다 — 파일시스템이 해석하지 못하는 표기(MSYS `/f/…`)를 담당한다.
  */
 export function canonical(p) {
-  let s = String(p).replace(/\\/g, '/');
+  let s = String(p).replaceAll('\\', '/');
 
-  // 확장길이(`\\?\`)·디바이스(`\\.\`) 접두사를 벗긴다. 벗기면 `F:/…` 또는 `UNC/host/share/…` 가 남는다.
+  // 확장길이(`\\?\`)·디바이스(`\\.\`) 접두사를 벗긴다 → `F:/…` 또는 `UNC/host/share/…` 가 남는다.
   const device = /^\/\/[?.]\//.exec(s);
   if (device) {
     s = s.slice(device[0].length);
     s = s.replace(/^UNC\//i, '//'); // `\\?\UNC\host\share\…` → `//host/share/…`
   }
-
   // 관리 공유 `//host/F$/…` 는 `F:/…` 와 **같은 파일**이다.
   s = s.replace(/^\/\/[^/]+\/([A-Za-z])\$\//, '$1:/');
-
-  const msys = /^\/([A-Za-z])\/(.*)$/.exec(s); // /f/DEVELOPMENT/… → f:/DEVELOPMENT/…
+  // MSYS(Git Bash) `/f/…` → `f:/…`  ← 파일시스템이 해석하지 못하는 유일한 축이다
+  const msys = /^\/([A-Za-z])\/(.*)$/.exec(s);
   if (msys) s = `${msys[1]}:/${msys[2]}`;
 
-  s = path.posix.normalize(s); // ./ · ../ · // 를 접는다
-  return s
-    .replace(/^([A-Za-z]):/, (_, d) => `${d.toLowerCase()}:`)
-    .toLowerCase()
-    .replace(/\/+$/, '');
+  s = collapse(s);
+  return trimTrailingSlash(s.replace(/^([A-Za-z]):/, (_, d) => `${d.toLowerCase()}:`).toLowerCase());
+}
+
+/** realpath 결과 비교용 — 구분자와 대소문자만 맞춘다. */
+const normReal = (p) => trimTrailingSlash(String(p).replaceAll('\\', '/').toLowerCase());
+
+/** `{ ino, dev }` 를 문자열 키로. 둘 중 하나라도 0/undefined 면 신뢰하지 않는다(일부 FS 는 0을 준다). */
+function identityKey(st) {
+  if (!st) return null;
+  const ino = String(st.ino ?? '');
+  const dev = String(st.dev ?? '');
+  if (!ino || ino === '0' || !dev) return null;
+  return `${ino}/${dev}`;
+}
+
+const attempt = (fn) => {
+  try {
+    return fn();
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * 두 경로가 **같은 파일**을 가리키는가. 위 표를 근거로 세 층을 겹친다.
+ *
+ * @param {string} inputPath  편집 대상 경로 (어떤 표기법이든)
+ * @param {string} targetPath 예산이 걸린 실제 파일 경로
+ * @param {{ stat?: (p: string) => unknown, realpath?: (p: string) => string }} fsProbe
+ *        `fs.statSync` · `fs.realpathSync.native` 를 주입한다. **주입하는 이유는 테스트다** —
+ *        실제 파일시스템에 의존하면 판정이 실행 플랫폼에 묶여 CI 가 눈이 먼다(#307 에서 실제로 그랬다).
+ * @returns {boolean} 같은 파일이면 true. **판정할 수 없으면 false**(호출부가 fail-open 한다).
+ */
+export function isSameFile(inputPath, targetPath, fsProbe) {
+  // ① 파일시스템 신원 — 표기법과 무관하다. 볼륨 GUID·UNC 를 전부 잡는다.
+  if (fsProbe.stat) {
+    const a = identityKey(attempt(() => fsProbe.stat(inputPath)));
+    const b = identityKey(attempt(() => fsProbe.stat(targetPath)));
+    if (a !== null && a === b) return true;
+  }
+
+  // ② realpath 문자열 — ino 를 믿을 수 없는 파일시스템 대비.
+  if (fsProbe.realpath) {
+    const ra = attempt(() => fsProbe.realpath(inputPath));
+    const rb = attempt(() => fsProbe.realpath(targetPath));
+    if (ra && rb && normReal(ra) === normReal(rb)) return true;
+
+    // ②-b 대상이 아직 없을 수 있다(신규 Write). 부모 디렉터리 신원 + 파일명으로 본다.
+    if (!ra || !rb) {
+      const x = splitTail(inputPath);
+      const y = splitTail(targetPath);
+      if (x.base.toLowerCase() === y.base.toLowerCase()) {
+        const da = attempt(() => fsProbe.realpath(x.dir));
+        const db = attempt(() => fsProbe.realpath(y.dir));
+        if (da && db && normReal(da) === normReal(db)) return true;
+      }
+    }
+  }
+
+  // ③ 문자열 정규화 — 파일시스템이 **해석하지 못하는** 표기(MSYS `/f/…`) 전용 마지막 층.
+  return canonical(inputPath) === canonical(targetPath);
 }
 
 /**
- * 편집 대상이 예산 대상 파일인지 판정하고, 맞으면 **정규 이름**(BUDGETS 의 키)을 돌려준다.
+ * 편집 대상이 예산 대상인지 판정하고, 맞으면 **정규 이름**(BUDGETS 의 키)을 돌려준다.
  *
  * 대소문자 조회는 무시하되, **정말 같은 파일인지는 파일시스템에 물어본다** —
  * Windows·macOS 는 `claude.md` 가 CLAUDE.md 와 같은 파일이지만 Linux 는 **다른 파일**이고
  * 그때 막으면 오탐이다.
- *
- * @param {string} rawBase   편집 대상의 basename (원문 대소문자 그대로)
- * @param {string[]} budgetKeys 예산이 걸린 정규 파일명 목록
- * @param {{ listDir: () => string[], exists: (name: string) => boolean }} fsProbe
- *        저장소 루트의 실제 엔트리 목록과 존재 여부. **주입받는 이유는 테스트다** — 위 주석 참조.
- * @returns {string | null} 예산 대상이면 정규 이름, 아니면 null
  */
 export function resolveBudgetName(rawBase, budgetKeys, fsProbe) {
   const match = budgetKeys.find((k) => k.toLowerCase() === String(rawBase).toLowerCase());
   if (match === undefined) return null;
   if (rawBase === match) return match;
 
-  // 대소문자가 다르다 — 같은 파일인가?
   let entries;
   try {
     entries = fsProbe.listDir();
@@ -78,4 +174,9 @@ export function resolveBudgetName(rawBase, budgetKeys, fsProbe) {
   if (entries.includes(rawBase)) return null;
   // 엔트리에 없는데 존재한다면 대소문자 무시 FS → **같은 파일**이다
   return fsProbe.exists(rawBase) ? match : null;
+}
+
+/** 편집 대상의 파일명만 뽑는다(구분자 혼용·표기법 무관). */
+export function baseNameOf(p) {
+  return splitTail(p).base;
 }

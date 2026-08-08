@@ -20,7 +20,7 @@
 // 차단은 stdout의 JSON `permissionDecision: "deny"` 로만 표현한다.
 import fs from 'node:fs';
 import path from 'node:path';
-import { canonical, resolveBudgetName } from './budgetPath.mjs';
+import { isSameFile, resolveBudgetName, baseNameOf } from './budgetPath.mjs';
 
 /**
  * 예산은 **`scripts/doc-budgets.json` 단일 출처**에서 읽는다.
@@ -83,7 +83,9 @@ const input = payload?.tool_input ?? payload?.toolInput ?? {};
 const filePath = input.file_path ?? input.filePath;
 if (!filePath) allow();
 
-const rawBase = path.basename(String(filePath));
+// ⚠️ `path.basename` 을 쓰지 않는다 — Windows 표기법(`\\?\Volume{…}\`)에서 플랫폼별로
+// 결과가 갈린다. 구분자만 보고 자르는 `baseNameOf` 로 통일한다.
+const rawBase = baseNameOf(String(filePath));
 
 // ⚠️ 예산 조회는 **대소문자를 무시해야 한다.**
 //
@@ -105,10 +107,21 @@ if (base === null) allow();
 
 const budget = BUDGETS[base];
 
-// 저장소 루트의 그 파일인지 확인 — 하위 디렉터리의 동명 파일은 대상이 아니다.
-if (canonical(String(filePath)) !== `${canonical(ROOT)}/${base.toLowerCase()}`) allow();
+const real = path.join(ROOT, base);
 
-const real = path.join(ROOT, base); // 읽기는 항상 저장소 루트 기준으로 — 위 비교가 동일성을 보장한다
+// 저장소 루트의 **그 파일**인지 확인 — 하위 디렉터리의 동명 파일은 대상이 아니다.
+//
+// ⚠️ 여기를 문자열 정규화로 하다가 **다섯 번 뚫렸다.** 이제는 표기법을 열거하지 않고
+// **파일시스템에 신원을 묻는다**(`realpath`). 근거·이력은 `budgetPath.mjs` 헤더에 있다.
+if (
+  !isSameFile(String(filePath), real, {
+    stat: (p) => fs.statSync(p),
+    realpath: (p) => fs.realpathSync.native(p),
+  })
+)
+  allow();
+
+// 읽기는 항상 저장소 루트 기준으로 — 위 동일성 확인이 그것을 보장한다
 const before = fs.existsSync(real) ? countLines(fs.readFileSync(real, 'utf8')) : 0;
 
 /** 편집 후 줄 수를 **실제로 계산**한다. 추정하지 않는다. */
