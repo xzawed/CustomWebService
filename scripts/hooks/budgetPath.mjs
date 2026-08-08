@@ -178,5 +178,25 @@ export function resolveBudgetName(rawBase, budgetKeys, fsProbe) {
 
 /** 편집 대상의 파일명만 뽑는다(구분자 혼용·표기법 무관). */
 export function baseNameOf(p) {
-  return splitTail(p).base;
+  return stripAds(splitTail(p).base);
+}
+
+/**
+ * NTFS **대체 데이터 스트림**(ADS) 표기를 벗긴다 — `CLAUDE.md::$DATA` · `CLAUDE.md:stream`.
+ *
+ * 2026-08-08 실측: `fs.writeFileSync('…/CLAUDE.md::$DATA', …)` 는 **원본 파일을 덮는다**
+ * (inode 동일, 부수 엔트리 0). 그런데 훅은 통과시켰다 — `baseNameOf` 가 `CLAUDE.md::$DATA` 를
+ * 내놓아 **예산 이름 조회에서 걸러져 신원 검사에 도달하지 못했기** 때문이다.
+ * (신원 검사까지 갔다면 ino 가 같으므로 막혔다.)
+ *
+ * **현재 도구 표면에서는 악용이 어렵다** — Write/Edit 의 temp+rename 패턴은
+ * `…::$DATA.tmp.<pid>.<hex>` 가 잘못된 스트림 이름이 되어 ENOENT 로 실패한다(실측).
+ * 그래도 막는 이유는 이 저장소의 기준 그대로다 — **강제 게이트에 뚫린 구멍은 게이트가 아니고**,
+ * 그 판정이 하네스 구현 세부(temp+rename 여부)에 기대고 있으면 안 된다.
+ *
+ * 인덱스 0~1 의 콜론은 **드라이브 문자**(`F:CLAUDE.md`)이므로 건드리지 않는다.
+ */
+function stripAds(base) {
+  const i = base.indexOf(':', 2);
+  return i === -1 ? base : base.slice(0, i);
 }

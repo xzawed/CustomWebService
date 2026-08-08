@@ -223,7 +223,20 @@ describe('baseNameOf — 구분자 혼용·표기법 무관', () => {
     [MSYS, 'CLAUDE.md'],
     ['f:/DEV/repo/CLAUDE.md', 'CLAUDE.md'],
     ['CLAUDE.md', 'CLAUDE.md'],
+    // ⚠️ NTFS 대체 데이터 스트림(ADS). 2026-08-08 실측: 이 표기로 쓰면 **원본이 덮인다**
+    // (inode 동일). 벗기지 않으면 예산 이름 조회에서 걸러져 **신원 검사에 도달조차 못 한다.**
+    [`${WIN}::$DATA`, 'CLAUDE.md'],
+    [`${WIN}:hidden`, 'CLAUDE.md'],
+    ['CLAUDE.md::$DATA', 'CLAUDE.md'],
   ])('%s → %s', (input, expected) => {
     expect(baseNameOf(input)).toBe(expected);
+  });
+
+  it('드라이브 문자 콜론은 벗기지 않는다 (통제군 — ADS 처리가 과하게 자르지 않음을 보인다)', () => {
+    expect(baseNameOf('F:CLAUDE.md')).toBe('F:CLAUDE.md');
+  });
+
+  it('콜론이 없는 이름은 그대로 (통제군)', () => {
+    expect(baseNameOf('README.md')).toBe('README.md');
   });
 });
