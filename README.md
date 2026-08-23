@@ -3,12 +3,29 @@
 > 무료 API를 골라 담고, 원하는 서비스를 설명하면 AI가 웹서비스를 자동 생성하고 서브도메인으로 즉시 게시하는 올인원 플랫폼
 
 [![license](https://img.shields.io/badge/license-Proprietary-red?style=flat-square)](./README.md#라이선스)
-[![status](https://img.shields.io/badge/status-v1.0.0%20Live-brightgreen?style=flat-square)](https://xzawed.xyz)
+[![status](https://img.shields.io/badge/status-2026--08--31%20%EC%A2%85%EB%A3%8C%20%EC%98%88%EC%A0%95-critical?style=flat-square)](https://xzawed.xyz)
 [![Next.js](https://img.shields.io/badge/Next.js-16+-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![AI](https://img.shields.io/badge/AI-Claude%20Opus%205-blueviolet?style=flat-square)](https://anthropic.com)
 [![Deploy](https://img.shields.io/badge/Deploy-Railway-8A2BE2?style=flat-square&logo=railway)](https://railway.app)
 
 **🌐 서비스 URL**: [xzawed.xyz](https://xzawed.xyz)
+
+> ## 🛑 서비스 종료 안내 — 2026년 8월 31일
+>
+> **이 서비스는 2026년 8월 31일자로 운영을 종료합니다.**
+> 종료 후에는 계정·프로젝트·게시된 사이트를 포함한 **모든 데이터가 삭제되며 복구할 수 없습니다.**
+>
+> | 항목 | 상태 |
+> |---|---|
+> | AI 코드 생성 | **2026-08-23부로 중단** — 제공자 사용 한도 해제일이 종료일 이후라 재개하지 않습니다 |
+> | 신규 회원가입 | **2026-08-23부로 중단** |
+> | 기존 계정 로그인·조회 | 종료일까지 가능 |
+>
+> **보관이 필요한 데이터가 있다면 종료 전에 내려받아 주세요.** 로그인한 상태에서
+> [`/api/v1/auth/export`](https://xzawed.xyz/api/v1/auth/export) 를 열면 프로젝트와
+> 생성된 코드(HTML/CSS/JS)가 JSON 파일로 내려받아집니다.
+>
+> 아래 내용은 운영 당시의 기록으로 남겨 둡니다.
 
 ---
 
