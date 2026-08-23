@@ -146,6 +146,8 @@ vi.mock('@/lib/auth/verifiedGuard', () => ({
   assertEmailVerified: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@/lib/config/featureFlags', () => ({ isFeatureEnabled: vi.fn(() => true) }));
+
 // ---------- Test data ----------
 const mockUser = { id: 'user-1', email: 'test@test.com', name: null, avatarUrl: null };
 const mockProject = {
@@ -249,6 +251,33 @@ describe('POST /api/v1/generate', () => {
     const { POST } = await import('@/app/api/v1/generate/route');
     const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
     expect(response.status).toBe(401);
+  });
+
+  it('생성 킬스위치가 꺼져 있으면 503을 반환하고 일일 한도를 차감하지 않는다', async () => {
+    const { getAuthUser } = await import('@/lib/auth/index');
+    vi.mocked(getAuthUser).mockResolvedValue(mockUser);
+
+    const { isFeatureEnabled } = await import('@/lib/config/featureFlags');
+    vi.mocked(isFeatureEnabled).mockReturnValue(false);
+
+    const { createRateLimitService } = await import('@/services/factory');
+    const checkAndIncrementDailyLimit = vi.fn();
+    vi.mocked(createRateLimitService).mockReturnValue({
+      checkAndIncrementDailyLimit,
+      decrementDailyLimit: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    try {
+      const { POST } = await import('@/app/api/v1/generate/route');
+      const response = await POST(makeRequest({ projectId: '11111111-1111-4111-a111-111111111111' }));
+
+      expect(response.status).toBe(503);
+      const body = (await response.json()) as { error: { code: string } };
+      expect(body.error.code).toBe('GENERATION_DISABLED');
+      expect(checkAndIncrementDailyLimit).not.toHaveBeenCalled();
+    } finally {
+      vi.mocked(isFeatureEnabled).mockReturnValue(true);
+    }
   });
 
   it('projectId 없으면 400을 반환한다', async () => {

@@ -1,8 +1,13 @@
 # CustomWebService — Claude Code 지침
 
 AI 기반 노코드 플랫폼. 무료 API를 고르고 서비스를 설명하면 AI가 HTML/CSS/JS를 생성해
-서브도메인(`slug.xzawed.xyz`)으로 즉시 게시한다. **프로덕션 운영 중(실사용자)** — 안정화·품질 개선 단계.
+서브도메인(`slug.xzawed.xyz`)으로 즉시 게시한다.
 서비스 <https://xzawed.xyz> · 배포 Railway(단일 인스턴스 · Dockerfile · standalone).
+
+> **⚠️ 2026-08-31자로 운영 종료 예정**(오너 결정, 2026-08-23). 잔여 작업의 기준이 뒤집혔다 —
+> **신규 기능·무료 키 발급·심사·유지보수성 투자는 착수하지 않는다.** 남는 것은 종료 절차뿐이고
+> 그 목록은 [WBS](docs/superpowers/plans/2026-07-31-project-wbs.md)의 「2026-08-31 종료로 드롭」 절이 진실원이다.
+> AI 생성은 Anthropic 한도가 **2026-09-01**에야 풀려 남은 기간 내내 불가능하다 → `enable_generation` 내림.
 
 ## 이 파일의 예산 — 220줄 (2026-08-07)
 
@@ -182,16 +187,12 @@ ADR은 "왜 이렇게 됐는지"이고 **대부분 이미 한 번 사고가 난 
 
 ## 백로그 · 상시 결정
 
-잔여 작업은 **[WBS](docs/superpowers/plans/2026-07-31-project-wbs.md)가 진실원**이다.
-[#216](https://github.com/xzawed/CustomWebService/issues/216)은 트리거 미충족이면 착수하지 않는다.
+**종료가 확정된 뒤로 잔여 작업의 대부분은 "하지 않기로 한 것"이다.** 진실원은
+[WBS](docs/superpowers/plans/2026-07-31-project-wbs.md)의 「2026-08-31 종료로 드롭」 절.
+무료 키 발급(B3(a)·A8(a))·심사(B5)·#216·커버리지/복잡도 투자는 **다시 올리지 말 것**.
 
 **돈이 드는 신규 완화·기능은 제안하지도, 잔여 작업으로 남기지도 않는다**(2026-08-01).
-"오너 액션 대기"가 아니라 **하지 않기로 한 것**으로 표기한다 — 유료 DR(볼륨 백업·S3·Litestream),
-Sentry SaaS. 단 **셋을 혼동하지 말 것**: ① 신규 유료 완화 = 제외 · ② 기존 운영비(Anthropic·
-Railway·Resend) = 정상 · ③ **무료** 가입·심사(NASA·data.go.kr·Unsplash) = 오너 ops로 살아 있다.
-
-**무과금 원칙**(2026-08-04 오너 재확인) → Open-Meteo 상업 라이선스 미사용(CC BY 4.0 그대로) ·
-**다국어(i18n)는 계획 없음**으로 종결(재검토 트리거 없음).
+유료 DR·Sentry SaaS는 "오너 액션 대기"가 아니라 **하지 않기로 한 것**이다.
 **수용한 잔여 위험**: 볼륨이 사라지고 오프라인 사본이 없으면 **복구 절차가 없다** ·
 [operations.md](docs/guides/operations.md)
 

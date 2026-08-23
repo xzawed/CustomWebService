@@ -1,5 +1,6 @@
 import { getAuthUser } from '@/lib/auth/index';
 import { isFeatureEnabled } from '@/lib/config/featureFlags';
+import { GENERATION_DISABLED_MESSAGE } from '@/lib/constants/shutdown';
 import { createProjectService, createCatalogService, createRateLimitService } from '@/services/factory';
 import { createCodeRepository, createProjectRepository } from '@/repositories/factory';
 import { registerEventPersister } from '@/lib/events/eventPersister';
@@ -40,7 +41,7 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json(
         {
           success: false,
-          error: { code: 'GENERATION_DISABLED', message: '생성 기능이 일시 중단되었습니다.' },
+          error: { code: 'GENERATION_DISABLED', message: GENERATION_DISABLED_MESSAGE },
         },
         { status: 503 },
       );
