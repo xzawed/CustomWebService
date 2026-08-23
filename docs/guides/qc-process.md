@@ -199,7 +199,7 @@ ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 # ... 이후 기존 Dockerfile 내용 동일
 ```
 
-**2. Railway 메모리 확인** — Chromium 실행 시 인스턴스당 ~300MB 추가 필요. Railway 무료 티어(512MB)에서는 **메모리 부족 우려**. 유료 플랜($5/월 이상) 전환 후 활성화 권장.
+**2. Railway 메모리 확인** — Chromium 실행 시 인스턴스당 ~300MB 추가 필요. Railway 무료 티어(512MB)에서는 **메모리 부족 우려**. ~~유료 플랜($5/월 이상) 전환 후 활성화 권장.~~ → **권장하지 않는다.** 이 저장소는 무과금 원칙이고, 2026-08-31 서비스 종료가 확정됐다. 렌더링 QC를 위해 플랜을 올리지 말 것.
 
 **3. 환경변수 설정**: Railway Dashboard → Variables → `ENABLE_RENDERING_QC=true`
 

@@ -62,7 +62,7 @@ ADR은 "왜 이렇게 됐는지"이고 **대부분 이미 한 번 사고가 난 
 | State | Zustand (관심사별 분리 스토어 + persist) |
 | Form | React 로컬 상태(`useState`) + Zod(서버 검증) — React Hook Form 미사용 |
 | Database | 임베디드 SQLite (better-sqlite3 + drizzle-orm, WAL · Railway Volume `/data/app.db`) |
-| Auth | Auth.js v5 (Credentials + JWT 무상태) — 공개 회원가입 · scrypt · 이메일 인증 게이트 |
+| Auth | Auth.js v5 (Credentials + JWT 무상태) — 공개 회원가입(**종료로 차단됨**) · scrypt · 이메일 인증 게이트 |
 | AI | Claude API (Anthropic SDK · `claude-opus-5` 기본 · 조건부 Extended Thinking) |
 | Testing | Vitest · happy-dom · MSW · Playwright(E2E) |
 | CI/CD | GitHub Actions → lint → type-check → **test:coverage** → build → E2E |
