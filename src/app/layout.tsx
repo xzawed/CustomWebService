@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
 import './globals.css';
 import { ThemeProvider } from '@/providers/ThemeProvider';
+import { ShutdownBanner } from '@/components/layout/ShutdownBanner';
 import { SessionProvider } from 'next-auth/react';
 
 export const viewport: Viewport = {
@@ -23,7 +24,12 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const nonce = (await headers()).get('x-nonce') ?? '';
-  const app = <ThemeProvider>{children}</ThemeProvider>;
+  const app = (
+    <ThemeProvider>
+      <ShutdownBanner />
+      {children}
+    </ThemeProvider>
+  );
 
   return (
     <html lang="ko" data-theme="sky">

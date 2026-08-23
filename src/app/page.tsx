@@ -11,7 +11,10 @@ export default async function LandingPage() {
   return (
     <div className="min-h-screen noise">
       {/* ── Header ──────────────────────────────────────── */}
-      <header className="glass-strong fixed left-0 right-0 top-0 z-50">
+      {/* sticky여야 한다 — fixed로 되돌리면 흐름을 벗어나 뷰포트 최상단에 붙고
+          루트 레이아웃의 종료 공지 배너(ShutdownBanner)를 덮어 글자가 안 읽힌다.
+          단위 테스트는 이걸 못 잡는다(DOM에는 배너가 있다). 2026-08-23 실제 렌더로 확인. */}
+      <header className="glass-strong sticky top-0 z-50">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <h1 className="text-xl font-bold tracking-tight">
             <span className="gradient-text">Custom</span>
@@ -32,7 +35,7 @@ export default async function LandingPage() {
       </header>
 
       {/* ── Hero ────────────────────────────────────────── */}
-      <section className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 pt-20">
+      <section className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 pt-8">
         {/* Aurora background */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="animate-aurora absolute -left-64 top-0 h-[700px] w-[700px] rounded-full bg-cyan-500/[0.06] blur-[120px]" />
