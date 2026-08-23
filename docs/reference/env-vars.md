@@ -19,7 +19,7 @@
 
 ## Database (SQLite)
 
-임베디드 SQLite. 부팅 시 `instrumentation.ts → bootstrapSqlite`가 마이그레이션(`drizzle/sqlite`) → 카탈로그/플래그 시드를 멱등 실행한다. (`seedAdminUser`는 다중 사용자 전환으로 제거됨 — 첫 사용자는 `/signup`으로 생성)
+임베디드 SQLite. 부팅 시 `instrumentation.ts → bootstrapSqlite`가 마이그레이션(`drizzle/sqlite`) → 카탈로그/플래그 시드를 멱등 실행한다. (`seedAdminUser`는 다중 사용자 전환으로 제거됨 — 첫 사용자는 `/signup`으로 생성. ⚠️ **2026-08-23부터 `enable_signup` 킬스위치가 내려가 있어 이 경로로는 계정이 만들어지지 않는다**(503 `SIGNUP_DISABLED`) — 2026-08-31 종료)
 
 | 변수 | 기본값 | Railway | 설명 |
 |------|--------|---------|------|
@@ -73,7 +73,7 @@ DB 어댑터 없는 JWT 무상태 세션. 공개 셀프서비스 회원가입, D
 | `EMAIL_FROM` | 선택 | ➖ | 이메일 발신자 주소 (예: `noreply@xzawed.xyz`). `RESEND_API_KEY` 설정 시 필수. 도메인 SPF/DKIM 설정 필요(Resend 대시보드). ⚠️ 빈 문자열이면 `?? 기본값` 폴백이 안 됨(null/undefined만 폴백) → 발송 실패하므로 반드시 값 지정. 도메인 미인증 시 `onboarding@resend.dev`는 Resend 가입 계정 이메일로만 발송 |
 | `APP_URL` | 권장 | ✅ `https://xzawed.xyz` | 이메일 링크(인증·비밀번호 재설정)의 공개 base URL. 미설정 시 `NEXT_PUBLIC_ROOT_DOMAIN` → 요청 origin 순으로 폴백. 프록시(Railway) 뒤에서 링크가 내부 주소(`0.0.0.0:8080`)로 잡히는 문제 방지 + 요청 호스트 헤더를 신뢰하지 않아 reset-password poisoning 차단 (`getBaseUrl`, `src/lib/auth/routeHelpers.ts`). Auth.js의 `AUTH_URL`과 역할이 다르다 |
 
-> **제거된 변수 (2026-06-24)**: `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH`, `ADMIN_NAME`, `ADMIN_USER_ID` — env 단일 관리자 경로 완전 제거. 계정은 `/signup` 공개 회원가입으로 생성.
+> **제거된 변수 (2026-06-24)**: `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH`, `ADMIN_NAME`, `ADMIN_USER_ID` — env 단일 관리자 경로 완전 제거. 계정은 `/signup` 공개 회원가입으로 생성. ⚠️ 그 경로는 **현재 킬스위치로 막혀 있다**(위 참조).
 > **유지**: `ADMIN_API_KEY`(진단 엔드포인트 `/api/v1/admin/*` 보호 — 사용자 인증과 무관, 아래 보안 섹션 참조).
 
 ---
